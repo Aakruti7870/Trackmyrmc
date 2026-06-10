@@ -7,6 +7,7 @@ import challanRoutes from '../routes/challans.js';
 import clientRoutes from '../routes/clients.js';
 import driverRoutes from '../routes/drivers.js';
 import eventsRoutes from '../routes/events.js';
+import orderRoutes from '../routes/orders.js';
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
 // app.listen and registers background intervals).
@@ -23,5 +24,6 @@ export function buildTestApp() {
     app.use('/api/clients', clientRoutes);
     app.use('/api/drivers', driverRoutes);
     app.use('/api/events', eventsRoutes);
+    app.use('/api/orders', orderRoutes);
     return app;
 }
