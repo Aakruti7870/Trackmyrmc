@@ -32,7 +32,7 @@ function ToastOverlay({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: numb
       display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'none',
     }}>
       {toasts.map(t => (
-        <div key={t.id} style={{
+        <div key={t.id} data-toast-type={t.type} style={{
           background: t.type === 'error' ? 'rgba(239,68,68,.15)' : t.type === 'success' ? 'color-mix(in srgb, var(--green) 16%, transparent)' : 'rgba(38,52,73,.95)',
           border: `1px solid ${t.type === 'error' ? '#ef444444' : t.type === 'success' ? 'color-mix(in srgb, var(--green) 40%, transparent)' : 'var(--line)'}`,
           borderRadius: 12, padding: '12px 16px',
