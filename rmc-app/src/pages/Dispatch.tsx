@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, X, Printer, Check, Truck, StickyNote, Camera } from 'lucide-react';
+import { Plus, Search, X, Printer, Check, Truck, StickyNote, Camera, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
@@ -23,10 +23,14 @@ export default function Dispatch() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [photoView, setPhotoView] = useState<{ challanNo: string; srcs: string[]; loading: boolean } | null>(null);
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const [photoZoom, setPhotoZoom] = useState(false);
 
   const { subscribe } = useSSE();
 
   async function viewProof(ch: Challan) {
+    setPhotoIdx(0);
+    setPhotoZoom(false);
     setPhotoView({ challanNo: ch.challanNo, srcs: [], loading: true });
     try {
       const full = await api.get<Challan>(`/challans/${ch.id}`);
@@ -59,6 +63,17 @@ export default function Dispatch() {
     const unsub3 = subscribe('reconnect', () => { loadAll(); });
     return () => { unsub1(); unsub2(); unsub3(); };
   }, [subscribe, load, loadAll]);
+
+  useEffect(() => {
+    if (!photoView || photoView.loading || photoView.srcs.length <= 1) return;
+    const n = photoView.srcs.length;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowRight') setPhotoIdx(i => (i + 1) % n);
+      else if (e.key === 'ArrowLeft') setPhotoIdx(i => (i - 1 + n) % n);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [photoView]);
 
   async function loadSites(clientId: string) {
     if (!clientId) return setSites([]);
@@ -357,15 +372,51 @@ export default function Dispatch() {
             {photoView.loading ? (
               <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)' }}>Loading photos…</div>
             ) : photoView.srcs.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {photoView.srcs.length > 1 && (
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{photoView.srcs.length} photos</div>
-                )}
-                {photoView.srcs.map((src, i) => (
-                  <img key={i} src={src} alt={`Proof of delivery ${i + 1} for ${photoView.challanNo}`}
-                    style={{ width: '100%', borderRadius: 10, display: 'block' }} />
-                ))}
-              </div>
+              (() => {
+                const n = photoView.srcs.length;
+                const cur = Math.min(photoIdx, n - 1);
+                const go = (d: number) => { setPhotoZoom(false); setPhotoIdx((cur + d + n) % n); };
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {n > 1 && (
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>Photo {cur + 1} of {n}</div>
+                    )}
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img src={photoView.srcs[cur]} alt={`Proof of delivery ${cur + 1} for ${photoView.challanNo}`}
+                        onClick={() => setPhotoZoom(z => !z)}
+                        style={{ width: '100%', borderRadius: 10, display: 'block', cursor: 'zoom-in', maxHeight: photoZoom ? 'none' : '60vh', objectFit: 'contain' }} />
+                      {!photoZoom && (
+                        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,.55)', borderRadius: 8, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#fff', pointerEvents: 'none' }}>
+                          <ZoomIn size={13} /> Click to zoom
+                        </div>
+                      )}
+                      {n > 1 && (
+                        <>
+                          <button onClick={() => go(-1)} aria-label="Previous photo"
+                            style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,.6)', border: '1px solid var(--line)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+                            <ChevronLeft size={20} />
+                          </button>
+                          <button onClick={() => go(1)} aria-label="Next photo"
+                            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,.6)', border: '1px solid var(--line)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+                            <ChevronRight size={20} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {n > 1 && (
+                      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                        {photoView.srcs.map((src, i) => (
+                          <button key={i} onClick={() => { setPhotoZoom(false); setPhotoIdx(i); }} aria-label={`View photo ${i + 1}`}
+                            style={{ flex: '0 0 auto', padding: 0, background: 'none', border: i === cur ? '2px solid var(--gold)' : '2px solid transparent', borderRadius: 8, cursor: 'pointer', lineHeight: 0 }}>
+                            <img src={src} alt={`Thumbnail ${i + 1}`}
+                              style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, opacity: i === cur ? 1 : 0.6, display: 'block' }} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
             ) : (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--red)' }}>No photo available</div>
             )}
