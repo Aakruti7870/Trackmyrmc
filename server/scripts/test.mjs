@@ -76,7 +76,7 @@ console.log(`[test] Running ${testFiles.length} test file(s)...`);
 // other's data (duplicate keys, stale rows) on the single shared test database.
 const run = spawnSync(
   'node',
-  ['--import', 'tsx', '--test', '--test-concurrency=1', '--test-reporter', 'spec', ...testFiles],
+  ['--import', 'tsx', '--experimental-test-module-mocks', '--test', '--test-concurrency=1', '--test-reporter', 'spec', ...testFiles],
   { stdio: 'inherit', env, cwd: serverDir },
 );
 process.exit(run.status ?? 1);
