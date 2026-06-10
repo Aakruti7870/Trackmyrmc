@@ -26,17 +26,29 @@ function fmtDist(m: number): string {
 }
 
 function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
-  challan: Challan; onMarkDelivered: (id: number) => void; tracking: boolean; liveDistanceM?: number | null;
+  challan: Challan; onMarkDelivered: (id: number, notes?: string) => void; tracking: boolean; liveDistanceM?: number | null;
 }) {
   const s = STATUS_STYLES[challan.status] || STATUS_STYLES.pending;
   const StatusIcon = s.icon;
   const isActionable = challan.status === 'dispatched';
   const [marking, setMarking] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [recipient, setRecipient] = useState('');
+  const [note, setNote] = useState('');
   const hasPin = challan.siteLat != null && challan.siteLng != null;
+
+  function composeNotes(): string | undefined {
+    const r = recipient.trim();
+    const n = note.trim();
+    if (r && n) return `Received by ${r}. ${n}`;
+    if (r) return `Received by ${r}.`;
+    if (n) return n;
+    return undefined;
+  }
 
   async function handleMark() {
     setMarking(true);
-    try { await onMarkDelivered(challan.id); } finally { setMarking(false); }
+    try { await onMarkDelivered(challan.id, composeNotes()); } finally { setMarking(false); }
   }
 
   return (
@@ -122,20 +134,82 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
       </div>
 
       {isActionable && (
-        <button
-          onClick={handleMark}
-          disabled={marking}
-          style={{
-            width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', cursor: marking ? 'not-allowed' : 'pointer',
-            background: marking ? 'rgba(34,197,94,.2)' : 'linear-gradient(135deg,#16a34a,var(--green))',
-            color: '#fff', fontSize: 13, fontWeight: 700,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            boxShadow: marking ? 'none' : '0 4px 16px rgba(34,197,94,.3)', transition: 'all .2s',
-          }}
-        >
-          <CheckCircle size={15} />
-          {marking ? 'Marking…' : 'Mark as Delivered'}
-        </button>
+        !showForm ? (
+          <button
+            onClick={() => setShowForm(true)}
+            style={{
+              width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg,#16a34a,var(--green))',
+              color: '#fff', fontSize: 13, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              boxShadow: '0 4px 16px rgba(34,197,94,.3)', transition: 'all .2s',
+            }}
+          >
+            <CheckCircle size={15} />
+            Mark as Delivered
+          </button>
+        ) : (
+          <div style={{
+            padding: 14, borderRadius: 12, background: 'rgba(34,197,94,.06)',
+            border: '1px solid color-mix(in srgb, var(--green) 22%, transparent)',
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CheckCircle size={14} /> Proof of delivery
+            </div>
+            <label style={{ display: 'block', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Received by (optional)</label>
+            <input
+              value={recipient}
+              onChange={e => setRecipient(e.target.value)}
+              placeholder="Recipient name"
+              disabled={marking}
+              style={{
+                width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 10,
+                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+                color: 'var(--text)', fontSize: 13, boxSizing: 'border-box',
+              }}
+            />
+            <label style={{ display: 'block', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Delivery note (optional)</label>
+            <textarea
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="e.g. delivered full quantity, site contact verified"
+              rows={2}
+              disabled={marking}
+              style={{
+                width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 12,
+                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+                color: 'var(--text)', fontSize: 13, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => { setShowForm(false); }}
+                disabled={marking}
+                style={{
+                  flex: '0 0 auto', padding: '10px 16px', borderRadius: 9, cursor: marking ? 'not-allowed' : 'pointer',
+                  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+                  color: 'var(--muted)', fontSize: 13, fontWeight: 700,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMark}
+                disabled={marking}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 9, border: 'none', cursor: marking ? 'not-allowed' : 'pointer',
+                  background: marking ? 'rgba(34,197,94,.2)' : 'linear-gradient(135deg,#16a34a,var(--green))',
+                  color: '#fff', fontSize: 13, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  boxShadow: marking ? 'none' : '0 4px 16px rgba(34,197,94,.3)', transition: 'all .2s',
+                }}
+              >
+                <CheckCircle size={15} />
+                {marking ? 'Confirming…' : 'Confirm Delivery'}
+              </button>
+            </div>
+          </div>
+        )
       )}
     </div>
   );
@@ -259,11 +333,14 @@ export default function MyTrips() {
 
   useEffect(() => { load(viewAll); }, [load, viewAll]);
 
-  async function handleMarkDelivered(id: number) {
-    await api.put(`/challans/${id}`, { status: 'delivered' });
+  async function handleMarkDelivered(id: number, notes?: string) {
+    const updated = await api.put<Challan>(`/challans/${id}`, { status: 'delivered', ...(notes ? { notes } : {}) });
     let challanNo = '';
     setChallans(prev => prev.map(c => {
-      if (c.id === id) { challanNo = c.challanNo; return { ...c, status: 'delivered', deliveryTime: new Date().toISOString() }; }
+      if (c.id === id) {
+        challanNo = c.challanNo;
+        return { ...c, status: 'delivered', deliveryTime: updated.deliveryTime ?? new Date().toISOString(), notes: updated.notes };
+      }
       return c;
     }));
     setConfirmation(`${challanNo} marked as delivered`);

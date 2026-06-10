@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, X, Printer, Check, Truck } from 'lucide-react';
+import { Plus, Search, X, Printer, Check, Truck, StickyNote } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
@@ -166,7 +166,18 @@ export default function Dispatch() {
             <tbody>
               {filtered.map(ch => (
                 <tr key={ch.id} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
-                  <td style={{ padding: '11px 14px', color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace' }}>#{ch.challanNo}</td>
+                  <td style={{ padding: '11px 14px', color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace' }}>
+                    #{ch.challanNo}
+                    {ch.notes && (
+                      <div style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 5, maxWidth: 220,
+                        color: 'var(--muted)', fontFamily: 'inherit', fontWeight: 500, fontSize: 11, whiteSpace: 'normal',
+                      }}>
+                        <StickyNote size={11} style={{ color: 'var(--blue)', flexShrink: 0, marginTop: 1 }} />
+                        <span>{ch.notes}</span>
+                      </div>
+                    )}
+                  </td>
                   <td style={{ padding: '11px 14px', fontWeight: 600 }}>{ch.clientName}</td>
                   <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontSize: 11, color: 'var(--muted)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>

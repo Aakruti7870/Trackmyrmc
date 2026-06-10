@@ -97,7 +97,7 @@ router.put('/:id', async (req, res) => {
     const role = req.user.role;
     const challanId = +req.params.id;
     if (role === 'driver') {
-        const { status, deliveryTime } = req.body;
+        const { status, deliveryTime, notes } = req.body;
         if (!DRIVER_ALLOWED_STATUS.includes(status)) {
             res.status(403).json({ error: 'Drivers may only mark challans as delivered' });
             return;
@@ -108,14 +108,23 @@ router.put('/:id', async (req, res) => {
             res.status(403).json({ error: 'Driver profile not found' });
             return;
         }
-        const [challan] = await db.select({ driverId: challans.driverId })
+        const [challan] = await db.select({ driverId: challans.driverId, notes: challans.notes })
             .from(challans).where(eq(challans.id, challanId)).limit(1);
         if (!challan || challan.driverId !== driver[0].id) {
             res.status(403).json({ error: 'Not assigned to this challan' });
             return;
         }
+        const updateData = {
+            status: 'delivered',
+            deliveryTime: deliveryTime ? new Date(deliveryTime) : new Date(),
+        };
+        if (typeof notes === 'string' && notes.trim()) {
+            const deliveryNote = notes.trim();
+            const existing = challan.notes?.trim();
+            updateData.notes = existing ? `${existing}\n${deliveryNote}` : deliveryNote;
+        }
         const [row] = await db.update(challans)
-            .set({ status: 'delivered', deliveryTime: deliveryTime ? new Date(deliveryTime) : new Date() })
+            .set(updateData)
             .where(eq(challans.id, challanId)).returning();
         emitSSEEvent('challan.updated', row);
         res.json(row);
