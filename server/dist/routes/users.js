@@ -542,9 +542,23 @@ router.post('/restore-all', async (req, res) => {
             });
             continue;
         }
-        await db.update(users)
-            .set({ deletedAt: null, isActive: true })
-            .where(eq(users.id, u.id));
+        // Even though findLinkConflict already checked, a race (or another row
+        // restored earlier in this same batch) could still trip the partial unique
+        // index. Catch the 23505 per row so one conflicting account is skipped with
+        // the friendly reason instead of aborting the whole batch with a 500.
+        try {
+            await db.update(users)
+                .set({ deletedAt: null, isActive: true })
+                .where(eq(users.id, u.id));
+        }
+        catch (err) {
+            const message = linkUniqueViolationMessage(err);
+            if (message) {
+                skippedDetails.push({ id: u.id, email: u.email, reason: message });
+                continue;
+            }
+            throw err;
+        }
         await db.insert(auditLogs).values({
             actorId: actor.id,
             actorName: actor.name,

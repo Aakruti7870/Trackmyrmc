@@ -580,7 +580,11 @@ router.post('/restore-all', async (req, res) => {
   let restored = 0;
   const skippedDetails: {
     id: number; email: string; reason: string;
-    conflictUserId: number; conflictUserName: string; conflictLinkType: 'client' | 'driver';
+    // Conflict metadata is only known when the application-level pre-check
+    // (findLinkConflict) identifies the holding account. A row caught by the raw
+    // DB 23505 path only knows the friendly message, so these stay optional —
+    // matching the frontend's SkippedRestoreItem shape.
+    conflictUserId?: number; conflictUserName?: string; conflictLinkType?: 'client' | 'driver';
   }[] = [];
 
   for (const u of deleted) {
@@ -595,9 +599,22 @@ router.post('/restore-all', async (req, res) => {
       continue;
     }
 
-    await db.update(users)
-      .set({ deletedAt: null, isActive: true })
-      .where(eq(users.id, u.id));
+    // Even though findLinkConflict already checked, a race (or another row
+    // restored earlier in this same batch) could still trip the partial unique
+    // index. Catch the 23505 per row so one conflicting account is skipped with
+    // the friendly reason instead of aborting the whole batch with a 500.
+    try {
+      await db.update(users)
+        .set({ deletedAt: null, isActive: true })
+        .where(eq(users.id, u.id));
+    } catch (err) {
+      const message = linkUniqueViolationMessage(err);
+      if (message) {
+        skippedDetails.push({ id: u.id, email: u.email, reason: message });
+        continue;
+      }
+      throw err;
+    }
 
     await db.insert(auditLogs).values({
       actorId: actor.id,

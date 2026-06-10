@@ -1158,6 +1158,80 @@ test('restore-all: a link conflict is skipped with a reason while the rest still
   assert.equal(skippedLogs.length, 0, 'a skipped account writes no restore audit entry');
 });
 
+test('restore-all: a row that trips the DB link constraint (23505) is skipped, the rest still restore', async (t) => {
+  // findLinkConflict already pre-checks each row, but a race (or a write that
+  // slips in between the check and the update) could still trip the partial
+  // unique index and raise a raw Postgres 23505. The per-row update must catch
+  // that and record the row in skippedDetails rather than aborting the batch
+  // with a 500. We simulate the race by making the first per-row update throw a
+  // 23505 while the remaining rows update normally.
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const token = tokenFor(admin);
+
+  const racer = await createUser({
+    name: 'Racer', email: 'racer@test.com', role: 'client',
+    isActive: false, deletedAt: new Date(),
+  });
+  const cleanA = await createUser({
+    name: 'Clean A', email: 'clean-a@test.com', role: 'dispatcher',
+    isActive: false, deletedAt: new Date(),
+  });
+  const cleanB = await createUser({
+    name: 'Clean B', email: 'clean-b@test.com', role: 'plant_operator',
+    isActive: false, deletedAt: new Date(),
+  });
+
+  // Rows are restored in ascending-id order, so `racer` (created first) is the
+  // first per-row update. Make only that update reject with a fake 23505 on the
+  // client-link index; every other update delegates to the real driver.
+  const originalUpdate = db.update.bind(db);
+  let updateCalls = 0;
+  t.mock.method(db, 'update', (table: Parameters<typeof originalUpdate>[0]) => {
+    updateCalls += 1;
+    if (updateCalls === 1) {
+      return {
+        set() { return this; },
+        where() {
+          return Promise.reject(Object.assign(new Error('duplicate key value'), {
+            code: '23505',
+            constraint: 'users_linked_client_unique',
+          }));
+        },
+      } as unknown as ReturnType<typeof originalUpdate>;
+    }
+    return originalUpdate(table);
+  });
+
+  const res = await request(app)
+    .post('/api/users/restore-all')
+    .set('Authorization', `Bearer ${token}`)
+    .send({});
+  assert.equal(res.status, 200, 'the batch still succeeds — one bad row does not 500 it');
+  assert.equal(res.body.restored, 2, 'the two clean accounts restore');
+  assert.equal(res.body.skipped, 1, 'the row that hit the DB constraint is skipped');
+  assert.equal(res.body.skippedDetails.length, 1);
+  assert.equal(res.body.skippedDetails[0].id, racer.id);
+  assert.match(res.body.skippedDetails[0].reason, /already linked/i,
+    'the skip carries the same friendly link-conflict reason');
+
+  // The racer stays soft-deleted; both clean accounts are restored.
+  const [stillGone] = await db.select({ deletedAt: users.deletedAt }).from(users).where(eq(users.id, racer.id));
+  assert.ok(stillGone.deletedAt instanceof Date, 'the constraint-tripping account stays deleted');
+  for (const id of [cleanA.id, cleanB.id]) {
+    const [row] = await db.select({ deletedAt: users.deletedAt, isActive: users.isActive })
+      .from(users).where(eq(users.id, id));
+    assert.equal(row.deletedAt, null, `clean account ${id} is restored`);
+    assert.equal(row.isActive, true, `clean account ${id} is reactivated`);
+  }
+
+  // No user.restored entry was written for the skipped account; one each for the rest.
+  const skippedLogs = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, racer.id)));
+  assert.equal(skippedLogs.length, 0, 'a constraint-skipped account writes no restore audit entry');
+  const restoredLogs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.restored'));
+  assert.equal(restoredLogs.length, 2, 'one user.restored entry per actually-restored account');
+});
+
 test('restore-all: with an empty trash returns zero counts and writes nothing', async () => {
   const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
   await createUser({ name: 'Active', email: 'active@test.com', role: 'dispatcher' });
