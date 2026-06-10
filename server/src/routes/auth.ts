@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
+import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.js';
 
 const router = Router();
 
@@ -13,16 +14,39 @@ router.post('/login', async (req, res) => {
     res.status(400).json({ error: 'Email and password required' });
     return;
   }
-  const [user] = await db.select().from(users).where(eq(users.email, email));
+
+  const lockoutKey = `login:${email.toLowerCase().trim()}`;
+  const { locked, retryAfterMs } = isLockedOut(lockoutKey);
+  if (locked) {
+    const minutes = Math.ceil(retryAfterMs! / 60000);
+    res.status(429).json({
+      error: `Account temporarily locked due to too many failed attempts. Try again in ${minutes} minute${minutes !== 1 ? 's' : ''}.`,
+    });
+    return;
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
   if (!user || !user.isActive) {
+    recordFailure(lockoutKey);
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) {
+    recordFailure(lockoutKey);
+    const { locked: nowLocked, retryAfterMs: retryMs } = isLockedOut(lockoutKey);
+    if (nowLocked) {
+      const minutes = Math.ceil(retryMs! / 60000);
+      res.status(429).json({
+        error: `Too many failed attempts. Account locked for ${minutes} minute${minutes !== 1 ? 's' : ''}.`,
+      });
+      return;
+    }
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
+
+  resetAttempts(lockoutKey);
   const token = signToken({
     id: user.id, email: user.email, role: user.role, name: user.name,
     linkedClientId: user.linkedClientId,
@@ -99,11 +123,33 @@ router.put('/change-password', requireAuth, async (req, res) => {
     res.status(400).json({ error: 'currentPassword must be a string' });
     return;
   }
+
+  const lockoutKey = `change-password:${user.id}`;
+  const { locked, retryAfterMs } = isLockedOut(lockoutKey);
+  if (locked) {
+    const minutes = Math.ceil(retryAfterMs! / 60000);
+    res.status(429).json({
+      error: `Too many failed attempts. Try again in ${minutes} minute${minutes !== 1 ? 's' : ''}.`,
+    });
+    return;
+  }
+
   const match = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!match) {
+    recordFailure(lockoutKey);
+    const { locked: nowLocked, retryAfterMs: retryMs } = isLockedOut(lockoutKey);
+    if (nowLocked) {
+      const minutes = Math.ceil(retryMs! / 60000);
+      res.status(429).json({
+        error: `Too many failed attempts. Account locked for ${minutes} minute${minutes !== 1 ? 's' : ''}.`,
+      });
+      return;
+    }
     res.status(400).json({ error: 'Current password is incorrect' });
     return;
   }
+
+  resetAttempts(lockoutKey);
   const newHash = await bcrypt.hash(newPassword, 10);
   await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
   res.json({ message: 'Password updated successfully' });
