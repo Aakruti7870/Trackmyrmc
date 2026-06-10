@@ -124,6 +124,14 @@ function formatDate(iso: string) {
   return d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+/** Format a remaining-time span (ms) as mm:ss, clamped at zero. */
+function formatCountdown(ms: number) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 /** Human-readable label for an audit account reference (actor or target). */
 function accountLabel(id: number | null, label: string | null) {
   const text = label?.trim();
@@ -237,9 +245,16 @@ export default function Users() {
   useEffect(() => {
     if (!anyLocked) return;
     const id = setInterval(() => {
-      setNow(Date.now());
       api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
     }, 30000);
+    return () => clearInterval(id);
+  }, [anyLocked]);
+
+  // Tick `now` every second while an account is locked so the badge can show a
+  // live mm:ss countdown derived from `lockedUntil` between the 30s polls.
+  useEffect(() => {
+    if (!anyLocked) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [anyLocked]);
 
@@ -931,6 +946,7 @@ export default function Users() {
               // moves the badge into its "expiring soon" state on its own.
               const lockMsLeft = lockout?.lockedUntil ? lockout.lockedUntil - now : 0;
               const lockExpiringSoon = isLocked && lockMsLeft > 0 && lockMsLeft <= 120000;
+              const lockCountdown = isLocked && lockMsLeft > 0 ? formatCountdown(lockMsLeft) : null;
               return (
                 <tr key={u.id} style={{
                   borderBottom: '1px solid rgba(255,255,255,.05)',
@@ -996,8 +1012,10 @@ export default function Users() {
                         <span
                           title={
                             lockExpiringSoon
-                              ? `Unlocking soon${lockExpiry ? ` (around ${lockExpiry})` : ''} — under 2 minutes left`
-                              : lockExpiry ? `Locked until ${lockExpiry}` : 'Locked'
+                              ? `Unlocking in ${lockCountdown ?? '0:00'}${lockExpiry ? ` (around ${lockExpiry})` : ''}`
+                              : lockCountdown
+                                ? `Unlocking in ${lockCountdown}${lockExpiry ? ` (around ${lockExpiry})` : ''}`
+                                : lockExpiry ? `Locked until ${lockExpiry}` : 'Locked'
                           }
                           style={{
                             padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
@@ -1005,11 +1023,14 @@ export default function Users() {
                             color: lockExpiringSoon ? '#facc15' : '#f97316',
                             border: `1px solid ${lockExpiringSoon ? '#facc1545' : '#f9731635'}`,
                             whiteSpace: 'nowrap',
+                            fontVariantNumeric: 'tabular-nums',
                           }}
                         >
                           {lockExpiringSoon
-                            ? `⏳ Unlocking soon${lockExpiry ? ` · ${lockExpiry}` : ''}`
-                            : `🔒 Locked${lockExpiry ? ` until ${lockExpiry}` : ''}`}
+                            ? `⏳ Unlocking in ${lockCountdown ?? '0:00'}`
+                            : lockCountdown
+                              ? `🔒 Locked · ${lockCountdown}`
+                              : `🔒 Locked${lockExpiry ? ` until ${lockExpiry}` : ''}`}
                         </span>
                       )}
                     </div>
