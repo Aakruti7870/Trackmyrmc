@@ -224,6 +224,34 @@ test('restore: POST /:id/restore un-deletes the user, relists them, and writes u
     assert.equal(login.status, 200, 'restored user can log in again');
     assert.ok(login.token, 'a token is issued after restore');
 });
+test('unlock: POST /:id/unlock writes a lockout_cleared audit entry naming the acting admin and target', async () => {
+    const admin = await createUser({ name: 'Admin Unlock', email: 'unlock-admin@test.com', role: 'admin' });
+    const target = await createUser({ name: 'Locked User', email: 'locked@test.com', role: 'dispatcher' });
+    const token = tokenFor(admin);
+    const res = await request(app)
+        .post(`/api/users/${target.id}/unlock`)
+        .set('Authorization', `Bearer ${token}`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { ok: true, userId: target.id });
+    const logs = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.action, 'lockout_cleared'), eq(auditLogs.targetUserId, target.id)));
+    assert.equal(logs.length, 1, 'exactly one lockout_cleared audit entry should exist');
+    assert.equal(logs[0].actorId, admin.id, 'audit entry records the acting admin');
+    assert.equal(logs[0].actorName, admin.name);
+    assert.equal(logs[0].targetUserEmail, target.email, 'audit entry records the target user');
+    assert.ok(logs[0].createdAt instanceof Date, 'audit entry records a timestamp');
+});
+test('unlock: returns 404 for a non-existent user and writes no audit entry', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const token = tokenFor(admin);
+    const res = await request(app)
+        .post('/api/users/999999/unlock')
+        .set('Authorization', `Bearer ${token}`);
+    assert.equal(res.status, 404);
+    const logs = await db.select().from(auditLogs)
+        .where(eq(auditLogs.action, 'lockout_cleared'));
+    assert.equal(logs.length, 0, 'no audit entry should be written when the unlock target does not exist');
+});
 test('restore: returns 404 for a non-deleted user and a non-existent id', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const active = await createUser({ name: 'Active User', email: 'active@test.com', role: 'dispatcher' });

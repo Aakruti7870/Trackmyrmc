@@ -89,7 +89,18 @@ router.post('/:id/unlock', async (req, res) => {
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
   const lockoutKey = `login:${user.email.toLowerCase().trim()}`;
-  resetAttempts(lockoutKey);
+  await resetAttempts(lockoutKey);
+
+  const actor = req.user!;
+  await db.insert(auditLogs).values({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'lockout_cleared',
+    targetUserId: user.id,
+    targetUserEmail: user.email,
+    detail: 'Account unlocked',
+  });
+
   res.json({ ok: true, userId: user.id });
 });
 
