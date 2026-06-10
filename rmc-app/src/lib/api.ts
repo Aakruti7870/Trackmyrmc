@@ -4,6 +4,14 @@ function getToken() {
   return localStorage.getItem('rmc_token') || '';
 }
 
+function clearSessionAndRedirect() {
+  localStorage.removeItem('rmc_token');
+  localStorage.removeItem('rmc_user');
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
@@ -15,10 +23,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   });
   if (res.status === 401) {
-    localStorage.removeItem('rmc_token');
-    localStorage.removeItem('rmc_user');
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+    const err = await res.json().catch(() => ({ error: 'Unauthorized' }));
+    // Only force a logout when the failed call was actually authenticated.
+    // A 401 from an unauthenticated request (e.g. wrong password on /auth/login)
+    // should surface its error so the caller can display it.
+    if (token) {
+      clearSessionAndRedirect();
+    }
+    throw new Error(err.error || 'Unauthorized');
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
