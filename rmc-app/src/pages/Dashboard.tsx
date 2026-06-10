@@ -3,6 +3,7 @@ import { Link } from 'wouter';
 import { TrendingUp, Package, Clock, Users, ArrowRight, Truck } from 'lucide-react';
 import { orderStore, challanStore, clientStore, vehicleStore } from '@/lib/store';
 import type { Challan, Order } from '@/lib/types';
+import LiveGPSTracker from '@/components/LiveGPSTracker';
 
 export default function Dashboard() {
   const [challans, setChallans] = useState<Challan[]>([]);
@@ -79,32 +80,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Hero — 3D Plant + Copy */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr .9fr', gap: 16, marginBottom: 16 }} className="max-lg:!block">
-        <div className="glass-card" style={{ padding: 28 }}>
-          <h3 style={{ margin: '0 0 10px', fontSize: 28, fontWeight: 900, letterSpacing: '-1px', lineHeight: 1.05 }}>
-            Premium 3D RMC<br />Command Centre
-          </h3>
-          <p style={{ color: '#9fb0c7', maxWidth: 520, lineHeight: 1.6, marginBottom: 20 }}>
-            Dark navy concrete-grey golden-amber and plant-green design system. Manage orders, dispatch, clients, vehicles and batch records in one place.
-          </p>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Link href="/orders">
-              <button style={{
-                borderRadius: 12, padding: '10px 18px', fontSize: 14, fontWeight: 700,
-                background: 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)',
-                color: '#111827', boxShadow: '0 12px 30px rgba(255,183,3,.18)'
-              }}>Book Order</button>
-            </Link>
-            <Link href="/dispatch">
-              <button style={{
-                borderRadius: 12, padding: '10px 18px', fontSize: 14, fontWeight: 700,
-                background: 'linear-gradient(135deg,#86efac,#22c55e 48%,#15803d)',
-                color: '#052e16'
-              }}>Create Challan</button>
-            </Link>
-          </div>
-        </div>
+      {/* Hero — Live GPS + 3D Plant */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.15fr .85fr', gap: 16, marginBottom: 16 }}>
+        <LiveGPSTracker />
 
         <div className="plant-viewport">
           <div className="plant-stage">
