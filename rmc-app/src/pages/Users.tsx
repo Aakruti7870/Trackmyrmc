@@ -192,6 +192,11 @@ export default function Users() {
     loadAudit(historyUser?.id ?? null);
     api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
   }
+  // Reload the page's core data (and the selected user's audit log) when the
+  // deleted-filter toggles or the inspected user changes. The audit-filter
+  // inputs are intentionally excluded here — they are handled by the effect
+  // below — so this effect's dependency list stays deliberately narrow.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [showDeleted, historyUser?.id]);
 
   // Re-fetch the audit log when any of the activity-log filters change.
