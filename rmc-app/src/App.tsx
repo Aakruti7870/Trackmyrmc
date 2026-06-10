@@ -21,6 +21,7 @@ import MyOrders from '@/pages/MyOrders';
 import MyTrips from '@/pages/MyTrips';
 import Users from '@/pages/Users';
 import ActivityLog from '@/pages/ActivityLog';
+import AuditLog from '@/pages/AuditLog';
 import ProfileSettings from '@/pages/ProfileSettings';
 import Kiosk from '@/pages/Kiosk';
 import { canAccess, defaultPath } from '@/lib/permissions';
@@ -93,6 +94,7 @@ function ProtectedRoutes() {
         <Route path="/shift-report" component={() => <GuardedRoute path="/shift-report" component={ShiftReport} />} />
         <Route path="/users"        component={() => <GuardedRoute path="/users"        component={Users}           />} />
         <Route path="/activity-log" component={() => <GuardedRoute path="/activity-log" component={ActivityLog}      />} />
+        <Route path="/audit-log"    component={() => <GuardedRoute path="/audit-log"    component={AuditLog}        />} />
         <Route path="/profile"      component={() => <GuardedRoute path="/profile"      component={ProfileSettings} />} />
         <Route path="/challans/:id/print" component={() => <GuardedRoute path="/challans" component={ChallanPrint} />} />
         <Route><Redirect to={defaultPath(user.role)} /></Route>

@@ -2,7 +2,7 @@ import { Link, useLocation } from 'wouter';
 import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
-  ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck,
+  ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -28,6 +28,7 @@ const ALL_NAV_ITEMS = [
   { path: '/shift-report', label: 'Shift Report', icon: ClipboardCheck },
   { path: '/users',       label: 'Users',      icon: ShieldCheck },
   { path: '/activity-log', label: 'Activity Log', icon: History },
+  { path: '/audit-log',   label: 'Audit Log',  icon: ScrollText },
 ];
 
 const ROLE_COLOR: Record<string, string> = {
