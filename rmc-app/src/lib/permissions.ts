@@ -1,11 +1,11 @@
 export type Role = 'admin' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
-  admin: ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/mix-design', '/reports'],
-  dispatcher: ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/reports'],
+  admin:          ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/mix-design', '/reports', '/challans'],
+  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/reports', '/challans'],
   plant_operator: ['/', '/batch-report', '/mix-design'],
-  client: ['/my-orders'],
-  driver: ['/my-trips'],
+  client:         ['/my-orders', '/challans'],
+  driver:         ['/my-trips', '/challans'],
 };
 
 export const ROLE_DEFAULT_PATH: Record<Role, string> = {

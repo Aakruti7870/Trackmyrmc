@@ -1,5 +1,7 @@
 import { Route, Switch, Redirect } from 'wouter';
+import { useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { ToastProvider, useToast } from '@/lib/toast';
 import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
@@ -24,10 +26,17 @@ function GuardedRoute({
   component: React.ComponentType;
 }) {
   const { user } = useAuth();
+  const { showToast } = useToast();
+  const allowed = user ? canAccess(user.role, path) : false;
+
+  useEffect(() => {
+    if (user && !allowed) {
+      showToast('You are not authorized to view that page.', 'error');
+    }
+  }, [user, allowed, showToast]);
+
   if (!user) return null;
-  if (!canAccess(user.role, path)) {
-    return <Redirect to={defaultPath(user.role)} />;
-  }
+  if (!allowed) return <Redirect to={defaultPath(user.role)} />;
   return <Component />;
 }
 
@@ -63,7 +72,7 @@ function ProtectedRoutes() {
         <Route path="/batch-report" component={() => <GuardedRoute path="/batch-report" component={BatchReport} />} />
         <Route path="/mix-design"   component={() => <GuardedRoute path="/mix-design"   component={MixDesign}   />} />
         <Route path="/reports"      component={() => <GuardedRoute path="/reports"      component={Reports}     />} />
-        <Route path="/challans/:id/print" component={ChallanPrint} />
+        <Route path="/challans/:id/print" component={() => <GuardedRoute path="/challans" component={ChallanPrint} />} />
         <Route><Redirect to={defaultPath(user.role)} /></Route>
       </Switch>
     </Layout>
@@ -79,10 +88,12 @@ function LoginRoute() {
 export default function App() {
   return (
     <AuthProvider>
-      <Switch>
-        <Route path="/login" component={LoginRoute} />
-        <Route component={ProtectedRoutes} />
-      </Switch>
+      <ToastProvider>
+        <Switch>
+          <Route path="/login" component={LoginRoute} />
+          <Route component={ProtectedRoutes} />
+        </Switch>
+      </ToastProvider>
     </AuthProvider>
   );
 }

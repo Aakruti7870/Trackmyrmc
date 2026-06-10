@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, gte, lte, and } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { clients, orders, challans, sites, vehicles, drivers } from '../db/schema.js';
-import { requireAuth } from '../middleware/auth.js';
+import { clients, orders, challans, sites, vehicles, drivers, ledgerEntries } from '../db/schema.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -22,7 +22,7 @@ const challanSelect = {
   driverPhone: drivers.phone,
 };
 
-router.get('/orders', async (req, res) => {
+router.get('/orders', requireRole('client'), async (req, res) => {
   const client = await db.select().from(clients)
     .where(eq(clients.email, req.user!.email)).limit(1);
   if (!client.length) { res.json([]); return; }
@@ -42,7 +42,7 @@ router.get('/orders', async (req, res) => {
   res.json(rows);
 });
 
-router.get('/challans', async (req, res) => {
+router.get('/challans', requireRole('client'), async (req, res) => {
   const client = await db.select().from(clients)
     .where(eq(clients.email, req.user!.email)).limit(1);
   if (!client.length) { res.json([]); return; }
@@ -57,18 +57,49 @@ router.get('/challans', async (req, res) => {
   res.json(rows);
 });
 
-router.get('/trips', async (req, res) => {
+router.get('/ledger', requireRole('client'), async (req, res) => {
+  const client = await db.select().from(clients)
+    .where(eq(clients.email, req.user!.email)).limit(1);
+  if (!client.length) { res.json({ entries: [], balance: 0 }); return; }
+
+  const rows = await db.select().from(ledgerEntries)
+    .where(eq(ledgerEntries.clientId, client[0].id))
+    .orderBy(desc(ledgerEntries.createdAt));
+
+  let balance = 0;
+  const withBalance = rows.map(e => {
+    balance += e.type === 'debit' ? parseFloat(e.amount) : -parseFloat(e.amount);
+    return { ...e, runningBalance: balance };
+  });
+
+  res.json({
+    entries: withBalance,
+    outstanding: parseFloat(client[0].outstandingAmount ?? '0'),
+    creditLimit: parseFloat(client[0].creditLimit ?? '0'),
+  });
+});
+
+router.get('/trips', requireRole('driver'), async (req, res) => {
   const driver = await db.select().from(drivers)
     .where(eq(drivers.name, req.user!.name)).limit(1);
+
   if (!driver.length) {
-    const all = await db.select(challanSelect).from(challans)
-      .leftJoin(clients, eq(challans.clientId, clients.id))
-      .leftJoin(sites, eq(challans.siteId, sites.id))
-      .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
-      .leftJoin(drivers, eq(challans.driverId, drivers.id))
-      .orderBy(desc(challans.createdAt))
-      .limit(20);
-    res.json(all); return;
+    res.json([]);
+    return;
+  }
+
+  const { from, to } = req.query;
+  const filters: ReturnType<typeof eq>[] = [eq(challans.driverId, driver[0].id)];
+
+  if (from) {
+    filters.push(gte(challans.dispatchTime, new Date(from as string)));
+  } else {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    filters.push(gte(challans.dispatchTime, todayStart));
+  }
+  if (to) {
+    filters.push(lte(challans.dispatchTime, new Date(to as string)));
   }
 
   const rows = await db.select(challanSelect).from(challans)
@@ -76,8 +107,8 @@ router.get('/trips', async (req, res) => {
     .leftJoin(sites, eq(challans.siteId, sites.id))
     .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
     .leftJoin(drivers, eq(challans.driverId, drivers.id))
-    .where(eq(challans.driverId, driver[0].id))
-    .orderBy(desc(challans.createdAt));
+    .where(and(...filters))
+    .orderBy(desc(challans.dispatchTime));
   res.json(rows);
 });
 
