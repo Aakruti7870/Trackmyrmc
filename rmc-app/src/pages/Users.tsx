@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle } from 'lucide-react';
-import { api } from '@/lib/api';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
 
@@ -13,6 +13,7 @@ type UserRecord = {
   linkedClientId: number | null;
   linkedDriverId: number | null;
   createdAt: string;
+  deletedAt: string | null;
   auditCount: number;
 };
 
@@ -60,6 +61,7 @@ const ACTION_LABEL: Record<string, string> = {
   driver_link_change: 'Driver Link Changed',
   'user.created': 'Account Created',
   'user.deleted': 'Account Deleted',
+  'user.restored': 'Account Restored',
 };
 
 const ACTION_COLOR: Record<string, string> = {
@@ -73,6 +75,7 @@ const ACTION_COLOR: Record<string, string> = {
   driver_link_change: '#f97316',
   'user.created': '#22c55e',
   'user.deleted': '#ef4444',
+  'user.restored': '#22c55e',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -153,6 +156,10 @@ export default function Users() {
   const [historyUser, setHistoryUser] = useState<UserRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletedCount, setDeletedCount] = useState(0);
+  const [softDeletedMatch, setSoftDeletedMatch] = useState<{ id: number; name: string } | null>(null);
+  const [restoringId, setRestoringId] = useState<number | null>(null);
 
   function loadAudit(userId: number | null) {
     const url = userId ? `/users/audit-log?userId=${userId}` : '/users/audit-log';
@@ -160,13 +167,14 @@ export default function Users() {
   }
 
   function load() {
-    api.get<UserRecord[]>('/users').then(setUsers).catch(() => {});
+    api.get<UserRecord[]>(showDeleted ? '/users?deleted=true' : '/users').then(setUsers).catch(() => {});
+    api.get<UserRecord[]>('/users?deleted=true').then(d => setDeletedCount(d.length)).catch(() => {});
     api.get<LinkOption[]>('/users/clients-list').then(setClientOptions).catch(() => {});
     api.get<LinkOption[]>('/users/drivers-list').then(setDriverOptions).catch(() => {});
     loadAudit(historyUser?.id ?? null);
     api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
   }
-  useEffect(load, []);
+  useEffect(load, [showDeleted]);
 
   function viewHistory(u: UserRecord) {
     setHistoryUser(u);
@@ -192,6 +200,36 @@ export default function Users() {
     }
   }
 
+  async function restore(u: UserRecord) {
+    setRestoringId(u.id);
+    try {
+      await api.post(`/users/${u.id}/restore`, {});
+      showToast(`${u.name}'s account has been restored.`, 'success');
+      load();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to restore account.', 'error');
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  async function restoreFromCreate() {
+    if (!softDeletedMatch) return;
+    setSaving(true); setError('');
+    try {
+      await api.post(`/users/${softDeletedMatch.id}/restore`, {});
+      showToast(`${softDeletedMatch.name}'s account has been restored.`, 'success');
+      setSoftDeletedMatch(null);
+      setModal(null);
+      setShowDeleted(false);
+      load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to restore account.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -212,6 +250,7 @@ export default function Users() {
     setForm(emptyForm());
     setEditing(null);
     setError('');
+    setSoftDeletedMatch(null);
     setShowPassword(false);
     setModal('create');
   }
@@ -229,7 +268,7 @@ export default function Users() {
   }
 
   async function save() {
-    setSaving(true); setError('');
+    setSaving(true); setError(''); setSoftDeletedMatch(null);
     try {
       if (modal === 'create') {
         if (!form.password || form.password.length < 6) {
@@ -259,7 +298,15 @@ export default function Users() {
       }
       load(); setModal(null);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'An error occurred');
+      if (e instanceof ApiError && e.data?.code === 'email_soft_deleted') {
+        setSoftDeletedMatch({
+          id: Number(e.data.deletedUserId),
+          name: String(e.data.deletedUserName ?? 'this account'),
+        });
+        setError(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : 'An error occurred');
+      }
     } finally { setSaving(false); }
   }
 
@@ -319,7 +366,9 @@ export default function Users() {
             <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>User Management</h2>
           </div>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>
-            {users.filter(u => u.isActive).length} active · {users.length} total accounts
+            {showDeleted
+              ? `${users.length} deleted ${users.length === 1 ? 'account' : 'accounts'}`
+              : `${users.filter(u => u.isActive).length} active · ${users.length} total accounts`}
           </p>
         </div>
         <button onClick={openCreate} style={{
@@ -348,6 +397,20 @@ export default function Users() {
           <option value="all">All Roles</option>
           {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
         </select>
+        <button
+          onClick={() => setShowDeleted(s => !s)}
+          title={showDeleted ? 'Show active accounts' : 'Show deleted accounts'}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+            borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+            background: showDeleted ? 'rgba(239,68,68,.14)' : 'rgba(255,255,255,.05)',
+            border: `1px solid ${showDeleted ? 'rgba(239,68,68,.3)' : 'rgba(255,255,255,.1)'}`,
+            color: showDeleted ? '#ef4444' : 'var(--muted)',
+          }}
+        >
+          <Trash2 size={13} />
+          {showDeleted ? 'Showing Deleted' : `Deleted${deletedCount ? ` (${deletedCount})` : ''}`}
+        </button>
       </div>
 
       {/* Table */}
@@ -413,6 +476,14 @@ export default function Users() {
                   </td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start' }}>
+                      {showDeleted ? (
+                        <span title={u.deletedAt ? `Deleted ${formatDate(u.deletedAt)}` : 'Deleted'} style={{
+                          padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                          background: '#ef444420', color: 'var(--red)', border: '1px solid #ef444435', whiteSpace: 'nowrap',
+                        }}>
+                          Deleted{u.deletedAt ? ` · ${formatDate(u.deletedAt)}` : ''}
+                        </span>
+                      ) : (
                       <button
                         onClick={() => toggleActive(u)}
                         style={{
@@ -424,7 +495,8 @@ export default function Users() {
                       >
                         {u.isActive ? 'Active' : 'Inactive'}
                       </button>
-                      {isLocked && (
+                      )}
+                      {!showDeleted && isLocked && (
                         <span title={lockExpiry ? `Locked until ${lockExpiry}` : 'Locked'} style={{
                           padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
                           background: '#f9731620', color: '#f97316',
@@ -439,6 +511,40 @@ export default function Users() {
                   <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{linked}</td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
+                      {showDeleted ? (
+                        <>
+                          <button
+                            onClick={() => restore(u)}
+                            disabled={restoringId === u.id}
+                            title="Restore account"
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 5,
+                              background: restoringId === u.id ? 'rgba(34,197,94,.1)' : 'rgba(34,197,94,.15)',
+                              border: '1px solid rgba(34,197,94,.3)',
+                              borderRadius: 7, color: 'var(--green)',
+                              cursor: restoringId === u.id ? 'not-allowed' : 'pointer',
+                              padding: '5px 10px', fontSize: 11, fontWeight: 700,
+                            }}
+                          >
+                            <RotateCcw size={12} />
+                            {restoringId === u.id ? 'Restoring…' : 'Restore'}
+                          </button>
+                          <button
+                            onClick={() => viewHistory(u)}
+                            title={`View activity history (${u.auditCount} ${u.auditCount === 1 ? 'entry' : 'entries'})`}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 5,
+                              background: historyUser?.id === u.id ? 'rgba(247,201,72,.16)' : 'rgba(247,201,72,.08)',
+                              border: `1px solid ${historyUser?.id === u.id ? 'rgba(247,201,72,.4)' : 'rgba(247,201,72,.18)'}`,
+                              borderRadius: 7, color: 'var(--gold)', cursor: 'pointer', padding: '5px 8px', fontSize: 11, fontWeight: 700,
+                            }}
+                          >
+                            <History size={13} />
+                            {u.auditCount}
+                          </button>
+                        </>
+                      ) : (
+                      <>
                       {isLocked && (
                         <button
                           onClick={() => unlock(u)}
@@ -512,6 +618,8 @@ export default function Users() {
                       >
                         <Trash2 size={13} />
                       </button>
+                      </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -778,6 +886,21 @@ export default function Users() {
               {error && (
                 <div style={{ padding: '10px 14px', background: '#ef444420', border: '1px solid #ef444440', borderRadius: 8, color: 'var(--red)', fontSize: 13 }}>
                   {error}
+                  {softDeletedMatch && (
+                    <button
+                      onClick={restoreFromCreate}
+                      disabled={saving}
+                      style={{
+                        marginTop: 10, width: '100%', padding: '9px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.35)',
+                        borderRadius: 8, color: 'var(--green)', fontWeight: 700, fontSize: 13,
+                        cursor: saving ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      <RotateCcw size={14} /> Restore {softDeletedMatch.name}'s account
+                    </button>
+                  )}
                 </div>
               )}
 

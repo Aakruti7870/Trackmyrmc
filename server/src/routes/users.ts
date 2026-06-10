@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, asc, desc, sql, isNull, and } from 'drizzle-orm';
+import { eq, asc, desc, sql, isNull, isNotNull, and } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/index.js';
@@ -34,7 +34,7 @@ const updateSchema = z.object({
 function safeUser(u: {
   id: number; name: string; email: string; role: string;
   isActive: boolean; linkedClientId: number | null; linkedDriverId: number | null;
-  createdAt: Date;
+  createdAt: Date; deletedAt?: Date | null;
 }) {
   return {
     id: u.id, name: u.name, email: u.email, role: u.role,
@@ -42,17 +42,22 @@ function safeUser(u: {
     linkedClientId: u.linkedClientId,
     linkedDriverId: u.linkedDriverId,
     createdAt: u.createdAt,
+    deletedAt: u.deletedAt ?? null,
   };
 }
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
+  const deletedOnly = req.query.deleted === 'true';
   const rows = await db.select({
     id: users.id, name: users.name, email: users.email, role: users.role,
     isActive: users.isActive,
     linkedClientId: users.linkedClientId,
     linkedDriverId: users.linkedDriverId,
     createdAt: users.createdAt,
-  }).from(users).where(isNull(users.deletedAt)).orderBy(asc(users.createdAt));
+    deletedAt: users.deletedAt,
+  }).from(users)
+    .where(deletedOnly ? isNotNull(users.deletedAt) : isNull(users.deletedAt))
+    .orderBy(deletedOnly ? desc(users.deletedAt) : asc(users.createdAt));
 
   const counts = await db.select({
     targetUserId: auditLogs.targetUserId,
@@ -135,9 +140,19 @@ router.post('/', async (req, res) => {
   }
   const { name, email, password, role, linkedClientId, linkedDriverId } = parse.data;
 
-  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
+  const [existing] = await db.select({ id: users.id, name: users.name, deletedAt: users.deletedAt })
+    .from(users).where(eq(users.email, email));
   if (existing) {
-    res.status(409).json({ error: 'Email already in use' });
+    if (existing.deletedAt) {
+      res.status(409).json({
+        error: `An account with this email was previously deleted (${existing.name}). Restore it instead of creating a new one.`,
+        code: 'email_soft_deleted',
+        deletedUserId: existing.id,
+        deletedUserName: existing.name,
+      });
+    } else {
+      res.status(409).json({ error: 'Email already in use' });
+    }
     return;
   }
 
@@ -355,6 +370,36 @@ router.delete('/:id', async (req, res) => {
     .where(eq(users.id, id));
 
   res.json({ ok: true, userId: user.id });
+});
+
+router.post('/:id/restore', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const [user] = await db.select({
+    id: users.id, email: users.email, deletedAt: users.deletedAt,
+  }).from(users).where(eq(users.id, id));
+  if (!user || !user.deletedAt) {
+    res.status(404).json({ error: 'Deleted account not found' });
+    return;
+  }
+
+  const actor = req.user!;
+  const [restored] = await db.update(users)
+    .set({ deletedAt: null, isActive: true })
+    .where(eq(users.id, id))
+    .returning();
+
+  await db.insert(auditLogs).values({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'user.restored',
+    targetUserId: user.id,
+    targetUserEmail: user.email,
+    detail: 'Account restored and reactivated',
+  });
+
+  res.json(safeUser(restored));
 });
 
 export default router;

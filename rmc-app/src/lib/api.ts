@@ -1,5 +1,16 @@
 const BASE = '/api';
 
+export class ApiError extends Error {
+  status: number;
+  data: Record<string, unknown>;
+  constructor(message: string, status: number, data: Record<string, unknown>) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
+
 function getToken() {
   return localStorage.getItem('rmc_token') || '';
 }
@@ -34,7 +45,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || res.statusText);
+    throw new ApiError(err.error || res.statusText, res.status, err);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
