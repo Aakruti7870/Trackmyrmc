@@ -17,6 +17,7 @@ import ChallanPrint from '@/pages/ChallanPrint';
 import MyOrders from '@/pages/MyOrders';
 import MyTrips from '@/pages/MyTrips';
 import Users from '@/pages/Users';
+import ProfileSettings from '@/pages/ProfileSettings';
 import { canAccess, defaultPath } from '@/lib/permissions';
 
 function GuardedRoute({
@@ -73,7 +74,8 @@ function ProtectedRoutes() {
         <Route path="/batch-report" component={() => <GuardedRoute path="/batch-report" component={BatchReport} />} />
         <Route path="/mix-design"   component={() => <GuardedRoute path="/mix-design"   component={MixDesign}   />} />
         <Route path="/reports"      component={() => <GuardedRoute path="/reports"      component={Reports}     />} />
-        <Route path="/users"        component={() => <GuardedRoute path="/users"        component={Users}       />} />
+        <Route path="/users"        component={() => <GuardedRoute path="/users"        component={Users}           />} />
+        <Route path="/profile"      component={() => <GuardedRoute path="/profile"      component={ProfileSettings} />} />
         <Route path="/challans/:id/print" component={() => <GuardedRoute path="/challans" component={ChallanPrint} />} />
         <Route><Redirect to={defaultPath(user.role)} /></Route>
       </Switch>

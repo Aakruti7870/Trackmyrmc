@@ -2,7 +2,7 @@ import { Link, useLocation } from 'wouter';
 import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
-  ChevronDown, PackageSearch, Route, ShieldCheck,
+  ChevronDown, PackageSearch, Route, ShieldCheck, Settings,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -166,6 +166,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             marginTop: 4, background: 'rgba(13,25,48,.95)', border: '1px solid #263449',
             borderRadius: 10, overflow: 'hidden',
           }}>
+            <Link
+              href="/profile"
+              onClick={() => { setUserMenuOpen(false); setMobileOpen(false); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                width: '100%', padding: '10px 14px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#9fb0c7', fontSize: 13, fontWeight: 600,
+                textDecoration: 'none', boxSizing: 'border-box',
+              }}
+            >
+              <Settings size={14} />
+              Account Settings
+            </Link>
             <button
               onClick={() => { logout(); setUserMenuOpen(false); }}
               style={{
@@ -173,6 +187,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 width: '100%', padding: '10px 14px',
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: '#ef4444', fontSize: 13, fontWeight: 600,
+                borderTop: '1px solid #1e2f47',
               }}
             >
               <LogOut size={14} />
