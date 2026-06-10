@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { db } from '../db/index.js';
 import { auditLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { sendTestEmail, getSmtpSettings, SMTP_KEYS } from '../lib/email.js';
+import { sendTestEmail, getSmtpSettings, verifySmtpConnection, SMTP_KEYS } from '../lib/email.js';
 import { setSetting } from '../lib/settings.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 const router = Router();
@@ -65,6 +65,19 @@ router.post('/smtp-settings', async (req, res) => {
         console.error('[admin] Failed to write SMTP settings audit log:', err);
     }
     res.json(settings);
+});
+// Verify the supplied SMTP values connect to the mail server without persisting
+// them. Mirrors the save contract: a blank password (or any blank field) falls
+// back to the currently stored value, so admins can test before saving.
+router.post('/smtp-settings/verify', async (req, res) => {
+    const parse = smtpSettingsSchema.safeParse(req.body);
+    if (!parse.success) {
+        res.status(400).json({ ok: false, error: parse.error.flatten().fieldErrors });
+        return;
+    }
+    const { host, port, user, from, pass } = parse.data;
+    const result = await verifySmtpConnection({ host, port, user, from, pass });
+    res.status(result.ok ? 200 : 502).json(result);
 });
 router.post('/email-test', async (req, res) => {
     const user = req.user;
