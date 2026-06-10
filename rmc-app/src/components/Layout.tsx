@@ -262,7 +262,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
           display: 'flex', flexDirection: 'column',
         }}>
-          <SidebarContent />
+          {SidebarContent()}
         </aside>
 
         {/* Mobile overlay */}
@@ -278,7 +278,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform .25s ease',
         }}>
-          <SidebarContent />
+          {SidebarContent()}
         </div>
 
         <main style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
