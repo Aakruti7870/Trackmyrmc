@@ -21,6 +21,13 @@ type Facets = {
   actors: { id: number; name: string | null }[];
 };
 
+type AuditPage = {
+  rows: AuditEntry[];
+  hasMore: boolean;
+};
+
+const PAGE_SIZE = 100;
+
 const ACTION_LABEL: Record<string, string> = {
   password_reset: 'Password Reset',
   lockout_cleared: 'Lockout Cleared',
@@ -103,30 +110,56 @@ type Filters = {
 
 const emptyFilters: Filters = { q: '', action: '', actorId: '', from: '', to: '' };
 
+function buildParams(f: Filters, offset: number) {
+  const params = new URLSearchParams();
+  if (f.q.trim()) params.set('q', f.q.trim());
+  if (f.action) params.set('action', f.action);
+  if (f.actorId) params.set('actorId', f.actorId);
+  if (f.from) params.set('from', f.from);
+  if (f.to) params.set('to', f.to);
+  params.set('limit', String(PAGE_SIZE));
+  params.set('offset', String(offset));
+  return params.toString();
+}
+
 export default function ActivityLog() {
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [facets, setFacets] = useState<Facets>({ actions: [], actors: [] });
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     api.get<Facets>('/audit-logs/facets').then(setFacets).catch(() => {});
   }, []);
 
+  // Load the first page whenever the filters change (replaces the list).
   const fetchLogs = useCallback((f: Filters) => {
-    const params = new URLSearchParams();
-    if (f.q.trim()) params.set('q', f.q.trim());
-    if (f.action) params.set('action', f.action);
-    if (f.actorId) params.set('actorId', f.actorId);
-    if (f.from) params.set('from', f.from);
-    if (f.to) params.set('to', f.to);
-    const qs = params.toString();
     setLoading(true);
-    api.get<AuditEntry[]>(`/audit-logs${qs ? `?${qs}` : ''}`)
-      .then(setLogs)
-      .catch(() => setLogs([]))
+    api.get<AuditPage>(`/audit-logs?${buildParams(f, 0)}`)
+      .then(page => {
+        setLogs(page.rows);
+        setHasMore(page.hasMore);
+      })
+      .catch(() => {
+        setLogs([]);
+        setHasMore(false);
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  // Append the next page, keeping the current filters and existing rows.
+  const loadMore = useCallback(() => {
+    setLoadingMore(true);
+    api.get<AuditPage>(`/audit-logs?${buildParams(filters, logs.length)}`)
+      .then(page => {
+        setLogs(prev => [...prev, ...page.rows]);
+        setHasMore(page.hasMore);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }, [filters, logs.length]);
 
   // Debounce so typing in the free-text box doesn't fire a request per keystroke.
   useEffect(() => {
@@ -154,7 +187,7 @@ export default function ActivityLog() {
           </div>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>
             Every account and email event across the system, newest first
-            {logs.length ? ` · ${logs.length} ${logs.length === 1 ? 'entry' : 'entries'}` : ''}
+            {logs.length ? ` · ${logs.length}${hasMore ? '+' : ''} ${logs.length === 1 ? 'entry' : 'entries'}` : ''}
           </p>
         </div>
       </div>
@@ -327,6 +360,28 @@ export default function ActivityLog() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!loading && logs.length > 0 && hasMore && (
+          <div style={{
+            display: 'flex', justifyContent: 'center', padding: '16px',
+            borderTop: '1px solid rgba(255,255,255,.06)',
+          }}>
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '9px 20px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+                cursor: loadingMore ? 'default' : 'pointer', opacity: loadingMore ? 0.6 : 1,
+                background: 'color-mix(in srgb, var(--gold) 14%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)',
+                color: 'var(--gold)',
+              }}
+            >
+              {loadingMore ? 'Loading…' : 'Load more'}
+            </button>
           </div>
         )}
       </div>

@@ -90,11 +90,12 @@ test('returns the full trail across target types, newest first', async () => {
     .get('/api/audit-logs')
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(res.status, 200);
-  assert.equal(res.body.length, 3);
+  assert.equal(res.body.rows.length, 3);
+  assert.equal(res.body.hasMore, false);
   // newest first
-  assert.equal(res.body[0].action, 'password_reset');
-  assert.equal(res.body[1].action, 'role_change');
-  assert.equal(res.body[2].action, 'user.created');
+  assert.equal(res.body.rows[0].action, 'password_reset');
+  assert.equal(res.body.rows[1].action, 'role_change');
+  assert.equal(res.body.rows[2].action, 'user.created');
 });
 
 test('filters by action type', async () => {
@@ -109,8 +110,8 @@ test('filters by action type', async () => {
     .get('/api/audit-logs?action=password_reset')
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(res.status, 200);
-  assert.equal(res.body.length, 2);
-  assert.ok(res.body.every((r: { action: string }) => r.action === 'password_reset'));
+  assert.equal(res.body.rows.length, 2);
+  assert.ok(res.body.rows.every((r: { action: string }) => r.action === 'password_reset'));
 });
 
 test('filters by multiple actions (comma-separated)', async () => {
@@ -125,8 +126,8 @@ test('filters by multiple actions (comma-separated)', async () => {
     .get('/api/audit-logs?action=user.created,user.deleted')
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(res.status, 200);
-  assert.equal(res.body.length, 2);
-  assert.ok(res.body.every((r: { action: string }) => r.action !== 'password_reset'));
+  assert.equal(res.body.rows.length, 2);
+  assert.ok(res.body.rows.every((r: { action: string }) => r.action !== 'password_reset'));
 });
 
 test('filters by actor', async () => {
@@ -141,8 +142,8 @@ test('filters by actor', async () => {
     .get(`/api/audit-logs?actorId=${admin.id}`)
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(res.status, 200);
-  assert.equal(res.body.length, 1);
-  assert.equal(res.body[0].actorId, admin.id);
+  assert.equal(res.body.rows.length, 1);
+  assert.equal(res.body.rows[0].actorId, admin.id);
 });
 
 test('filters by date range (inclusive of whole end day)', async () => {
@@ -157,8 +158,8 @@ test('filters by date range (inclusive of whole end day)', async () => {
     .get('/api/audit-logs?from=2026-02-01&to=2026-02-28')
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(res.status, 200);
-  assert.equal(res.body.length, 1);
-  assert.equal(res.body[0].targetUserEmail, 'mid@x.com');
+  assert.equal(res.body.rows.length, 1);
+  assert.equal(res.body.rows[0].targetUserEmail, 'mid@x.com');
 });
 
 test('free-text search matches actor, target email and detail', async () => {
@@ -172,20 +173,20 @@ test('free-text search matches actor, target email and detail', async () => {
   const byEmail = await request(app)
     .get('/api/audit-logs?q=find@example')
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
-  assert.equal(byEmail.body.length, 1);
-  assert.equal(byEmail.body[0].targetUserEmail, 'find@example.com');
+  assert.equal(byEmail.body.rows.length, 1);
+  assert.equal(byEmail.body.rows[0].targetUserEmail, 'find@example.com');
 
   const byDetail = await request(app)
     .get('/api/audit-logs?q=driver')
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
-  assert.equal(byDetail.body.length, 1);
-  assert.equal(byDetail.body[0].actorName, 'Bob');
+  assert.equal(byDetail.body.rows.length, 1);
+  assert.equal(byDetail.body.rows[0].actorName, 'Bob');
 
   const byActor = await request(app)
     .get('/api/audit-logs?q=carol')
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
-  assert.equal(byActor.body.length, 1);
-  assert.equal(byActor.body[0].actorName, 'Carol');
+  assert.equal(byActor.body.rows.length, 1);
+  assert.equal(byActor.body.rows[0].actorName, 'Carol');
 });
 
 test('combines filters with AND', async () => {
@@ -200,8 +201,8 @@ test('combines filters with AND', async () => {
     .get('/api/audit-logs?action=password_reset&from=2026-02-01&to=2026-02-28')
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(res.status, 200);
-  assert.equal(res.body.length, 1);
-  assert.equal(res.body[0].targetUserEmail, 'a@x.com');
+  assert.equal(res.body.rows.length, 1);
+  assert.equal(res.body.rows[0].targetUserEmail, 'a@x.com');
 });
 
 test('facets returns distinct actions and actors', async () => {
@@ -228,6 +229,77 @@ test('invalid actorId returns 400', async () => {
   const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
   const res = await request(app)
     .get('/api/audit-logs?actorId=abc')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(res.status, 400);
+});
+
+test('pages through results with limit + offset, exposing hasMore', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  // Seed 5 entries, oldest → newest by createdAt
+  await seedAudit(
+    Array.from({ length: 5 }, (_, i) => ({
+      action: 'user.created',
+      targetUserEmail: `user${i}@x.com`,
+      createdAt: new Date(`2026-01-0${i + 1}T10:00:00Z`),
+    })),
+  );
+
+  // Page 1: newest two, more remain
+  const page1 = await request(app)
+    .get('/api/audit-logs?limit=2&offset=0')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(page1.status, 200);
+  assert.equal(page1.body.rows.length, 2);
+  assert.equal(page1.body.hasMore, true);
+  assert.equal(page1.body.rows[0].targetUserEmail, 'user4@x.com');
+  assert.equal(page1.body.rows[1].targetUserEmail, 'user3@x.com');
+
+  // Page 2: next two, still more
+  const page2 = await request(app)
+    .get('/api/audit-logs?limit=2&offset=2')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(page2.body.rows.length, 2);
+  assert.equal(page2.body.hasMore, true);
+  assert.equal(page2.body.rows[0].targetUserEmail, 'user2@x.com');
+  assert.equal(page2.body.rows[1].targetUserEmail, 'user1@x.com');
+
+  // Page 3: last one, no more
+  const page3 = await request(app)
+    .get('/api/audit-logs?limit=2&offset=4')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(page3.body.rows.length, 1);
+  assert.equal(page3.body.hasMore, false);
+  assert.equal(page3.body.rows[0].targetUserEmail, 'user0@x.com');
+});
+
+test('paging respects active filters', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  await seedAudit([
+    { action: 'password_reset', targetUserEmail: 'p1@x.com', createdAt: new Date('2026-01-01T10:00:00Z') },
+    { action: 'user.created', targetUserEmail: 'c1@x.com', createdAt: new Date('2026-01-02T10:00:00Z') },
+    { action: 'password_reset', targetUserEmail: 'p2@x.com', createdAt: new Date('2026-01-03T10:00:00Z') },
+    { action: 'password_reset', targetUserEmail: 'p3@x.com', createdAt: new Date('2026-01-04T10:00:00Z') },
+  ]);
+
+  const page1 = await request(app)
+    .get('/api/audit-logs?action=password_reset&limit=2&offset=0')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(page1.body.rows.length, 2);
+  assert.equal(page1.body.hasMore, true);
+  assert.ok(page1.body.rows.every((r: { action: string }) => r.action === 'password_reset'));
+
+  const page2 = await request(app)
+    .get('/api/audit-logs?action=password_reset&limit=2&offset=2')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(page2.body.rows.length, 1);
+  assert.equal(page2.body.hasMore, false);
+  assert.equal(page2.body.rows[0].targetUserEmail, 'p1@x.com');
+});
+
+test('invalid offset returns 400', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const res = await request(app)
+    .get('/api/audit-logs?offset=-1')
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(res.status, 400);
 });

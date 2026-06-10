@@ -27,6 +27,7 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
  *   - from / to     inclusive date range (ISO timestamp or YYYY-MM-DD)
  *   - q        free-text match across actor, target email, detail and action
  *   - limit    max rows (default 200, capped at 1000)
+ *   - offset   number of rows to skip for paging (default 0)
  */
 router.get('/', async (req, res) => {
     const conditions = [];
@@ -89,12 +90,25 @@ router.get('/', async (req, res) => {
         if (!isNaN(parsed) && parsed > 0)
             limit = Math.min(parsed, 1000);
     }
+    let offset = 0;
+    if (req.query.offset !== undefined) {
+        const parsed = parseInt(String(req.query.offset), 10);
+        if (isNaN(parsed) || parsed < 0) {
+            res.status(400).json({ error: 'Invalid offset' });
+            return;
+        }
+        offset = parsed;
+    }
     const where = conditions.length ? and(...conditions) : undefined;
+    // Fetch one extra row so the client can tell whether more pages remain
+    // without a separate COUNT query.
     const rows = await db.select(selectCols).from(auditLogs)
         .where(where)
-        .orderBy(desc(auditLogs.createdAt))
-        .limit(limit);
-    res.json(rows);
+        .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+        .limit(limit + 1)
+        .offset(offset);
+    const hasMore = rows.length > limit;
+    res.json({ rows: hasMore ? rows.slice(0, limit) : rows, hasMore });
 });
 /**
  * GET /api/audit-logs/facets
