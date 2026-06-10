@@ -198,6 +198,8 @@ export default function Users() {
   const [resendingId, setResendingId] = useState<number | null>(null);
   const [historyUser, setHistoryUser] = useState<UserRecord | null>(null);
   const [actionFilter, setActionFilter] = useState<string>('all');
+  const [actorFilter, setActorFilter] = useState<string>('all');
+  const [actorOptions, setActorOptions] = useState<{ id: number; name: string | null }[]>([]);
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
@@ -227,6 +229,7 @@ export default function Users() {
     const params = new URLSearchParams();
     if (userId) params.set('targetUserId', String(userId));
     if (actionFilter !== 'all') params.set('action', actionFilter);
+    if (actorFilter !== 'all') params.set('actorId', actorFilter);
     if (fromDate) params.set('from', fromDate);
     if (toDate) params.set('to', toDate);
     const qs = params.toString();
@@ -238,6 +241,8 @@ export default function Users() {
     api.get<UserRecord[]>('/users?deleted=true').then(d => setDeletedCount(d.length)).catch(() => {});
     api.get<LinkOption[]>('/users/clients-list').then(setClientOptions).catch(() => {});
     api.get<LinkOption[]>('/users/drivers-list').then(setDriverOptions).catch(() => {});
+    api.get<{ actors: { id: number; name: string | null }[] }>('/audit-logs/facets')
+      .then(f => setActorOptions(f.actors ?? [])).catch(() => {});
     loadAudit(historyUser?.id ?? null);
     api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
   }
@@ -250,7 +255,7 @@ export default function Users() {
 
   // Re-fetch the audit log when any of the activity-log filters change.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadAudit(historyUser?.id ?? null); }, [actionFilter, fromDate, toDate]);
+  useEffect(() => { loadAudit(historyUser?.id ?? null); }, [actionFilter, actorFilter, fromDate, toDate]);
 
   // While any account is locked, poll the lockout status so the locked badge
   // clears itself once the lockout window expires — no manual reload needed.
@@ -415,6 +420,10 @@ export default function Users() {
     const rows = auditExportRows();
     const filterBits: string[] = [];
     if (actionFilter !== 'all') filterBits.push(`Action: ${ACTION_LABEL[actionFilter] ?? actionFilter}`);
+    if (actorFilter !== 'all') {
+      const actor = actorOptions.find(a => String(a.id) === actorFilter);
+      filterBits.push(`Performed By: ${actor?.name?.trim() || `User #${actorFilter}`}`);
+    }
     if (fromDate) filterBits.push(`From: ${fromDate}`);
     if (toDate) filterBits.push(`To: ${toDate}`);
     const generated = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
@@ -1297,6 +1306,18 @@ export default function Users() {
             </select>
           </div>
           <div>
+            <label style={labelStyle}>Performed By</label>
+            <select
+              value={actorFilter} onChange={e => setActorFilter(e.target.value)}
+              style={{ ...inputStyle, width: 'auto', minWidth: 180 }}
+            >
+              <option value="all">All Actors</option>
+              {actorOptions.map(a => (
+                <option key={a.id} value={String(a.id)}>{a.name?.trim() || `User #${a.id}`}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label style={labelStyle}>From</label>
             <input
               type="date" value={fromDate} max={toDate || undefined}
@@ -1312,9 +1333,9 @@ export default function Users() {
               style={{ ...inputStyle, width: 'auto', colorScheme: 'dark' }}
             />
           </div>
-          {(actionFilter !== 'all' || fromDate || toDate) && (
+          {(actionFilter !== 'all' || actorFilter !== 'all' || fromDate || toDate) && (
             <button
-              onClick={() => { setActionFilter('all'); setFromDate(''); setToDate(''); }}
+              onClick={() => { setActionFilter('all'); setActorFilter('all'); setFromDate(''); setToDate(''); }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
                 borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
@@ -1382,7 +1403,7 @@ export default function Users() {
         }}>
           {auditLog.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: '#9fb0c7', fontSize: 13 }}>
-              {(actionFilter !== 'all' || fromDate || toDate)
+              {(actionFilter !== 'all' || actorFilter !== 'all' || fromDate || toDate)
                 ? 'No activity matches the selected filters.'
                 : historyUser
                 ? `No activity recorded for ${historyUser.name} yet.`
