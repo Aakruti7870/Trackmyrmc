@@ -8,6 +8,7 @@ import clientRoutes from '../routes/clients.js';
 import driverRoutes from '../routes/drivers.js';
 import eventsRoutes from '../routes/events.js';
 import orderRoutes from '../routes/orders.js';
+import positionRoutes from '../routes/positions.js';
 
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
@@ -26,5 +27,6 @@ export function buildTestApp(): Express {
   app.use('/api/drivers', driverRoutes);
   app.use('/api/events', eventsRoutes);
   app.use('/api/orders', orderRoutes);
+  app.use('/api/positions', positionRoutes);
   return app;
 }
