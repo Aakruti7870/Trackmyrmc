@@ -314,7 +314,9 @@ export default function Users() {
     try {
       await api.put(`/users/${u.id}`, { isActive: !u.isActive });
       load();
-    } catch {}
+    } catch {
+      /* ignore — toggle failure is non-critical */
+    }
   }
 
   async function resendNotification(u: UserRecord) {

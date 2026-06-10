@@ -29,6 +29,10 @@ args = "test"
 task = "workflow.run"
 args = "build"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "lint"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -71,6 +75,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd server && pnpm build && cd ../rmc-app && pnpm build"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "lint"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd rmc-app && pnpm lint"
 
 [workflows.workflow.metadata]
 isValidation = true
