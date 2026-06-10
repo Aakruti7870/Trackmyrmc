@@ -95,6 +95,8 @@ describe('Users empty-trash bulk-delete UI', () => {
     await waitFor(() => {
       expect(api.delete).toHaveBeenCalledWith('/users/purge-all');
     });
+    // Guard the distinction from the selective flow: NO ids payload is sent.
+    expect(vi.mocked(api.delete).mock.calls[0]).toHaveLength(1);
 
     // The success toast reports the number of accounts removed.
     expect(await screen.findByText('3 accounts permanently deleted.')).toBeInTheDocument();
@@ -120,6 +122,8 @@ describe('Users empty-trash bulk-delete UI', () => {
     await waitFor(() => {
       expect(api.delete).toHaveBeenCalledWith('/users/purge-all');
     });
+    // Guard the distinction from the selective flow: NO ids payload is sent.
+    expect(vi.mocked(api.delete).mock.calls[0]).toHaveLength(1);
 
     // The skip toast points the admin to the results panel.
     expect(
