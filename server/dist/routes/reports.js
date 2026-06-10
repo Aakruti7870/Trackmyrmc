@@ -89,6 +89,7 @@ router.get('/export', async (req, res) => {
             clientName: clients.name,
             grade: challans.grade,
             quantity: challans.quantity,
+            deliveredQuantity: challans.deliveredQuantity,
             status: challans.status,
             dispatchTime: challans.dispatchTime,
             deliveryTime: challans.deliveryTime,
@@ -96,8 +97,8 @@ router.get('/export', async (req, res) => {
             .leftJoin(clients, sql `${challans.clientId} = ${clients.id}`)
             .where(filters.length ? and(...filters) : undefined)
             .orderBy(desc(challans.createdAt));
-        csv = 'Challan No,Client,Grade,Qty (m³),Status,Dispatch Time,Delivery Time\n';
-        csv += rows.map(r => `${r.challanNo},"${r.clientName}",${r.grade},${r.quantity},${r.status},${r.dispatchTime || ''},${r.deliveryTime || ''}`).join('\n');
+        csv = 'Challan No,Client,Grade,Planned Qty (m³),Delivered Qty (m³),Status,Dispatch Time,Delivery Time\n';
+        csv += rows.map(r => `${r.challanNo},"${r.clientName}",${r.grade},${r.quantity},${r.deliveredQuantity ?? ''},${r.status},${r.dispatchTime || ''},${r.deliveryTime || ''}`).join('\n');
     }
     else if (report === 'production') {
         const bfilters = [];

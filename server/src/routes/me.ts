@@ -10,6 +10,7 @@ router.use(requireAuth);
 const challanSelect = {
   id: challans.id, challanNo: challans.challanNo,
   grade: challans.grade, quantity: challans.quantity,
+  deliveredQuantity: challans.deliveredQuantity,
   pumpRequired: challans.pumpRequired,
   dispatchTime: challans.dispatchTime, deliveryTime: challans.deliveryTime,
   status: challans.status, notes: challans.notes, createdAt: challans.createdAt,

@@ -84,6 +84,7 @@ export const challans = pgTable('challans', {
     driverId: integer('driver_id').references(() => drivers.id),
     grade: text('grade').notNull(),
     quantity: decimal('quantity', { precision: 8, scale: 2 }).notNull(),
+    deliveredQuantity: decimal('delivered_quantity', { precision: 8, scale: 2 }),
     pumpRequired: boolean('pump_required').notNull().default(false),
     dispatchTime: timestamp('dispatch_time'),
     deliveryTime: timestamp('delivery_time'),

@@ -26,7 +26,7 @@ function fmtDist(m: number): string {
 }
 
 function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
-  challan: Challan; onMarkDelivered: (id: number, notes?: string) => void; tracking: boolean; liveDistanceM?: number | null;
+  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string) => void; tracking: boolean; liveDistanceM?: number | null;
 }) {
   const s = STATUS_STYLES[challan.status] || STATUS_STYLES.pending;
   const StatusIcon = s.icon;
@@ -35,6 +35,7 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
   const [showForm, setShowForm] = useState(false);
   const [recipient, setRecipient] = useState('');
   const [note, setNote] = useState('');
+  const [deliveredQty, setDeliveredQty] = useState(() => parseFloat(challan.quantity || '0').toString());
   const hasPin = challan.siteLat != null && challan.siteLng != null;
 
   function composeNotes(): string | undefined {
@@ -48,7 +49,8 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
 
   async function handleMark() {
     setMarking(true);
-    try { await onMarkDelivered(challan.id, composeNotes()); } finally { setMarking(false); }
+    const qty = deliveredQty.trim();
+    try { await onMarkDelivered(challan.id, composeNotes(), qty === '' ? undefined : qty); } finally { setMarking(false); }
   }
 
   return (
@@ -80,6 +82,11 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
         <div>
           <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Volume</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{parseFloat(challan.quantity).toFixed(1)} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>m³</span></div>
+          {challan.deliveredQuantity != null && (
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--green)', marginTop: 2 }}>
+              Delivered {parseFloat(challan.deliveredQuantity).toFixed(1)} m³
+            </div>
+          )}
         </div>
         <div>
           <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Client</div>
@@ -161,6 +168,21 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
               value={recipient}
               onChange={e => setRecipient(e.target.value)}
               placeholder="Recipient name"
+              disabled={marking}
+              style={{
+                width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 10,
+                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+                color: 'var(--text)', fontSize: 13, boxSizing: 'border-box',
+              }}
+            />
+            <label style={{ display: 'block', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Delivered quantity (m³)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={deliveredQty}
+              onChange={e => setDeliveredQty(e.target.value)}
+              placeholder={`Planned: ${parseFloat(challan.quantity || '0').toFixed(1)} m³`}
               disabled={marking}
               style={{
                 width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 10,
@@ -333,13 +355,17 @@ export default function MyTrips() {
 
   useEffect(() => { load(viewAll); }, [load, viewAll]);
 
-  async function handleMarkDelivered(id: number, notes?: string) {
-    const updated = await api.put<Challan>(`/challans/${id}`, { status: 'delivered', ...(notes ? { notes } : {}) });
+  async function handleMarkDelivered(id: number, notes?: string, deliveredQuantity?: string) {
+    const updated = await api.put<Challan>(`/challans/${id}`, {
+      status: 'delivered',
+      ...(notes ? { notes } : {}),
+      ...(deliveredQuantity !== undefined ? { deliveredQuantity } : {}),
+    });
     let challanNo = '';
     setChallans(prev => prev.map(c => {
       if (c.id === id) {
         challanNo = c.challanNo;
-        return { ...c, status: 'delivered', deliveryTime: updated.deliveryTime ?? new Date().toISOString(), notes: updated.notes };
+        return { ...c, status: 'delivered', deliveryTime: updated.deliveryTime ?? new Date().toISOString(), notes: updated.notes, deliveredQuantity: updated.deliveredQuantity };
       }
       return c;
     }));

@@ -19,6 +19,7 @@ async function nextChallanNo() {
 const challanSelect = {
     id: challans.id, challanNo: challans.challanNo,
     grade: challans.grade, quantity: challans.quantity,
+    deliveredQuantity: challans.deliveredQuantity,
     pumpRequired: challans.pumpRequired,
     dispatchTime: challans.dispatchTime, deliveryTime: challans.deliveryTime,
     status: challans.status, notes: challans.notes, createdAt: challans.createdAt,
@@ -97,7 +98,7 @@ router.put('/:id', async (req, res) => {
     const role = req.user.role;
     const challanId = +req.params.id;
     if (role === 'driver') {
-        const { status, deliveryTime, notes } = req.body;
+        const { status, deliveryTime, notes, deliveredQuantity } = req.body;
         if (!DRIVER_ALLOWED_STATUS.includes(status)) {
             res.status(403).json({ error: 'Drivers may only mark challans as delivered' });
             return;
@@ -118,6 +119,14 @@ router.put('/:id', async (req, res) => {
             status: 'delivered',
             deliveryTime: deliveryTime ? new Date(deliveryTime) : new Date(),
         };
+        if (deliveredQuantity !== undefined && deliveredQuantity !== null && deliveredQuantity !== '') {
+            const dq = Number(deliveredQuantity);
+            if (!Number.isFinite(dq) || dq < 0) {
+                res.status(400).json({ error: 'Delivered quantity must be a non-negative number' });
+                return;
+            }
+            updateData.deliveredQuantity = dq.toString();
+        }
         if (typeof notes === 'string' && notes.trim()) {
             const deliveryNote = notes.trim();
             const existing = challan.notes?.trim();
@@ -134,7 +143,7 @@ router.put('/:id', async (req, res) => {
         res.status(403).json({ error: 'Forbidden' });
         return;
     }
-    const { vehicleId, driverId, status, notes, deliveryTime } = req.body;
+    const { vehicleId, driverId, status, notes, deliveryTime, deliveredQuantity } = req.body;
     const updateData = {};
     if (vehicleId !== undefined)
         updateData.vehicleId = vehicleId ? +vehicleId : null;
@@ -144,6 +153,19 @@ router.put('/:id', async (req, res) => {
         updateData.status = status;
     if (notes !== undefined)
         updateData.notes = notes;
+    if (deliveredQuantity !== undefined) {
+        if (deliveredQuantity === null || deliveredQuantity === '') {
+            updateData.deliveredQuantity = null;
+        }
+        else {
+            const dq = Number(deliveredQuantity);
+            if (!Number.isFinite(dq) || dq < 0) {
+                res.status(400).json({ error: 'Delivered quantity must be a non-negative number' });
+                return;
+            }
+            updateData.deliveredQuantity = dq.toString();
+        }
+    }
     if (status === 'delivered')
         updateData.deliveryTime = deliveryTime ? new Date(deliveryTime) : new Date();
     const [row] = await db.update(challans).set(updateData)

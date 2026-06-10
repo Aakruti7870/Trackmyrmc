@@ -128,6 +128,44 @@ test('driver delivering their own dispatched challan succeeds and emits challan.
   );
 });
 
+test('driver delivery records the actual delivered quantity on the challan', async () => {
+  const client = await createClient();
+  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+  sse = captureSSE();
+
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', deliveredQuantity: '5.5' });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, 'delivered');
+
+  const [row] = await db.select({ deliveredQuantity: challans.deliveredQuantity })
+    .from(challans).where(eq(challans.id, challan.id));
+  assert.equal(Number(row.deliveredQuantity), 5.5, 'delivered quantity is persisted');
+});
+
+test('driver delivery with a negative delivered quantity is rejected', async () => {
+  const client = await createClient();
+  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', deliveredQuantity: '-2' });
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /non-negative/i);
+
+  const [row] = await db.select({ status: challans.status, deliveredQuantity: challans.deliveredQuantity })
+    .from(challans).where(eq(challans.id, challan.id));
+  assert.equal(row.status, 'dispatched', 'the challan is not marked delivered on a bad quantity');
+  assert.equal(row.deliveredQuantity, null, 'no delivered quantity is stored');
+});
+
 test('driver delivering a challan NOT assigned to them gets 403 and changes nothing', async () => {
   const client = await createClient();
   const { user } = await createDriverUser('Dave Driver', 'dave@test.com');

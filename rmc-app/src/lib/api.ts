@@ -86,7 +86,7 @@ export interface Order {
 export interface Challan {
   id: number; challanNo: string; orderId?: number;
   clientId: number; siteId?: number; vehicleId?: number; driverId?: number;
-  grade: string; quantity: string; pumpRequired: boolean;
+  grade: string; quantity: string; deliveredQuantity?: string | null; pumpRequired: boolean;
   dispatchTime?: string; deliveryTime?: string;
   status: string; notes?: string; createdAt: string;
   clientName?: string; siteName?: string;

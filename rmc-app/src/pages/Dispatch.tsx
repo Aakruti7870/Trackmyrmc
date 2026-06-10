@@ -158,7 +158,7 @@ export default function Dispatch() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--line)' }}>
-                {['Challan', 'Client', 'Vehicle', 'Driver', 'Grade', 'Qty', 'Dispatch Time', 'Status', 'Actions'].map(h => (
+                {['Challan', 'Client', 'Vehicle', 'Driver', 'Grade', 'Planned', 'Delivered', 'Dispatch Time', 'Status', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '12px 14px', color: 'var(--muted)', fontWeight: 600, textAlign: 'left', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -188,6 +188,9 @@ export default function Dispatch() {
                   <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--muted)' }}>{ch.driverName || '—'}</td>
                   <td style={{ padding: '11px 14px' }}><span style={{ padding: '2px 8px', background: 'rgba(56,189,248,.12)', color: 'var(--blue)', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>{ch.grade}</span></td>
                   <td style={{ padding: '11px 14px', fontWeight: 700 }}>{ch.quantity} m³</td>
+                  <td style={{ padding: '11px 14px', fontWeight: 700, color: ch.deliveredQuantity != null ? 'var(--green)' : 'var(--muted)' }}>
+                    {ch.deliveredQuantity != null ? `${parseFloat(ch.deliveredQuantity).toFixed(1)} m³` : '—'}
+                  </td>
                   <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>
                     {ch.dispatchTime ? new Date(ch.dispatchTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
                   </td>
