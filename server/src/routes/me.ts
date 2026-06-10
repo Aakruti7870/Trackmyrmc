@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { eq, desc, gte, lte, and } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { clients, orders, challans, sites, vehicles, drivers, ledgerEntries } from '../db/schema.js';
+import { users, clients, orders, challans, sites, vehicles, drivers, ledgerEntries } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
@@ -22,22 +22,20 @@ const challanSelect = {
   driverPhone: drivers.phone,
 };
 
-async function resolveClientId(userId: number, linkedClientId: number | null | undefined, email: string): Promise<number | null> {
-  if (linkedClientId) return linkedClientId;
-  const [client] = await db.select({ id: clients.id }).from(clients)
-    .where(eq(clients.email, email)).limit(1);
-  return client?.id ?? null;
+async function getLinkedClientId(userId: number): Promise<number | null> {
+  const [row] = await db.select({ linkedClientId: users.linkedClientId })
+    .from(users).where(eq(users.id, userId));
+  return row?.linkedClientId ?? null;
 }
 
-async function resolveDriverId(userId: number, linkedDriverId: number | null | undefined, name: string): Promise<number | null> {
-  if (linkedDriverId) return linkedDriverId;
-  const [driver] = await db.select({ id: drivers.id }).from(drivers)
-    .where(eq(drivers.name, name)).limit(1);
-  return driver?.id ?? null;
+async function getLinkedDriverId(userId: number): Promise<number | null> {
+  const [row] = await db.select({ linkedDriverId: users.linkedDriverId })
+    .from(users).where(eq(users.id, userId));
+  return row?.linkedDriverId ?? null;
 }
 
 router.get('/orders', requireRole('client'), async (req, res) => {
-  const clientId = await resolveClientId(req.user!.id, req.user!.linkedClientId, req.user!.email);
+  const clientId = await getLinkedClientId(req.user!.id);
   if (!clientId) { res.json([]); return; }
 
   const rows = await db.select({
@@ -56,7 +54,7 @@ router.get('/orders', requireRole('client'), async (req, res) => {
 });
 
 router.get('/challans', requireRole('client'), async (req, res) => {
-  const clientId = await resolveClientId(req.user!.id, req.user!.linkedClientId, req.user!.email);
+  const clientId = await getLinkedClientId(req.user!.id);
   if (!clientId) { res.json([]); return; }
 
   const rows = await db.select(challanSelect).from(challans)
@@ -70,7 +68,7 @@ router.get('/challans', requireRole('client'), async (req, res) => {
 });
 
 router.get('/ledger', requireRole('client'), async (req, res) => {
-  const clientId = await resolveClientId(req.user!.id, req.user!.linkedClientId, req.user!.email);
+  const clientId = await getLinkedClientId(req.user!.id);
   if (!clientId) { res.json({ entries: [], outstanding: 0, creditLimit: 0 }); return; }
 
   const [client] = await db.select({ outstandingAmount: clients.outstandingAmount, creditLimit: clients.creditLimit })
@@ -94,7 +92,7 @@ router.get('/ledger', requireRole('client'), async (req, res) => {
 });
 
 router.get('/trips', requireRole('driver'), async (req, res) => {
-  const driverId = await resolveDriverId(req.user!.id, req.user!.linkedDriverId, req.user!.name);
+  const driverId = await getLinkedDriverId(req.user!.id);
   if (!driverId) { res.json([]); return; }
 
   const { from, to } = req.query;
