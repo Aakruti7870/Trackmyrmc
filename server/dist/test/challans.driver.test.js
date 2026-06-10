@@ -8,6 +8,7 @@ import { db, pool } from '../db/index.js';
 import { users, clients, drivers, challans, challanProofPhotos } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
 import { addSSEClient, removeSSEClient } from '../lib/sseEmitter.js';
+import { proofPhotoStore } from '../lib/proofPhoto.js';
 let app;
 const PASSWORD = 'secret123';
 // A driver user authenticates by role AND matches a drivers row by *name*
@@ -247,11 +248,22 @@ async function proofPhotoCount(challanId) {
         .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challanId));
     return rows.length;
 }
-test('driver delivery with a single proof photo stores it; detail returns it, list returns only the flag', async () => {
+test('driver delivery with a single proof photo uploads it to object storage; the child table keeps only the entity path, detail returns a signed URL, list returns only the flag', async (t) => {
     const client = await createClient();
     const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
     const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
     sse = captureSSE();
+    // Stub object storage in place: store() records the uploaded data URL and
+    // returns an entity path; resolve() turns that path into a signed URL. This
+    // keeps the test deterministic and avoids needing the storage sidecar.
+    const OBJECT_PATH = '/objects/uploads/test-proof';
+    const SIGNED_URL = 'https://storage.example/signed-proof';
+    let uploaded = null;
+    const storeMock = t.mock.method(proofPhotoStore, 'store', async (dataUrl) => {
+        uploaded = dataUrl;
+        return OBJECT_PATH;
+    });
+    t.mock.method(proofPhotoStore, 'resolve', async (stored) => stored === OBJECT_PATH ? SIGNED_URL : (stored ?? null));
     const res = await request(app)
         .put(`/api/challans/${challan.id}`)
         .set('Authorization', `Bearer ${tokenFor(user)}`)
@@ -259,18 +271,21 @@ test('driver delivery with a single proof photo stores it; detail returns it, li
     assert.equal(res.status, 200);
     assert.equal(res.body.status, 'delivered');
     assert.equal(res.body.hasProofPhoto, true, 'response reports the boolean flag');
-    // The photo is persisted to the child table, linked to the challan.
+    // The base64 data URL is handed to object storage, not the database.
+    assert.equal(storeMock.mock.callCount(), 1, 'the photo is uploaded exactly once');
+    assert.equal(uploaded, VALID_PROOF_PHOTO, 'the original data URL is uploaded to object storage');
+    // The child table persists only the lightweight entity path, never the base64 payload.
     const rows = await db.select({ photo: challanProofPhotos.photo })
         .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id));
-    assert.deepEqual(rows.map(r => r.photo), [VALID_PROOF_PHOTO], 'the proof photo is stored in the child table');
-    // GET /:id (detail) returns the full proofPhotos array for a dispatcher to view.
+    assert.deepEqual(rows.map(r => r.photo), [OBJECT_PATH], 'the child table stores the object-storage entity path');
+    // GET /:id (detail) resolves each entity path to a signed URL for viewing.
     const detail = await request(app)
         .get(`/api/challans/${challan.id}`)
         .set('Authorization', `Bearer ${tokenFor(user)}`);
     assert.equal(detail.status, 200);
-    assert.deepEqual(detail.body.proofPhotos, [VALID_PROOF_PHOTO], 'detail endpoint exposes the proof photos');
+    assert.deepEqual(detail.body.proofPhotos, [SIGNED_URL], 'detail endpoint exposes resolved signed URLs');
     assert.equal(detail.body.hasProofPhoto, true, 'detail also reports the boolean flag');
-    // GET / (list) returns only hasProofPhoto, never the base64 payload.
+    // GET / (list) returns only hasProofPhoto, never the photo payload/path.
     const list = await request(app)
         .get('/api/challans')
         .set('Authorization', `Bearer ${tokenFor(user)}`);
@@ -278,14 +293,17 @@ test('driver delivery with a single proof photo stores it; detail returns it, li
     const listed = list.body.find((c) => c.id === challan.id);
     assert.ok(listed, 'the delivered challan appears in the list');
     assert.equal(listed.hasProofPhoto, true, 'list reports a proof photo exists');
-    assert.equal(listed.proofPhotos, undefined, 'list never includes the base64 photo payload');
-    // The SSE update broadcast is also kept light (flag only, no base64).
+    assert.equal(listed.proofPhotos, undefined, 'list never includes the photo payload');
+    // The SSE update broadcast is also kept light (flag only, no payload).
     assert.ok(sse.events().includes('challan.updated'), 'a challan.updated SSE event is emitted');
 });
-test('driver delivery with several proof photos stores and links all of them', async () => {
+test('driver delivery with several proof photos uploads and links all of them', async (t) => {
     const client = await createClient();
     const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
     const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+    // Each distinct data URL is uploaded to a distinct entity path.
+    let counter = 0;
+    t.mock.method(proofPhotoStore, 'store', async () => `/objects/uploads/test-proof-${counter++}`);
     const photoA = VALID_PROOF_PHOTO;
     const photoB = VALID_PROOF_PHOTO.replace('iVBOR', 'iVBOX'); // a distinct second data URL
     const res = await request(app)
@@ -294,23 +312,37 @@ test('driver delivery with several proof photos stores and links all of them', a
         .send({ status: 'delivered', proofPhotos: [photoA, photoB] });
     assert.equal(res.status, 200);
     assert.equal(res.body.hasProofPhoto, true);
-    const detail = await request(app)
-        .get(`/api/challans/${challan.id}`)
-        .set('Authorization', `Bearer ${tokenFor(user)}`);
-    assert.equal(detail.status, 200);
-    assert.deepEqual(detail.body.proofPhotos, [photoA, photoB], 'all photos returned in insertion order');
+    const rows = await db.select({ photo: challanProofPhotos.photo })
+        .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id))
+        .orderBy(challanProofPhotos.id);
+    assert.deepEqual(rows.map(r => r.photo), ['/objects/uploads/test-proof-0', '/objects/uploads/test-proof-1'], 'both uploaded entity paths are linked in insertion order');
     assert.equal(await proofPhotoCount(challan.id), 2, 'both photos are linked to the challan');
 });
-test('driver delivery still accepts the legacy single proofPhoto field', async () => {
+test('driver delivery still accepts the legacy single proofPhoto field', async (t) => {
     const client = await createClient();
     const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
     const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+    t.mock.method(proofPhotoStore, 'store', async () => '/objects/uploads/legacy-single');
     const res = await request(app)
         .put(`/api/challans/${challan.id}`)
         .set('Authorization', `Bearer ${tokenFor(user)}`)
         .send({ status: 'delivered', proofPhoto: VALID_PROOF_PHOTO });
     assert.equal(res.status, 200);
     assert.equal(await proofPhotoCount(challan.id), 1, 'the legacy single photo is stored in the child table');
+});
+test('a legacy base64 proof photo already in the child table still renders via the detail endpoint', async () => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'delivered' });
+    // Simulate a photo row written before the object-storage migration. resolve()
+    // must pass base64 data URLs through unchanged, without any object-storage call.
+    await db.insert(challanProofPhotos).values({ challanId: challan.id, photo: VALID_PROOF_PHOTO });
+    const detail = await request(app)
+        .get(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(detail.status, 200);
+    assert.deepEqual(detail.body.proofPhotos, [VALID_PROOF_PHOTO], 'a legacy base64 data URL passes through unchanged');
+    assert.equal(detail.body.hasProofPhoto, true, 'the boolean flag is still reported');
 });
 test('driver delivery with a non-image proof photo is rejected with 400 and stores nothing', async () => {
     const client = await createClient();

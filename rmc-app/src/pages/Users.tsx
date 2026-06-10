@@ -458,7 +458,7 @@ export default function Users() {
     }
   }
 
-  async function retryRestore(item: { id: number; email: string; reason: string }) {
+  async function retryRestore(item: { id: number; email: string; reason?: string }) {
     setRetryingRestoreId(item.id);
     try {
       await api.post(`/users/${item.id}/restore`, {});

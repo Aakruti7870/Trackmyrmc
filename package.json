@@ -10,8 +10,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@google-cloud/storage": "^7.21.0",
     "@replit/object-storage": "^1.0.0",
     "@types/nodemailer": "^8.0.0",
+    "@uppy/aws-s3": "^5.1.0",
+    "@uppy/core": "^5.2.0",
+    "@uppy/dashboard": "^5.1.1",
+    "@uppy/react": "^5.2.0",
+    "google-auth-library": "^10.7.0",
     "nodemailer": "^8.0.11"
   }
 }

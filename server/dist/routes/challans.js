@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { challans, challanProofPhotos, clients, sites, vehicles, drivers, orders } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
+import { proofPhotoStore } from '../lib/proofPhoto.js';
 const WRITE_ROLES = ['admin', 'dispatcher'];
 const DRIVER_ALLOWED_STATUS = ['delivered'];
 const router = Router();
@@ -111,7 +112,11 @@ router.get('/:id', async (req, res) => {
     }
     // Detail additionally returns every proof-of-delivery photo. The list select
     // deliberately omits them (only a boolean flag) to keep responses light.
-    const proofPhotos = await getProofPhotos(+req.params.id);
+    // Stored values are object-storage entity paths; resolve each to a short-lived
+    // signed URL (legacy base64 data URLs pass through unchanged).
+    const storedPhotos = await getProofPhotos(+req.params.id);
+    const proofPhotos = (await Promise.all(storedPhotos.map(p => proofPhotoStore.resolve(p))))
+        .filter((url) => url != null);
     res.json({ ...row, proofPhotos });
 });
 router.post('/', async (req, res) => {
@@ -188,21 +193,27 @@ router.put('/:id', async (req, res) => {
             const existing = challan.notes?.trim();
             updateData.notes = existing ? `${existing}\n${deliveryNote}` : deliveryNote;
         }
+        let storedPhotos;
+        if (validatedPhotos !== undefined) {
+            // Upload each photo to object storage and persist only the entity paths,
+            // keeping the (potentially large) base64 payloads out of the database.
+            storedPhotos = await Promise.all(validatedPhotos.map(photo => proofPhotoStore.store(photo)));
+        }
         const [row] = await db.transaction(async (tx) => {
             const updatedRows = await tx.update(challans)
                 .set(updateData)
                 .where(eq(challans.id, challanId)).returning();
-            if (validatedPhotos !== undefined) {
+            if (storedPhotos !== undefined) {
                 await tx.delete(challanProofPhotos).where(eq(challanProofPhotos.challanId, challanId));
-                if (validatedPhotos.length) {
+                if (storedPhotos.length) {
                     await tx.insert(challanProofPhotos)
-                        .values(validatedPhotos.map(photo => ({ challanId, photo })));
+                        .values(storedPhotos.map(photo => ({ challanId, photo })));
                 }
             }
             return updatedRows;
         });
-        const hasProofPhoto = validatedPhotos !== undefined
-            ? validatedPhotos.length > 0
+        const hasProofPhoto = storedPhotos !== undefined
+            ? storedPhotos.length > 0
             : await challanHasProofPhoto(challanId);
         emitSSEEvent('challan.updated', { ...row, hasProofPhoto }, { clientId: row.clientId, driverId: row.driverId });
         res.json({ ...row, hasProofPhoto });
