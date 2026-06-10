@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, desc, sql, and, isNull } from 'drizzle-orm';
+import { eq, desc, sql, and, isNull, isNotNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { clients, sites, ledgerEntries, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -7,7 +7,16 @@ const router = Router();
 router.use(requireAuth);
 router.get('/', async (_req, res) => {
     const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
-    res.json(rows);
+    const linked = await db.select({ id: users.id, name: users.name, email: users.email, linkedClientId: users.linkedClientId })
+        .from(users)
+        .where(and(isNotNull(users.linkedClientId), isNull(users.deletedAt)));
+    const byClient = new Map();
+    for (const u of linked) {
+        const arr = byClient.get(u.linkedClientId) ?? [];
+        arr.push({ id: u.id, name: u.name, email: u.email });
+        byClient.set(u.linkedClientId, arr);
+    }
+    res.json(rows.map(r => ({ ...r, linkedUsers: byClient.get(r.id) ?? [] })));
 });
 router.get('/:id', async (req, res) => {
     const [client] = await db.select().from(clients).where(eq(clients.id, +req.params.id));

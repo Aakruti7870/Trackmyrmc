@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, desc, and, isNull } from 'drizzle-orm';
+import { eq, desc, and, isNull, isNotNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { drivers, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -9,7 +9,16 @@ router.use(requireAuth);
 
 router.get('/', async (_req, res) => {
   const rows = await db.select().from(drivers).orderBy(desc(drivers.createdAt));
-  res.json(rows);
+  const linked = await db.select({ id: users.id, name: users.name, email: users.email, linkedDriverId: users.linkedDriverId })
+    .from(users)
+    .where(and(isNotNull(users.linkedDriverId), isNull(users.deletedAt)));
+  const byDriver = new Map<number, { id: number; name: string; email: string }[]>();
+  for (const u of linked) {
+    const arr = byDriver.get(u.linkedDriverId!) ?? [];
+    arr.push({ id: u.id, name: u.name, email: u.email });
+    byDriver.set(u.linkedDriverId!, arr);
+  }
+  res.json(rows.map(r => ({ ...r, linkedUsers: byDriver.get(r.id) ?? [] })));
 });
 
 router.get('/:id', async (req, res) => {

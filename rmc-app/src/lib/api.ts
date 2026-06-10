@@ -67,10 +67,15 @@ export type User = {
   linkedDriverId?: number | null;
 };
 
+export interface LinkedUser {
+  id: number; name: string; email: string;
+}
+
 export interface Client {
   id: number; name: string; contactPerson: string; phone: string;
   email?: string; gstNo?: string; address?: string; city?: string;
   creditLimit: string; outstandingAmount: string; createdAt: string;
+  linkedUsers?: LinkedUser[];
 }
 
 export interface Site {
@@ -108,6 +113,7 @@ export interface Vehicle {
 export interface Driver {
   id: number; name: string; phone: string;
   licenseNo?: string; licenseExpiry?: string; isActive: boolean; createdAt: string;
+  linkedUsers?: LinkedUser[];
 }
 
 export interface BatchRecord {

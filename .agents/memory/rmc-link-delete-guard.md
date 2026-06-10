@@ -16,3 +16,9 @@ would permanently pin live records. Always scope the link check with `isNull(use
 **How to apply:** this is the inverse of the one-account-per-link rule (other direction).
 Frontend `remove()` in Clients.tsx/Drivers.tsx catches the 409 and shows it via `showToast`
 because deletion happens outside the edit modal (modal `error` state isn't visible there).
+
+The `GET /clients` and `GET /drivers` list endpoints also pre-emptively attach a
+`linkedUsers` array (active, deletedAt IS NULL accounts) so the UI can show a "linked
+login" badge and warn in the delete confirm *before* sending the request. Keep that
+list scope in lockstep with the DELETE guard scope (same isNull(deletedAt) filter), or
+the badge and the 409 will disagree.

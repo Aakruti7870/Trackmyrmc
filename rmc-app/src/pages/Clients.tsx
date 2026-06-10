@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, X, ChevronRight, MapPin, Phone } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, X, ChevronRight, MapPin, Phone, Link2 } from 'lucide-react';
 import { api, type Client, type Site, type LedgerEntry } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 
@@ -49,7 +49,13 @@ export default function Clients() {
   }
 
   async function remove(c: Client) {
-    if (!confirm(`Delete ${c.name}?`)) return;
+    const linked = c.linkedUsers ?? [];
+    let message = `Delete ${c.name}?`;
+    if (linked.length) {
+      const accounts = linked.map(u => `• ${u.name} (${u.email})`).join('\n');
+      message = `${c.name} still has ${linked.length} linked login account${linked.length > 1 ? 's' : ''}:\n\n${accounts}\n\nDeletion will be blocked until you unlink or remove ${linked.length > 1 ? 'these accounts' : 'this account'}. Continue anyway?`;
+    }
+    if (!confirm(message)) return;
     try {
       await api.delete(`/clients/${c.id}`); load();
     } catch (e: unknown) {
@@ -114,6 +120,14 @@ export default function Clients() {
               <div>
                 <div style={{ fontWeight: 800, fontSize: 14 }}>{c.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{c.contactPerson}</div>
+                {!!c.linkedUsers?.length && (
+                  <span
+                    title={`Linked login account${c.linkedUsers.length > 1 ? 's' : ''}: ${c.linkedUsers.map(u => `${u.name} (${u.email})`).join(', ')}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: 10, fontWeight: 700, color: 'var(--blue)', background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.25)', borderRadius: 20, padding: '2px 8px' }}
+                  >
+                    <Link2 size={10} /> {c.linkedUsers.length} linked login{c.linkedUsers.length > 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', gap: 5 }}>
                 <button onClick={() => openEdit(c)} style={{ padding: 5, background: 'rgba(56,189,248,.1)', border: '1px solid rgba(56,189,248,.2)', borderRadius: 7, cursor: 'pointer', color: 'var(--blue)' }}><Edit2 size={12} /></button>

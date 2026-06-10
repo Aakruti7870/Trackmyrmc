@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Search, AlertTriangle, UserCheck } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Search, AlertTriangle, UserCheck, Link2 } from 'lucide-react';
 import { api, type Driver } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 
@@ -32,7 +32,13 @@ export default function Drivers() {
   }
 
   async function remove(d: Driver) {
-    if (!confirm(`Delete driver ${d.name}?`)) return;
+    const linked = d.linkedUsers ?? [];
+    let message = `Delete driver ${d.name}?`;
+    if (linked.length) {
+      const accounts = linked.map(u => `• ${u.name} (${u.email})`).join('\n');
+      message = `${d.name} still has ${linked.length} linked login account${linked.length > 1 ? 's' : ''}:\n\n${accounts}\n\nDeletion will be blocked until you unlink or remove ${linked.length > 1 ? 'these accounts' : 'this account'}. Continue anyway?`;
+    }
+    if (!confirm(message)) return;
     try {
       await api.delete(`/drivers/${d.id}`); load();
     } catch (e: unknown) {
@@ -103,6 +109,14 @@ export default function Drivers() {
                           <UserCheck size={14} style={{ color: d.isActive ? 'var(--green)' : 'var(--red)' }} />
                         </div>
                         <span style={{ fontWeight: 700 }}>{d.name}</span>
+                        {!!d.linkedUsers?.length && (
+                          <span
+                            title={`Linked login account${d.linkedUsers.length > 1 ? 's' : ''}: ${d.linkedUsers.map(u => `${u.name} (${u.email})`).join(', ')}`}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: 'var(--blue)', background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.25)', borderRadius: 20, padding: '1px 7px' }}
+                          >
+                            <Link2 size={9} /> {d.linkedUsers.length} login{d.linkedUsers.length > 1 ? 's' : ''}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontSize: 12 }}>{d.phone}</td>
