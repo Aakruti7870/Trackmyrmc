@@ -359,6 +359,104 @@ async function createDriver(name: string) {
   return row;
 }
 
+test('soft-deleted email: POST /users returns 409 email_soft_deleted with the deleted user id and name', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const target = await createUser({ name: 'Deleted Person', email: 'reuse@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+
+  // Soft-delete the account that owns the email.
+  const del = await request(app)
+    .delete(`/api/users/${target.id}`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(del.status, 200);
+
+  // Re-creating with the same email is blocked and points the admin at a restore.
+  const res = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Brand New', email: 'reuse@test.com', password: PASSWORD, role: 'dispatcher' });
+  assert.equal(res.status, 409);
+  assert.equal(res.body.code, 'email_soft_deleted');
+  assert.equal(res.body.deletedUserId, target.id);
+  assert.equal(res.body.deletedUserName, target.name);
+  assert.match(res.body.error, /previously deleted/i);
+
+  // No duplicate account was created for that email.
+  const rows = await db.select().from(users).where(eq(users.email, 'reuse@test.com'));
+  assert.equal(rows.length, 1, 'no duplicate account should be created');
+  assert.equal(rows[0].id, target.id, 'the only row is still the soft-deleted original');
+});
+
+test('soft-deleted email: a fresh, unused email still creates normally (no false positive)', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  // A soft-deleted user with a DIFFERENT email must not block an unrelated email.
+  const deleted = await createUser({ name: 'Old User', email: 'old@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+  const del = await request(app)
+    .delete(`/api/users/${deleted.id}`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(del.status, 200);
+
+  const res = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Fresh User', email: 'fresh@test.com', password: PASSWORD, role: 'dispatcher' });
+  assert.equal(res.status, 201, 'a brand-new email creates without a soft-deleted conflict');
+  assert.equal(res.body.email, 'fresh@test.com');
+  assert.ok(!('code' in res.body), 'no email_soft_deleted code on a clean create');
+
+  const rows = await db.select().from(users).where(eq(users.email, 'fresh@test.com'));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].deletedAt, null, 'the new account is active, not deleted');
+});
+
+test('soft-deleted email: the create-then-restore round trip leaves one active account with a clean audit trail', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const target = await createUser({ name: 'Round Trip', email: 'rt@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+
+  const del = await request(app)
+    .delete(`/api/users/${target.id}`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(del.status, 200);
+
+  // The admin tries to create, is told to restore, then restores the surfaced id.
+  const conflict = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Round Trip Again', email: 'rt@test.com', password: PASSWORD, role: 'dispatcher' });
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.body.code, 'email_soft_deleted');
+
+  const restore = await request(app)
+    .post(`/api/users/${conflict.body.deletedUserId}/restore`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(restore.status, 200);
+  assert.equal(restore.body.deletedAt, null);
+
+  // Exactly one account exists for that email and it is active again.
+  const rows = await db.select().from(users).where(eq(users.email, 'rt@test.com'));
+  assert.equal(rows.length, 1, 'the round trip never duplicates the account');
+  assert.equal(rows[0].id, target.id);
+  assert.equal(rows[0].isActive, true);
+  assert.equal(rows[0].deletedAt, null);
+
+  // The audit trail shows the delete then the restore, and no spurious user.created.
+  const created = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'user.created'), eq(auditLogs.targetUserId, target.id)));
+  assert.equal(created.length, 0, 'the blocked create must not write a user.created entry');
+  const deletedLogs = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'user.deleted'), eq(auditLogs.targetUserId, target.id)));
+  assert.equal(deletedLogs.length, 1);
+  const restoredLogs = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, target.id)));
+  assert.equal(restoredLogs.length, 1);
+
+  // The restored account can log in again.
+  const login = await loginToken(target.email);
+  assert.equal(login.status, 200, 'the restored account works');
+});
+
 test('link guard: POST /users rejects a client already linked to another active user', async () => {
   const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
   const client = await createClient('Acme Concrete');
