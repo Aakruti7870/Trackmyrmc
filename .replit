@@ -61,3 +61,7 @@ externalPort = 3002
 deploymentTarget = "autoscale"
 run = ["bash", "-c", "NODE_ENV=production node server/dist/index.js"]
 build = ["bash", "-c", "cd rmc-app && pnpm build && cd ../server && pnpm build"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000

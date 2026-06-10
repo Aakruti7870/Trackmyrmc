@@ -60,7 +60,7 @@ router.get('/challans', requireRole('client'), async (req, res) => {
 router.get('/ledger', requireRole('client'), async (req, res) => {
   const client = await db.select().from(clients)
     .where(eq(clients.email, req.user!.email)).limit(1);
-  if (!client.length) { res.json({ entries: [], balance: 0 }); return; }
+  if (!client.length) { res.json({ entries: [], outstanding: 0, creditLimit: 0 }); return; }
 
   const rows = await db.select().from(ledgerEntries)
     .where(eq(ledgerEntries.clientId, client[0].id))
@@ -93,13 +93,16 @@ router.get('/trips', requireRole('driver'), async (req, res) => {
 
   if (from) {
     filters.push(gte(challans.dispatchTime, new Date(from as string)));
+    if (to) {
+      filters.push(lte(challans.dispatchTime, new Date(to as string)));
+    }
   } else {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
     filters.push(gte(challans.dispatchTime, todayStart));
-  }
-  if (to) {
-    filters.push(lte(challans.dispatchTime, new Date(to as string)));
+    filters.push(lte(challans.dispatchTime, todayEnd));
   }
 
   const rows = await db.select(challanSelect).from(challans)
