@@ -83,7 +83,7 @@ export default function ChallanPrint() {
             <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a1a' }}>AAKRUTI INFRA RMC PLANT</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>Ready Mix Concrete Manufacturer</div>
             <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>MIDC Industrial Area, Navi Mumbai — Maharashtra</div>
-            <div style={{ fontSize: 11, color: '#888' }}>GST: 27AAACA1234B1Z5 | Ph: +91 9876543210</div>
+            <div style={{ fontSize: 11, color: '#888' }}>GST: 27AAACA1234B1Z5 | Ph: +91 98506 12834</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 28, fontWeight: 900, color: '#d97706', letterSpacing: '-1px' }}>CHALLAN</div>
@@ -171,7 +171,7 @@ export default function ChallanPrint() {
         </div>
 
         <div style={{ marginTop: 30, borderTop: '1px solid #eee', paddingTop: 12, textAlign: 'center', fontSize: 10, color: '#aaa' }}>
-          This is a computer generated challan. For queries contact: admin@aakruti.com | This document is valid only with company stamp.
+          This is a computer generated challan. For queries contact: aakruti.infrarmc@gmail.com | This document is valid only with company stamp.
         </div>
       </div>
 

@@ -6,11 +6,11 @@ import {
 } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 
-const WA = 'https://wa.me/917498286760';
-const TEL = 'tel:+917498286760';
-const MAIL = 'mailto:aakrutiinfrarmc@gmail.com';
-const PHONE = '+91 74982 86760';
-const EMAIL = 'aakrutiinfrarmc@gmail.com';
+const WA = 'https://wa.me/919850612834';
+const TEL = 'tel:+919850612834';
+const MAIL = 'mailto:aakruti.infrarmc@gmail.com';
+const PHONE = '+91 98506 12834';
+const EMAIL = 'aakruti.infrarmc@gmail.com';
 const ADDRESS = 'Karanjade, Panvel, Maharashtra 410206';
 const GRADES = ['M20', 'M25', 'M30', 'M35', 'M40', 'M50'];
 
