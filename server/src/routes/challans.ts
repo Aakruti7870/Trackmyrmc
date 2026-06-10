@@ -83,7 +83,13 @@ router.post('/', async (req, res) => {
   }).returning();
 
   if (orderId) {
-    await db.update(orders).set({ status: 'in_progress' }).where(eq(orders.id, +orderId));
+    const [prevOrder] = await db.select({ status: orders.status })
+      .from(orders).where(eq(orders.id, +orderId));
+    const [updatedOrder] = await db.update(orders).set({ status: 'in_progress' })
+      .where(eq(orders.id, +orderId)).returning();
+    if (updatedOrder && prevOrder?.status !== 'in_progress') {
+      emitSSEEvent('order.updated', updatedOrder);
+    }
   }
   emitSSEEvent('challan.created', row);
   res.status(201).json(row);

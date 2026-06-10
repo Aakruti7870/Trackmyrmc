@@ -86,7 +86,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       if (!c?.challanNo || c.status !== 'delivered') return;
       showToast(`${c.challanNo} marked Delivered`, 'success');
     });
-    return () => { unsubCreated(); unsubUpdated(); };
+    const unsubOrder = subscribe('order.updated', (data: unknown) => {
+      const o = data as { orderNo?: string; status?: string };
+      if (!o?.orderNo || !o.status) return;
+      const label = o.status
+        .replace(/[_-]/g, ' ')
+        .replace(/\b\w/g, ch => ch.toUpperCase());
+      showToast(`Order ${o.orderNo} now ${label}`, o.status === 'completed' ? 'success' : 'info');
+    });
+    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); };
   }, [subscribe, showToast]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';

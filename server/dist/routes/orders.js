@@ -3,6 +3,7 @@ import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { orders, clients, sites } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { emitSSEEvent } from '../lib/sseEmitter.js';
 const router = Router();
 router.use(requireAuth);
 async function nextOrderNo() {
@@ -71,6 +72,8 @@ router.post('/', async (req, res) => {
 });
 router.put('/:id', async (req, res) => {
     const { clientId, siteId, grade, quantity, pumpRequired, deliveryDate, deliveryTime, notes, status } = req.body;
+    const [prev] = await db.select({ status: orders.status })
+        .from(orders).where(eq(orders.id, +req.params.id));
     const [row] = await db.update(orders).set({
         clientId: clientId ? +clientId : undefined,
         siteId: siteId ? +siteId : null,
@@ -78,6 +81,9 @@ router.put('/:id', async (req, res) => {
         pumpRequired: pumpRequired !== undefined ? !!pumpRequired : undefined,
         deliveryDate, deliveryTime, notes, status,
     }).where(eq(orders.id, +req.params.id)).returning();
+    if (row && status !== undefined && prev?.status !== row.status) {
+        emitSSEEvent('order.updated', row);
+    }
     res.json(row);
 });
 router.delete('/:id', async (req, res) => {

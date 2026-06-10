@@ -84,6 +84,10 @@ export function useSSE() {
         dispatchEvent('vehicle.position', JSON.parse(e.data));
       });
 
+      es.addEventListener('order.updated', (e: MessageEvent) => {
+        dispatchEvent('order.updated', JSON.parse(e.data));
+      });
+
       es.addEventListener('ping', () => {});
     }
 
