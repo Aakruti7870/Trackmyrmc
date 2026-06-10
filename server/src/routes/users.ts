@@ -62,6 +62,24 @@ async function findLinkConflict(
   return null;
 }
 
+/**
+ * Map a Postgres unique-violation (23505) on one of the partial link indexes
+ * back to the same friendly message findLinkConflict returns, so a race or
+ * direct write that slips past the application check still yields a 409 rather
+ * than a raw DB error. Returns null for any other error so callers can rethrow.
+ */
+function linkUniqueViolationMessage(err: unknown): string | null {
+  const e = err as { code?: string; constraint?: string };
+  if (e?.code !== '23505') return null;
+  if (e.constraint === 'users_linked_client_unique') {
+    return 'This client is already linked to another account. Each client can be linked to only one user.';
+  }
+  if (e.constraint === 'users_linked_driver_unique') {
+    return 'This driver is already linked to another account. Each driver can be linked to only one user.';
+  }
+  return null;
+}
+
 function safeUser(u: {
   id: number; name: string; email: string; role: string;
   isActive: boolean; linkedClientId: number | null; linkedDriverId: number | null;
@@ -176,11 +194,18 @@ router.post('/', async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const [user] = await db.insert(users).values({
-    name, email, passwordHash, role,
-    linkedClientId: linkedClientId ?? null,
-    linkedDriverId: linkedDriverId ?? null,
-  }).returning();
+  let user;
+  try {
+    [user] = await db.insert(users).values({
+      name, email, passwordHash, role,
+      linkedClientId: linkedClientId ?? null,
+      linkedDriverId: linkedDriverId ?? null,
+    }).returning();
+  } catch (err) {
+    const message = linkUniqueViolationMessage(err);
+    if (message) { res.status(409).json({ error: message }); return; }
+    throw err;
+  }
 
   let emailSent: boolean | undefined;
   try {
@@ -261,10 +286,18 @@ router.put('/:id', async (req, res) => {
     return;
   }
 
-  const [user] = await db.update(users)
-    .set(updateData)
-    .where(eq(users.id, id))
-    .returning();
+  let updated;
+  try {
+    updated = await db.update(users)
+      .set(updateData)
+      .where(eq(users.id, id))
+      .returning();
+  } catch (err) {
+    const message = linkUniqueViolationMessage(err);
+    if (message) { res.status(409).json({ error: message }); return; }
+    throw err;
+  }
+  const [user] = updated;
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
   const actor = req.user!;
@@ -579,10 +612,17 @@ router.post('/:id/restore', async (req, res) => {
   }
 
   const actor = req.user!;
-  const [restored] = await db.update(users)
-    .set({ deletedAt: null, isActive: true })
-    .where(eq(users.id, id))
-    .returning();
+  let restored;
+  try {
+    [restored] = await db.update(users)
+      .set({ deletedAt: null, isActive: true })
+      .where(eq(users.id, id))
+      .returning();
+  } catch (err) {
+    const message = linkUniqueViolationMessage(err);
+    if (message) { res.status(409).json({ error: message }); return; }
+    throw err;
+  }
 
   await db.insert(auditLogs).values({
     actorId: actor.id,
