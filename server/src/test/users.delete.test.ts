@@ -1143,3 +1143,101 @@ test('restore-all: rejected for a non-admin caller (requireRole admin)', async (
   const logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.restored'));
   assert.equal(logs.length, 0, 'no restore happened');
 });
+
+// Authorization gating for the destructive single-account routes
+// (DELETE /users/:id and POST /users/:id/restore). The whole router is mounted
+// behind `requireAuth, requireRole('admin')`, so an unauthenticated request must
+// be rejected with 401 and an authenticated non-admin with 403 — and in every
+// case the protected account must stay exactly as it was.
+
+const NON_ADMIN_ROLES: Role[] = ['dispatcher', 'plant_operator', 'client', 'driver'];
+
+test('authz: DELETE /users/:id returns 401 with no token and leaves the account untouched', async () => {
+  // A live (not deleted) target. requireAuth runs before the route, so no token
+  // means a 401 and the soft-delete must never happen.
+  const target = await createUser({ name: 'Protected', email: 'protected@test.com', role: 'dispatcher' });
+
+  const res = await request(app).delete(`/api/users/${target.id}`);
+  assert.equal(res.status, 401, 'an unauthenticated delete is rejected');
+
+  const [row] = await db.select({ deletedAt: users.deletedAt, isActive: users.isActive })
+    .from(users).where(eq(users.id, target.id));
+  assert.equal(row.deletedAt, null, 'an unauthenticated delete must not soft-delete the account');
+  assert.equal(row.isActive, true, 'the account stays active');
+
+  const logs = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'user.deleted'), eq(auditLogs.targetUserId, target.id)));
+  assert.equal(logs.length, 0, 'no delete audit entry is written');
+});
+
+test('authz: DELETE /users/:id returns 403 for every authenticated non-admin role and leaves the account untouched', async () => {
+  for (const role of NON_ADMIN_ROLES) {
+    await db.execute(sql`TRUNCATE TABLE audit_logs, users, clients, drivers, login_attempts RESTART IDENTITY CASCADE`);
+
+    const actor = await createUser({ name: `Actor ${role}`, email: `actor-${role}@test.com`, role });
+    const target = await createUser({ name: 'Protected', email: 'protected@test.com', role: 'dispatcher' });
+    const token = tokenFor(actor);
+
+    const res = await request(app)
+      .delete(`/api/users/${target.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    assert.equal(res.status, 403, `a ${role} must not be able to delete an account`);
+
+    const [row] = await db.select({ deletedAt: users.deletedAt, isActive: users.isActive })
+      .from(users).where(eq(users.id, target.id));
+    assert.equal(row.deletedAt, null, `a ${role} delete must not soft-delete the account`);
+    assert.equal(row.isActive, true, `the account stays active after a ${role} delete attempt`);
+
+    const logs = await db.select().from(auditLogs)
+      .where(and(eq(auditLogs.action, 'user.deleted'), eq(auditLogs.targetUserId, target.id)));
+    assert.equal(logs.length, 0, `a ${role} delete attempt writes no audit entry`);
+  }
+});
+
+test('authz: POST /users/:id/restore returns 401 with no token and leaves the deleted account deleted', async () => {
+  // A soft-deleted target. Without a token the restore must be rejected and the
+  // account must stay deleted (deletedAt not cleared).
+  const target = await createUser({
+    name: 'Gone', email: 'gone@test.com', role: 'dispatcher',
+    isActive: false, deletedAt: new Date(),
+  });
+
+  const res = await request(app).post(`/api/users/${target.id}/restore`);
+  assert.equal(res.status, 401, 'an unauthenticated restore is rejected');
+
+  const [row] = await db.select({ deletedAt: users.deletedAt, isActive: users.isActive })
+    .from(users).where(eq(users.id, target.id));
+  assert.ok(row.deletedAt instanceof Date, 'an unauthenticated restore must not clear deletedAt');
+  assert.equal(row.isActive, false, 'the account stays inactive');
+
+  const logs = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, target.id)));
+  assert.equal(logs.length, 0, 'no restore audit entry is written');
+});
+
+test('authz: POST /users/:id/restore returns 403 for every authenticated non-admin role and leaves the deleted account deleted', async () => {
+  for (const role of NON_ADMIN_ROLES) {
+    await db.execute(sql`TRUNCATE TABLE audit_logs, users, clients, drivers, login_attempts RESTART IDENTITY CASCADE`);
+
+    const actor = await createUser({ name: `Actor ${role}`, email: `actor-${role}@test.com`, role });
+    const target = await createUser({
+      name: 'Gone', email: 'gone@test.com', role: 'dispatcher',
+      isActive: false, deletedAt: new Date(),
+    });
+    const token = tokenFor(actor);
+
+    const res = await request(app)
+      .post(`/api/users/${target.id}/restore`)
+      .set('Authorization', `Bearer ${token}`);
+    assert.equal(res.status, 403, `a ${role} must not be able to restore an account`);
+
+    const [row] = await db.select({ deletedAt: users.deletedAt, isActive: users.isActive })
+      .from(users).where(eq(users.id, target.id));
+    assert.ok(row.deletedAt instanceof Date, `a ${role} restore must not clear deletedAt`);
+    assert.equal(row.isActive, false, `the account stays inactive after a ${role} restore attempt`);
+
+    const logs = await db.select().from(auditLogs)
+      .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, target.id)));
+    assert.equal(logs.length, 0, `a ${role} restore attempt writes no audit entry`);
+  }
+});
