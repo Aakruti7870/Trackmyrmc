@@ -25,6 +25,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(JSON.parse(stored));
     }
     setLoading(false);
+
+    function handleStorage(e: StorageEvent) {
+      if (e.key !== 'rmc_user' && e.key !== null) return;
+      const nextStored = localStorage.getItem('rmc_user');
+      const nextToken = localStorage.getItem('rmc_token');
+      if (nextStored && nextToken) {
+        try {
+          setUser(JSON.parse(nextStored));
+        } catch {
+          setUser(null);
+        }
+      } else {
+        setUser(null);
+      }
+    }
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   async function login(email: string, password: string) {
