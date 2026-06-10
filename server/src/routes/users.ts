@@ -31,6 +31,37 @@ const updateSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters').optional(),
 });
 
+/**
+ * Ensure a client/driver record isn't already linked to a *different*
+ * non-deleted user. Returns an HTTP-409-ready error message, or null when the
+ * link is free. `excludeUserId` is the user being edited (skipped in the scan).
+ */
+async function findLinkConflict(
+  linkedClientId: number | null | undefined,
+  linkedDriverId: number | null | undefined,
+  excludeUserId?: number,
+): Promise<string | null> {
+  if (linkedClientId != null) {
+    const rows = await db.select({ id: users.id, name: users.name })
+      .from(users)
+      .where(and(eq(users.linkedClientId, linkedClientId), isNull(users.deletedAt)));
+    const conflict = rows.find(r => r.id !== excludeUserId);
+    if (conflict) {
+      return `This client is already linked to another account (${conflict.name}). Each client can be linked to only one user.`;
+    }
+  }
+  if (linkedDriverId != null) {
+    const rows = await db.select({ id: users.id, name: users.name })
+      .from(users)
+      .where(and(eq(users.linkedDriverId, linkedDriverId), isNull(users.deletedAt)));
+    const conflict = rows.find(r => r.id !== excludeUserId);
+    if (conflict) {
+      return `This driver is already linked to another account (${conflict.name}). Each driver can be linked to only one user.`;
+    }
+  }
+  return null;
+}
+
 function safeUser(u: {
   id: number; name: string; email: string; role: string;
   isActive: boolean; linkedClientId: number | null; linkedDriverId: number | null;
@@ -167,6 +198,12 @@ router.post('/', async (req, res) => {
     return;
   }
 
+  const linkConflict = await findLinkConflict(linkedClientId, linkedDriverId);
+  if (linkConflict) {
+    res.status(409).json({ error: linkConflict });
+    return;
+  }
+
   const passwordHash = await bcrypt.hash(password, 10);
   const [user] = await db.insert(users).values({
     name, email, passwordHash, role,
@@ -244,6 +281,14 @@ router.put('/:id', async (req, res) => {
     linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
   }).from(users).where(eq(users.id, id));
   if (!before) { res.status(404).json({ error: 'User not found' }); return; }
+
+  const effectiveClientId = rest.linkedClientId !== undefined ? (rest.linkedClientId ?? null) : before.linkedClientId;
+  const effectiveDriverId = rest.linkedDriverId !== undefined ? (rest.linkedDriverId ?? null) : before.linkedDriverId;
+  const linkConflict = await findLinkConflict(effectiveClientId, effectiveDriverId, id);
+  if (linkConflict) {
+    res.status(409).json({ error: linkConflict });
+    return;
+  }
 
   const [user] = await db.update(users)
     .set(updateData)

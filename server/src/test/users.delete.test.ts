@@ -7,7 +7,7 @@ import type { Express } from 'express';
 
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, auditLogs } from '../db/schema.js';
+import { users, auditLogs, clients, drivers } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
 
 type Role = 'admin' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
@@ -51,7 +51,7 @@ before(() => {
 
 beforeEach(async () => {
   // Isolate each test: the last-admin guard depends on the global admin count.
-  await db.execute(sql`TRUNCATE TABLE audit_logs, users, login_attempts RESTART IDENTITY CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE audit_logs, users, clients, drivers, login_attempts RESTART IDENTITY CASCADE`);
 });
 
 after(async () => {
@@ -343,4 +343,134 @@ test('restore: returns 404 for a non-deleted user and a non-existent id', async 
     .post('/api/users/999999/restore')
     .set('Authorization', `Bearer ${token}`);
   assert.equal(missing.status, 404);
+});
+
+async function createClient(name: string) {
+  const [row] = await db.insert(clients).values({
+    name, contactPerson: 'Contact', phone: '0000000000',
+  }).returning();
+  return row;
+}
+
+async function createDriver(name: string) {
+  const [row] = await db.insert(drivers).values({
+    name, phone: '0000000000',
+  }).returning();
+  return row;
+}
+
+test('link guard: POST /users rejects a client already linked to another active user', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const client = await createClient('Acme Concrete');
+  const token = tokenFor(admin);
+
+  // First account links the client — succeeds.
+  const first = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Client One', email: 'c1@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+  assert.equal(first.status, 201);
+
+  // Second account links the same client — rejected with 409.
+  const second = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Client Two', email: 'c2@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+  assert.equal(second.status, 409);
+  assert.match(second.body.error, /already linked/i);
+  assert.match(second.body.error, /Client One/);
+
+  // The second account was not created.
+  const rows = await db.select().from(users).where(eq(users.email, 'c2@test.com'));
+  assert.equal(rows.length, 0, 'the conflicting account must not be created');
+});
+
+test('link guard: POST /users rejects a driver already linked to another active user', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const driver = await createDriver('Ravi Kumar');
+  const token = tokenFor(admin);
+
+  const first = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Driver One', email: 'd1@test.com', password: PASSWORD, role: 'driver', linkedDriverId: driver.id });
+  assert.equal(first.status, 201);
+
+  const second = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Driver Two', email: 'd2@test.com', password: PASSWORD, role: 'driver', linkedDriverId: driver.id });
+  assert.equal(second.status, 409);
+  assert.match(second.body.error, /already linked/i);
+  assert.match(second.body.error, /Driver One/);
+});
+
+test('link guard: a client freed by soft-deleting its user can be linked to a new account', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const client = await createClient('Acme Concrete');
+  const token = tokenFor(admin);
+
+  const first = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Client One', email: 'c1@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+  assert.equal(first.status, 201);
+
+  // Soft-delete the holder; the link no longer blocks a new account.
+  const del = await request(app)
+    .delete(`/api/users/${first.body.id}`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(del.status, 200);
+
+  const second = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Client Two', email: 'c2@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+  assert.equal(second.status, 201, 'a link held only by a deleted user is free to reuse');
+});
+
+test('link guard: PUT /users rejects linking a client already held by another active user', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const client = await createClient('Acme Concrete');
+  const token = tokenFor(admin);
+
+  const holder = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Holder', email: 'holder@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+  assert.equal(holder.status, 201);
+
+  const other = await createUser({ name: 'Other', email: 'other@test.com', role: 'client' });
+
+  const res = await request(app)
+    .put(`/api/users/${other.id}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ linkedClientId: client.id });
+  assert.equal(res.status, 409);
+  assert.match(res.body.error, /already linked/i);
+
+  const [row] = await db.select({ linkedClientId: users.linkedClientId })
+    .from(users).where(eq(users.id, other.id));
+  assert.equal(row.linkedClientId, null, 'the conflicting link must not be saved');
+});
+
+test('link guard: PUT /users lets a user keep its own existing link (no false self-conflict)', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const client = await createClient('Acme Concrete');
+  const token = tokenFor(admin);
+
+  const holder = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Holder', email: 'holder@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+  assert.equal(holder.status, 201);
+
+  // Re-saving the same user with the same link (e.g. a name edit) must succeed.
+  const res = await request(app)
+    .put(`/api/users/${holder.body.id}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Holder Renamed', linkedClientId: client.id });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.linkedClientId, client.id);
+  assert.equal(res.body.name, 'Holder Renamed');
 });
