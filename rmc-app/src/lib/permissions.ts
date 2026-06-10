@@ -1,9 +1,9 @@
 export type Role = 'admin' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
-  admin:          ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/mix-design', '/reports', '/challans', '/users', '/activity-log', '/profile', '/kiosk'],
-  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/reports', '/challans', '/profile', '/kiosk'],
-  plant_operator: ['/', '/batch-report', '/mix-design', '/profile'],
+  admin:          ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/mix-design', '/reports', '/challans', '/shift-report', '/users', '/activity-log', '/profile', '/kiosk'],
+  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/reports', '/challans', '/shift-report', '/profile', '/kiosk'],
+  plant_operator: ['/', '/batch-report', '/mix-design', '/shift-report', '/profile'],
   client:         ['/my-orders', '/challans', '/profile'],
   driver:         ['/my-trips', '/challans', '/profile'],
 };

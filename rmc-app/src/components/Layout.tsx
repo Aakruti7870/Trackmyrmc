@@ -2,7 +2,7 @@ import { Link, useLocation } from 'wouter';
 import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
-  ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History,
+  ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -25,6 +25,7 @@ const ALL_NAV_ITEMS = [
   { path: '/batch-report', label: 'Production', icon: FileText },
   { path: '/mix-design',  label: 'Mix Design', icon: FlaskConical },
   { path: '/reports',     label: 'Reports',    icon: BarChart3 },
+  { path: '/shift-report', label: 'Shift Report', icon: ClipboardCheck },
   { path: '/users',       label: 'Users',      icon: ShieldCheck },
   { path: '/activity-log', label: 'Activity Log', icon: History },
 ];
