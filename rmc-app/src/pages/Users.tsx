@@ -157,6 +157,7 @@ export default function Users() {
   const [driverOptions, setDriverOptions] = useState<LinkOption[]>([]);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [lockoutStatus, setLockoutStatus] = useState<Record<number, LockoutInfo>>({});
+  const [now, setNow] = useState(() => Date.now());
   const [unlocking, setUnlocking] = useState<number | null>(null);
   const [resendingId, setResendingId] = useState<number | null>(null);
   const [historyUser, setHistoryUser] = useState<UserRecord | null>(null);
@@ -216,6 +217,7 @@ export default function Users() {
   useEffect(() => {
     if (!anyLocked) return;
     const id = setInterval(() => {
+      setNow(Date.now());
       api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
     }, 30000);
     return () => clearInterval(id);
@@ -728,6 +730,11 @@ export default function Users() {
               const lockExpiry = lockout?.lockedUntil
                 ? new Date(lockout.lockedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 : null;
+              // Warn admins when a lockout is about to lift (under ~2 min left).
+              // Derived purely from lockedUntil vs. now, so the 30s poll re-render
+              // moves the badge into its "expiring soon" state on its own.
+              const lockMsLeft = lockout?.lockedUntil ? lockout.lockedUntil - now : 0;
+              const lockExpiringSoon = isLocked && lockMsLeft > 0 && lockMsLeft <= 120000;
               return (
                 <tr key={u.id} style={{
                   borderBottom: '1px solid rgba(255,255,255,.05)',
@@ -790,13 +797,23 @@ export default function Users() {
                       </button>
                       )}
                       {!showDeleted && isLocked && (
-                        <span title={lockExpiry ? `Locked until ${lockExpiry}` : 'Locked'} style={{
-                          padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-                          background: '#f9731620', color: '#f97316',
-                          border: '1px solid #f9731635',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          🔒 Locked{lockExpiry ? ` until ${lockExpiry}` : ''}
+                        <span
+                          title={
+                            lockExpiringSoon
+                              ? `Unlocking soon${lockExpiry ? ` (around ${lockExpiry})` : ''} — under 2 minutes left`
+                              : lockExpiry ? `Locked until ${lockExpiry}` : 'Locked'
+                          }
+                          style={{
+                            padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                            background: lockExpiringSoon ? '#facc1520' : '#f9731620',
+                            color: lockExpiringSoon ? '#facc15' : '#f97316',
+                            border: `1px solid ${lockExpiringSoon ? '#facc1545' : '#f9731635'}`,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {lockExpiringSoon
+                            ? `⏳ Unlocking soon${lockExpiry ? ` · ${lockExpiry}` : ''}`
+                            : `🔒 Locked${lockExpiry ? ` until ${lockExpiry}` : ''}`}
                         </span>
                       )}
                     </div>
