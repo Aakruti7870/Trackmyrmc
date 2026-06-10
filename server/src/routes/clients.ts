@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, and, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { clients, sites, ledgerEntries } from '../db/schema.js';
+import { clients, sites, ledgerEntries, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -38,7 +38,19 @@ router.put('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
-  await db.delete(clients).where(eq(clients.id, +req.params.id));
+  const clientId = +req.params.id;
+  const linked = await db.select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .where(and(eq(users.linkedClientId, clientId), isNull(users.deletedAt)));
+  if (linked.length) {
+    const names = linked.map(u => `${u.name} (${u.email})`).join(', ');
+    res.status(409).json({
+      error: `Cannot delete this client because ${linked.length === 1 ? 'a login account is' : 'login accounts are'} still linked to it: ${names}. Unlink or remove the account first.`,
+      linkedUsers: linked,
+    });
+    return;
+  }
+  await db.delete(clients).where(eq(clients.id, clientId));
   res.json({ ok: true });
 });
 

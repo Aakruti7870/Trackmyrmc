@@ -1,0 +1,140 @@
+import { test, before, beforeEach, after } from 'node:test';
+import assert from 'node:assert/strict';
+import request from 'supertest';
+import bcrypt from 'bcryptjs';
+import { eq, sql } from 'drizzle-orm';
+import type { Express } from 'express';
+
+import { buildTestApp } from './app.js';
+import { db, pool } from '../db/index.js';
+import { users, clients, drivers } from '../db/schema.js';
+import { signToken } from '../middleware/auth.js';
+
+let app: Express;
+const PASSWORD = 'secret123';
+
+async function createAdmin() {
+  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const [row] = await db.insert(users).values({
+    name: 'Admin', email: 'admin@test.com', passwordHash, role: 'admin', isActive: true,
+  }).returning();
+  return row;
+}
+
+async function createClient(name = 'Acme Corp') {
+  const [row] = await db.insert(clients).values({
+    name, contactPerson: 'Contact', phone: '8888888888', creditLimit: '0', outstandingAmount: '0',
+  }).returning();
+  return row;
+}
+
+async function createDriver(name = 'John Driver') {
+  const [row] = await db.insert(drivers).values({ name, phone: '9999999999' }).returning();
+  return row;
+}
+
+before(() => { app = buildTestApp(); });
+
+beforeEach(async () => {
+  await db.execute(sql`TRUNCATE TABLE audit_logs, users, clients, drivers, login_attempts RESTART IDENTITY CASCADE`);
+});
+
+after(async () => { await pool.end(); });
+
+test('client delete is blocked when an active user is linked', async () => {
+  const admin = await createAdmin();
+  const client = await createClient();
+  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const [linked] = await db.insert(users).values({
+    name: 'Client Login', email: 'client@test.com', passwordHash, role: 'client',
+    isActive: true, linkedClientId: client.id,
+  }).returning();
+
+  const res = await request(app)
+    .delete(`/api/clients/${client.id}`)
+    .set('Authorization', `Bearer ${signToken(admin)}`);
+
+  assert.equal(res.status, 409);
+  assert.match(res.body.error, /Client Login/);
+  assert.match(res.body.error, /client@test.com/);
+  assert.equal(res.body.linkedUsers[0].id, linked.id);
+
+  const [stillThere] = await db.select().from(clients).where(eq(clients.id, client.id));
+  assert.ok(stillThere, 'client should not be deleted');
+});
+
+test('client delete succeeds when the only linked user is soft-deleted', async () => {
+  const admin = await createAdmin();
+  const client = await createClient();
+  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  await db.insert(users).values({
+    name: 'Old Login', email: 'old@test.com', passwordHash, role: 'client',
+    isActive: false, deletedAt: new Date(), linkedClientId: client.id,
+  });
+
+  const res = await request(app)
+    .delete(`/api/clients/${client.id}`)
+    .set('Authorization', `Bearer ${signToken(admin)}`);
+
+  assert.equal(res.status, 200);
+  const [gone] = await db.select().from(clients).where(eq(clients.id, client.id));
+  assert.equal(gone, undefined, 'client should be deleted');
+});
+
+test('client delete succeeds when no user is linked', async () => {
+  const admin = await createAdmin();
+  const client = await createClient();
+  const res = await request(app)
+    .delete(`/api/clients/${client.id}`)
+    .set('Authorization', `Bearer ${signToken(admin)}`);
+  assert.equal(res.status, 200);
+});
+
+test('driver delete is blocked when an active user is linked', async () => {
+  const admin = await createAdmin();
+  const driver = await createDriver();
+  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const [linked] = await db.insert(users).values({
+    name: 'Driver Login', email: 'driver@test.com', passwordHash, role: 'driver',
+    isActive: true, linkedDriverId: driver.id,
+  }).returning();
+
+  const res = await request(app)
+    .delete(`/api/drivers/${driver.id}`)
+    .set('Authorization', `Bearer ${signToken(admin)}`);
+
+  assert.equal(res.status, 409);
+  assert.match(res.body.error, /Driver Login/);
+  assert.match(res.body.error, /driver@test.com/);
+  assert.equal(res.body.linkedUsers[0].id, linked.id);
+
+  const [stillThere] = await db.select().from(drivers).where(eq(drivers.id, driver.id));
+  assert.ok(stillThere, 'driver should not be deleted');
+});
+
+test('driver delete succeeds when the only linked user is soft-deleted', async () => {
+  const admin = await createAdmin();
+  const driver = await createDriver();
+  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  await db.insert(users).values({
+    name: 'Old Driver Login', email: 'oldd@test.com', passwordHash, role: 'driver',
+    isActive: false, deletedAt: new Date(), linkedDriverId: driver.id,
+  });
+
+  const res = await request(app)
+    .delete(`/api/drivers/${driver.id}`)
+    .set('Authorization', `Bearer ${signToken(admin)}`);
+
+  assert.equal(res.status, 200);
+  const [gone] = await db.select().from(drivers).where(eq(drivers.id, driver.id));
+  assert.equal(gone, undefined, 'driver should be deleted');
+});
+
+test('driver delete succeeds when no user is linked', async () => {
+  const admin = await createAdmin();
+  const driver = await createDriver();
+  const res = await request(app)
+    .delete(`/api/drivers/${driver.id}`)
+    .set('Authorization', `Bearer ${signToken(admin)}`);
+  assert.equal(res.status, 200);
+});

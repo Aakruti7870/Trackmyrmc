@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Edit2, Trash2, X, ChevronRight, MapPin, Phone } from 'lucide-react';
 import { api, type Client, type Site, type LedgerEntry } from '@/lib/api';
+import { useToast } from '@/lib/toast';
 
 type Tab = 'overview' | 'sites' | 'ledger';
 
@@ -20,6 +21,7 @@ export default function Clients() {
   const [ledgerForm, setLedgerForm] = useState({ type: 'debit', amount: '', description: '', referenceNo: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const { showToast } = useToast();
 
   function load() { api.get<Client[]>('/clients').then(setClients); }
   useEffect(load, []);
@@ -48,7 +50,11 @@ export default function Clients() {
 
   async function remove(c: Client) {
     if (!confirm(`Delete ${c.name}?`)) return;
-    await api.delete(`/clients/${c.id}`); load();
+    try {
+      await api.delete(`/clients/${c.id}`); load();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to delete client', 'error');
+    }
   }
 
   async function addSite() {

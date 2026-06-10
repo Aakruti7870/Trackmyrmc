@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, Search, AlertTriangle, UserCheck } from 'lucide-react';
 import { api, type Driver } from '@/lib/api';
+import { useToast } from '@/lib/toast';
 
 export default function Drivers() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -10,6 +11,7 @@ export default function Drivers() {
   const [editing, setEditing] = useState<Driver | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const { showToast } = useToast();
   // Capture "now" once at mount; license-expiry math stays stable across renders.
   const [now] = useState(() => Date.now());
 
@@ -31,7 +33,11 @@ export default function Drivers() {
 
   async function remove(d: Driver) {
     if (!confirm(`Delete driver ${d.name}?`)) return;
-    await api.delete(`/drivers/${d.id}`); load();
+    try {
+      await api.delete(`/drivers/${d.id}`); load();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to delete driver', 'error');
+    }
   }
 
   const filtered = drivers.filter(d =>
