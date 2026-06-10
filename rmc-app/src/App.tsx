@@ -2,6 +2,7 @@ import { Route, Switch, Redirect } from 'wouter';
 import { useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { ToastProvider, useToast } from '@/lib/toast';
+import { ThemeProvider } from '@/lib/theme';
 import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
@@ -49,7 +50,7 @@ function ProtectedRoutes() {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#08111f', color: '#9fb0c7', fontSize: 14,
+        background: 'var(--bg)', color: 'var(--muted)', fontSize: 14,
       }}>
         Loading…
       </div>
@@ -91,13 +92,15 @@ function LoginRoute() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <Switch>
-          <Route path="/login" component={LoginRoute} />
-          <Route component={ProtectedRoutes} />
-        </Switch>
-      </ToastProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <Switch>
+            <Route path="/login" component={LoginRoute} />
+            <Route component={ProtectedRoutes} />
+          </Switch>
+        </ToastProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

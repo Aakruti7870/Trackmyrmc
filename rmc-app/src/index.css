@@ -1,23 +1,48 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --color-bg: #08111f;
-  --color-panel: #101b2e;
-  --color-panel2: #162235;
-  --color-surface: #1a2940;
-  --color-line: #263449;
-  --color-text: #eef5ff;
-  --color-muted: #9fb0c7;
-  --color-gold: #f7c948;
-  --color-gold-dark: #d97706;
-  --color-green: #22c55e;
-  --color-green-dark: #15803d;
-  --color-red: #ef4444;
-  --color-blue: #38bdf8;
+/* Tailwind v4: map utility color names to the runtime tokens below (inline = no indirection) */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-gold: var(--gold);
+  --color-gold-dark: var(--gold-dark);
+  --color-green: var(--green);
+  --color-green-dark: var(--green-dark);
+  --color-red: var(--red);
+  --color-blue: var(--blue);
 
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-app);
   --radius-card: 18px;
+}
+
+/* ===== Theme tokens (swapped at runtime by ThemeProvider) — default: Midnight Gold ===== */
+:root {
+  --bg-top: #1c2a44;
+  --bg: #08111f;
+  --bg-deep: #050914;
+  --panel: #101b2e;
+  --panel2: #162235;
+  --surface: #1a2940;
+  --line: #263449;
+  --text: #eef5ff;
+  --muted: #9fb0c7;
+  --gold-hi: #ffe08a;
+  --gold-mid: #f6b818;
+  --gold: #f7c948;
+  --gold-dark: #d97706;
+  --green: #22c55e;
+  --green-dark: #15803d;
+  --blue: #38bdf8;
+  --red: #ef4444;
+  --glow-1: rgba(255,183,3,.16);
+  --glow-2: rgba(56,189,248,.10);
+  --font-app: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 * {
@@ -26,11 +51,12 @@
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: radial-gradient(circle at top left, #1c2a44 0, #08111f 38%, #050914 100%);
-  color: #eef5ff;
+  font-family: var(--font-app);
+  background: radial-gradient(circle at top left, var(--bg-top) 0, var(--bg) 38%, var(--bg-deep) 100%);
+  color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  transition: background .4s ease, color .25s ease;
 }
 
 body::before {
@@ -39,10 +65,11 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 80% 10%, rgba(255,183,3,.16), transparent 26%),
-    radial-gradient(circle at 72% 78%, rgba(22,163,74,.14), transparent 28%),
+    radial-gradient(circle at 80% 10%, var(--glow-1), transparent 26%),
+    radial-gradient(circle at 72% 78%, var(--glow-2), transparent 28%),
     linear-gradient(120deg, transparent, rgba(255,255,255,.035), transparent);
   z-index: -1;
+  transition: background .4s ease;
 }
 
 #root {
@@ -56,13 +83,13 @@ input, select, textarea, button {
 button { cursor: pointer; border: 0; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #101b2e; }
-::-webkit-scrollbar-thumb { background: #263449; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #38bdf8; }
+::-webkit-scrollbar-track { background: var(--panel); }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
 
 /* Card glass effect */
 .glass-card {
-  background: linear-gradient(160deg, rgba(27,40,62,.92), rgba(7,13,26,.96));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--bg-deep) 96%, transparent));
   border: 1px solid rgba(203,213,225,.14);
   box-shadow: 0 22px 70px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.08);
   border-radius: 18px;
@@ -74,7 +101,7 @@ button { cursor: pointer; border: 0; }
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(125deg, rgba(255,255,255,.12), transparent 22%, transparent 72%, rgba(255,183,3,.08));
+  background: linear-gradient(125deg, rgba(255,255,255,.12), transparent 22%, transparent 72%, color-mix(in srgb, var(--gold) 12%, transparent));
   pointer-events: none;
 }
 

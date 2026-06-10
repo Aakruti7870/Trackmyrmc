@@ -78,7 +78,7 @@ export default function Clients() {
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '9px 12px', boxSizing: 'border-box',
     background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
-    borderRadius: 8, color: '#eef5ff', fontSize: 13, outline: 'none',
+    borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
   };
 
   return (
@@ -86,17 +86,17 @@ export default function Clients() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Clients</h2>
-          <p style={{ margin: '4px 0 0', color: '#9fb0c7', fontSize: 13 }}>{clients.length} registered clients</p>
+          <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>{clients.length} registered clients</p>
         </div>
         <button onClick={openCreate} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
-          background: 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)',
+          background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
           color: '#111827', fontWeight: 800, fontSize: 13, borderRadius: 10, border: 'none', cursor: 'pointer',
         }}><Plus size={15} /> Add Client</button>
       </div>
 
       <div style={{ position: 'relative', marginBottom: 16, maxWidth: 360 }}>
-        <Search size={14} color="#9fb0c7" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+        <Search size={14} style={{ color: 'var(--muted)', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search clients…"
           style={{ ...inputStyle, paddingLeft: 36 }} />
       </div>
@@ -107,33 +107,33 @@ export default function Clients() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 14 }}>{c.name}</div>
-                <div style={{ fontSize: 12, color: '#9fb0c7', marginTop: 2 }}>{c.contactPerson}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{c.contactPerson}</div>
               </div>
               <div style={{ display: 'flex', gap: 5 }}>
-                <button onClick={() => openEdit(c)} style={{ padding: 5, background: 'rgba(56,189,248,.1)', border: '1px solid rgba(56,189,248,.2)', borderRadius: 7, cursor: 'pointer', color: '#38bdf8' }}><Edit2 size={12} /></button>
-                <button onClick={() => remove(c)} style={{ padding: 5, background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 7, cursor: 'pointer', color: '#ef4444' }}><Trash2 size={12} /></button>
+                <button onClick={() => openEdit(c)} style={{ padding: 5, background: 'rgba(56,189,248,.1)', border: '1px solid rgba(56,189,248,.2)', borderRadius: 7, cursor: 'pointer', color: 'var(--blue)' }}><Edit2 size={12} /></button>
+                <button onClick={() => remove(c)} style={{ padding: 5, background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 7, cursor: 'pointer', color: 'var(--red)' }}><Trash2 size={12} /></button>
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9fb0c7' }}><Phone size={11} /> {c.phone}</div>
-              {c.city && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9fb0c7' }}><MapPin size={11} /> {c.city}</div>}
-              {c.gstNo && <div style={{ fontSize: 11, color: '#9fb0c7', fontFamily: 'monospace' }}>GST: {c.gstNo}</div>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}><Phone size={11} /> {c.phone}</div>
+              {c.city && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}><MapPin size={11} /> {c.city}</div>}
+              {c.gstNo && <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>GST: {c.gstNo}</div>}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: 10, color: '#9fb0c7' }}>Outstanding</div>
-                <div style={{ fontWeight: 800, fontSize: 15, color: Number(c.outstandingAmount) > 0 ? '#ef4444' : '#22c55e' }}>{fmtRs(c.outstandingAmount)}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>Outstanding</div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: Number(c.outstandingAmount) > 0 ? 'var(--red)' : 'var(--green)' }}>{fmtRs(c.outstandingAmount)}</div>
               </div>
               <button onClick={() => openDrawer(c)} style={{
                 display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px',
-                background: 'rgba(247,201,72,.1)', border: '1px solid rgba(247,201,72,.2)',
-                borderRadius: 8, cursor: 'pointer', color: '#f7c948', fontSize: 12, fontWeight: 700,
+                background: 'color-mix(in srgb, var(--gold) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 20%, transparent)',
+                borderRadius: 8, cursor: 'pointer', color: 'var(--gold)', fontSize: 12, fontWeight: 700,
               }}>View <ChevronRight size={12} /></button>
             </div>
           </div>
         ))}
         {filtered.length === 0 && (
-          <div style={{ gridColumn: '1/-1', padding: 40, textAlign: 'center', color: '#9fb0c7' }}>No clients found</div>
+          <div style={{ gridColumn: '1/-1', padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No clients found</div>
         )}
       </div>
 
@@ -141,10 +141,10 @@ export default function Clients() {
       {modal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setModal(null)}>
-          <div style={{ background: '#0d1930', border: '1px solid #263449', borderRadius: 16, padding: 28, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{modal === 'create' ? 'New Client' : 'Edit Client'}</h3>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9fb0c7' }}><X size={18} /></button>
+              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {[
@@ -158,7 +158,7 @@ export default function Clients() {
                 { key: 'creditLimit', label: 'Credit Limit (₹)' },
               ].map(({ key, label, full }) => (
                 <div key={key} style={{ gridColumn: full ? '1/-1' : 'auto' }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#9fb0c7', marginBottom: 4 }}>{label}</label>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{label}</label>
                   <input type={key === 'creditLimit' ? 'number' : 'text'}
                     value={(form as Record<string, string | undefined>)[key] || ''}
                     onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
@@ -166,10 +166,10 @@ export default function Clients() {
                 </div>
               ))}
             </div>
-            {error && <div style={{ marginTop: 10, color: '#ef4444', fontSize: 13 }}>{error}</div>}
+            {error && <div style={{ marginTop: 10, color: 'var(--red)', fontSize: 13 }}>{error}</div>}
             <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-              <button onClick={() => setModal(null)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: '#9fb0c7', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ flex: 2, padding: 10, background: 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)', color: '#111827', fontWeight: 800, borderRadius: 10, border: 'none', cursor: 'pointer' }}>
+              <button onClick={() => setModal(null)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button onClick={save} disabled={saving} style={{ flex: 2, padding: 10, background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))', color: '#111827', fontWeight: 800, borderRadius: 10, border: 'none', cursor: 'pointer' }}>
                 {saving ? 'Saving…' : modal === 'create' ? 'Add Client' : 'Save Changes'}
               </button>
             </div>
@@ -181,20 +181,20 @@ export default function Clients() {
       {drawer && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}
           onClick={e => e.target === e.currentTarget && setDrawer(null)}>
-          <div style={{ width: '100%', maxWidth: 480, background: '#080f1e', borderLeft: '1px solid #263449', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '18px 20px', borderBottom: '1px solid #263449', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ width: '100%', maxWidth: 480, background: 'var(--bg)', borderLeft: '1px solid var(--line)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>{drawer.name}</h3>
-                <div style={{ fontSize: 12, color: '#9fb0c7', marginTop: 2 }}>{drawer.contactPerson} · {drawer.phone}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{drawer.contactPerson} · {drawer.phone}</div>
               </div>
-              <button onClick={() => setDrawer(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9fb0c7' }}><X size={18} /></button>
+              <button onClick={() => setDrawer(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
             </div>
-            <div style={{ display: 'flex', borderBottom: '1px solid #263449' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--line)' }}>
               {(['overview', 'sites', 'ledger'] as Tab[]).map(t => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   flex: 1, padding: '11px', background: 'none', border: 'none',
-                  borderBottom: `2px solid ${tab === t ? '#f7c948' : 'transparent'}`,
-                  color: tab === t ? '#f7c948' : '#9fb0c7', cursor: 'pointer',
+                  borderBottom: `2px solid ${tab === t ? 'var(--gold)' : 'transparent'}`,
+                  color: tab === t ? 'var(--gold)' : 'var(--muted)', cursor: 'pointer',
                   fontSize: 13, fontWeight: 700, textTransform: 'capitalize',
                 }}>{t}</button>
               ))}
@@ -204,55 +204,55 @@ export default function Clients() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {[['Contact', drawer.contactPerson], ['Phone', drawer.phone], ['Email', drawer.email || '—'], ['GST No', drawer.gstNo || '—'], ['City', drawer.city || '—'], ['Credit Limit', fmtRs(drawer.creditLimit)], ['Outstanding', fmtRs(drawer.outstandingAmount)]].map(([k, v]) => (
                     <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, borderBottom: '1px solid rgba(38,52,73,.5)', paddingBottom: 10 }}>
-                      <span style={{ color: '#9fb0c7', fontWeight: 600 }}>{k}</span>
-                      <span style={{ fontWeight: 700, color: k === 'Outstanding' && Number(drawer.outstandingAmount) > 0 ? '#ef4444' : '#eef5ff' }}>{v}</span>
+                      <span style={{ color: 'var(--muted)', fontWeight: 600 }}>{k}</span>
+                      <span style={{ fontWeight: 700, color: k === 'Outstanding' && Number(drawer.outstandingAmount) > 0 ? 'var(--red)' : 'var(--text)' }}>{v}</span>
                     </div>
                   ))}
                 </div>
               )}
               {tab === 'sites' && (
                 <div>
-                  <button onClick={() => setSiteModal(s => !s)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: 'rgba(247,201,72,.1)', border: '1px solid rgba(247,201,72,.2)', borderRadius: 8, color: '#f7c948', cursor: 'pointer', fontSize: 12, fontWeight: 700, marginBottom: 12 }}>
+                  <button onClick={() => setSiteModal(s => !s)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: 'color-mix(in srgb, var(--gold) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 20%, transparent)', borderRadius: 8, color: 'var(--gold)', cursor: 'pointer', fontSize: 12, fontWeight: 700, marginBottom: 12 }}>
                     <Plus size={13} /> Add Site
                   </button>
                   {siteModal && (
                     <div style={{ padding: 14, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, marginBottom: 12 }}>
                       {[['name', 'Site Name'], ['address', 'Address'], ['city', 'City']].map(([k, l]) => (
                         <div key={k} style={{ marginBottom: 8 }}>
-                          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#9fb0c7', marginBottom: 3 }}>{l}</label>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>{l}</label>
                           <input value={(siteForm as Record<string, string>)[k] || ''} onChange={e => setSiteForm(f => ({ ...f, [k]: e.target.value }))} style={inputStyle} />
                         </div>
                       ))}
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                        <button onClick={() => setSiteModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: '#9fb0c7', cursor: 'pointer' }}>Cancel</button>
-                        <button onClick={addSite} style={{ flex: 1, padding: '7px', background: '#f7c948', border: 'none', borderRadius: 8, color: '#111', fontWeight: 700, cursor: 'pointer' }}>Save</button>
+                        <button onClick={() => setSiteModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: 'var(--muted)', cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={addSite} style={{ flex: 1, padding: '7px', background: 'var(--gold)', border: 'none', borderRadius: 8, color: '#111', fontWeight: 700, cursor: 'pointer' }}>Save</button>
                       </div>
                     </div>
                   )}
                   {sites.map(s => (
                     <div key={s.id} style={{ padding: '10px 12px', background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.06)', borderRadius: 8, marginBottom: 6 }}>
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
-                      <div style={{ fontSize: 12, color: '#9fb0c7' }}>{[s.address, s.city].filter(Boolean).join(', ')}</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{[s.address, s.city].filter(Boolean).join(', ')}</div>
                     </div>
                   ))}
-                  {!sites.length && !siteModal && <div style={{ color: '#9fb0c7', textAlign: 'center', padding: '20px 0', fontSize: 13 }}>No sites added</div>}
+                  {!sites.length && !siteModal && <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0', fontSize: 13 }}>No sites added</div>}
                 </div>
               )}
               {tab === 'ledger' && (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <div>
-                      <span style={{ fontSize: 11, color: '#9fb0c7' }}>Balance: </span>
-                      <span style={{ fontWeight: 800, fontSize: 16, color: ledger.outstanding > 0 ? '#ef4444' : '#22c55e' }}>{fmtRs(ledger.outstanding)}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>Balance: </span>
+                      <span style={{ fontWeight: 800, fontSize: 16, color: ledger.outstanding > 0 ? 'var(--red)' : 'var(--green)' }}>{fmtRs(ledger.outstanding)}</span>
                     </div>
-                    <button onClick={() => setLedgerModal(l => !l)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', background: 'rgba(247,201,72,.1)', border: '1px solid rgba(247,201,72,.2)', borderRadius: 8, color: '#f7c948', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                    <button onClick={() => setLedgerModal(l => !l)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', background: 'color-mix(in srgb, var(--gold) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 20%, transparent)', borderRadius: 8, color: 'var(--gold)', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
                       <Plus size={12} /> Entry
                     </button>
                   </div>
                   {ledgerModal && (
                     <div style={{ padding: 14, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, marginBottom: 12 }}>
                       <div style={{ marginBottom: 8 }}>
-                        <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#9fb0c7', marginBottom: 3 }}>Type</label>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>Type</label>
                         <select value={ledgerForm.type} onChange={e => setLedgerForm(f => ({ ...f, type: e.target.value }))}
                           style={{ ...inputStyle, padding: '8px 10px' }}>
                           <option value="debit">Debit (Invoice)</option>
@@ -261,13 +261,13 @@ export default function Clients() {
                       </div>
                       {[['amount', 'Amount (₹)'], ['description', 'Description'], ['referenceNo', 'Reference No']].map(([k, l]) => (
                         <div key={k} style={{ marginBottom: 8 }}>
-                          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#9fb0c7', marginBottom: 3 }}>{l}</label>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>{l}</label>
                           <input type={k === 'amount' ? 'number' : 'text'} value={(ledgerForm as Record<string, string>)[k]} onChange={e => setLedgerForm(f => ({ ...f, [k]: e.target.value }))} style={inputStyle} />
                         </div>
                       ))}
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                        <button onClick={() => setLedgerModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: '#9fb0c7', cursor: 'pointer' }}>Cancel</button>
-                        <button onClick={addLedger} style={{ flex: 1, padding: '7px', background: '#f7c948', border: 'none', borderRadius: 8, color: '#111', fontWeight: 700, cursor: 'pointer' }}>Add</button>
+                        <button onClick={() => setLedgerModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: 'var(--muted)', cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={addLedger} style={{ flex: 1, padding: '7px', background: 'var(--gold)', border: 'none', borderRadius: 8, color: '#111', fontWeight: 700, cursor: 'pointer' }}>Add</button>
                       </div>
                     </div>
                   )}
@@ -275,15 +275,15 @@ export default function Clients() {
                     <div key={e.id} style={{ padding: '9px 11px', background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.05)', borderRadius: 8, marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
                         <div style={{ fontSize: 12, fontWeight: 700 }}>{e.description}</div>
-                        <div style={{ fontSize: 10, color: '#9fb0c7' }}>{e.referenceNo || '—'} · {new Date(e.createdAt).toLocaleDateString('en-IN')}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{e.referenceNo || '—'} · {new Date(e.createdAt).toLocaleDateString('en-IN')}</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: e.type === 'debit' ? '#ef4444' : '#22c55e' }}>{e.type === 'debit' ? '+' : '−'}{fmtRs(e.amount)}</div>
-                        <div style={{ fontSize: 10, color: '#9fb0c7' }}>Bal: {fmtRs(e.runningBalance || 0)}</div>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: e.type === 'debit' ? 'var(--red)' : 'var(--green)' }}>{e.type === 'debit' ? '+' : '−'}{fmtRs(e.amount)}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>Bal: {fmtRs(e.runningBalance || 0)}</div>
                       </div>
                     </div>
                   ))}
-                  {!ledger.entries.length && !ledgerModal && <div style={{ color: '#9fb0c7', textAlign: 'center', padding: '20px 0', fontSize: 13 }}>No entries</div>}
+                  {!ledger.entries.length && !ledgerModal && <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0', fontSize: 13 }}>No entries</div>}
                 </div>
               )}
             </div>

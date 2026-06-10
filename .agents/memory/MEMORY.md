@@ -1,1 +1,2 @@
 - [RMC App Layout Fix](rmc-layout-fix.md) — Mobile header must NOT be a grid/flex child alongside sidebar; keep it above the flex row in a column container.
+- [RMC runtime theming](rmc-theming.md) — 5 CSS-var themes; accent *tints* must be color-mix(var(--gold)…) not literal amber rgba, or non-gold themes mismatch.

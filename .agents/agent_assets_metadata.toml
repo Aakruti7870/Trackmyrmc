@@ -1,0 +1,32 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "oaHn9kwGbYywEoOBjUmqg"
+uri = "file://screenshots/theme-1-midnight-gold.jpg"
+type = "image"
+title = "1 — Midnight Gold (navy + warm gold, Sora)"
+
+[[outputs]]
+id = "j3K97luPYBl9Bl6ps0Ajw"
+uri = "file://screenshots/theme-2-royal-amethyst.jpg"
+type = "image"
+title = "2 — Royal Amethyst (indigo + violet, Plus Jakarta Sans)"
+
+[[outputs]]
+id = "xjrSei91r1o3bjzPGGuYw"
+uri = "file://screenshots/theme-3-copper-dusk.jpg"
+type = "image"
+title = "3 — Copper Dusk (warm charcoal + copper, Space Grotesk)"
+
+[[outputs]]
+id = "4_ORfdBRlHrUnRkeooU-B"
+uri = "file://screenshots/theme-4-rose-noir.jpg"
+type = "image"
+title = "4 — Rose Noir (dark plum + rose, Manrope)"
+
+[[outputs]]
+id = "U7tBAmkF4RAfDdixUSwym"
+uri = "file://screenshots/theme-5-arctic-steel.jpg"
+type = "image"
+title = "5 — Arctic Steel (cool slate + ice cyan, Outfit)"

@@ -30,10 +30,10 @@ export default function MixDesign() {
   function doDelete() { if (deleteId) { mixDesignStore.remove(deleteId); reload(); setDeleteId(null); } }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', background: 'rgba(38,52,73,.4)', border: '1px solid #263449',
-    borderRadius: 10, padding: '9px 12px', color: '#eef5ff', fontSize: 14, outline: 'none'
+    width: '100%', background: 'rgba(38,52,73,.4)', border: '1px solid var(--line)',
+    borderRadius: 10, padding: '9px 12px', color: 'var(--text)', fontSize: 14, outline: 'none'
   };
-  const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#9fb0c7', marginBottom: 5, display: 'block' };
+  const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 5, display: 'block' };
 
   const totalBinder = (m: MixDesign) => m.cement;
   const totalPerM3 = (m: MixDesign) => m.cement + m.water + m.sand + m.aggregate + m.admixture;
@@ -43,12 +43,12 @@ export default function MixDesign() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>Mix Design</h2>
-          <p style={{ margin: '5px 0 0', color: '#9fb0c7', fontSize: 14 }}>Concrete mix proportions per grade</p>
+          <p style={{ margin: '5px 0 0', color: 'var(--muted)', fontSize: 14 }}>Concrete mix proportions per grade</p>
         </div>
         <button onClick={openAdd} data-testid="button-add-mix" style={{
           display: 'flex', alignItems: 'center', gap: 7,
           borderRadius: 12, padding: '10px 18px',
-          background: 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)',
+          background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
           color: '#111827', fontWeight: 800, fontSize: 14
         }}>
           <Plus size={16} /> Add Mix Design
@@ -66,34 +66,34 @@ export default function MixDesign() {
                   border: '1px solid rgba(56,189,248,.25)',
                   display: 'grid', placeItems: 'center'
                 }}>
-                  <FlaskConical size={20} color="#38bdf8" />
+                  <FlaskConical size={20} style={{ color: 'var(--blue)' }} />
                 </div>
                 <div>
                   <div style={{ fontWeight: 900, fontSize: 22, letterSpacing: '-1px' }}>{m.grade}</div>
-                  <div style={{ fontSize: 11, color: '#9fb0c7' }}>W/C: {m.wCRatio}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>W/C: {m.wCRatio}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => openEdit(m)} data-testid={`button-edit-mix-${m.id}`} style={{ background: 'rgba(56,189,248,.12)', border: 'none', borderRadius: 8, padding: '6px 8px', color: '#38bdf8', cursor: 'pointer' }}><Pencil size={13} /></button>
-                <button onClick={() => setDeleteId(m.id)} data-testid={`button-delete-mix-${m.id}`} style={{ background: 'rgba(239,68,68,.12)', border: 'none', borderRadius: 8, padding: '6px 8px', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={13} /></button>
+                <button onClick={() => openEdit(m)} data-testid={`button-edit-mix-${m.id}`} style={{ background: 'rgba(56,189,248,.12)', border: 'none', borderRadius: 8, padding: '6px 8px', color: 'var(--blue)', cursor: 'pointer' }}><Pencil size={13} /></button>
+                <button onClick={() => setDeleteId(m.id)} data-testid={`button-delete-mix-${m.id}`} style={{ background: 'rgba(239,68,68,.12)', border: 'none', borderRadius: 8, padding: '6px 8px', color: 'var(--red)', cursor: 'pointer' }}><Trash2 size={13} /></button>
               </div>
             </div>
 
             {/* Visual bar chart */}
             <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
               {[
-                { label: 'Cement', value: m.cement, color: '#f7c948', max: 600 },
-                { label: 'Water', value: m.water, color: '#38bdf8', max: 250 },
-                { label: 'Sand', value: m.sand, color: '#9fb0c7', max: 1000 },
-                { label: 'Aggregate', value: m.aggregate, color: '#22c55e', max: 1300 },
-                { label: 'Admixture', value: m.admixture, color: '#ef4444', max: 5 },
+                { label: 'Cement', value: m.cement, color: 'var(--gold)', max: 600 },
+                { label: 'Water', value: m.water, color: 'var(--blue)', max: 250 },
+                { label: 'Sand', value: m.sand, color: 'var(--muted)', max: 1000 },
+                { label: 'Aggregate', value: m.aggregate, color: 'var(--green)', max: 1300 },
+                { label: 'Admixture', value: m.admixture, color: 'var(--red)', max: 5 },
               ].map(({ label, value, color, max }) => (
                 <div key={label}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, fontSize: 12 }}>
-                    <span style={{ color: '#9fb0c7' }}>{label}</span>
+                    <span style={{ color: 'var(--muted)' }}>{label}</span>
                     <span style={{ fontWeight: 700, color }}>{value} {label === 'Admixture' ? '%' : 'kg'}</span>
                   </div>
-                  <div style={{ height: 5, background: '#263449', borderRadius: 999, overflow: 'hidden' }}>
+                  <div style={{ height: 5, background: 'var(--line)', borderRadius: 999, overflow: 'hidden' }}>
                     <div style={{
                       height: '100%', width: `${Math.min(100, (value / max) * 100)}%`,
                       background: color, borderRadius: 999,
@@ -104,15 +104,15 @@ export default function MixDesign() {
               ))}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#9fb0c7', paddingTop: 12, borderTop: '1px solid #263449' }}>
-              <span>Total binder: <strong style={{ color: '#eef5ff' }}>{totalBinder(m)} kg</strong></span>
-              <span>Per m³: <strong style={{ color: '#eef5ff' }}>{totalPerM3(m).toFixed(0)} kg</strong></span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+              <span>Total binder: <strong style={{ color: 'var(--text)' }}>{totalBinder(m)} kg</strong></span>
+              <span>Per m³: <strong style={{ color: 'var(--text)' }}>{totalPerM3(m).toFixed(0)} kg</strong></span>
             </div>
-            {m.notes && <div style={{ marginTop: 10, fontSize: 12, color: '#9fb0c7', fontStyle: 'italic' }}>{m.notes}</div>}
+            {m.notes && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>{m.notes}</div>}
           </div>
         ))}
         {mixes.length === 0 && (
-          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: '#9fb0c7' }}>No mix designs yet</div>
+          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--muted)' }}>No mix designs yet</div>
         )}
       </div>
 
@@ -122,7 +122,7 @@ export default function MixDesign() {
           <div className="glass-card" style={{ padding: 28, width: '100%', maxWidth: 520 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{editId ? 'Edit Mix Design' : 'Add Mix Design'}</h3>
-              <button onClick={() => setShowForm(false)} style={{ background: 'none', color: '#9fb0c7', padding: 4 }}><X size={18} /></button>
+              <button onClick={() => setShowForm(false)} style={{ background: 'none', color: 'var(--muted)', padding: 4 }}><X size={18} /></button>
             </div>
             <form onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
               <div>
@@ -156,16 +156,16 @@ export default function MixDesign() {
                 <input type="number" step={0.1} min={0} max={5} value={form.admixture} onChange={e => setForm(f => ({ ...f, admixture: Number(e.target.value) }))} style={inputStyle} data-testid="input-admixture" />
               </div>
               <div style={{ background: 'rgba(38,52,73,.3)', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
-                <span style={{ color: '#9fb0c7' }}>Calculated W/C Ratio: </span>
-                <strong style={{ color: '#f7c948' }}>{(form.water / form.cement).toFixed(2)}</strong>
+                <span style={{ color: 'var(--muted)' }}>Calculated W/C Ratio: </span>
+                <strong style={{ color: 'var(--gold)' }}>{(form.water / form.cement).toFixed(2)}</strong>
               </div>
               <div>
                 <label style={labelStyle}>Notes</label>
                 <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Mix design notes..." style={{ ...inputStyle, resize: 'vertical' }} data-testid="textarea-mix-notes" />
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-                <button type="button" onClick={() => setShowForm(false)} style={{ padding: '10px 18px', borderRadius: 10, background: '#1a2940', color: '#eef5ff', border: '1px solid #263449', fontWeight: 600, fontSize: 14 }}>Cancel</button>
-                <button type="submit" data-testid="button-save-mix" style={{ padding: '10px 22px', borderRadius: 10, background: 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)', color: '#111827', fontWeight: 800, fontSize: 14 }}>{editId ? 'Update' : 'Save Design'}</button>
+                <button type="button" onClick={() => setShowForm(false)} style={{ padding: '10px 18px', borderRadius: 10, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', fontWeight: 600, fontSize: 14 }}>Cancel</button>
+                <button type="submit" data-testid="button-save-mix" style={{ padding: '10px 22px', borderRadius: 10, background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))', color: '#111827', fontWeight: 800, fontSize: 14 }}>{editId ? 'Update' : 'Save Design'}</button>
               </div>
             </form>
           </div>
@@ -176,10 +176,10 @@ export default function MixDesign() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(5,9,20,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div className="glass-card" style={{ padding: 28, maxWidth: 400, width: '90%' }}>
             <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 700 }}>Delete Mix Design?</h3>
-            <p style={{ color: '#9fb0c7', marginBottom: 20, fontSize: 14 }}>This cannot be undone.</p>
+            <p style={{ color: 'var(--muted)', marginBottom: 20, fontSize: 14 }}>This cannot be undone.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteId(null)} style={{ padding: '9px 16px', borderRadius: 10, background: '#1a2940', color: '#eef5ff', border: '1px solid #263449', fontSize: 14 }}>Cancel</button>
-              <button onClick={doDelete} style={{ padding: '9px 16px', borderRadius: 10, background: '#ef4444', color: '#fff', fontWeight: 700, fontSize: 14 }}>Delete</button>
+              <button onClick={() => setDeleteId(null)} style={{ padding: '9px 16px', borderRadius: 10, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', fontSize: 14 }}>Cancel</button>
+              <button onClick={doDelete} style={{ padding: '9px 16px', borderRadius: 10, background: 'var(--red)', color: '#fff', fontWeight: 700, fontSize: 14 }}>Delete</button>
             </div>
           </div>
         </div>

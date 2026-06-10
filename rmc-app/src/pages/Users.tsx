@@ -28,9 +28,9 @@ const ROLE_LABEL: Record<Role, string> = {
 };
 
 const ROLE_COLOR: Record<Role, string> = {
-  admin: '#f7c948',
-  dispatcher: '#38bdf8',
-  plant_operator: '#22c55e',
+  admin: 'var(--gold)',
+  dispatcher: 'var(--blue)',
+  plant_operator: 'var(--green)',
   client: '#a78bfa',
   driver: '#f97316',
 };
@@ -38,12 +38,12 @@ const ROLE_COLOR: Record<Role, string> = {
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', boxSizing: 'border-box',
   background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
-  borderRadius: 8, color: '#eef5ff', fontSize: 13, outline: 'none',
+  borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
 };
 
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 11, fontWeight: 700,
-  color: '#9fb0c7', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.4px',
+  color: 'var(--muted)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.4px',
 };
 
 type FormData = {
@@ -160,16 +160,16 @@ export default function Users() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ShieldCheck size={22} color="#f7c948" />
+            <ShieldCheck size={22} style={{ color: 'var(--gold)' }} />
             <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>User Management</h2>
           </div>
-          <p style={{ margin: '4px 0 0', color: '#9fb0c7', fontSize: 13 }}>
+          <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>
             {users.filter(u => u.isActive).length} active · {users.length} total accounts
           </p>
         </div>
         <button onClick={openCreate} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
-          background: 'linear-gradient(135deg,#f7c948,#e6a817)', color: '#111827',
+          background: 'linear-gradient(135deg,var(--gold),#e6a817)', color: '#111827',
           border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer',
         }}>
           <Plus size={15} /> Add User
@@ -179,7 +179,7 @@ export default function Users() {
       {/* Filters */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9fb0c7' }} />
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search by name or email…"
@@ -204,7 +204,7 @@ export default function Users() {
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.15)' }}>
               {['User', 'Email', 'Role', 'Status', 'Linked To', 'Actions'].map(h => (
-                <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: '#9fb0c7', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
                   {h}
                 </th>
               ))}
@@ -213,11 +213,11 @@ export default function Users() {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: '#9fb0c7' }}>No users found</td>
+                <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)' }}>No users found</td>
               </tr>
             )}
             {filtered.map(u => {
-              const roleColor = ROLE_COLOR[u.role as Role] || '#9fb0c7';
+              const roleColor = ROLE_COLOR[u.role as Role] || 'var(--muted)';
               const linked = u.linkedClientId
                 ? `Client #${u.linkedClientId} — ${clientOptions.find(c => c.id === u.linkedClientId)?.name ?? '…'}`
                 : u.linkedDriverId
@@ -233,20 +233,20 @@ export default function Users() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                       <div style={{
                         width: 30, height: 30, borderRadius: 9, flexShrink: 0,
-                        background: roleColor + '20', border: `1px solid ${roleColor}35`,
+                        background: `color-mix(in srgb, ${roleColor} 13%, transparent)`, border: `1px solid color-mix(in srgb, ${roleColor} 21%, transparent)`,
                         display: 'grid', placeItems: 'center',
                         fontSize: 12, fontWeight: 800, color: roleColor,
                       }}>
                         {u.name[0].toUpperCase()}
                       </div>
-                      <span style={{ fontWeight: 600, color: '#eef5ff' }}>{u.name}</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text)' }}>{u.name}</span>
                     </div>
                   </td>
-                  <td style={{ padding: '12px 14px', color: '#9fb0c7' }}>{u.email}</td>
+                  <td style={{ padding: '12px 14px', color: 'var(--muted)' }}>{u.email}</td>
                   <td style={{ padding: '12px 14px' }}>
                     <span style={{
                       padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-                      background: roleColor + '20', color: roleColor, border: `1px solid ${roleColor}35`,
+                      background: `color-mix(in srgb, ${roleColor} 13%, transparent)`, color: roleColor, border: `1px solid color-mix(in srgb, ${roleColor} 21%, transparent)`,
                     }}>
                       {ROLE_LABEL[u.role as Role] ?? u.role}
                     </span>
@@ -257,18 +257,18 @@ export default function Users() {
                       style={{
                         padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
                         background: u.isActive ? '#22c55e20' : '#ef444420',
-                        color: u.isActive ? '#22c55e' : '#ef4444',
+                        color: u.isActive ? 'var(--green)' : 'var(--red)',
                         border: `1px solid ${u.isActive ? '#22c55e35' : '#ef444435'}`,
                       }}
                     >
                       {u.isActive ? 'Active' : 'Inactive'}
                     </button>
                   </td>
-                  <td style={{ padding: '12px 14px', color: '#9fb0c7', fontSize: 12 }}>{linked}</td>
+                  <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{linked}</td>
                   <td style={{ padding: '12px 14px' }}>
                     <button onClick={() => openEdit(u)} style={{
                       background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)',
-                      borderRadius: 7, color: '#9fb0c7', cursor: 'pointer', padding: '5px 8px',
+                      borderRadius: 7, color: 'var(--muted)', cursor: 'pointer', padding: '5px 8px',
                     }}>
                       <Edit2 size={13} />
                     </button>
@@ -288,19 +288,19 @@ export default function Users() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
         }}>
           <div style={{
-            background: 'linear-gradient(145deg,#0d1930,#081422)',
+            background: 'linear-gradient(145deg,var(--panel),var(--bg))',
             border: '1px solid rgba(255,255,255,.1)', borderRadius: 18,
             width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', padding: 24,
           }}>
             {/* Modal header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <UserCog size={18} color="#f7c948" />
+                <UserCog size={18} style={{ color: 'var(--gold)' }} />
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
                   {modal === 'create' ? 'Add New User' : `Edit — ${editing?.name}`}
                 </h3>
               </div>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', color: '#9fb0c7', cursor: 'pointer' }}>
+              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
             </div>
@@ -345,13 +345,13 @@ export default function Users() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(s => !s)}
-                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#9fb0c7', cursor: 'pointer', padding: 2 }}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 2 }}
                   >
                     {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
                 {modal === 'edit' && (
-                  <span style={{ fontSize: 11, color: '#9fb0c7', marginTop: 4, display: 'block' }}>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
                     Leave blank to keep current password. Must be at least 6 characters if changed.
                   </span>
                 )}
@@ -388,7 +388,7 @@ export default function Users() {
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
-                  <span style={{ fontSize: 11, color: '#9fb0c7', marginTop: 4, display: 'block' }}>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
                     Links this login to a client record so "My Orders" shows their data.
                   </span>
                 </label>
@@ -408,7 +408,7 @@ export default function Users() {
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
                   </select>
-                  <span style={{ fontSize: 11, color: '#9fb0c7', marginTop: 4, display: 'block' }}>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
                     Links this login to a driver record so "My Trips" shows their assignments.
                   </span>
                 </label>
@@ -421,7 +421,7 @@ export default function Users() {
                     onClick={() => setForm(f => ({ ...f, isActive: !f.isActive }))}
                     style={{
                       width: 40, height: 22, borderRadius: 11, cursor: 'pointer',
-                      background: form.isActive ? '#22c55e' : 'rgba(255,255,255,.12)',
+                      background: form.isActive ? 'var(--green)' : 'rgba(255,255,255,.12)',
                       position: 'relative', transition: 'background .2s', flexShrink: 0,
                     }}
                   >
@@ -432,10 +432,10 @@ export default function Users() {
                     }} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#eef5ff' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
                       {form.isActive ? 'Account Active' : 'Account Deactivated'}
                     </div>
-                    <div style={{ fontSize: 11, color: '#9fb0c7' }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                       Deactivated accounts cannot log in but their data is preserved.
                     </div>
                   </div>
@@ -443,7 +443,7 @@ export default function Users() {
               )}
 
               {error && (
-                <div style={{ padding: '10px 14px', background: '#ef444420', border: '1px solid #ef444440', borderRadius: 8, color: '#ef4444', fontSize: 13 }}>
+                <div style={{ padding: '10px 14px', background: '#ef444420', border: '1px solid #ef444440', borderRadius: 8, color: 'var(--red)', fontSize: 13 }}>
                   {error}
                 </div>
               )}
@@ -453,12 +453,12 @@ export default function Users() {
                 <button onClick={() => setModal(null)} style={{
                   flex: 1, padding: '10px', background: 'rgba(255,255,255,.07)',
                   border: '1px solid rgba(255,255,255,.1)', borderRadius: 10,
-                  color: '#9fb0c7', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                  color: 'var(--muted)', fontWeight: 600, fontSize: 13, cursor: 'pointer',
                 }}>
                   Cancel
                 </button>
                 <button onClick={save} disabled={saving} style={{
-                  flex: 2, padding: '10px', background: 'linear-gradient(135deg,#f7c948,#e6a817)',
+                  flex: 2, padding: '10px', background: 'linear-gradient(135deg,var(--gold),#e6a817)',
                   border: 'none', borderRadius: 10, color: '#111827',
                   fontWeight: 700, fontSize: 13, cursor: saving ? 'not-allowed' : 'pointer',
                   opacity: saving ? 0.7 : 1,

@@ -1,9 +1,11 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 
-interface Toast { id: number; message: string; type: 'error' | 'info' }
+type ToastType = 'error' | 'info' | 'success';
+
+interface Toast { id: number; message: string; type: ToastType }
 
 interface ToastCtx {
-  showToast: (message: string, type?: 'error' | 'info') => void;
+  showToast: (message: string, type?: ToastType) => void;
   toasts: Toast[];
   dismiss: (id: number) => void;
 }
@@ -19,7 +21,7 @@ let _counter = 0;
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = useCallback((message: string, type: 'error' | 'info' = 'info') => {
+  const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = ++_counter;
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
@@ -46,10 +48,10 @@ function ToastOverlay({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: numb
     }}>
       {toasts.map(t => (
         <div key={t.id} style={{
-          background: t.type === 'error' ? 'rgba(239,68,68,.15)' : 'rgba(38,52,73,.95)',
-          border: `1px solid ${t.type === 'error' ? '#ef444444' : '#263449'}`,
+          background: t.type === 'error' ? 'rgba(239,68,68,.15)' : t.type === 'success' ? 'color-mix(in srgb, var(--green) 16%, transparent)' : 'rgba(38,52,73,.95)',
+          border: `1px solid ${t.type === 'error' ? '#ef444444' : t.type === 'success' ? 'color-mix(in srgb, var(--green) 40%, transparent)' : 'var(--line)'}`,
           borderRadius: 12, padding: '12px 16px',
-          color: t.type === 'error' ? '#fca5a5' : '#eef5ff',
+          color: t.type === 'error' ? '#fca5a5' : t.type === 'success' ? 'var(--green)' : 'var(--text)',
           fontSize: 13, fontWeight: 600,
           boxShadow: '0 8px 32px rgba(0,0,0,.4)',
           backdropFilter: 'blur(8px)',

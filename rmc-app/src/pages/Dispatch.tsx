@@ -90,13 +90,13 @@ export default function Dispatch() {
     return matchSearch && matchStatus;
   });
 
-  const statusColor = (s: string) => ({ pending: '#f7c948', dispatched: '#38bdf8', delivered: '#22c55e', cancelled: '#ef4444' }[s] || '#9fb0c7');
-  const statusBg = (s: string) => ({ pending: 'rgba(247,201,72,.12)', dispatched: 'rgba(56,189,248,.12)', delivered: 'rgba(34,197,94,.12)', cancelled: 'rgba(239,68,68,.12)' }[s] || 'rgba(159,176,199,.12)');
+  const statusColor = (s: string) => ({ pending: 'var(--gold)', dispatched: 'var(--blue)', delivered: 'var(--green)', cancelled: 'var(--red)' }[s] || 'var(--muted)');
+  const statusBg = (s: string) => ({ pending: 'color-mix(in srgb, var(--gold) 12%, transparent)', dispatched: 'rgba(56,189,248,.12)', delivered: 'rgba(34,197,94,.12)', cancelled: 'rgba(239,68,68,.12)' }[s] || 'rgba(159,176,199,.12)');
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '9px 12px', boxSizing: 'border-box',
     background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
-    borderRadius: 8, color: '#eef5ff', fontSize: 13, outline: 'none',
+    borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
   };
 
   return (
@@ -104,11 +104,11 @@ export default function Dispatch() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Dispatch</h2>
-          <p style={{ margin: '4px 0 0', color: '#9fb0c7', fontSize: 13 }}>{challans.filter(c => c.status === 'dispatched').length} on road · {challans.length} total challans</p>
+          <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>{challans.filter(c => c.status === 'dispatched').length} on road · {challans.length} total challans</p>
         </div>
         <button onClick={() => openModal()} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
-          background: 'linear-gradient(135deg,#86efac,#22c55e 48%,#15803d)',
+          background: 'linear-gradient(135deg,#86efac,var(--green) 48%,var(--green-dark))',
           color: '#052e16', fontWeight: 800, fontSize: 13, borderRadius: 10, border: 'none', cursor: 'pointer',
         }}><Plus size={15} /> Create Challan</button>
       </div>
@@ -116,17 +116,17 @@ export default function Dispatch() {
       {/* Active orders ready to dispatch */}
       {orders.length > 0 && (
         <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#9fb0c7', marginBottom: 8 }}>Pending Orders — Ready to Dispatch</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>Pending Orders — Ready to Dispatch</div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {orders.slice(0, 5).map(o => (
               <div key={o.id} style={{
-                padding: '10px 14px', background: 'rgba(247,201,72,.06)', border: '1px solid rgba(247,201,72,.2)',
+                padding: '10px 14px', background: 'color-mix(in srgb, var(--gold) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 20%, transparent)',
                 borderRadius: 10, cursor: 'pointer', minWidth: 180,
               }} onClick={() => openModal(o)}>
-                <div style={{ fontWeight: 700, color: '#f7c948', fontFamily: 'monospace', fontSize: 12 }}>{o.orderNo}</div>
+                <div style={{ fontWeight: 700, color: 'var(--gold)', fontFamily: 'monospace', fontSize: 12 }}>{o.orderNo}</div>
                 <div style={{ fontSize: 12, fontWeight: 600, margin: '3px 0' }}>{o.clientName}</div>
-                <div style={{ fontSize: 11, color: '#9fb0c7' }}>{o.grade} · {o.quantity} m³ {o.pumpRequired ? '· Pump' : ''}</div>
-                <div style={{ fontSize: 10, color: '#22c55e', marginTop: 4, fontWeight: 700 }}>→ Create Challan</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{o.grade} · {o.quantity} m³ {o.pumpRequired ? '· Pump' : ''}</div>
+                <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 4, fontWeight: 700 }}>→ Create Challan</div>
               </div>
             ))}
           </div>
@@ -135,7 +135,7 @@ export default function Dispatch() {
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-          <Search size={14} color="#9fb0c7" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+          <Search size={14} style={{ color: 'var(--muted)', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search challans…"
             style={{ ...inputStyle, paddingLeft: 36 }} />
         </div>
@@ -152,27 +152,27 @@ export default function Dispatch() {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #263449' }}>
+              <tr style={{ borderBottom: '1px solid var(--line)' }}>
                 {['Challan', 'Client', 'Vehicle', 'Driver', 'Grade', 'Qty', 'Dispatch Time', 'Status', 'Actions'].map(h => (
-                  <th key={h} style={{ padding: '12px 14px', color: '#9fb0c7', fontWeight: 600, textAlign: 'left', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                  <th key={h} style={{ padding: '12px 14px', color: 'var(--muted)', fontWeight: 600, textAlign: 'left', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map(ch => (
                 <tr key={ch.id} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
-                  <td style={{ padding: '11px 14px', color: '#f7c948', fontWeight: 700, fontFamily: 'monospace' }}>#{ch.challanNo}</td>
+                  <td style={{ padding: '11px 14px', color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace' }}>#{ch.challanNo}</td>
                   <td style={{ padding: '11px 14px', fontWeight: 600 }}>{ch.clientName}</td>
-                  <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontSize: 11, color: '#9fb0c7' }}>
+                  <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontSize: 11, color: 'var(--muted)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <Truck size={11} color="#38bdf8" />
+                      <Truck size={11} style={{ color: 'var(--blue)' }} />
                       {ch.vehicleNo || '—'}
                     </div>
                   </td>
-                  <td style={{ padding: '11px 14px', fontSize: 12, color: '#9fb0c7' }}>{ch.driverName || '—'}</td>
-                  <td style={{ padding: '11px 14px' }}><span style={{ padding: '2px 8px', background: 'rgba(56,189,248,.12)', color: '#38bdf8', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>{ch.grade}</span></td>
+                  <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--muted)' }}>{ch.driverName || '—'}</td>
+                  <td style={{ padding: '11px 14px' }}><span style={{ padding: '2px 8px', background: 'rgba(56,189,248,.12)', color: 'var(--blue)', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>{ch.grade}</span></td>
                   <td style={{ padding: '11px 14px', fontWeight: 700 }}>{ch.quantity} m³</td>
-                  <td style={{ padding: '11px 14px', color: '#9fb0c7', fontSize: 12 }}>
+                  <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>
                     {ch.dispatchTime ? new Date(ch.dispatchTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
                   </td>
                   <td style={{ padding: '11px 14px' }}>
@@ -186,14 +186,14 @@ export default function Dispatch() {
                         <button onClick={() => markDelivered(ch)} style={{
                           display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
                           background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.2)',
-                          borderRadius: 7, cursor: 'pointer', color: '#22c55e', fontSize: 11, fontWeight: 700,
+                          borderRadius: 7, cursor: 'pointer', color: 'var(--green)', fontSize: 11, fontWeight: 700,
                         }}><Check size={11} /> Delivered</button>
                       )}
                       <Link href={`/challans/${ch.id}/print`}>
                         <button style={{
                           display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
                           background: 'rgba(56,189,248,.1)', border: '1px solid rgba(56,189,248,.2)',
-                          borderRadius: 7, cursor: 'pointer', color: '#38bdf8', fontSize: 11, fontWeight: 700,
+                          borderRadius: 7, cursor: 'pointer', color: 'var(--blue)', fontSize: 11, fontWeight: 700,
                         }}><Printer size={11} /> Print</button>
                       </Link>
                     </div>
@@ -201,7 +201,7 @@ export default function Dispatch() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ padding: '30px', textAlign: 'center', color: '#9fb0c7' }}>No challans found</td></tr>
+                <tr><td colSpan={9} style={{ padding: '30px', textAlign: 'center', color: 'var(--muted)' }}>No challans found</td></tr>
               )}
             </tbody>
           </table>
@@ -212,19 +212,19 @@ export default function Dispatch() {
       {modal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setModal(false)}>
-          <div style={{ background: '#0d1930', border: '1px solid #263449', borderRadius: 16, padding: 28, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Create Challan</h3>
-              <button onClick={() => setModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9fb0c7' }}><X size={18} /></button>
+              <button onClick={() => setModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {form.orderId && (
-                <div style={{ gridColumn: '1/-1', padding: '8px 12px', background: 'rgba(247,201,72,.06)', border: '1px solid rgba(247,201,72,.15)', borderRadius: 8, fontSize: 12, color: '#f7c948' }}>
+                <div style={{ gridColumn: '1/-1', padding: '8px 12px', background: 'color-mix(in srgb, var(--gold) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 15%, transparent)', borderRadius: 8, fontSize: 12, color: 'var(--gold)' }}>
                   Creating challan for Order #{orders.find(o => String(o.id) === form.orderId)?.orderNo}
                 </div>
               )}
               <div style={{ gridColumn: '1/-1' }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#9fb0c7', marginBottom: 4 }}>Client *</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Client *</label>
                 <select value={form.clientId} onChange={e => { setForm(f => ({ ...f, clientId: e.target.value, siteId: '' })); loadSites(e.target.value); }} style={inputStyle}>
                   <option value="">Select client…</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -232,7 +232,7 @@ export default function Dispatch() {
               </div>
               {sites.length > 0 && (
                 <div style={{ gridColumn: '1/-1' }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#9fb0c7', marginBottom: 4 }}>Delivery Site</label>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Delivery Site</label>
                   <select value={form.siteId} onChange={e => setForm(f => ({ ...f, siteId: e.target.value }))} style={inputStyle}>
                     <option value="">No specific site</option>
                     {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -240,25 +240,25 @@ export default function Dispatch() {
                 </div>
               )}
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#9fb0c7', marginBottom: 4 }}>Grade *</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Grade *</label>
                 <select value={form.grade} onChange={e => setForm(f => ({ ...f, grade: e.target.value }))} style={inputStyle}>
                   <option value="">Select…</option>
                   {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#9fb0c7', marginBottom: 4 }}>Quantity (m³) *</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Quantity (m³) *</label>
                 <input type="number" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} style={inputStyle} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#9fb0c7', marginBottom: 4 }}>Vehicle</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Vehicle</label>
                 <select value={form.vehicleId} onChange={e => setForm(f => ({ ...f, vehicleId: e.target.value }))} style={inputStyle}>
                   <option value="">Select vehicle…</option>
                   {vehicles.map(v => <option key={v.id} value={v.id}>{v.vehicleNo} ({v.capacity} m³)</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#9fb0c7', marginBottom: 4 }}>Driver</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Driver</label>
                 <select value={form.driverId} onChange={e => setForm(f => ({ ...f, driverId: e.target.value }))} style={inputStyle}>
                   <option value="">Select driver…</option>
                   {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -266,18 +266,18 @@ export default function Dispatch() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <input type="checkbox" id="pump" checked={form.pumpRequired} onChange={e => setForm(f => ({ ...f, pumpRequired: e.target.checked }))} />
-                <label htmlFor="pump" style={{ fontSize: 13, color: '#eef5ff', cursor: 'pointer' }}>Pump Required</label>
+                <label htmlFor="pump" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Pump Required</label>
               </div>
               <div style={{ gridColumn: '1/-1' }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#9fb0c7', marginBottom: 4 }}>Notes</label>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Notes</label>
                 <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
                   style={{ ...inputStyle, resize: 'vertical' }} />
               </div>
             </div>
-            {error && <div style={{ marginTop: 10, color: '#ef4444', fontSize: 13 }}>{error}</div>}
+            {error && <div style={{ marginTop: 10, color: 'var(--red)', fontSize: 13 }}>{error}</div>}
             <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-              <button onClick={() => setModal(false)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: '#9fb0c7', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ flex: 2, padding: 10, background: 'linear-gradient(135deg,#86efac,#22c55e 48%,#15803d)', color: '#052e16', fontWeight: 800, borderRadius: 10, border: 'none', cursor: 'pointer' }}>
+              <button onClick={() => setModal(false)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button onClick={save} disabled={saving} style={{ flex: 2, padding: 10, background: 'linear-gradient(135deg,#86efac,var(--green) 48%,var(--green-dark))', color: '#052e16', fontWeight: 800, borderRadius: 10, border: 'none', cursor: 'pointer' }}>
                 {saving ? 'Creating…' : 'Dispatch Challan'}
               </button>
             </div>

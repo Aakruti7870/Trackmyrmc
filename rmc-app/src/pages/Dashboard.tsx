@@ -46,12 +46,12 @@ export default function Dashboard() {
     : `₹${fmt(n)}`;
 
   const statusColor = (s: string) => ({
-    pending: '#f7c948', in_progress: '#38bdf8', completed: '#22c55e',
-    cancelled: '#ef4444', dispatched: '#38bdf8', delivered: '#22c55e',
-  }[s] || '#9fb0c7');
+    pending: 'var(--gold)', in_progress: 'var(--blue)', completed: 'var(--green)',
+    cancelled: 'var(--red)', dispatched: 'var(--blue)', delivered: 'var(--green)',
+  }[s] || 'var(--muted)');
 
   const statusBg = (s: string) => ({
-    pending: 'rgba(247,201,72,.12)', in_progress: 'rgba(56,189,248,.12)',
+    pending: 'color-mix(in srgb, var(--gold) 12%, transparent)', in_progress: 'rgba(56,189,248,.12)',
     completed: 'rgba(34,197,94,.12)', cancelled: 'rgba(239,68,68,.12)',
     dispatched: 'rgba(56,189,248,.12)', delivered: 'rgba(34,197,94,.12)',
   }[s] || 'rgba(159,176,199,.12)');
@@ -63,31 +63,31 @@ export default function Dashboard() {
       label: 'Today Production',
       value: `${Number(kpis.todayProduction).toFixed(1)} m³`,
       sub: `${kpis.todayBatches} batches`,
-      icon: Activity, color: '#f7c948',
+      icon: Activity, color: 'var(--gold)',
     },
     {
       label: 'Today Dispatch',
       value: `${Number(kpis.todayDispatch).toFixed(1)} m³`,
       sub: `${kpis.todayChallans} challans`,
-      icon: TrendingUp, color: '#22c55e',
+      icon: TrendingUp, color: 'var(--green)',
     },
     {
       label: 'Active Orders',
       value: String(kpis.activeOrders),
       sub: `${kpis.pendingOrders} pending`,
-      icon: Clock, color: '#f7c948',
+      icon: Clock, color: 'var(--gold)',
     },
     {
       label: 'Fleet Status',
       value: `${kpis.activeVehicles}/${kpis.totalVehicles}`,
       sub: `${kpis.maintenanceVehicles} in maintenance`,
-      icon: Truck, color: '#22c55e',
+      icon: Truck, color: 'var(--green)',
     },
     {
       label: 'Outstanding',
       value: fmtRs(Number(kpis.outstandingAmount)),
       sub: `${kpis.totalClients} clients`,
-      icon: IndianRupee, color: '#ef4444',
+      icon: IndianRupee, color: 'var(--red)',
     },
   ] : [];
 
@@ -100,7 +100,7 @@ export default function Dashboard() {
             <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Dashboard</h2>
             <LiveBadge />
           </div>
-          <p style={{ margin: 0, color: '#9fb0c7', fontSize: 13 }}>
+          <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>
             Welcome back, {user?.name?.split(' ')[0]} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
@@ -108,15 +108,15 @@ export default function Dashboard() {
           <Link href="/orders">
             <button style={{
               borderRadius: 10, padding: '9px 16px',
-              background: 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)',
+              background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
               color: '#111827', fontWeight: 800, fontSize: 13,
-              boxShadow: '0 8px 24px rgba(255,183,3,.18)', border: 'none', cursor: 'pointer',
+              boxShadow: '0 8px 24px color-mix(in srgb, var(--gold) 18%, transparent)', border: 'none', cursor: 'pointer',
             }}>Book Order</button>
           </Link>
           <Link href="/dispatch">
             <button style={{
               borderRadius: 10, padding: '9px 16px',
-              background: 'linear-gradient(135deg,#86efac,#22c55e 48%,#15803d)',
+              background: 'linear-gradient(135deg,#86efac,var(--green) 48%,var(--green-dark))',
               color: '#052e16', fontWeight: 800, fontSize: 13, border: 'none', cursor: 'pointer',
             }}>Create Challan</button>
           </Link>
@@ -136,14 +136,14 @@ export default function Dashboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <div style={{
                   width: 30, height: 30, borderRadius: 9,
-                  background: color + '18', display: 'grid', placeItems: 'center',
+                  background: `color-mix(in srgb, ${color} 10%, transparent)`, display: 'grid', placeItems: 'center',
                 }}>
-                  <Icon size={14} color={color} />
+                  <Icon size={14} style={{ color: color }} />
                 </div>
-                <span style={{ color: '#9fb0c7', fontSize: 11, fontWeight: 600 }}>{label}</span>
+                <span style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 600 }}>{label}</span>
               </div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#eef5ff', lineHeight: 1 }}>{value}</div>
-              <div style={{ fontSize: 11, color: '#9fb0c7', marginTop: 4 }}>{sub}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text)', lineHeight: 1 }}>{value}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{sub}</div>
             </div>
           ))
         }
@@ -172,7 +172,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Recent Dispatch</h3>
             <Link href="/dispatch">
-              <span style={{ color: '#38bdf8', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ color: 'var(--blue)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                 View all <ArrowRight size={12} />
               </span>
             </Link>
@@ -180,18 +180,18 @@ export default function Dashboard() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr style={{ color: '#9fb0c7', textAlign: 'left' }}>
+                <tr style={{ color: 'var(--muted)', textAlign: 'left' }}>
                   {['Challan', 'Client', 'Vehicle', 'Grade', 'Qty', 'Status'].map(h => (
-                    <th key={h} style={{ padding: '5px 8px', fontWeight: 600, borderBottom: '1px solid #263449' }}>{h}</th>
+                    <th key={h} style={{ padding: '5px 8px', fontWeight: 600, borderBottom: '1px solid var(--line)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {challans.map(ch => (
                   <tr key={ch.id} style={{ borderBottom: '1px solid rgba(38,52,73,.5)' }}>
-                    <td style={{ padding: '8px', color: '#f7c948', fontWeight: 700, fontFamily: 'monospace' }}>#{ch.challanNo}</td>
+                    <td style={{ padding: '8px', color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace' }}>#{ch.challanNo}</td>
                     <td style={{ padding: '8px' }}>{(ch.clientName || '').split(' ')[0]}</td>
-                    <td style={{ padding: '8px', color: '#9fb0c7', fontFamily: 'monospace', fontSize: 11 }}>{ch.vehicleNo || '—'}</td>
+                    <td style={{ padding: '8px', color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11 }}>{ch.vehicleNo || '—'}</td>
                     <td style={{ padding: '8px' }}>{ch.grade}</td>
                     <td style={{ padding: '8px' }}>{ch.quantity} m³</td>
                     <td style={{ padding: '8px' }}>
@@ -203,8 +203,8 @@ export default function Dashboard() {
                   </tr>
                 ))}
                 {challans.length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: '20px 8px', color: '#9fb0c7', textAlign: 'center' }}>
-                    No challans yet — <Link href="/dispatch" style={{ color: '#38bdf8' }}>create one</Link>
+                  <tr><td colSpan={6} style={{ padding: '20px 8px', color: 'var(--muted)', textAlign: 'center' }}>
+                    No challans yet — <Link href="/dispatch" style={{ color: 'var(--blue)' }}>create one</Link>
                   </td></tr>
                 )}
               </tbody>
@@ -217,7 +217,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Active Orders</h3>
             <Link href="/orders">
-              <span style={{ color: '#38bdf8', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ color: 'var(--blue)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                 View all <ArrowRight size={12} />
               </span>
             </Link>
@@ -229,7 +229,7 @@ export default function Dashboard() {
                 background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontWeight: 700, fontSize: 13, fontFamily: 'monospace', color: '#f7c948' }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, fontFamily: 'monospace', color: 'var(--gold)' }}>
                     {o.orderNo}
                   </span>
                   <span style={{
@@ -238,14 +238,14 @@ export default function Dashboard() {
                   }}>{statusLabel(o.status)}</span>
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 2 }}>{o.clientName}</div>
-                <div style={{ fontSize: 11, color: '#9fb0c7' }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                   {o.grade} · {o.quantity} m³ {o.pumpRequired ? '· Pump' : ''}
                 </div>
               </div>
             ))}
             {orders.length === 0 && (
-              <div style={{ padding: '20px 8px', color: '#9fb0c7', textAlign: 'center', fontSize: 13 }}>
-                No active orders — <Link href="/orders" style={{ color: '#38bdf8' }}>create one</Link>
+              <div style={{ padding: '20px 8px', color: 'var(--muted)', textAlign: 'center', fontSize: 13 }}>
+                No active orders — <Link href="/orders" style={{ color: 'var(--blue)' }}>create one</Link>
               </div>
             )}
           </div>
@@ -266,14 +266,14 @@ function LiveBadge() {
     <div style={{
       display: 'flex', alignItems: 'center', gap: 5,
       padding: '3px 9px', borderRadius: 999,
-      background: isLive ? 'rgba(34,197,94,.12)' : 'rgba(247,201,72,.1)',
-      border: `1px solid ${isLive ? 'rgba(34,197,94,.25)' : 'rgba(247,201,72,.2)'}`,
+      background: isLive ? 'rgba(34,197,94,.12)' : 'color-mix(in srgb, var(--gold) 10%, transparent)',
+      border: `1px solid ${isLive ? 'rgba(34,197,94,.25)' : 'color-mix(in srgb, var(--gold) 20%, transparent)'}`,
       fontSize: 10, fontWeight: 800, letterSpacing: '.4px',
-      color: isLive ? '#22c55e' : '#f7c948',
+      color: isLive ? 'var(--green)' : 'var(--gold)',
     }}>
       <span style={{
         width: 6, height: 6, borderRadius: '50%',
-        background: isLive ? '#22c55e' : '#f7c948',
+        background: isLive ? 'var(--green)' : 'var(--gold)',
         display: 'inline-block',
         animation: isLive ? 'livePulse 1.8s ease-in-out infinite' : (isReconnecting ? 'liveBlink .8s step-end infinite' : 'none'),
       }} />

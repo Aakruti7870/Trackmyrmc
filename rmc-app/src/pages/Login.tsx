@@ -4,9 +4,9 @@ import { useAuth } from '@/lib/auth';
 import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const DEMO = [
-  { role: 'Admin', email: 'admin@aakruti.com', password: 'admin123', color: '#f7c948' },
-  { role: 'Dispatcher', email: 'dispatcher@aakruti.com', password: 'dispatch123', color: '#38bdf8' },
-  { role: 'Plant Operator', email: 'operator@aakruti.com', password: 'operator123', color: '#22c55e' },
+  { role: 'Admin', email: 'admin@aakruti.com', password: 'admin123', color: 'var(--gold)' },
+  { role: 'Dispatcher', email: 'dispatcher@aakruti.com', password: 'dispatch123', color: 'var(--blue)' },
+  { role: 'Plant Operator', email: 'operator@aakruti.com', password: 'operator123', color: 'var(--green)' },
   { role: 'Client', email: 'client@aakruti.com', password: 'client123', color: '#a78bfa' },
   { role: 'Driver', email: 'driver@aakruti.com', password: 'driver123', color: '#f97316' },
 ];
@@ -42,9 +42,9 @@ export default function Login() {
 
   return (
     <div style={{
-      minHeight: '100vh', background: '#08111f',
+      minHeight: '100vh', background: 'var(--bg)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 20, fontFamily: 'Inter, sans-serif',
+      padding: 20, fontFamily: 'var(--font-app)',
     }}>
       <div style={{ width: '100%', maxWidth: 900, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
 
@@ -53,32 +53,32 @@ export default function Login() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
             <div style={{
               width: 52, height: 52, borderRadius: 16,
-              background: 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)',
+              background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
               display: 'grid', placeItems: 'center',
-              boxShadow: '0 8px 24px rgba(247,201,72,.3)',
+              boxShadow: '0 8px 24px color-mix(in srgb, var(--gold) 30%, transparent)',
             }}>
               <Building2 size={24} color="#111" />
             </div>
             <div>
-              <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: '#eef5ff' }}>
+              <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>
                 TrackMyRMC
               </div>
-              <div style={{ fontSize: 11, color: '#9fb0c7', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>
                 Aakruti Infra
               </div>
             </div>
           </div>
 
-          <h1 style={{ margin: '0 0 12px', fontSize: 34, fontWeight: 900, lineHeight: 1.1, color: '#eef5ff' }}>
+          <h1 style={{ margin: '0 0 12px', fontSize: 34, fontWeight: 900, lineHeight: 1.1, color: 'var(--text)' }}>
             Ready Mix Concrete<br />
-            <span style={{ color: '#f7c948' }}>Management Platform</span>
+            <span style={{ color: 'var(--gold)' }}>Management Platform</span>
           </h1>
-          <p style={{ color: '#9fb0c7', lineHeight: 1.7, marginBottom: 32, fontSize: 14 }}>
+          <p style={{ color: 'var(--muted)', lineHeight: 1.7, marginBottom: 32, fontSize: 14 }}>
             End-to-end RMC plant operations — orders, dispatch, production, fleet & financials in one premium dashboard.
           </p>
 
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#9fb0c7', letterSpacing: '1px', marginBottom: 10, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '1px', marginBottom: 10, textTransform: 'uppercase' }}>
               Demo Accounts
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -87,11 +87,11 @@ export default function Login() {
                   display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
                   background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
                   borderRadius: 10, cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
-                  color: '#eef5ff',
+                  color: 'var(--text)',
                 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 12, fontWeight: 700, minWidth: 100, color: d.color }}>{d.role}</span>
-                  <span style={{ fontSize: 11, color: '#9fb0c7', fontFamily: 'monospace' }}>{d.email}</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{d.email}</span>
                 </button>
               ))}
             </div>
@@ -105,23 +105,23 @@ export default function Login() {
           borderRadius: 20, padding: '40px 32px',
           backdropFilter: 'blur(12px)',
         }}>
-          <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: '#eef5ff' }}>Sign In</h2>
-          <p style={{ margin: '0 0 28px', color: '#9fb0c7', fontSize: 13 }}>Enter your credentials to access the platform</p>
+          <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Sign In</h2>
+          <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>Enter your credentials to access the platform</p>
 
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: 18 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#9fb0c7', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
                 Email Address
               </label>
               <div style={{ position: 'relative' }}>
-                <Mail size={15} color="#9fb0c7" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                <Mail size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
                 <input
                   type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@company.com" required
                   style={{
                     width: '100%', padding: '11px 14px 11px 38px',
                     background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
-                    borderRadius: 10, color: '#eef5ff', fontSize: 14, outline: 'none',
+                    borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
                     boxSizing: 'border-box',
                   }}
                 />
@@ -129,11 +129,11 @@ export default function Login() {
             </div>
 
             <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#9fb0c7', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
                 Password
               </label>
               <div style={{ position: 'relative' }}>
-                <Lock size={15} color="#9fb0c7" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                <Lock size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
                 <input
                   type={showPw ? 'text' : 'password'} value={password}
                   onChange={e => setPassword(e.target.value)}
@@ -141,7 +141,7 @@ export default function Login() {
                   style={{
                     width: '100%', padding: '11px 40px 11px 38px',
                     background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
-                    borderRadius: 10, color: '#eef5ff', fontSize: 14, outline: 'none',
+                    borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
                     boxSizing: 'border-box',
                   }}
                 />
@@ -149,7 +149,7 @@ export default function Login() {
                   position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
                   background: 'none', border: 'none', cursor: 'pointer', padding: 0,
                 }}>
-                  {showPw ? <EyeOff size={15} color="#9fb0c7" /> : <Eye size={15} color="#9fb0c7" />}
+                  {showPw ? <EyeOff size={15} style={{ color: 'var(--muted)' }} /> : <Eye size={15} style={{ color: 'var(--muted)' }} />}
                 </button>
               </div>
             </div>
@@ -160,16 +160,16 @@ export default function Login() {
                 background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)',
                 borderRadius: 10, padding: '10px 14px', marginBottom: 18,
               }}>
-                <AlertCircle size={14} color="#ef4444" />
-                <span style={{ color: '#ef4444', fontSize: 13 }}>{error}</span>
+                <AlertCircle size={14} style={{ color: 'var(--red)' }} />
+                <span style={{ color: 'var(--red)', fontSize: 13 }}>{error}</span>
               </div>
             )}
 
             <button type="submit" disabled={loading} style={{
               width: '100%', padding: '12px', borderRadius: 12,
-              background: loading ? 'rgba(247,201,72,.4)' : 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)',
+              background: loading ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
               color: '#111827', fontWeight: 800, fontSize: 15,
-              boxShadow: '0 12px 30px rgba(247,201,72,.2)',
+              boxShadow: '0 12px 30px color-mix(in srgb, var(--gold) 20%, transparent)',
               cursor: loading ? 'not-allowed' : 'pointer', border: 'none',
               transition: 'all .15s',
             }}>
@@ -177,9 +177,9 @@ export default function Login() {
             </button>
           </form>
 
-          <div style={{ marginTop: 24, padding: '14px', background: 'rgba(247,201,72,.06)', borderRadius: 10, border: '1px solid rgba(247,201,72,.12)' }}>
-            <div style={{ fontSize: 11, color: '#f7c948', fontWeight: 700, marginBottom: 4 }}>💡 Quick Start</div>
-            <div style={{ fontSize: 12, color: '#9fb0c7' }}>Click any demo account above to auto-fill credentials</div>
+          <div style={{ marginTop: 24, padding: '14px', background: 'color-mix(in srgb, var(--gold) 6%, transparent)', borderRadius: 10, border: '1px solid color-mix(in srgb, var(--gold) 12%, transparent)' }}>
+            <div style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 700, marginBottom: 4 }}>💡 Quick Start</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Click any demo account above to auto-fill credentials</div>
           </div>
         </div>
       </div>
