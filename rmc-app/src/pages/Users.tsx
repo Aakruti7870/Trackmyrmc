@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 
@@ -11,6 +11,17 @@ type UserRecord = {
   isActive: boolean;
   linkedClientId: number | null;
   linkedDriverId: number | null;
+  createdAt: string;
+};
+
+type AuditEntry = {
+  id: number;
+  actorId: number | null;
+  actorName: string;
+  action: string;
+  targetUserId: number | null;
+  targetUserEmail: string;
+  emailSent: boolean | null;
   createdAt: string;
 };
 
@@ -33,6 +44,10 @@ const ROLE_COLOR: Record<Role, string> = {
   plant_operator: 'var(--green)',
   client: '#a78bfa',
   driver: '#f97316',
+};
+
+const ACTION_LABEL: Record<string, string> = {
+  password_reset: 'Password Reset',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -61,6 +76,11 @@ const emptyForm = (): FormData => ({
   isActive: true, linkedClientId: null, linkedDriverId: null,
 });
 
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
 export default function Users() {
   const { showToast } = useToast();
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -74,11 +94,13 @@ export default function Users() {
   const [showPassword, setShowPassword] = useState(false);
   const [clientOptions, setClientOptions] = useState<LinkOption[]>([]);
   const [driverOptions, setDriverOptions] = useState<LinkOption[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
 
   function load() {
     api.get<UserRecord[]>('/users').then(setUsers).catch(() => {});
     api.get<LinkOption[]>('/users/clients-list').then(setClientOptions).catch(() => {});
     api.get<LinkOption[]>('/users/drivers-list').then(setDriverOptions).catch(() => {});
+    api.get<AuditEntry[]>('/users/audit-log').then(setAuditLog).catch(() => {});
   }
   useEffect(load, []);
 
@@ -278,6 +300,75 @@ export default function Users() {
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Audit Log */}
+      <div style={{ marginTop: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
+          <ClipboardList size={18} color="#f7c948" />
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Activity Log</h3>
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+            background: 'rgba(247,201,72,.12)', color: '#f7c948', border: '1px solid rgba(247,201,72,.25)',
+          }}>
+            {auditLog.length} {auditLog.length === 1 ? 'entry' : 'entries'}
+          </span>
+        </div>
+
+        <div style={{
+          background: 'linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01))',
+          border: '1px solid rgba(255,255,255,.08)', borderRadius: 16, overflow: 'hidden',
+        }}>
+          {auditLog.length === 0 ? (
+            <div style={{ padding: '32px', textAlign: 'center', color: '#9fb0c7', fontSize: 13 }}>
+              No activity recorded yet. Password resets will appear here.
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.15)' }}>
+                  {['Timestamp', 'Action', 'Target Account', 'Performed By', 'Email Sent'].map(h => (
+                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: '#9fb0c7', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {auditLog.map(entry => (
+                  <tr key={entry.id} style={{ borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+                    <td style={{ padding: '11px 14px', color: '#9fb0c7', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      {formatDate(entry.createdAt)}
+                    </td>
+                    <td style={{ padding: '11px 14px' }}>
+                      <span style={{
+                        padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                        background: 'rgba(56,189,248,.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,.25)',
+                      }}>
+                        {ACTION_LABEL[entry.action] ?? entry.action}
+                      </span>
+                    </td>
+                    <td style={{ padding: '11px 14px', color: '#eef5ff' }}>{entry.targetUserEmail}</td>
+                    <td style={{ padding: '11px 14px', color: '#9fb0c7' }}>{entry.actorName}</td>
+                    <td style={{ padding: '11px 14px' }}>
+                      {entry.emailSent === null ? (
+                        <span style={{ color: '#9fb0c7', fontSize: 12 }}>—</span>
+                      ) : entry.emailSent ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#22c55e', fontSize: 12, fontWeight: 600 }}>
+                          <CheckCircle size={13} /> Sent
+                        </span>
+                      ) : (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#ef4444', fontSize: 12, fontWeight: 600 }}>
+                          <XCircle size={13} /> Not sent
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {/* Modal */}
