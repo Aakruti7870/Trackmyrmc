@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, X, Printer, Check, Truck, StickyNote } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site } from '@/lib/api';
@@ -25,19 +25,19 @@ export default function Dispatch() {
 
   const { subscribe } = useSSE();
 
-  function load() { api.get<Challan[]>('/challans').then(setChallans); }
+  const load = useCallback(() => { api.get<Challan[]>('/challans').then(setChallans); }, []);
 
-  function loadAll() {
+  const loadAll = useCallback(() => {
     load();
     api.get<Order[]>('/orders').then(o => setOrders(o.filter(x => x.status === 'pending' || x.status === 'in_progress')));
     api.get<Vehicle[]>('/vehicles').then(v => setVehicles(v.filter(x => x.status === 'active')));
     api.get<Driver[]>('/drivers').then(d => setDrivers(d.filter(x => x.isActive)));
     api.get<Client[]>('/clients').then(setClients);
-  }
+  }, [load]);
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [loadAll]);
 
   useEffect(() => {
     const unsub1 = subscribe('challan.created', () => { load(); });
@@ -47,7 +47,7 @@ export default function Dispatch() {
     });
     const unsub3 = subscribe('reconnect', () => { loadAll(); });
     return () => { unsub1(); unsub2(); unsub3(); };
-  }, [subscribe]);
+  }, [subscribe, load, loadAll]);
 
   async function loadSites(clientId: string) {
     if (!clientId) return setSites([]);

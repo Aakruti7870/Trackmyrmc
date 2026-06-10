@@ -19,14 +19,16 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      // The eslint-plugin-react-hooks@7 recommended preset turns several
-      // experimental rules into hard errors that flag idiomatic, correct code
-      // (data-loading effects, Date.now() in useState initializers / event
-      // handlers, and hook exports from context files). These are kept on as
-      // warnings so they remain visible without blocking the validation gate.
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/purity': 'warn',
-      'react-refresh/only-export-components': 'warn',
+      // These eslint-plugin-react-hooks@7 / react-refresh rules are enforced as
+      // errors. The codebase follows the patterns they require: data-loading
+      // effects use a local async function (or a reload counter) instead of a
+      // synchronous setState, time values are captured in state/lazy
+      // initializers rather than read with Date.now() during render, and
+      // context files export only hooks/context (providers live in *-provider
+      // files) so fast-refresh stays intact.
+      'react-hooks/set-state-in-effect': 'error',
+      'react-hooks/purity': 'error',
+      'react-refresh/only-export-components': 'error',
     },
   },
 ])

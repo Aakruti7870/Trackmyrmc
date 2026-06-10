@@ -1,6 +1,7 @@
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { AuthProvider, useAuth } from '@/lib/auth';
+import { useAuth } from '@/lib/auth';
+import { AuthProvider } from '@/lib/auth-provider';
 
 function Probe() {
   const { user } = useAuth();

@@ -1,8 +1,10 @@
 import { Route, Switch, Redirect } from 'wouter';
 import { useEffect } from 'react';
-import { AuthProvider, useAuth } from '@/lib/auth';
-import { ToastProvider, useToast } from '@/lib/toast';
-import { ThemeProvider } from '@/lib/theme';
+import { useAuth } from '@/lib/auth';
+import { AuthProvider } from '@/lib/auth-provider';
+import { useToast } from '@/lib/toast';
+import { ToastProvider } from '@/lib/toast-provider';
+import { ThemeProvider } from '@/lib/theme-providers';
 import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
 import Landing from '@/pages/Landing';

@@ -54,14 +54,23 @@ export default function SearchableSelect({
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
+  // Focus the search box once the dropdown is open. Reset of query/highlight is
+  // done in the toggle handler (not here) to avoid setState during the effect.
   useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 0);
+    return () => clearTimeout(t);
+  }, [open]);
+
+  function toggleOpen() {
     if (open) {
+      setOpen(false);
+    } else {
       setQuery('');
       setHighlight(0);
-      const t = setTimeout(() => inputRef.current?.focus(), 0);
-      return () => clearTimeout(t);
+      setOpen(true);
     }
-  }, [open]);
+  }
 
   function pick(id: number | null) {
     onChange(id);
@@ -89,7 +98,7 @@ export default function SearchableSelect({
     <div ref={rootRef} style={{ position: 'relative' }}>
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={toggleOpen}
         style={fieldStyle}
       >
         <span style={{

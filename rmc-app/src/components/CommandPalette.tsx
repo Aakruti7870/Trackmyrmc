@@ -90,7 +90,9 @@ export default function CommandPalette() {
     return allCommands.filter(c => `${c.label} ${c.keywords || ''} ${c.group}`.toLowerCase().includes(q));
   }, [query, allCommands]);
 
-  useEffect(() => { setActive(0); }, [query]);
+  // Reset the highlighted row whenever the query changes (done at the event
+  // source instead of in an effect to avoid a cascading re-render).
+  const onQueryChange = (value: string) => { setQuery(value); setActive(0); };
 
   useEffect(() => {
     const el = listRef.current?.querySelector(`[data-idx="${active}"]`) as HTMLElement | null;
@@ -128,7 +130,7 @@ export default function CommandPalette() {
           <input
             ref={inputRef}
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => onQueryChange(e.target.value)}
             onKeyDown={onInputKey}
             placeholder="Search actions and pages…"
             style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', fontSize: 15, fontWeight: 500 }}

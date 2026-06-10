@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
-import { ThemeSwitcher } from '@/lib/theme';
+import { ThemeSwitcher } from '@/lib/theme-providers';
 import type { User } from '@/lib/api';
 
 interface SmtpSettings {
@@ -153,64 +153,81 @@ export default function ProfileSettings() {
   const [lockoutsLoading, setLockoutsLoading] = useState(false);
   const [clearingKey, setClearingKey] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [syncedUserId, setSyncedUserId] = useState(user?.id);
 
   const isAdmin = user?.role === 'admin';
 
-  const loadHistory = useCallback(async () => {
-    if (user?.role !== 'admin') return;
-    setHistoryLoading(true);
-    try {
-      const rows = await api.get<SmtpTestLog[]>('/admin/email-test/history');
-      setTestHistory(rows);
-    } catch {
-      /* ignore — history is non-critical */
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [user?.role]);
+  // Populate the editable profile fields when the signed-in user loads/changes.
+  // Done during render (React's documented adjust-on-change pattern) so it does
+  // not require an effect that synchronously calls setState.
+  if (user && user.id !== syncedUserId) {
+    setSyncedUserId(user.id);
+    setProfileName(user.name);
+    setProfileEmail(user.email);
+  }
 
-  useEffect(() => {
-    if (user) {
-      setProfileName(user.name);
-      setProfileEmail(user.email);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+  // Bumping these counters re-runs the corresponding load effect (used by the
+  // manual "Refresh" buttons) without calling a setState-heavy callback directly
+  // from inside an effect.
+  const [historyReload, setHistoryReload] = useState(0);
+  const [lockoutsReload, setLockoutsReload] = useState(0);
 
   useEffect(() => {
     if (user?.role !== 'admin') return;
     let cancelled = false;
-    setSmtpLoading(true);
-    api.get<SmtpSettings>('/admin/smtp-settings')
-      .then(s => {
+    async function loadHistory() {
+      setHistoryLoading(true);
+      try {
+        const rows = await api.get<SmtpTestLog[]>('/admin/email-test/history');
+        if (!cancelled) setTestHistory(rows);
+      } catch {
+        /* ignore — history is non-critical */
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    }
+    loadHistory();
+    return () => { cancelled = true; };
+  }, [user?.role, historyReload]);
+
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+    let cancelled = false;
+    async function loadSmtp() {
+      setSmtpLoading(true);
+      try {
+        const s = await api.get<SmtpSettings>('/admin/smtp-settings');
         if (cancelled) return;
         setSmtpSettings(s);
         // Host and port are not sensitive, so prefill them for easy editing.
         setSmtpForm(f => ({ ...f, host: s.host || '', port: s.port || '' }));
-      })
-      .catch(() => { if (!cancelled) setSmtpSettings(null); })
-      .finally(() => { if (!cancelled) setSmtpLoading(false); });
+      } catch {
+        if (!cancelled) setSmtpSettings(null);
+      } finally {
+        if (!cancelled) setSmtpLoading(false);
+      }
+    }
+    loadSmtp();
     return () => { cancelled = true; };
   }, [user?.role]);
 
-  const loadLockouts = useCallback(async () => {
-    setLockoutsLoading(true);
-    try {
-      const rows = await api.get<Lockout[]>('/admin/lockouts');
-      setLockouts(rows);
-    } catch {
-      /* non-fatal */
-    } finally {
-      setLockoutsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    if (isAdmin) loadLockouts();
-  }, [isAdmin, loadLockouts]);
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function loadLockouts() {
+      setLockoutsLoading(true);
+      try {
+        const rows = await api.get<Lockout[]>('/admin/lockouts');
+        if (!cancelled) setLockouts(rows);
+      } catch {
+        /* non-fatal */
+      } finally {
+        if (!cancelled) setLockoutsLoading(false);
+      }
+    }
+    loadLockouts();
+    return () => { cancelled = true; };
+  }, [isAdmin, lockoutsReload]);
 
   // Tick every second so the remaining-time countdown stays live.
   useEffect(() => {
@@ -315,7 +332,7 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setTestEmailSending(false);
-      loadHistory();
+      setHistoryReload(n => n + 1);
     }
   }
 
@@ -659,7 +676,7 @@ export default function ProfileSettings() {
             </div>
             <button
               type="button"
-              onClick={loadLockouts}
+              onClick={() => setLockoutsReload(n => n + 1)}
               disabled={lockoutsLoading}
               title="Refresh"
               style={{

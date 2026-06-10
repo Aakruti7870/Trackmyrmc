@@ -21,8 +21,8 @@ function isoDate(d: Date) { return d.toISOString().slice(0, 10); }
 export default function Reports() {
   const [tab, setTab] = useState<ReportTab>('client-wise');
   const [preset, setPreset] = useState(1);
-  const [from, setFrom] = useState(isoDate(new Date(Date.now() - 7 * 86400000)));
-  const [to, setTo] = useState(isoDate(new Date()));
+  const [from, setFrom] = useState(() => isoDate(new Date(Date.now() - 7 * 86400000)));
+  const [to, setTo] = useState(() => isoDate(new Date()));
   const [clientData, setClientData] = useState<ClientRow[]>([]);
   const [gradeData, setGradeData] = useState<GradeRow[]>([]);
   const [dispatchData, setDispatchData] = useState<DispatchRow[]>([]);
@@ -32,25 +32,30 @@ export default function Reports() {
   function applyPreset(idx: number) {
     setPreset(idx);
     const days = PRESETS[idx].days;
-    const newFrom = days === 0 ? isoDate(new Date()) : isoDate(new Date(Date.now() - days * 86400000));
+    const today = new Date();
+    const newFrom = days === 0 ? isoDate(today) : isoDate(new Date(today.getTime() - days * 86400000));
     setFrom(newFrom);
-    setTo(isoDate(new Date()));
+    setTo(isoDate(today));
   }
 
-  async function loadAll() {
-    setLoading(true);
-    const params = `?from=${from}T00:00:00&to=${to}T23:59:59`;
-    const [c, g, d, p] = await Promise.all([
-      api.get<ClientRow[]>(`/reports/client-wise${params}`),
-      api.get<GradeRow[]>(`/reports/grade-wise${params}`),
-      api.get<DispatchRow[]>(`/reports/dispatch${params}`),
-      api.get<ProductionRow[]>(`/reports/production${params}`),
-    ]);
-    setClientData(c); setGradeData(g); setDispatchData(d); setProductionData(p);
-    setLoading(false);
-  }
-
-  useEffect(() => { loadAll(); }, [from, to]);
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAll() {
+      setLoading(true);
+      const params = `?from=${from}T00:00:00&to=${to}T23:59:59`;
+      const [c, g, d, p] = await Promise.all([
+        api.get<ClientRow[]>(`/reports/client-wise${params}`),
+        api.get<GradeRow[]>(`/reports/grade-wise${params}`),
+        api.get<DispatchRow[]>(`/reports/dispatch${params}`),
+        api.get<ProductionRow[]>(`/reports/production${params}`),
+      ]);
+      if (cancelled) return;
+      setClientData(c); setGradeData(g); setDispatchData(d); setProductionData(p);
+      setLoading(false);
+    }
+    loadAll();
+    return () => { cancelled = true; };
+  }, [from, to]);
 
   function downloadCSV(report: string) {
     const params = `?report=${report}&from=${from}T00:00:00&to=${to}T23:59:59`;

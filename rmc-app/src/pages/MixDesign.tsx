@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, X, Pencil, Trash2, FlaskConical } from 'lucide-react';
 import { mixDesignStore } from '@/lib/store';
 import type { MixDesign } from '@/lib/types';
@@ -7,14 +7,13 @@ const GRADES = ['M-15', 'M-20', 'M-25', 'M-30', 'M-35', 'M-40', 'M-45', 'M-50', 
 const empty: Omit<MixDesign, 'id' | 'createdAt'> = { grade: 'M-25', cement: 360, water: 158, sand: 760, aggregate: 1060, admixture: 1.5, wCRatio: 0.44, notes: '' };
 
 export default function MixDesign() {
-  const [mixes, setMixes] = useState<MixDesign[]>([]);
+  const [mixes, setMixes] = useState<MixDesign[]>(() => mixDesignStore.getAll());
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...empty });
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const reload = () => setMixes(mixDesignStore.getAll());
-  useEffect(() => { reload(); }, []);
 
   function openAdd() { setForm({ ...empty }); setEditId(null); setShowForm(true); }
   function openEdit(m: MixDesign) { setForm({ grade: m.grade, cement: m.cement, water: m.water, sand: m.sand, aggregate: m.aggregate, admixture: m.admixture, wCRatio: m.wCRatio, notes: m.notes }); setEditId(m.id); setShowForm(true); }

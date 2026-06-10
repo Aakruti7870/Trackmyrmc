@@ -10,6 +10,8 @@ export default function Drivers() {
   const [editing, setEditing] = useState<Driver | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Capture "now" once at mount; license-expiry math stays stable across renders.
+  const [now] = useState(() => Date.now());
 
   function load() { api.get<Driver[]>('/drivers').then(setDrivers); }
   useEffect(load, []);
@@ -40,7 +42,7 @@ export default function Drivers() {
 
   function daysUntil(dateStr?: string | null) {
     if (!dateStr) return null;
-    return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+    return Math.ceil((new Date(dateStr).getTime() - now) / 86400000);
   }
 
   const inputStyle: React.CSSProperties = {

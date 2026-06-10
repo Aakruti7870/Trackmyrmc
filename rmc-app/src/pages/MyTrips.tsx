@@ -345,15 +345,21 @@ export default function MyTrips() {
   const challansRef = useRef<Challan[]>([]);
   useEffect(() => { challansRef.current = challans; }, [challans]);
 
-  const load = useCallback((all: boolean) => {
-    setLoading(true);
-    const url = all ? '/me/trips?from=2020-01-01' : '/me/trips';
-    api.get<Challan[]>(url)
-      .then(rows => { setChallans(rows); setLoading(false); })
-      .catch(e => { setError(e.message); setLoading(false); });
-  }, []);
-
-  useEffect(() => { load(viewAll); }, [load, viewAll]);
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTrips() {
+      setLoading(true);
+      const url = viewAll ? '/me/trips?from=2020-01-01' : '/me/trips';
+      try {
+        const rows = await api.get<Challan[]>(url);
+        if (!cancelled) { setChallans(rows); setLoading(false); }
+      } catch (e: unknown) {
+        if (!cancelled) { setError(e instanceof Error ? e.message : 'Error'); setLoading(false); }
+      }
+    }
+    loadTrips();
+    return () => { cancelled = true; };
+  }, [viewAll]);
 
   async function handleMarkDelivered(id: number, notes?: string, deliveredQuantity?: string) {
     const updated = await api.put<Challan>(`/challans/${id}`, {
@@ -408,16 +414,10 @@ export default function MyTrips() {
   }, []);
 
   // Start/stop geolocation watch + heartbeat poll while tracking is enabled.
+  // GPS support and the initial geoState/geoMsg are set in the toggle handler so
+  // this effect only subscribes to the external system (no synchronous setState).
   useEffect(() => {
     if (!tracking) return;
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
-      setGeoState('unsupported');
-      setGeoMsg('This device or browser does not support GPS location.');
-      setTracking(false);
-      return;
-    }
-    setGeoState('active');
-    setGeoMsg('');
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const f = {
@@ -450,18 +450,17 @@ export default function MyTrips() {
       watchIdRef.current = null;
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = null;
+      lastFixRef.current = null;
     };
   }, [tracking, doPost]);
 
-  // Auto-stop tracking once there are no active trips left to deliver.
-  useEffect(() => {
-    if (tracking && !challans.some(c => c.status === 'dispatched')) {
-      setTracking(false);
-      setGeoState('off');
-      setLastFix(null);
-      lastFixRef.current = null;
-    }
-  }, [challans, tracking]);
+  // Auto-stop tracking once there are no active trips left to deliver. Adjusting
+  // state during render (React's documented pattern) avoids an extra effect pass.
+  if (tracking && !challans.some(c => c.status === 'dispatched')) {
+    setTracking(false);
+    setGeoState('off');
+    setLastFix(null);
+  }
 
   const filtered = filter === 'all' ? challans : challans.filter(c => c.status === filter);
   const active = challans.filter(c => c.status === 'dispatched').length;
@@ -527,8 +526,13 @@ export default function MyTrips() {
         nearestM={nearestM}
         activeCount={active}
         onToggle={() => {
-          if (tracking) { setTracking(false); setGeoState('off'); }
-          else { setGeoState('active'); setGeoMsg(''); setTracking(true); }
+          if (tracking) { setTracking(false); setGeoState('off'); return; }
+          if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+            setGeoState('unsupported');
+            setGeoMsg('This device or browser does not support GPS location.');
+            return;
+          }
+          setGeoState('active'); setGeoMsg(''); setTracking(true);
         }}
       />
 

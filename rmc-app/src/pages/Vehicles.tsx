@@ -13,6 +13,8 @@ export default function Vehicles() {
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Capture "now" once at mount; fitness/expiry math stays stable across renders.
+  const [now] = useState(() => Date.now());
 
   function load() { api.get<Vehicle[]>('/vehicles').then(setVehicles); }
   useEffect(() => { load(); api.get<Driver[]>('/drivers').then(d => setDrivers(d.filter(x => x.isActive))); }, []);
@@ -45,7 +47,7 @@ export default function Vehicles() {
 
   function daysUntil(dateStr?: string | null) {
     if (!dateStr) return null;
-    const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+    const diff = Math.ceil((new Date(dateStr).getTime() - now) / 86400000);
     return diff;
   }
 

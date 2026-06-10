@@ -190,7 +190,7 @@ export default function Users() {
     loadAudit(historyUser?.id ?? null);
     api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
   }
-  useEffect(load, [showDeleted]);
+  useEffect(load, [showDeleted, historyUser?.id]);
 
   // Re-fetch the audit log when any of the activity-log filters change.
   // eslint-disable-next-line react-hooks/exhaustive-deps

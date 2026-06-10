@@ -24,9 +24,9 @@ vi.mock('@/lib/useSSE', () => ({
 }));
 
 import Layout from '@/components/Layout';
-import { ToastProvider } from '@/lib/toast';
-import { AuthProvider } from '@/lib/auth';
-import { ThemeProvider } from '@/lib/theme';
+import { ToastProvider } from '@/lib/toast-provider';
+import { AuthProvider } from '@/lib/auth-provider';
+import { ThemeProvider } from '@/lib/theme-providers';
 
 function renderLayout() {
   return render(
