@@ -6,6 +6,14 @@ import { useToast } from '@/lib/toast';
 import { ThemeSwitcher } from '@/lib/theme';
 import type { User } from '@/lib/api';
 
+interface SmtpSettings {
+  host: string | null;
+  port: string | null;
+  user: string | null;
+  from: string | null;
+  configured: boolean;
+}
+
 const card: React.CSSProperties = {
   background: 'linear-gradient(135deg,rgba(17,30,55,.85),rgba(10,20,40,.9))',
   border: '1px solid rgba(255,255,255,.07)',
@@ -75,6 +83,23 @@ function PasswordInput({
   );
 }
 
+function SmtpField({ label: fieldLabel, value }: { label: string; value: string | null }) {
+  return (
+    <div>
+      <label style={label}>{fieldLabel}</label>
+      <div style={{
+        padding: '9px 12px', borderRadius: 10,
+        background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)',
+        color: value ? 'var(--text)' : 'var(--muted)', fontSize: 13, fontWeight: 600,
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
+        {value || 'Not set'}
+      </div>
+    </div>
+  );
+}
+
 export default function ProfileSettings() {
   const { user, updateUser } = useAuth();
   const { showToast } = useToast();
@@ -94,6 +119,9 @@ export default function ProfileSettings() {
 
   const [testHistory, setTestHistory] = useState<SmtpTestLog[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  const [smtpSettings, setSmtpSettings] = useState<SmtpSettings | null>(null);
+  const [smtpLoading, setSmtpLoading] = useState(false);
 
   const loadHistory = useCallback(async () => {
     if (user?.role !== 'admin') return;
@@ -118,6 +146,17 @@ export default function ProfileSettings() {
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+    let cancelled = false;
+    setSmtpLoading(true);
+    api.get<SmtpSettings>('/admin/smtp-settings')
+      .then(s => { if (!cancelled) setSmtpSettings(s); })
+      .catch(() => { if (!cancelled) setSmtpSettings(null); })
+      .finally(() => { if (!cancelled) setSmtpLoading(false); });
+    return () => { cancelled = true; };
+  }, [user?.role]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
@@ -319,8 +358,47 @@ export default function ProfileSettings() {
             </div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>SMTP Configuration</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Send a test email to verify your SMTP settings are working</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Current mail server settings and connection test</div>
             </div>
+          </div>
+
+          <div style={{ marginBottom: 18 }}>
+            {smtpLoading ? (
+              <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
+            ) : smtpSettings && smtpSettings.host ? (
+              <>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
+                }}>
+                  <SmtpField label="Host" value={smtpSettings.host} />
+                  <SmtpField label="Port" value={smtpSettings.port} />
+                  <SmtpField label="Username" value={smtpSettings.user} />
+                  <SmtpField label="From Address" value={smtpSettings.from} />
+                </div>
+                <div style={{
+                  marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
+                  color: smtpSettings.configured ? 'var(--green)' : 'var(--gold)',
+                  background: smtpSettings.configured ? 'rgba(34,197,94,.12)' : 'rgba(247,201,72,.12)',
+                  border: `1px solid ${smtpSettings.configured ? 'rgba(34,197,94,.3)' : 'rgba(247,201,72,.3)'}`,
+                }}>
+                  {smtpSettings.configured ? 'Configured' : 'Incomplete (password missing)'}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10 }}>
+                  Values are read-only and partially masked. To change them, update the
+                  SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM environment variables.
+                </div>
+              </>
+            ) : (
+              <div style={{
+                padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                color: 'var(--gold)', background: 'rgba(247,201,72,.1)',
+                border: '1px solid rgba(247,201,72,.25)',
+              }}>
+                SMTP is not configured. Set the SMTP_HOST, SMTP_USER and SMTP_PASS
+                environment variables to enable outgoing email.
+              </div>
+            )}
           </div>
 
           {testEmailResult && (

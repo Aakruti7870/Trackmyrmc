@@ -1,12 +1,16 @@
 import { Router } from 'express';
 import { desc, eq } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { sendTestEmail } from '../lib/email.js';
+import { sendTestEmail, getSmtpSettings } from '../lib/email.js';
 import { db } from '../db/index.js';
 import { auditLogs } from '../db/schema.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('admin'));
+
+router.get('/smtp-settings', (_req, res) => {
+  res.json(getSmtpSettings());
+});
 
 router.post('/email-test', async (req, res) => {
   const user = req.user;
