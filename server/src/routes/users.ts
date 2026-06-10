@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { db } from '../db/index.js';
 import { users, clients, drivers } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { sendPasswordResetNotification } from '../lib/email.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('admin'));
@@ -108,6 +109,13 @@ router.put('/:id', async (req, res) => {
     .where(eq(users.id, id))
     .returning();
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+  if (password) {
+    sendPasswordResetNotification(user.email, user.name).catch((err) => {
+      console.error('[email] Failed to send password-reset notification:', err);
+    });
+  }
+
   res.json(safeUser(user));
 });
 
