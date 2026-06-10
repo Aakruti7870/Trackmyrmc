@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { db } from '../db/index.js';
 import { auditLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { sendTestEmail, getSmtpSettings, verifySmtpConnection, SMTP_KEYS } from '../lib/email.js';
+import { sendTestEmail, getSmtpSettings, verifySmtpConnection, getSmtpConfig, SMTP_KEYS } from '../lib/email.js';
 import { setSetting } from '../lib/settings.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 const router = Router();
@@ -37,6 +37,9 @@ router.post('/smtp-settings', async (req, res) => {
         return;
     }
     const { host, port, user, from, pass } = parse.data;
+    // Snapshot the resolved config before applying changes so we can report which
+    // fields actually changed in the audit trail (never the secret values).
+    const before = await getSmtpConfig();
     // host/port/user/from: persist trimmed value, or clear (null) when blank so it
     // reverts to the env var. pass: only update when a non-empty value is supplied.
     if (host !== undefined)
@@ -50,6 +53,23 @@ router.post('/smtp-settings', async (req, res) => {
     if (pass !== undefined && pass.trim() !== '')
         await setSetting(SMTP_KEYS.pass, pass.trim());
     const settings = await getSmtpSettings();
+    // Diff the resolved config to summarise which fields changed. The password is
+    // never logged by value — only that it was rotated.
+    const after = await getSmtpConfig();
+    const changed = [];
+    if (before.host !== after.host)
+        changed.push('host');
+    if (before.port !== after.port)
+        changed.push('port');
+    if (before.user !== after.user)
+        changed.push('username');
+    if (before.from !== after.from)
+        changed.push('from address');
+    if (before.pass !== after.pass)
+        changed.push('password rotated');
+    const detail = changed.length
+        ? `SMTP configuration updated from the admin panel. Changed: ${changed.join(', ')}.`
+        : 'SMTP configuration saved from the admin panel. No fields were changed.';
     const actor = req.user;
     try {
         await db.insert(auditLogs).values({
@@ -57,7 +77,7 @@ router.post('/smtp-settings', async (req, res) => {
             actorName: actor.name,
             action: 'smtp_settings_updated',
             status: 'success',
-            detail: 'SMTP configuration updated from the admin panel.',
+            detail,
             emailSent: null,
         });
     }
