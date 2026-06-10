@@ -64,6 +64,7 @@ const ACTION_LABEL: Record<string, string> = {
   'user.created': 'Account Created',
   'user.deleted': 'Account Deleted',
   'user.restored': 'Account Restored',
+  'user.purged': 'Account Purged',
 };
 
 const ACTION_COLOR: Record<string, string> = {
@@ -80,6 +81,7 @@ const ACTION_COLOR: Record<string, string> = {
   'user.created': '#22c55e',
   'user.deleted': '#ef4444',
   'user.restored': '#22c55e',
+  'user.purged': '#ef4444',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -167,6 +169,8 @@ export default function Users() {
   const [deletedCount, setDeletedCount] = useState(0);
   const [softDeletedMatch, setSoftDeletedMatch] = useState<{ id: number; name: string } | null>(null);
   const [restoringId, setRestoringId] = useState<number | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<UserRecord | null>(null);
+  const [purging, setPurging] = useState(false);
 
   function loadAudit(userId: number | null) {
     const params = new URLSearchParams();
@@ -275,6 +279,22 @@ export default function Users() {
       showToast(e instanceof Error ? e.message : 'Failed to restore account.', 'error');
     } finally {
       setRestoringId(null);
+    }
+  }
+
+  async function confirmPurge() {
+    if (!purgeTarget) return;
+    setPurging(true);
+    try {
+      await api.delete(`/users/${purgeTarget.id}/permanent`);
+      showToast(`${purgeTarget.name}'s account has been permanently deleted.`, 'success');
+      if (historyUser?.id === purgeTarget.id) clearHistory();
+      setPurgeTarget(null);
+      load();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to permanently delete account.', 'error');
+    } finally {
+      setPurging(false);
     }
   }
 
@@ -635,6 +655,18 @@ export default function Users() {
                           >
                             <History size={13} />
                             {u.auditCount}
+                          </button>
+                          <button
+                            onClick={() => setPurgeTarget(u)}
+                            title="Permanently delete account (frees the email)"
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 5,
+                              background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.25)',
+                              borderRadius: 7, color: 'var(--red)', cursor: 'pointer',
+                              padding: '5px 10px', fontSize: 11, fontWeight: 700,
+                            }}
+                          >
+                            <Trash2 size={12} /> Delete Forever
                           </button>
                         </>
                       ) : (
@@ -1125,6 +1157,58 @@ export default function Users() {
                 cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.7 : 1,
               }}>
                 <Trash2 size={14} /> {deleting ? 'Deleting…' : 'Delete Account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent delete confirmation modal */}
+      {purgeTarget && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 110,
+          background: 'rgba(5,9,20,.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg,var(--panel),var(--bg))',
+            border: '1px solid rgba(239,68,68,.3)', borderRadius: 18,
+            width: '100%', maxWidth: 440, padding: 24,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.25)',
+                display: 'grid', placeItems: 'center', color: 'var(--red)',
+              }}>
+                <AlertTriangle size={18} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Permanently Delete Account</h3>
+            </div>
+            <p style={{ margin: '0 0 6px', fontSize: 13.5, color: 'var(--text)', lineHeight: 1.5 }}>
+              Permanently delete <strong>{purgeTarget.name}</strong> ({purgeTarget.email})?
+            </p>
+            <p style={{ margin: '0 0 20px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+              This <strong style={{ color: 'var(--red)' }}>cannot be undone</strong>. The account record will be erased and
+              can no longer be restored. The email <strong>{purgeTarget.email}</strong> will be freed for a brand-new
+              account. The activity log keeps a record of this removal.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setPurgeTarget(null)} disabled={purging} style={{
+                flex: 1, padding: '10px', background: 'rgba(255,255,255,.07)',
+                border: '1px solid rgba(255,255,255,.1)', borderRadius: 10,
+                color: 'var(--muted)', fontWeight: 600, fontSize: 13,
+                cursor: purging ? 'not-allowed' : 'pointer',
+              }}>
+                Cancel
+              </button>
+              <button onClick={confirmPurge} disabled={purging} style={{
+                flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', borderRadius: 10,
+                color: '#fff', fontWeight: 700, fontSize: 13,
+                cursor: purging ? 'not-allowed' : 'pointer', opacity: purging ? 0.7 : 1,
+              }}>
+                <Trash2 size={14} /> {purging ? 'Deleting…' : 'Delete Forever'}
               </button>
             </div>
           </div>

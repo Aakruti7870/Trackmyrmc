@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, asc, desc, sql, isNull, isNotNull, and, gte, lte, type SQL } from 'drizzle-orm';
+import { eq, ne, asc, desc, sql, isNull, isNotNull, and, gte, lte, type SQL } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/index.js';
@@ -498,6 +498,49 @@ router.post('/:id/restore', async (req, res) => {
   });
 
   res.json(safeUser(restored));
+});
+
+router.delete('/:id/permanent', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const [user] = await db.select({
+    id: users.id, name: users.name, email: users.email, role: users.role, deletedAt: users.deletedAt,
+  }).from(users).where(eq(users.id, id));
+  // Only already soft-deleted accounts can be permanently purged.
+  if (!user || !user.deletedAt) {
+    res.status(404).json({ error: 'Deleted account not found' });
+    return;
+  }
+
+  // Never let the system lose its last admin: block purging an admin when no
+  // other admin record (active or soft-deleted) remains to restore.
+  if (user.role === 'admin') {
+    const [{ count: otherAdmins }] = await db.select({
+      count: sql<number>`count(*)::int`,
+    }).from(users).where(and(eq(users.role, 'admin'), ne(users.id, id)));
+    if (otherAdmins <= 0) {
+      res.status(400).json({ error: 'Cannot permanently delete the last admin account.' });
+      return;
+    }
+  }
+
+  const actor = req.user!;
+  // Record the audit entry *before* the row is removed. targetUserId is
+  // ON DELETE SET NULL, so it nulls out after the purge, but the preserved
+  // email label keeps the entry readable in the activity log.
+  await db.insert(auditLogs).values({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'user.purged',
+    targetUserId: user.id,
+    targetUserEmail: user.email,
+    detail: `Account permanently deleted (${user.email})`,
+  });
+
+  await db.delete(users).where(eq(users.id, id));
+
+  res.json({ ok: true, userId: id });
 });
 
 export default router;

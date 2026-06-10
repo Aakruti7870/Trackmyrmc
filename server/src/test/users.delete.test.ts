@@ -432,6 +432,102 @@ test('restore: returns 404 for a non-deleted user and a non-existent id', async 
   assert.equal(missing.status, 404);
 });
 
+test('permanent: DELETE /:id/permanent purges a soft-deleted user, frees the email, and writes user.purged', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const target = await createUser({ name: 'Purge Me', email: 'purge@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+
+  // Soft-delete first — only soft-deleted accounts can be purged.
+  const del = await request(app)
+    .delete(`/api/users/${target.id}`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(del.status, 200);
+
+  const purge = await request(app)
+    .delete(`/api/users/${target.id}/permanent`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(purge.status, 200);
+  assert.deepEqual(purge.body, { ok: true, userId: target.id });
+
+  // The row is gone entirely.
+  const rows = await db.select().from(users).where(eq(users.id, target.id));
+  assert.equal(rows.length, 0, 'the user row must be physically removed');
+
+  // The audit entry survives with the preserved email label; the FK is nulled.
+  const logs = await db.select().from(auditLogs)
+    .where(eq(auditLogs.action, 'user.purged'));
+  assert.equal(logs.length, 1, 'exactly one user.purged audit entry should exist');
+  assert.equal(logs[0].actorId, admin.id);
+  assert.equal(logs[0].targetUserId, null, 'targetUserId is nulled after the row is removed');
+  assert.equal(logs[0].targetUserEmail, target.email, 'the email label is preserved');
+
+  // The freed email can now be reused for a brand-new account.
+  const recreate = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Fresh Start', email: 'purge@test.com', password: PASSWORD, role: 'dispatcher' });
+  assert.equal(recreate.status, 201, 'the purged email is free to reuse');
+});
+
+test('permanent: returns 404 for a non-deleted user, an already-purged id, and a missing id', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const active = await createUser({ name: 'Active', email: 'active@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+
+  // An account that was never soft-deleted cannot be purged.
+  const notDeleted = await request(app)
+    .delete(`/api/users/${active.id}/permanent`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(notDeleted.status, 404);
+  assert.match(notDeleted.body.error, /not found/i);
+  const stillThere = await db.select().from(users).where(eq(users.id, active.id));
+  assert.equal(stillThere.length, 1, 'a non-deleted user must not be purged');
+
+  // A missing id is also a 404.
+  const missing = await request(app)
+    .delete('/api/users/999999/permanent')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(missing.status, 404);
+});
+
+test('permanent guard: cannot purge the last admin when no other admin record remains', async () => {
+  // The only admin in the system, soft-deleted. Purging it would leave no admin
+  // record at all (active or restorable), so the guard must block it.
+  const actor = await createUser({
+    name: 'Ghost Admin', email: 'ghost@test.com', role: 'admin',
+    isActive: true, deletedAt: new Date(),
+  });
+  const token = tokenFor(actor);
+
+  const res = await request(app)
+    .delete(`/api/users/${actor.id}/permanent`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /last admin/i);
+
+  const rows = await db.select().from(users).where(eq(users.id, actor.id));
+  assert.equal(rows.length, 1, 'the last admin must not be purged');
+});
+
+test('permanent: a soft-deleted admin can be purged when another admin remains', async () => {
+  const admin = await createUser({ name: 'Live Admin', email: 'live@test.com', role: 'admin' });
+  const target = await createUser({ name: 'Spare Admin', email: 'spare@test.com', role: 'admin' });
+  const token = tokenFor(admin);
+
+  const del = await request(app)
+    .delete(`/api/users/${target.id}`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(del.status, 200);
+
+  const purge = await request(app)
+    .delete(`/api/users/${target.id}/permanent`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(purge.status, 200, 'purging a non-last admin is allowed');
+
+  const rows = await db.select().from(users).where(eq(users.id, target.id));
+  assert.equal(rows.length, 0, 'the spare admin row is removed');
+});
+
 async function createClient(name: string) {
   const [row] = await db.insert(clients).values({
     name, contactPerson: 'Contact', phone: '0000000000',
