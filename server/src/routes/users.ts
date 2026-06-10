@@ -111,6 +111,24 @@ router.post('/', async (req, res) => {
   res.status(201).json({ ...safeUser(user), emailSent });
 });
 
+router.post('/:id/resend-notification', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const [user] = await db.select({ id: users.id, name: users.name, email: users.email })
+    .from(users).where(eq(users.id, id));
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+  let emailSent = false;
+  try {
+    emailSent = await sendPasswordResetNotification(user.email, user.name);
+  } catch (err) {
+    console.error('[email] Failed to resend password-reset notification:', err);
+  }
+
+  res.json({ emailSent });
+});
+
 router.put('/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }

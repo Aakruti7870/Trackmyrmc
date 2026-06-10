@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 
@@ -166,6 +166,19 @@ export default function Users() {
     } catch {}
   }
 
+  async function resendNotification(u: UserRecord) {
+    try {
+      const result = await api.post<{ emailSent: boolean }>(`/users/${u.id}/resend-notification`, {});
+      if (result.emailSent) {
+        showToast(`Notification email sent to ${u.email}.`, 'success');
+      } else {
+        showToast('Email not sent — check SMTP configuration.', 'error');
+      }
+    } catch {
+      showToast('Failed to resend notification.', 'error');
+    }
+  }
+
   const filtered = users.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase());
@@ -288,12 +301,28 @@ export default function Users() {
                   </td>
                   <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{linked}</td>
                   <td style={{ padding: '12px 14px' }}>
-                    <button onClick={() => openEdit(u)} style={{
-                      background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)',
-                      borderRadius: 7, color: 'var(--muted)', cursor: 'pointer', padding: '5px 8px',
-                    }}>
-                      <Edit2 size={13} />
-                    </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={() => openEdit(u)}
+                        title="Edit user"
+                        style={{
+                          background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)',
+                          borderRadius: 7, color: 'var(--muted)', cursor: 'pointer', padding: '5px 8px',
+                        }}
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      <button
+                        onClick={() => resendNotification(u)}
+                        title="Resend notification email"
+                        style={{
+                          background: 'rgba(56,189,248,.1)', border: '1px solid rgba(56,189,248,.2)',
+                          borderRadius: 7, color: 'var(--blue)', cursor: 'pointer', padding: '5px 8px',
+                        }}
+                      >
+                        <Send size={13} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
