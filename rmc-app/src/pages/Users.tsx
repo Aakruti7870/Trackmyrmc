@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw, Download, ChevronDown, FileSpreadsheet, FileText, Copy } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
@@ -475,6 +475,19 @@ export default function Users() {
       showToast(reason, 'error');
     } finally {
       setRetryingRestoreId(null);
+    }
+  }
+
+  async function copyEmails(items: { email: string }[]) {
+    const text = items.map(i => i.email).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(
+        items.length === 1 ? 'Email copied to clipboard.' : `${items.length} emails copied to clipboard.`,
+        'success',
+      );
+    } catch {
+      showToast('Could not copy emails to clipboard.', 'error');
     }
   }
 
@@ -1727,9 +1740,23 @@ export default function Users() {
                   {skippedRestore.length} {skippedRestore.length === 1 ? 'Account' : 'Accounts'} Skipped
                 </h3>
               </div>
-              <button onClick={() => setSkippedRestore(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => copyEmails(skippedRestore)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '6px 11px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    background: 'rgba(245,158,11,.12)', color: '#f59e0b',
+                    border: '1px solid rgba(245,158,11,.3)', cursor: 'pointer',
+                  }}
+                >
+                  <Copy size={13} />
+                  Copy emails
+                </button>
+                <button onClick={() => setSkippedRestore(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}>
+                  <X size={18} />
+                </button>
+              </div>
             </div>
             <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
               These accounts could not be restored because their linked client or driver is already taken by an
@@ -1804,9 +1831,23 @@ export default function Users() {
                   {skippedPurge.length} Admin {skippedPurge.length === 1 ? 'Account' : 'Accounts'} Skipped
                 </h3>
               </div>
-              <button onClick={() => setSkippedPurge(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => copyEmails(skippedPurge)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '6px 11px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    background: 'rgba(245,158,11,.12)', color: '#f59e0b',
+                    border: '1px solid rgba(245,158,11,.3)', cursor: 'pointer',
+                  }}
+                >
+                  <Copy size={13} />
+                  Copy emails
+                </button>
+                <button onClick={() => setSkippedPurge(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}>
+                  <X size={18} />
+                </button>
+              </div>
             </div>
             <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
               These admin accounts were left in the trash to keep at least one admin alive. The remaining
