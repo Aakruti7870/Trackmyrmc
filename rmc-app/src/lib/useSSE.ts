@@ -12,6 +12,7 @@ export function useSSE() {
   const esRef = useRef<EventSource | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCount = useRef(0);
+  const hadConnected = useRef(false);
   const unmounted = useRef(false);
   const connectRef = useRef<() => void>(() => {});
 
@@ -44,8 +45,12 @@ export function useSSE() {
 
       es.onopen = () => {
         if (unmounted.current) return;
+        const wasReconnect = hadConnected.current;
+        hadConnected.current = true;
         retryCount.current = 0;
         setStatus('connected');
+        // After a drop, refetch current data so nothing missed during the gap.
+        if (wasReconnect) dispatchEvent('reconnect', undefined);
       };
 
       es.onerror = () => {
@@ -59,7 +64,10 @@ export function useSSE() {
         }
 
         setStatus('reconnecting');
-        const delay = Math.min(1000 * 2 ** retryCount.current, 30000);
+        // Exponential backoff capped at 30s, with equal jitter to avoid
+        // thundering-herd reconnects after a shared outage (deploy/restart).
+        const base = Math.min(1000 * 2 ** retryCount.current, 30000);
+        const delay = base / 2 + Math.random() * (base / 2);
         retryCount.current += 1;
         retryTimerRef.current = setTimeout(connect, delay);
       };

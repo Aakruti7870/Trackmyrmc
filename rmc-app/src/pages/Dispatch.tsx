@@ -27,12 +27,16 @@ export default function Dispatch() {
 
   function load() { api.get<Challan[]>('/challans').then(setChallans); }
 
-  useEffect(() => {
+  function loadAll() {
     load();
     api.get<Order[]>('/orders').then(o => setOrders(o.filter(x => x.status === 'pending' || x.status === 'in_progress')));
     api.get<Vehicle[]>('/vehicles').then(v => setVehicles(v.filter(x => x.status === 'active')));
     api.get<Driver[]>('/drivers').then(d => setDrivers(d.filter(x => x.isActive)));
     api.get<Client[]>('/clients').then(setClients);
+  }
+
+  useEffect(() => {
+    loadAll();
   }, []);
 
   useEffect(() => {
@@ -41,7 +45,8 @@ export default function Dispatch() {
       const updated = data as Challan;
       setChallans(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
     });
-    return () => { unsub1(); unsub2(); };
+    const unsub3 = subscribe('reconnect', () => { loadAll(); });
+    return () => { unsub1(); unsub2(); unsub3(); };
   }, [subscribe]);
 
   async function loadSites(clientId: string) {

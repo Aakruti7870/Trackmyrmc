@@ -44,7 +44,8 @@ export default function Dashboard() {
       setChallans(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
       reload();
     });
-    return () => { unsub1(); unsub2(); };
+    const unsub3 = subscribe('reconnect', () => { reload(); });
+    return () => { unsub1(); unsub2(); unsub3(); };
   }, [subscribe, reload]);
 
   const fmt = (n: number) => n?.toLocaleString('en-IN') ?? '—';
