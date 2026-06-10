@@ -61,12 +61,12 @@ outputType = "console"
 name = "test"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd server && pnpm test"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && pnpm test && cd ../rmc-app && pnpm test"
 
 [[workflows.workflow]]
 name = "build"

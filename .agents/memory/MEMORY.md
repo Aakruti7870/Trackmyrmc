@@ -4,4 +4,5 @@
 - [RMC 401 handling](rmc-401-handling.md) — global fetch wrapper clears session+redirects on 401, but only when a token was sent, so login's own 401 isn't hijacked.
 - [RMC last-admin guard](rmc-soft-delete-guard.md) — last-admin delete branch is unreachable via real API (self-delete shadows it); test it with a deletedAt+active admin actor and signToken.
 - [RMC server tests](rmc-server-tests.md) — `pnpm test` in server/ provisions an isolated `<db>_test` DB, pushes schema, runs node:test+supertest; needed for deterministic admin-count guards.
+- [RMC frontend tests](rmc-frontend-tests.md) — vitest+jsdom+testing-library in rmc-app; `test` validation chains server then rmc-app; mock useSSE, use real ToastProvider to test Layout SSE→toast.
 - [RMC lint validation](rmc-lint-validation.md) — eslint-plugin-react-hooks@7 preset over-flags idiomatic code; purity/set-state-in-effect/only-export-components downgraded to warn so `lint` gate only blocks on real errors.
