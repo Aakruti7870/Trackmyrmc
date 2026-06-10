@@ -105,8 +105,12 @@ describe('Users empty-trash bulk-delete UI', () => {
     });
   });
 
-  it('surfaces the skip messaging when an admin account is kept', async () => {
-    vi.mocked(api.delete).mockResolvedValue({ purged: 2, skipped: 1 } as never);
+  it('surfaces the skip messaging and lists the kept admin account', async () => {
+    vi.mocked(api.delete).mockResolvedValue({
+      purged: 2,
+      skipped: 1,
+      skippedAdmins: [{ id: 13, email: 'chetan@x.com' }],
+    } as never);
     const user = userEvent.setup();
     renderUsers();
     await enterDeletedView(user);
@@ -117,12 +121,18 @@ describe('Users empty-trash bulk-delete UI', () => {
       expect(api.delete).toHaveBeenCalledWith('/users/purge-all');
     });
 
-    // The skip toast explains why an admin account was left in the trash.
+    // The skip toast points the admin to the results panel.
     expect(
       await screen.findByText(
         '2 accounts permanently deleted. 1 admin account was skipped — see details below.',
       ),
     ).toBeInTheDocument();
+
+    // The results modal lists the skipped admin by email (scope to the modal
+    // panel since the same email also appears in the deleted-users table).
+    const resultsHeading = await screen.findByRole('heading', { name: '1 Admin Account Skipped' });
+    const resultsModal = resultsHeading.closest('div[style]')!.parentElement!.parentElement as HTMLElement;
+    expect(within(resultsModal).getByText('chetan@x.com')).toBeInTheDocument();
   });
 
   it('cancels without calling the purge-all API', async () => {
