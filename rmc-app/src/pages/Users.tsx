@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw, Download } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
@@ -212,6 +212,44 @@ export default function Users() {
   function clearHistory() {
     setHistoryUser(null);
     loadAudit(null);
+  }
+
+  function exportAuditCsv() {
+    if (auditLog.length === 0) return;
+    const headers = ['Timestamp', 'Action', 'Details', 'Target Account', 'Performed By', 'Email Sent'];
+    const escape = (value: string) => {
+      const needsQuote = /[",\r\n]/.test(value);
+      const escaped = value.replace(/"/g, '""');
+      return needsQuote ? `"${escaped}"` : escaped;
+    };
+    const accountLabel = (id: number | null, label: string | null) => {
+      const text = label?.trim();
+      if (!text) return '[deleted]';
+      return id === null ? `${text} (deleted)` : text;
+    };
+    const rows = auditLog.map(entry => [
+      formatDate(entry.createdAt),
+      ACTION_LABEL[entry.action] ?? entry.action,
+      entry.detail ?? '',
+      accountLabel(entry.targetUserId, entry.targetUserEmail),
+      accountLabel(entry.actorId, entry.actorName),
+      entry.emailSent === null ? '' : entry.emailSent ? 'Sent' : 'Not sent',
+    ]);
+    const csv = [headers, ...rows]
+      .map(row => row.map(cell => escape(String(cell))).join(','))
+      .join('\r\n');
+    const date = new Date().toISOString().slice(0, 10);
+    const context = historyUser ? historyUser.email.replace(/[^a-zA-Z0-9._-]+/g, '-') : 'all';
+    const filename = `activity-log-${context}-${date}.csv`;
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   async function unlock(u: UserRecord) {
@@ -752,6 +790,19 @@ export default function Users() {
               }}
             >
               <X size={13} /> Clear Filters
+            </button>
+          )}
+          {auditLog.length > 0 && (
+            <button
+              onClick={exportAuditCsv}
+              title={historyUser ? `Download ${historyUser.email}'s activity log as CSV` : 'Download the activity log as CSV'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto', padding: '9px 14px',
+                borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                background: 'rgba(247,201,72,.12)', border: '1px solid rgba(247,201,72,.3)', color: '#f7c948',
+              }}
+            >
+              <Download size={13} /> Download CSV
             </button>
           )}
         </div>
