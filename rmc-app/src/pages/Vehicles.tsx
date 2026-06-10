@@ -135,7 +135,7 @@ export default function Vehicles() {
               ))}
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#9fb0c7', marginBottom: 4 }}>Assign Driver</label>
-                <select value={form.driverId || ''} onChange={e => setForm(f => ({ ...f, driverId: e.target.value ? +e.target.value : null }))} style={inputStyle}>
+                <select value={form.driverId || ''} onChange={e => setForm(f => ({ ...f, driverId: e.target.value ? +e.target.value : undefined }))} style={inputStyle}>
                   <option value="">Unassigned</option>
                   {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>

@@ -56,3 +56,8 @@ externalPort = 80
 [[ports]]
 localPort = 23636
 externalPort = 3002
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "NODE_ENV=production node server/dist/index.js"]
+build = ["bash", "-c", "cd rmc-app && pnpm build && cd ../server && pnpm build"]
