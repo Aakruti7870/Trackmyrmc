@@ -26,6 +26,7 @@ const updateSchema = z.object({
   isActive: z.boolean().optional(),
   linkedClientId: z.number().int().positive().nullable().optional(),
   linkedDriverId: z.number().int().positive().nullable().optional(),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
 });
 
 function safeUser(u: {
@@ -96,8 +97,14 @@ router.put('/:id', async (req, res) => {
     return;
   }
 
+  const { password, ...rest } = parse.data;
+  const updateData: Record<string, unknown> = { ...rest };
+  if (password) {
+    updateData.passwordHash = await bcrypt.hash(password, 10);
+  }
+
   const [user] = await db.update(users)
-    .set(parse.data)
+    .set(updateData)
     .where(eq(users.id, id))
     .returning();
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }

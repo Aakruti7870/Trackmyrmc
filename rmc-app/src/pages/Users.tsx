@@ -112,10 +112,14 @@ export default function Users() {
           role: form.role, linkedClientId: form.linkedClientId, linkedDriverId: form.linkedDriverId,
         });
       } else {
+        if (form.password && form.password.length < 6) {
+          setError('New password must be at least 6 characters'); setSaving(false); return;
+        }
         const payload: Record<string, unknown> = {
           name: form.name, role: form.role, isActive: form.isActive,
           linkedClientId: form.linkedClientId, linkedDriverId: form.linkedDriverId,
         };
+        if (form.password) payload.password = form.password;
         await api.put(`/users/${editing!.id}`, payload);
       }
       load(); setModal(null);
@@ -316,28 +320,33 @@ export default function Users() {
                 />
               </label>
 
-              {/* Password — required on create, hidden on edit */}
-              {modal === 'create' && (
-                <label>
-                  <span style={labelStyle}>Password</span>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      value={form.password}
-                      onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Min. 6 characters"
-                      style={{ ...inputStyle, paddingRight: 38 }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(s => !s)}
-                      style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#9fb0c7', cursor: 'pointer', padding: 2 }}
-                    >
-                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
-                </label>
-              )}
+              {/* Password — required on create, optional on edit */}
+              <label>
+                <span style={labelStyle}>
+                  {modal === 'create' ? 'Password' : 'New Password'}
+                </span>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder={modal === 'create' ? 'Min. 6 characters' : 'Leave blank to keep current password'}
+                    style={{ ...inputStyle, paddingRight: 38 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(s => !s)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#9fb0c7', cursor: 'pointer', padding: 2 }}
+                  >
+                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+                {modal === 'edit' && (
+                  <span style={{ fontSize: 11, color: '#9fb0c7', marginTop: 4, display: 'block' }}>
+                    Leave blank to keep current password. Must be at least 6 characters if changed.
+                  </span>
+                )}
+              </label>
 
               {/* Role */}
               <label>
