@@ -389,6 +389,114 @@ test('driver delivery with too many proof photos is rejected with 400 and stores
     assert.match(res.body.error, /at most/i);
     assert.equal(await proofPhotoCount(challan.id), 0, 'no proof photo is stored when over the limit');
 });
+test('a driver PUT replaces an existing proof photo with a different one; hasProofPhoto stays true', async () => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+    // Store an initial proof photo on delivery.
+    const first = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhotos: [VALID_PROOF_PHOTO] });
+    assert.equal(first.status, 200);
+    assert.equal(first.body.hasProofPhoto, true);
+    assert.equal(await proofPhotoCount(challan.id), 1, 'exactly one photo after first store');
+    // PUT a different valid image data URL — the stored photo must be replaced, not appended.
+    const replacement = VALID_PROOF_PHOTO.replace('iVBOR', 'iVBOX'); // a distinct, still-valid data URL
+    const second = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhotos: [replacement] });
+    assert.equal(second.status, 200);
+    assert.equal(second.body.hasProofPhoto, true, 'hasProofPhoto stays true after replacement');
+    // The child table holds only the replacement, never the original.
+    const rows = await db.select({ photo: challanProofPhotos.photo })
+        .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id));
+    assert.deepEqual(rows.map(r => r.photo), [replacement], 'old photo is gone, new photo is stored');
+    assert.equal(await proofPhotoCount(challan.id), 1, 'still exactly one photo, not two');
+    // Detail reflects the replacement.
+    const detail = await request(app)
+        .get(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(detail.status, 200);
+    assert.deepEqual(detail.body.proofPhotos, [replacement], 'detail returns the replacement photo');
+    assert.equal(detail.body.hasProofPhoto, true);
+});
+test('a driver PUT with proofPhotos: null clears a stored photo; hasProofPhoto becomes false on GET /:id and GET /', async () => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+    // Seed a stored photo first.
+    const stored = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhotos: [VALID_PROOF_PHOTO] });
+    assert.equal(stored.status, 200);
+    assert.equal(stored.body.hasProofPhoto, true);
+    assert.equal(await proofPhotoCount(challan.id), 1);
+    // Sending proofPhotos: null clears the photos (validateProofPhotos returns []).
+    const cleared = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhotos: null });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.hasProofPhoto, false, 'response flag flips to false on clear');
+    // The child table is emptied.
+    assert.equal(await proofPhotoCount(challan.id), 0, 'no proof photos remain after clear');
+    // GET /:id reports no photo and an empty array.
+    const detail = await request(app)
+        .get(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(detail.status, 200);
+    assert.deepEqual(detail.body.proofPhotos, [], 'detail returns an empty proof photos array');
+    assert.equal(detail.body.hasProofPhoto, false, 'detail flag is false after clear');
+    // GET / (list) also reports the flag is false.
+    const list = await request(app)
+        .get('/api/challans')
+        .set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(list.status, 200);
+    const listed = list.body.find((c) => c.id === challan.id);
+    assert.ok(listed, 'the challan appears in the list');
+    assert.equal(listed.hasProofPhoto, false, 'list flag is false after clear');
+});
+test('a driver PUT with the legacy proofPhoto: null also clears a stored photo', async () => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+    await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhoto: VALID_PROOF_PHOTO });
+    assert.equal(await proofPhotoCount(challan.id), 1, 'legacy single photo stored');
+    const cleared = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhoto: null });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.hasProofPhoto, false, 'legacy null clears the flag');
+    assert.equal(await proofPhotoCount(challan.id), 0, 'legacy null empties the child table');
+});
+test('a driver PUT that omits proof-photo fields leaves an existing stored photo untouched', async () => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+    await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhotos: [VALID_PROOF_PHOTO] });
+    assert.equal(await proofPhotoCount(challan.id), 1);
+    // A follow-up PUT with no proofPhoto/proofPhotos keys must NOT wipe the photo
+    // (validateProofPhotos returns undefined => "leave existing untouched").
+    const followUp = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', notes: 'A later note' });
+    assert.equal(followUp.status, 200);
+    assert.equal(followUp.body.hasProofPhoto, true, 'flag stays true when photo fields are omitted');
+    const rows = await db.select({ photo: challanProofPhotos.photo })
+        .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id));
+    assert.deepEqual(rows.map(r => r.photo), [VALID_PROOF_PHOTO], 'the original photo is preserved');
+});
 test('a driver user with no matching driver profile gets 403', async () => {
     const client = await createClient();
     // A driver-role user whose name matches NO drivers row (the profile lookup fails).
