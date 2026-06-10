@@ -23,6 +23,7 @@ type AuditEntry = {
   action: string;
   targetUserId: number | null;
   targetUserEmail: string | null;
+  detail: string | null;
   emailSent: boolean | null;
   createdAt: string;
 };
@@ -51,6 +52,23 @@ const ROLE_COLOR: Record<Role, string> = {
 const ACTION_LABEL: Record<string, string> = {
   password_reset: 'Password Reset',
   lockout_cleared: 'Lockout Cleared',
+  name_change: 'Name Changed',
+  role_change: 'Role Changed',
+  account_activated: 'Account Activated',
+  account_deactivated: 'Account Deactivated',
+  client_link_change: 'Client Link Changed',
+  driver_link_change: 'Driver Link Changed',
+};
+
+const ACTION_COLOR: Record<string, string> = {
+  password_reset: '#38bdf8',
+  lockout_cleared: '#22c55e',
+  name_change: '#a78bfa',
+  role_change: '#f7c948',
+  account_activated: '#22c55e',
+  account_deactivated: '#ef4444',
+  client_link_change: '#38bdf8',
+  driver_link_change: '#f97316',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -506,13 +524,13 @@ export default function Users() {
             <div style={{ padding: '32px', textAlign: 'center', color: '#9fb0c7', fontSize: 13 }}>
               {historyUser
                 ? `No activity recorded for ${historyUser.name} yet.`
-                : 'No activity recorded yet. Password resets will appear here.'}
+                : 'No activity recorded yet. Account changes and password resets will appear here.'}
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.15)' }}>
-                  {['Timestamp', 'Action', 'Target Account', 'Performed By', 'Email Sent'].map(h => (
+                  {['Timestamp', 'Action', 'Details', 'Target Account', 'Performed By', 'Email Sent'].map(h => (
                     <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: '#9fb0c7', textTransform: 'uppercase', letterSpacing: '.4px' }}>
                       {h}
                     </th>
@@ -526,13 +544,20 @@ export default function Users() {
                       {formatDate(entry.createdAt)}
                     </td>
                     <td style={{ padding: '11px 14px' }}>
-                      <span style={{
-                        padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-                        background: 'rgba(56,189,248,.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,.25)',
-                      }}>
-                        {ACTION_LABEL[entry.action] ?? entry.action}
-                      </span>
+                      {(() => {
+                        const c = ACTION_COLOR[entry.action] ?? '#9fb0c7';
+                        return (
+                          <span style={{
+                            padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                            background: `color-mix(in srgb, ${c} 13%, transparent)`,
+                            color: c, border: `1px solid color-mix(in srgb, ${c} 25%, transparent)`,
+                          }}>
+                            {ACTION_LABEL[entry.action] ?? entry.action}
+                          </span>
+                        );
+                      })()}
                     </td>
+                    <td style={{ padding: '11px 14px', color: '#9fb0c7', fontSize: 12 }}>{entry.detail ?? '—'}</td>
                     <td style={{ padding: '11px 14px', color: '#eef5ff' }}>
                       <AccountRef id={entry.targetUserId} label={entry.targetUserEmail} />
                     </td>

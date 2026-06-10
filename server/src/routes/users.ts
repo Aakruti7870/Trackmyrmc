@@ -106,6 +106,7 @@ router.get('/audit-log', async (req, res) => {
     action: auditLogs.action,
     targetUserId: auditLogs.targetUserId,
     targetUserEmail: auditLogs.targetUserEmail,
+    detail: auditLogs.detail,
     emailSent: auditLogs.emailSent,
     createdAt: auditLogs.createdAt,
   };
@@ -202,11 +203,76 @@ router.put('/:id', async (req, res) => {
     updateData.passwordHash = await bcrypt.hash(password, 10);
   }
 
+  const [before] = await db.select({
+    name: users.name, role: users.role, isActive: users.isActive,
+    linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
+  }).from(users).where(eq(users.id, id));
+  if (!before) { res.status(404).json({ error: 'User not found' }); return; }
+
   const [user] = await db.update(users)
     .set(updateData)
     .where(eq(users.id, id))
     .returning();
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+  const actor = req.user!;
+
+  function linkName(kind: 'client' | 'driver', value: number | null) {
+    if (value == null) return 'none';
+    const list = kind === 'client' ? clientNameCache : driverNameCache;
+    const name = list.get(value);
+    return name ? `${name} (#${value})` : `#${value}`;
+  }
+
+  const changeEntries: {
+    action: string; detail: string;
+  }[] = [];
+
+  if (rest.name !== undefined && rest.name !== before.name) {
+    changeEntries.push({ action: 'name_change', detail: `${before.name} → ${rest.name}` });
+  }
+  if (rest.role !== undefined && rest.role !== before.role) {
+    changeEntries.push({ action: 'role_change', detail: `${before.role} → ${rest.role}` });
+  }
+  if (rest.isActive !== undefined && rest.isActive !== before.isActive) {
+    changeEntries.push({
+      action: rest.isActive ? 'account_activated' : 'account_deactivated',
+      detail: rest.isActive ? 'Account reactivated' : 'Account deactivated',
+    });
+  }
+
+  const clientNameCache = new Map<number, string>();
+  const driverNameCache = new Map<number, string>();
+  const clientLinkChanged = rest.linkedClientId !== undefined && (rest.linkedClientId ?? null) !== before.linkedClientId;
+  const driverLinkChanged = rest.linkedDriverId !== undefined && (rest.linkedDriverId ?? null) !== before.linkedDriverId;
+  if (clientLinkChanged) {
+    const rows = await db.select({ id: clients.id, name: clients.name }).from(clients);
+    rows.forEach(r => clientNameCache.set(r.id, r.name));
+    changeEntries.push({
+      action: 'client_link_change',
+      detail: `${linkName('client', before.linkedClientId)} → ${linkName('client', rest.linkedClientId ?? null)}`,
+    });
+  }
+  if (driverLinkChanged) {
+    const rows = await db.select({ id: drivers.id, name: drivers.name }).from(drivers);
+    rows.forEach(r => driverNameCache.set(r.id, r.name));
+    changeEntries.push({
+      action: 'driver_link_change',
+      detail: `${linkName('driver', before.linkedDriverId)} → ${linkName('driver', rest.linkedDriverId ?? null)}`,
+    });
+  }
+
+  if (changeEntries.length) {
+    await db.insert(auditLogs).values(changeEntries.map(c => ({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: c.action,
+      targetUserId: user.id,
+      targetUserEmail: user.email,
+      detail: c.detail,
+      emailSent: null,
+    })));
+  }
 
   let emailSent: boolean | undefined;
   if (password) {
