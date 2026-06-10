@@ -173,6 +173,66 @@ describe('Users bulk-restore selection UI', () => {
     expect(within(skippedModal).getByText('chetan@x.com')).toBeInTheDocument();
   });
 
+  it('lists every skipped account and dismisses the results modal via the X button', async () => {
+    const user = userEvent.setup();
+    // Restore All partially succeeds: two accounts are skipped with distinct reasons.
+    vi.mocked(api.post).mockResolvedValue({
+      restored: 1, skipped: 2,
+      skippedDetails: [
+        { id: 12, email: 'bharat@x.com', reason: 'This client is already linked to another account (Someone). Each client can be linked to only one user.' },
+        { id: 13, email: 'chetan@x.com', reason: 'This driver is already linked to another account (Someone). Each driver can be linked to only one user.' },
+      ],
+    } as never);
+    renderUsers();
+    await enterDeletedView(user);
+
+    await user.click(screen.getByRole('button', { name: /Restore All \(3\)/ }));
+    const confirmModal = (await screen.findByRole('heading', { name: 'Restore All' })).closest('div[style]')!.parentElement as HTMLElement;
+    await user.click(within(confirmModal).getByRole('button', { name: /Restore$/ }));
+
+    // The skipped-results modal opens with the plural count and lists each email + reason.
+    await screen.findByRole('heading', { name: /2 Accounts Skipped/i });
+    const skippedModal = screen.getByText(/These accounts could not be restored/i).parentElement as HTMLElement;
+    expect(within(skippedModal).getByText('bharat@x.com')).toBeInTheDocument();
+    expect(within(skippedModal).getByText(/client is already linked/i)).toBeInTheDocument();
+    expect(within(skippedModal).getByText('chetan@x.com')).toBeInTheDocument();
+    expect(within(skippedModal).getByText(/driver is already linked/i)).toBeInTheDocument();
+
+    // The header X button (the only button with no text label) closes the modal.
+    const closeBtn = within(skippedModal).getAllByRole('button').find(b => (b.textContent ?? '').trim() === '')!;
+    expect(closeBtn).toBeTruthy();
+    await user.click(closeBtn);
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: /Accounts? Skipped/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('dismisses the skipped-results modal via the Done button', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.post).mockResolvedValue({
+      restored: 1, skipped: 2,
+      skippedDetails: [
+        { id: 12, email: 'bharat@x.com', reason: 'This client is already linked to another account (Someone). Each client can be linked to only one user.' },
+        { id: 13, email: 'chetan@x.com', reason: 'This driver is already linked to another account (Someone). Each driver can be linked to only one user.' },
+      ],
+    } as never);
+    renderUsers();
+    await enterDeletedView(user);
+
+    await user.click(screen.getByRole('button', { name: /Restore All \(3\)/ }));
+    const confirmModal = (await screen.findByRole('heading', { name: 'Restore All' })).closest('div[style]')!.parentElement as HTMLElement;
+    await user.click(within(confirmModal).getByRole('button', { name: /Restore$/ }));
+
+    await screen.findByRole('heading', { name: /2 Accounts Skipped/i });
+    const skippedModal = screen.getByText(/These accounts could not be restored/i).parentElement as HTMLElement;
+
+    // The footer "Done" button closes the modal.
+    await user.click(within(skippedModal).getByRole('button', { name: 'Done' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: /Accounts? Skipped/i })).not.toBeInTheDocument();
+    });
+  });
+
   it('clears the selection when toggling out of the deleted view', async () => {
     const user = userEvent.setup();
     renderUsers();
