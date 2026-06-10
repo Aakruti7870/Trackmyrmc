@@ -296,6 +296,65 @@ test('paging respects active filters', async () => {
   assert.equal(page2.body.rows[0].targetUserEmail, 'p1@x.com');
 });
 
+test('returns the exact total count of matching rows, independent of paging', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  await seedAudit(
+    Array.from({ length: 5 }, (_, i) => ({
+      action: 'user.created',
+      targetUserEmail: `user${i}@x.com`,
+      createdAt: new Date(`2026-01-0${i + 1}T10:00:00Z`),
+    })),
+  );
+
+  // Full set: total matches the row count.
+  const all = await request(app)
+    .get('/api/audit-logs')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(all.status, 200);
+  assert.equal(all.body.total, 5);
+  assert.equal(all.body.rows.length, 5);
+
+  // A narrow page still reports the full total, not just the page size.
+  const page = await request(app)
+    .get('/api/audit-logs?limit=2&offset=2')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(page.body.total, 5);
+  assert.equal(page.body.rows.length, 2);
+  assert.equal(page.body.hasMore, true);
+});
+
+test('total count honors the active filters', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  await seedAudit([
+    { action: 'password_reset', targetUserEmail: 'p1@x.com' },
+    { action: 'password_reset', targetUserEmail: 'p2@x.com' },
+    { action: 'password_reset', targetUserEmail: 'p3@x.com' },
+    { action: 'user.created', targetUserEmail: 'c1@x.com' },
+  ]);
+
+  const res = await request(app)
+    .get('/api/audit-logs?action=password_reset&limit=2')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(res.status, 200);
+  // Only the 3 matching rows are counted, not all 4.
+  assert.equal(res.body.total, 3);
+  assert.equal(res.body.rows.length, 2);
+  assert.equal(res.body.hasMore, true);
+});
+
+test('total is zero when nothing matches', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  await seedAudit([{ action: 'user.created', targetUserEmail: 'a@x.com' }]);
+
+  const res = await request(app)
+    .get('/api/audit-logs?q=no-such-thing')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.total, 0);
+  assert.equal(res.body.rows.length, 0);
+  assert.equal(res.body.hasMore, false);
+});
+
 test('invalid offset returns 400', async () => {
   const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
   const res = await request(app)

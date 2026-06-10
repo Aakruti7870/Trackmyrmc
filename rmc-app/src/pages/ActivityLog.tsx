@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   History, Search, CheckCircle, XCircle, X, Filter, RotateCcw, Calendar,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -24,6 +25,7 @@ type Facets = {
 type AuditPage = {
   rows: AuditEntry[];
   hasMore: boolean;
+  total: number;
 };
 
 const PAGE_SIZE = 100;
@@ -127,54 +129,70 @@ export default function ActivityLog() {
   const [facets, setFacets] = useState<Facets>({ actions: [], actors: [] });
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0); // 0-indexed current page
+  const [jumpValue, setJumpValue] = useState('');
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   useEffect(() => {
     api.get<Facets>('/audit-logs/facets').then(setFacets).catch(() => {});
   }, []);
 
-  // Load the first page whenever the filters change (replaces the list).
-  const fetchLogs = useCallback((f: Filters) => {
+  // Load a specific page (replaces the list) honoring the current filters.
+  const fetchLogs = useCallback((f: Filters, pageNum: number) => {
     setLoading(true);
-    api.get<AuditPage>(`/audit-logs?${buildParams(f, 0)}`)
-      .then(page => {
-        setLogs(page.rows);
-        setHasMore(page.hasMore);
+    api.get<AuditPage>(`/audit-logs?${buildParams(f, pageNum * PAGE_SIZE)}`)
+      .then(p => {
+        setLogs(p.rows);
+        setTotal(Number(p.total) || 0);
+        // Guard against a now-out-of-range page (e.g. after data shrank).
+        if (p.rows.length === 0 && pageNum > 0 && p.total > 0) {
+          setPage(Math.max(0, Math.ceil(p.total / PAGE_SIZE) - 1));
+        }
       })
       .catch(() => {
         setLogs([]);
-        setHasMore(false);
+        setTotal(0);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  // Append the next page, keeping the current filters and existing rows.
-  const loadMore = useCallback(() => {
-    setLoadingMore(true);
-    api.get<AuditPage>(`/audit-logs?${buildParams(filters, logs.length)}`)
-      .then(page => {
-        setLogs(prev => [...prev, ...page.rows]);
-        setHasMore(page.hasMore);
-      })
-      .catch(() => {})
-      .finally(() => setLoadingMore(false));
-  }, [filters, logs.length]);
-
   // Debounce so typing in the free-text box doesn't fire a request per keystroke.
   useEffect(() => {
-    const t = setTimeout(() => fetchLogs(filters), 250);
+    const t = setTimeout(() => fetchLogs(filters, page), 250);
     return () => clearTimeout(t);
-  }, [filters, fetchLogs]);
+  }, [filters, page, fetchLogs]);
 
   const hasActiveFilter = useMemo(
     () => Boolean(filters.q || filters.action || filters.actorId || filters.from || filters.to),
     [filters],
   );
 
+  // Any filter change returns to the first page of the new result set.
   function update<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters(f => ({ ...f, [key]: value }));
+    setPage(0);
   }
+
+  function clearFilters() {
+    setFilters(emptyFilters);
+    setPage(0);
+  }
+
+  function goToPage(target: number) {
+    const clamped = Math.min(Math.max(0, target), totalPages - 1);
+    setPage(clamped);
+  }
+
+  function submitJump() {
+    const n = parseInt(jumpValue, 10);
+    if (!isNaN(n)) goToPage(n - 1); // user-facing pages are 1-indexed
+    setJumpValue('');
+  }
+
+  const rangeStart = total === 0 ? 0 : page * PAGE_SIZE + 1;
+  const rangeEnd = page * PAGE_SIZE + logs.length;
 
   return (
     <div>
@@ -187,7 +205,7 @@ export default function ActivityLog() {
           </div>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>
             Every account and email event across the system, newest first
-            {logs.length ? ` · ${logs.length}${hasMore ? '+' : ''} ${logs.length === 1 ? 'entry' : 'entries'}` : ''}
+            {!loading ? ` · ${total.toLocaleString('en-IN')} ${total === 1 ? 'entry' : 'entries'}` : ''}
           </p>
         </div>
       </div>
@@ -202,7 +220,7 @@ export default function ActivityLog() {
           <span style={{ fontSize: 13, fontWeight: 700 }}>Filters</span>
           {hasActiveFilter && (
             <button
-              onClick={() => setFilters(emptyFilters)}
+              onClick={clearFilters}
               style={{
                 display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto',
                 padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
@@ -363,28 +381,76 @@ export default function ActivityLog() {
           </div>
         )}
 
-        {!loading && logs.length > 0 && hasMore && (
+        {!loading && total > 0 && (
           <div style={{
-            display: 'flex', justifyContent: 'center', padding: '16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexWrap: 'wrap', gap: 12, padding: '14px 16px',
             borderTop: '1px solid rgba(255,255,255,.06)',
           }}>
-            <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                padding: '9px 20px', borderRadius: 999, fontSize: 13, fontWeight: 700,
-                cursor: loadingMore ? 'default' : 'pointer', opacity: loadingMore ? 0.6 : 1,
-                background: 'color-mix(in srgb, var(--gold) 14%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)',
-                color: 'var(--gold)',
-              }}
-            >
-              {loadingMore ? 'Loading…' : 'Load more'}
-            </button>
+            <span style={{ fontSize: 12, color: '#9fb0c7' }}>
+              Showing <strong style={{ color: '#eef5ff' }}>{rangeStart.toLocaleString('en-IN')}–{rangeEnd.toLocaleString('en-IN')}</strong>
+              {' '}of <strong style={{ color: '#eef5ff' }}>{total.toLocaleString('en-IN')}</strong>
+            </span>
+
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page === 0}
+                  style={pageBtnStyle(page === 0)}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+
+                <span style={{ fontSize: 12, color: '#9fb0c7', whiteSpace: 'nowrap' }}>
+                  Page <strong style={{ color: '#eef5ff' }}>{page + 1}</strong> of{' '}
+                  <strong style={{ color: '#eef5ff' }}>{totalPages}</strong>
+                </span>
+
+                <button
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page >= totalPages - 1}
+                  style={pageBtnStyle(page >= totalPages - 1)}
+                  aria-label="Next page"
+                >
+                  <ChevronRight size={15} />
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
+                  <span style={{ fontSize: 12, color: '#9fb0c7' }}>Jump to</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    value={jumpValue}
+                    onChange={e => setJumpValue(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') submitJump(); }}
+                    placeholder={String(page + 1)}
+                    style={{
+                      width: 64, padding: '6px 8px', textAlign: 'center',
+                      background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.12)',
+                      borderRadius: 8, color: 'var(--text)', fontSize: 12, outline: 'none',
+                    }}
+                  />
+                  <button onClick={submitJump} style={pageBtnStyle(false, true)}>Go</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function pageBtnStyle(disabled: boolean, text = false): React.CSSProperties {
+  return {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+    padding: text ? '6px 12px' : '6px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+    cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1,
+    background: 'color-mix(in srgb, var(--gold) 14%, transparent)',
+    border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)',
+    color: 'var(--gold)',
+  };
 }

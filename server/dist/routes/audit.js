@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { and, desc, eq, gte, lte, or, ilike, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, or, ilike, isNotNull, count } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { auditLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
@@ -100,15 +100,20 @@ router.get('/', async (req, res) => {
         offset = parsed;
     }
     const where = conditions.length ? and(...conditions) : undefined;
-    // Fetch one extra row so the client can tell whether more pages remain
-    // without a separate COUNT query.
-    const rows = await db.select(selectCols).from(auditLogs)
-        .where(where)
-        .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
-        .limit(limit + 1)
-        .offset(offset);
+    // Fetch one extra row so the client can tell whether more pages remain, and a
+    // lightweight COUNT (honoring the same filters) so the client can show the
+    // exact total and offer jump-to-page controls.
+    const [rows, [{ value: total }]] = await Promise.all([
+        db.select(selectCols).from(auditLogs)
+            .where(where)
+            .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+            .limit(limit + 1)
+            .offset(offset),
+        db.select({ value: count() }).from(auditLogs).where(where),
+    ]);
     const hasMore = rows.length > limit;
-    res.json({ rows: hasMore ? rows.slice(0, limit) : rows, hasMore });
+    // Some pg drivers serialize COUNT as a string; normalize to a number.
+    res.json({ rows: hasMore ? rows.slice(0, limit) : rows, hasMore, total: Number(total) });
 });
 /**
  * GET /api/audit-logs/facets
