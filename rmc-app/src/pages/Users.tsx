@@ -173,6 +173,9 @@ export default function Users() {
   const [purging, setPurging] = useState(false);
   const [purgeAllOpen, setPurgeAllOpen] = useState(false);
   const [purgingAll, setPurgingAll] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [restoreAllOpen, setRestoreAllOpen] = useState(false);
+  const [restoringAll, setRestoringAll] = useState(false);
 
   function loadAudit(userId: number | null) {
     const params = new URLSearchParams();
@@ -329,6 +332,37 @@ export default function Users() {
       showToast(e instanceof Error ? e.message : 'Failed to empty the trash.', 'error');
     } finally {
       setPurgingAll(false);
+    }
+  }
+
+  async function confirmRestoreAll() {
+    const ids = selectedIds.size > 0 ? [...selectedIds] : undefined;
+    setRestoringAll(true);
+    try {
+      const result = await api.post<{ restored: number; skipped: number; skippedDetails: { reason: string }[] }>(
+        '/users/restore-all',
+        ids ? { ids } : {},
+      );
+      if (result.restored === 0 && result.skipped === 0) {
+        showToast('There were no deleted accounts to restore.', 'info');
+      } else {
+        const restoredMsg = `${result.restored} ${result.restored === 1 ? 'account' : 'accounts'} restored.`;
+        if (result.skipped > 0) {
+          showToast(
+            `${restoredMsg} ${result.skipped} ${result.skipped === 1 ? 'account was' : 'accounts were'} skipped — their client/driver link is already taken by an active account.`,
+            'info',
+          );
+        } else {
+          showToast(restoredMsg, 'success');
+        }
+      }
+      setSelectedIds(new Set());
+      setRestoreAllOpen(false);
+      load();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to restore accounts.', 'error');
+    } finally {
+      setRestoringAll(false);
     }
   }
 
@@ -533,7 +567,7 @@ export default function Users() {
           {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
         </select>
         <button
-          onClick={() => setShowDeleted(s => !s)}
+          onClick={() => { setShowDeleted(s => !s); setSelectedIds(new Set()); }}
           title={showDeleted ? 'Show active accounts' : 'Show deleted accounts'}
           style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
@@ -546,6 +580,20 @@ export default function Users() {
           <Trash2 size={13} />
           {showDeleted ? 'Showing Deleted' : `Deleted${deletedCount ? ` (${deletedCount})` : ''}`}
         </button>
+        {showDeleted && users.length > 0 && (
+          <button
+            onClick={() => setRestoreAllOpen(true)}
+            title={selectedIds.size > 0 ? 'Restore the selected accounts' : 'Restore every account in the trash'}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+              borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+              background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: 'var(--green)',
+            }}
+          >
+            <RotateCcw size={13} />
+            {selectedIds.size > 0 ? `Restore Selected (${selectedIds.size})` : `Restore All (${users.length})`}
+          </button>
+        )}
         {showDeleted && users.length > 0 && (
           <button
             onClick={() => setPurgeAllOpen(true)}
@@ -569,6 +617,20 @@ export default function Users() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.15)' }}>
+              {showDeleted && (
+                <th style={{ padding: '11px 0 11px 14px', width: 34 }}>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all deleted accounts"
+                    checked={filtered.length > 0 && filtered.every(u => selectedIds.has(u.id))}
+                    ref={el => { if (el) el.indeterminate = filtered.some(u => selectedIds.has(u.id)) && !filtered.every(u => selectedIds.has(u.id)); }}
+                    onChange={e => {
+                      setSelectedIds(e.target.checked ? new Set(filtered.map(u => u.id)) : new Set());
+                    }}
+                    style={{ cursor: 'pointer', accentColor: 'var(--green)' }}
+                  />
+                </th>
+              )}
               {['User', 'Email', 'Role', 'Status', 'Linked To', 'Actions'].map(h => (
                 <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
                   {h}
@@ -579,7 +641,7 @@ export default function Users() {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)' }}>No users found</td>
+                <td colSpan={showDeleted ? 7 : 6} style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)' }}>No users found</td>
               </tr>
             )}
             {filtered.map(u => {
@@ -602,6 +664,24 @@ export default function Users() {
                   background: isLocked ? 'rgba(239,160,68,.04)' : u.isActive ? 'transparent' : 'rgba(239,68,68,.03)',
                   opacity: u.isActive ? 1 : 0.65,
                 }}>
+                  {showDeleted && (
+                    <td style={{ padding: '12px 0 12px 14px', width: 34 }}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${u.name}`}
+                        checked={selectedIds.has(u.id)}
+                        onChange={e => {
+                          setSelectedIds(prev => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(u.id);
+                            else next.delete(u.id);
+                            return next;
+                          });
+                        }}
+                        style={{ cursor: 'pointer', accentColor: 'var(--green)' }}
+                      />
+                    </td>
+                  )}
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                       <div style={{
@@ -1256,6 +1336,60 @@ export default function Users() {
                 cursor: purging ? 'not-allowed' : 'pointer', opacity: purging ? 0.7 : 1,
               }}>
                 <Trash2 size={14} /> {purging ? 'Deleting…' : 'Delete Forever'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk-restore confirmation modal */}
+      {restoreAllOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 110,
+          background: 'rgba(5,9,20,.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg,var(--panel),var(--bg))',
+            border: '1px solid rgba(34,197,94,.3)', borderRadius: 18,
+            width: '100%', maxWidth: 440, padding: 24,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                background: 'rgba(34,197,94,.12)', border: '1px solid rgba(34,197,94,.25)',
+                display: 'grid', placeItems: 'center', color: 'var(--green)',
+              }}>
+                <RotateCcw size={18} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>
+                {selectedIds.size > 0 ? 'Restore Selected' : 'Restore All'}
+              </h3>
+            </div>
+            <p style={{ margin: '0 0 6px', fontSize: 13.5, color: 'var(--text)', lineHeight: 1.5 }}>
+              Restore <strong>{selectedIds.size > 0 ? selectedIds.size : users.length}</strong> deleted{' '}
+              {(selectedIds.size > 0 ? selectedIds.size : users.length) === 1 ? 'account' : 'accounts'}?
+            </p>
+            <p style={{ margin: '0 0 20px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+              Each account is reactivated and the change is recorded in the activity log. Any account whose linked
+              client or driver is already taken by an active account is skipped — the rest are still restored.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setRestoreAllOpen(false)} disabled={restoringAll} style={{
+                flex: 1, padding: '10px', background: 'rgba(255,255,255,.07)',
+                border: '1px solid rgba(255,255,255,.1)', borderRadius: 10,
+                color: 'var(--muted)', fontWeight: 600, fontSize: 13,
+                cursor: restoringAll ? 'not-allowed' : 'pointer',
+              }}>
+                Cancel
+              </button>
+              <button onClick={confirmRestoreAll} disabled={restoringAll} style={{
+                flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                background: 'linear-gradient(135deg,#22c55e,#16a34a)', border: 'none', borderRadius: 10,
+                color: '#fff', fontWeight: 700, fontSize: 13,
+                cursor: restoringAll ? 'not-allowed' : 'pointer', opacity: restoringAll ? 0.7 : 1,
+              }}>
+                <RotateCcw size={14} /> {restoringAll ? 'Restoring…' : 'Restore'}
               </button>
             </div>
           </div>

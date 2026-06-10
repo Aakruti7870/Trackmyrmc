@@ -885,3 +885,134 @@ test('link guard: PUT /users lets a user keep its own existing link (no false se
   assert.equal(res.body.linkedClientId, client.id);
   assert.equal(res.body.name, 'Holder Renamed');
 });
+
+test('restore-all: with no body restores every soft-deleted account and writes one user.restored each', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const keepActive = await createUser({ name: 'Active', email: 'active@test.com', role: 'dispatcher' });
+  const a = await createUser({ name: 'Gone A', email: 'a@test.com', role: 'dispatcher', isActive: false, deletedAt: new Date() });
+  const b = await createUser({ name: 'Gone B', email: 'b@test.com', role: 'client', isActive: false, deletedAt: new Date() });
+  const token = tokenFor(admin);
+
+  const res = await request(app)
+    .post('/api/users/restore-all')
+    .set('Authorization', `Bearer ${token}`)
+    .send({});
+  assert.equal(res.status, 200);
+  assert.equal(res.body.restored, 2, 'both deleted accounts are restored');
+  assert.equal(res.body.skipped, 0, 'nothing skipped');
+
+  for (const id of [a.id, b.id]) {
+    const [row] = await db.select({ isActive: users.isActive, deletedAt: users.deletedAt })
+      .from(users).where(eq(users.id, id));
+    assert.equal(row.deletedAt, null, `account ${id} is no longer deleted`);
+    assert.equal(row.isActive, true, `account ${id} is reactivated`);
+  }
+
+  // The previously-active dispatcher is untouched (not double-restored).
+  const [stillActive] = await db.select({ isActive: users.isActive }).from(users).where(eq(users.id, keepActive.id));
+  assert.equal(stillActive.isActive, true);
+
+  const logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.restored'));
+  assert.equal(logs.length, 2, 'one user.restored entry per restored account');
+  const emails = logs.map(l => l.targetUserEmail).sort();
+  assert.deepEqual(emails, ['a@test.com', 'b@test.com']);
+  assert.ok(logs.every(l => l.actorId === admin.id), 'every entry records the acting admin');
+});
+
+test('restore-all: with an ids list restores only that subset', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const a = await createUser({ name: 'Gone A', email: 'a@test.com', role: 'dispatcher', isActive: false, deletedAt: new Date() });
+  const b = await createUser({ name: 'Gone B', email: 'b@test.com', role: 'client', isActive: false, deletedAt: new Date() });
+  const token = tokenFor(admin);
+
+  const res = await request(app)
+    .post('/api/users/restore-all')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ ids: [a.id] });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.restored, 1, 'only the selected account is restored');
+
+  const [restored] = await db.select({ deletedAt: users.deletedAt }).from(users).where(eq(users.id, a.id));
+  assert.equal(restored.deletedAt, null, 'the selected account is restored');
+  const [untouched] = await db.select({ deletedAt: users.deletedAt }).from(users).where(eq(users.id, b.id));
+  assert.ok(untouched.deletedAt instanceof Date, 'the unselected account stays deleted');
+});
+
+test('restore-all: a link conflict is skipped with a reason while the rest still restore', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const client = await createClient('Acme Concrete');
+  const token = tokenFor(admin);
+
+  // An active user already holds the client link.
+  const activeHolder = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Active Holder', email: 'holder@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+  assert.equal(activeHolder.status, 201);
+
+  // A soft-deleted account that also points at the same client — its restore must
+  // be skipped because the link is taken. A clean deleted account restores fine.
+  const conflicted = await createUser({
+    name: 'Conflicted', email: 'conflict@test.com', role: 'client',
+    isActive: false, deletedAt: new Date(),
+  });
+  await db.update(users).set({ linkedClientId: client.id }).where(eq(users.id, conflicted.id));
+  const clean = await createUser({
+    name: 'Clean', email: 'clean@test.com', role: 'dispatcher',
+    isActive: false, deletedAt: new Date(),
+  });
+
+  const res = await request(app)
+    .post('/api/users/restore-all')
+    .set('Authorization', `Bearer ${token}`)
+    .send({});
+  assert.equal(res.status, 200);
+  assert.equal(res.body.restored, 1, 'only the clean account restores');
+  assert.equal(res.body.skipped, 1, 'the conflicting account is skipped');
+  assert.equal(res.body.skippedDetails.length, 1);
+  assert.equal(res.body.skippedDetails[0].id, conflicted.id);
+  assert.match(res.body.skippedDetails[0].reason, /already linked/i);
+
+  // The conflicted account is still soft-deleted; the clean one is restored.
+  const [stillGone] = await db.select({ deletedAt: users.deletedAt }).from(users).where(eq(users.id, conflicted.id));
+  assert.ok(stillGone.deletedAt instanceof Date, 'the conflicting account stays deleted');
+  const [back] = await db.select({ deletedAt: users.deletedAt }).from(users).where(eq(users.id, clean.id));
+  assert.equal(back.deletedAt, null, 'the clean account is restored');
+
+  // No user.restored entry was written for the skipped account.
+  const skippedLogs = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, conflicted.id)));
+  assert.equal(skippedLogs.length, 0, 'a skipped account writes no restore audit entry');
+});
+
+test('restore-all: with an empty trash returns zero counts and writes nothing', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  await createUser({ name: 'Active', email: 'active@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+
+  const res = await request(app)
+    .post('/api/users/restore-all')
+    .set('Authorization', `Bearer ${token}`)
+    .send({});
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body, { restored: 0, skipped: 0, skippedDetails: [] });
+
+  const logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.restored'));
+  assert.equal(logs.length, 0, 'no audit entries when the trash is empty');
+});
+
+test('restore-all: rejected for a non-admin caller (requireRole admin)', async () => {
+  await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const dispatcher = await createUser({ name: 'Dispatch', email: 'dispatch@test.com', role: 'dispatcher' });
+  await createUser({ name: 'Gone', email: 'gone@test.com', role: 'dispatcher', isActive: false, deletedAt: new Date() });
+  const token = tokenFor(dispatcher);
+
+  const res = await request(app)
+    .post('/api/users/restore-all')
+    .set('Authorization', `Bearer ${token}`)
+    .send({});
+  assert.equal(res.status, 403, 'a non-admin cannot bulk-restore');
+
+  const logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.restored'));
+  assert.equal(logs.length, 0, 'no restore happened');
+});
