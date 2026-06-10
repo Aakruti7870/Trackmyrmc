@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import bg from '@/assets/rmc-aerial-bg.png';
 
 const DEMO = [
   { role: 'Admin', email: 'admin@aakruti.com', password: 'admin123', color: 'var(--gold)' },
@@ -42,7 +43,9 @@ export default function Login() {
 
   return (
     <div style={{
-      minHeight: '100vh', background: 'var(--bg)',
+      minHeight: '100vh',
+      backgroundImage: `linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 94%, transparent)), url(${bg})`,
+      backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 20, fontFamily: 'var(--font-app)',
     }}>
@@ -61,10 +64,10 @@ export default function Login() {
             </div>
             <div>
               <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>
-                TrackMyRMC
+                Aakruti Infra
               </div>
               <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>
-                Aakruti Infra
+                RMC Plant · Panvel
               </div>
             </div>
           </div>

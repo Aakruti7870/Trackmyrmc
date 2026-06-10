@@ -5,6 +5,7 @@ import { ToastProvider, useToast } from '@/lib/toast';
 import { ThemeProvider } from '@/lib/theme';
 import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
+import Landing from '@/pages/Landing';
 import Dashboard from '@/pages/Dashboard';
 import Orders from '@/pages/Orders';
 import Dispatch from '@/pages/Dispatch';
@@ -58,7 +59,12 @@ function ProtectedRoutes() {
   }
 
   if (!user) {
-    return <Redirect to="/login" />;
+    return (
+      <Switch>
+        <Route path="/" component={Landing} />
+        <Route><Redirect to="/login" /></Route>
+      </Switch>
+    );
   }
 
   return (

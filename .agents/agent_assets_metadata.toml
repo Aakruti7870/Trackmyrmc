@@ -1,5 +1,10 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "ebmI6LP-WRTuXaTtHhybU"
+uri = "file://rmc-app/src/assets/rmc-aerial-bg.png"
+type = "image"
+title = "rmc aerial plant background"
 
 [[outputs]]
 id = "oaHn9kwGbYywEoOBjUmqg"
