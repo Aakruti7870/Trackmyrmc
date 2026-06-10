@@ -36,6 +36,7 @@ async function createChallan(opts: {
   driverId: number | null;
   clientId: number;
   status?: 'pending' | 'dispatched' | 'delivered' | 'cancelled';
+  notes?: string | null;
 }) {
   challanSeq += 1;
   const [row] = await db.insert(challans).values({
@@ -45,6 +46,7 @@ async function createChallan(opts: {
     grade: 'M25',
     quantity: '6.00',
     status: opts.status ?? 'dispatched',
+    notes: opts.notes ?? null,
     dispatchTime: new Date(),
   }).returning();
   return row;
@@ -206,6 +208,94 @@ test('driver attempting any status other than delivered gets 403', async () => {
     .from(challans).where(eq(challans.id, challan.id));
   assert.equal(row.status, 'dispatched', 'the challan keeps its original status');
   assert.ok(!sse.events().includes('challan.updated'), 'no SSE event is emitted for a rejected status');
+});
+
+test('driver adds a delivery note when delivering and it is persisted', async () => {
+  const client = await createClient();
+  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+  sse = captureSSE();
+
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', notes: '  Delivered to gate B  ' });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, 'delivered');
+  assert.equal(res.body.notes, 'Delivered to gate B', 'note is trimmed and returned');
+
+  const [row] = await db.select({ notes: challans.notes })
+    .from(challans).where(eq(challans.id, challan.id));
+  assert.equal(row.notes, 'Delivered to gate B', 'note is persisted');
+  assert.ok(sse.events().includes('challan.updated'), 'a challan.updated SSE event is emitted');
+});
+
+test('driver delivery note is newline-appended to an existing dispatch note', async () => {
+  const client = await createClient();
+  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const challan = await createChallan({
+    driverId: driver.id, clientId: client.id, status: 'dispatched',
+    notes: 'Dispatched at 9am',
+  });
+
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', notes: 'Received by site engineer' });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.notes, 'Dispatched at 9am\nReceived by site engineer',
+    'the delivery note is appended after the existing note, not overwriting it');
+
+  const [row] = await db.select({ notes: challans.notes })
+    .from(challans).where(eq(challans.id, challan.id));
+  assert.equal(row.notes, 'Dispatched at 9am\nReceived by site engineer', 'appended note persisted');
+});
+
+test('driver delivering with an empty/whitespace note leaves an existing note untouched', async () => {
+  const client = await createClient();
+  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const challan = await createChallan({
+    driverId: driver.id, clientId: client.id, status: 'dispatched',
+    notes: 'Dispatched at 9am',
+  });
+
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', notes: '   ' });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.notes, 'Dispatched at 9am', 'a blank note is ignored, existing note kept');
+
+  const [row] = await db.select({ notes: challans.notes })
+    .from(challans).where(eq(challans.id, challan.id));
+  assert.equal(row.notes, 'Dispatched at 9am', 'existing note unchanged in DB');
+});
+
+test('a note sent to an unassigned challan is rejected and never written', async () => {
+  const client = await createClient();
+  const { user } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const { driver: otherDriver } = await createDriverUser('Other Driver', 'other@test.com');
+  const challan = await createChallan({
+    driverId: otherDriver.id, clientId: client.id, status: 'dispatched',
+    notes: 'Dispatched at 9am',
+  });
+  sse = captureSSE();
+
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', notes: 'Sneaky note' });
+
+  assert.equal(res.status, 403);
+  assert.match(res.body.error, /not assigned/i);
+
+  const [row] = await db.select({ notes: challans.notes })
+    .from(challans).where(eq(challans.id, challan.id));
+  assert.equal(row.notes, 'Dispatched at 9am', "another driver's note is untouched");
+  assert.ok(!sse.events().includes('challan.updated'), 'no SSE event on a rejected delivery');
 });
 
 test('a driver user with no matching driver profile gets 403', async () => {
