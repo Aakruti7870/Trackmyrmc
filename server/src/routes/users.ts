@@ -588,9 +588,24 @@ router.post('/restore-all', async (req, res) => {
   res.json({ restored, skipped: skippedDetails.length, skippedDetails });
 });
 
+const restoreSchema = z.object({
+  // When true, clear the account's linked client/driver before restoring so a
+  // link already taken by an active account no longer blocks the restore. Lets
+  // admins resolve a skipped-restore conflict in place instead of hunting down
+  // and unlinking the conflicting active account first.
+  clearLink: z.boolean().optional(),
+});
+
 router.post('/:id/restore', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const parse = restoreSchema.safeParse(req.body ?? {});
+  if (!parse.success) {
+    res.status(400).json({ error: parse.error.flatten().fieldErrors });
+    return;
+  }
+  const clearLink = parse.data.clearLink === true;
 
   const [user] = await db.select({
     id: users.id, email: users.email, deletedAt: users.deletedAt,
@@ -601,21 +616,28 @@ router.post('/:id/restore', async (req, res) => {
     return;
   }
 
+  const hadLink = user.linkedClientId != null || user.linkedDriverId != null;
+
   // Don't restore an account whose linked client/driver is already taken by an
   // active account — that would break the one-account-per-link rule. The admin
   // sees the same clear reason as the bulk-restore skip and can retry after
-  // unlinking the conflicting account.
-  const linkConflict = await findLinkConflict(user.linkedClientId, user.linkedDriverId, user.id);
-  if (linkConflict) {
-    res.status(409).json({ error: linkConflict });
-    return;
+  // unlinking the conflicting account, or pass clearLink to restore without it.
+  if (!clearLink) {
+    const linkConflict = await findLinkConflict(user.linkedClientId, user.linkedDriverId, user.id);
+    if (linkConflict) {
+      res.status(409).json({ error: linkConflict });
+      return;
+    }
   }
 
   const actor = req.user!;
+  const linkCleared = clearLink && hadLink;
   let restored;
   try {
     [restored] = await db.update(users)
-      .set({ deletedAt: null, isActive: true })
+      .set(linkCleared
+        ? { deletedAt: null, isActive: true, linkedClientId: null, linkedDriverId: null }
+        : { deletedAt: null, isActive: true })
       .where(eq(users.id, id))
       .returning();
   } catch (err) {
@@ -630,7 +652,9 @@ router.post('/:id/restore', async (req, res) => {
     action: 'user.restored',
     targetUserId: user.id,
     targetUserEmail: user.email,
-    detail: 'Account restored and reactivated',
+    detail: linkCleared
+      ? 'Account restored and reactivated; linked client/driver cleared to resolve a conflict'
+      : 'Account restored and reactivated',
   });
 
   res.json(safeUser(restored));

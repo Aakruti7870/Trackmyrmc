@@ -430,6 +430,52 @@ test('restore: POST /:id/restore is blocked with a 409 when the linked client is
   assert.equal(okLogs.length, 1, 'exactly one user.restored entry is written on success');
 });
 
+test('restore: POST /:id/restore with clearLink restores past a taken link by clearing it, and notes the clear in the audit log', async () => {
+  const admin = await createUser({ name: 'Admin Clear', email: 'admin-clear@test.com', role: 'admin' });
+  const client = await createClient('Beta Concrete');
+  const token = tokenFor(admin);
+
+  // An active account already holds the client link.
+  const holder = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Active Holder 2', email: 'holder2@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+  assert.equal(holder.status, 201);
+
+  // A soft-deleted account pointing at the same client.
+  const conflicted = await createUser({
+    name: 'Conflicted 2', email: 'conflict2@test.com', role: 'client',
+    isActive: false, deletedAt: new Date(),
+  });
+  await db.update(users).set({ linkedClientId: client.id }).where(eq(users.id, conflicted.id));
+
+  // Restoring with clearLink succeeds without touching the active holder.
+  const ok = await request(app)
+    .post(`/api/users/${conflicted.id}/restore`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ clearLink: true });
+  assert.equal(ok.status, 200, 'restore-without-link succeeds despite the taken link');
+  assert.equal(ok.body.deletedAt, null, 'the account is restored');
+  assert.equal(ok.body.linkedClientId, null, 'the conflicting link is cleared on the restored account');
+
+  const [row] = await db.select({ deletedAt: users.deletedAt, isActive: users.isActive, linkedClientId: users.linkedClientId })
+    .from(users).where(eq(users.id, conflicted.id));
+  assert.equal(row.deletedAt, null);
+  assert.equal(row.isActive, true);
+  assert.equal(row.linkedClientId, null, 'the link is cleared in the database');
+
+  // The active holder keeps its link untouched.
+  const [holderRow] = await db.select({ linkedClientId: users.linkedClientId })
+    .from(users).where(eq(users.id, holder.body.id));
+  assert.equal(holderRow.linkedClientId, client.id, 'the active holder still owns the link');
+
+  // The restore is audited and the detail records that the link was cleared.
+  const logs = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, conflicted.id)));
+  assert.equal(logs.length, 1, 'exactly one user.restored entry is written');
+  assert.match(logs[0].detail ?? '', /cleared/i, 'the audit detail notes the link was cleared');
+});
+
 test('unlock: POST /:id/unlock writes a lockout_cleared audit entry naming the acting admin and target', async () => {
   const admin = await createUser({ name: 'Admin Unlock', email: 'unlock-admin@test.com', role: 'admin' });
   const target = await createUser({ name: 'Locked User', email: 'locked@test.com', role: 'dispatcher' });

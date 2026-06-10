@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, Copy, X, Mail, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Copy, X, Mail, RotateCcw, Unlink } from 'lucide-react';
 
 export type SkippedAccountItem = { id: number; email: string; reason?: string };
 
@@ -11,6 +11,8 @@ export default function SkippedAccountsPanel({
   onClose,
   onRetry,
   retryingId,
+  onResolve,
+  resolvingId,
 }: {
   items: SkippedAccountItem[];
   heading: ReactNode;
@@ -19,7 +21,10 @@ export default function SkippedAccountsPanel({
   onClose: () => void;
   onRetry?: (item: SkippedAccountItem) => void;
   retryingId?: number | null;
+  onResolve?: (item: SkippedAccountItem) => void;
+  resolvingId?: number | null;
 }) {
+  const hasActions = Boolean(onRetry || onResolve);
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 120,
@@ -71,28 +76,50 @@ export default function SkippedAccountsPanel({
               padding: '12px 14px', borderRadius: 10,
               background: 'rgba(245,158,11,.07)', border: '1px solid rgba(245,158,11,.2)',
             }}>
-              {onRetry ? (
+              {hasActions ? (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 700, color: 'var(--text)', minWidth: 0 }}>
                       <Mail size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.email}</span>
                     </div>
-                    <button
-                      onClick={() => onRetry(item)}
-                      disabled={retryingId === item.id}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
-                        padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                        background: 'rgba(34,197,94,.12)', color: 'var(--green)',
-                        border: '1px solid rgba(34,197,94,.3)',
-                        cursor: retryingId === item.id ? 'default' : 'pointer',
-                        opacity: retryingId === item.id ? 0.6 : 1,
-                      }}
-                    >
-                      <RotateCcw size={13} />
-                      {retryingId === item.id ? 'Retrying…' : 'Retry restore'}
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+                      {onResolve && (
+                        <button
+                          onClick={() => onResolve(item)}
+                          disabled={resolvingId === item.id || retryingId === item.id}
+                          title="Restore this account with its linked client/driver cleared"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                            padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            background: 'rgba(245,158,11,.14)', color: '#f59e0b',
+                            border: '1px solid rgba(245,158,11,.35)',
+                            cursor: resolvingId === item.id || retryingId === item.id ? 'default' : 'pointer',
+                            opacity: resolvingId === item.id || retryingId === item.id ? 0.6 : 1,
+                          }}
+                        >
+                          <Unlink size={13} />
+                          {resolvingId === item.id ? 'Restoring…' : 'Restore without link'}
+                        </button>
+                      )}
+                      {onRetry && (
+                        <button
+                          onClick={() => onRetry(item)}
+                          disabled={retryingId === item.id || resolvingId === item.id}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                            padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            background: 'rgba(34,197,94,.12)', color: 'var(--green)',
+                            border: '1px solid rgba(34,197,94,.3)',
+                            cursor: retryingId === item.id || resolvingId === item.id ? 'default' : 'pointer',
+                            opacity: retryingId === item.id || resolvingId === item.id ? 0.6 : 1,
+                          }}
+                        >
+                          <RotateCcw size={13} />
+                          {retryingId === item.id ? 'Retrying…' : 'Retry restore'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div style={{ margin: '5px 0 0 20px', fontSize: 12.5, color: '#9fb0c7', lineHeight: 1.45 }}>
                     {item.reason}

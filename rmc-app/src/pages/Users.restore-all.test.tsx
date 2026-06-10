@@ -145,6 +145,63 @@ describe('Users bulk-restore selection UI', () => {
     });
   });
 
+  it('restores a skipped row without its link and drops it from the list', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.post).mockResolvedValueOnce({
+      restored: 2, skipped: 1,
+      skippedDetails: [{ id: 13, email: 'chetan@x.com', reason: 'This driver is already linked to another account (Someone). Each driver can be linked to only one user.' }],
+    } as never);
+    renderUsers();
+    await enterDeletedView(user);
+
+    await user.click(screen.getByRole('button', { name: /Restore All \(3\)/ }));
+    const confirmModal = (await screen.findByRole('heading', { name: 'Restore All' })).closest('div[style]')!.parentElement as HTMLElement;
+    await user.click(within(confirmModal).getByRole('button', { name: /Restore$/ }));
+
+    await screen.findByRole('heading', { name: /1 Account Skipped/i });
+    const skippedModal = screen.getByText(/These accounts could not be restored/i).parentElement as HTMLElement;
+
+    // "Restore without link" clears the conflicting link server-side and succeeds.
+    vi.mocked(api.post).mockResolvedValueOnce({ id: 13, deletedAt: null } as never);
+    await user.click(within(skippedModal).getByRole('button', { name: /Restore without link/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/users/13/restore', { clearLink: true });
+    });
+    // It was the only skipped row, so the whole modal closes after success.
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: /Account Skipped/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps the row and shows the error when restore-without-link fails', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.post).mockResolvedValueOnce({
+      restored: 0, skipped: 1,
+      skippedDetails: [{ id: 13, email: 'chetan@x.com', reason: 'This driver is already linked to another account (Someone). Each driver can be linked to only one user.' }],
+    } as never);
+    renderUsers();
+    await enterDeletedView(user);
+
+    await user.click(screen.getByRole('button', { name: /Restore All \(3\)/ }));
+    const confirmModal = (await screen.findByRole('heading', { name: 'Restore All' })).closest('div[style]')!.parentElement as HTMLElement;
+    await user.click(within(confirmModal).getByRole('button', { name: /Restore$/ }));
+
+    await screen.findByRole('heading', { name: /1 Account Skipped/i });
+    const skippedModal = screen.getByText(/These accounts could not be restored/i).parentElement as HTMLElement;
+
+    vi.mocked(api.post).mockRejectedValueOnce(new Error('Deleted account not found'));
+    await user.click(within(skippedModal).getByRole('button', { name: /Restore without link/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/users/13/restore', { clearLink: true });
+    });
+    // The row stays so the admin can try again; its reason reflects the failure.
+    expect(await screen.findByRole('heading', { name: /1 Account Skipped/i })).toBeInTheDocument();
+    expect(within(skippedModal).getByText('chetan@x.com')).toBeInTheDocument();
+    expect(within(skippedModal).getByText(/Deleted account not found/i)).toBeInTheDocument();
+  });
+
   it('keeps a skipped row and updates its reason when the retry still conflicts', async () => {
     const user = userEvent.setup();
     vi.mocked(api.post).mockResolvedValueOnce({

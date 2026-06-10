@@ -207,6 +207,7 @@ export default function Users() {
   const [skippedRestore, setSkippedRestore] = useState<{ id: number; email: string; reason: string }[] | null>(null);
   const [skippedPurge, setSkippedPurge] = useState<{ id: number; email: string }[] | null>(null);
   const [retryingRestoreId, setRetryingRestoreId] = useState<number | null>(null);
+  const [resolvingRestoreId, setResolvingRestoreId] = useState<number | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -491,6 +492,27 @@ export default function Users() {
       showToast(reason, 'error');
     } finally {
       setRetryingRestoreId(null);
+    }
+  }
+
+  async function restoreWithoutLink(item: { id: number; email: string; reason: string }) {
+    setResolvingRestoreId(item.id);
+    try {
+      await api.post(`/users/${item.id}/restore`, { clearLink: true });
+      showToast(`${item.email} was restored with its linked client/driver cleared.`, 'success');
+      setSkippedRestore(prev => {
+        const next = (prev ?? []).filter(r => r.id !== item.id);
+        return next.length ? next : null;
+      });
+      load();
+    } catch (e: unknown) {
+      const reason = e instanceof Error ? e.message : 'Failed to restore account.';
+      setSkippedRestore(prev =>
+        (prev ?? []).map(r => (r.id === item.id ? { ...r, reason } : r)),
+      );
+      showToast(reason, 'error');
+    } finally {
+      setResolvingRestoreId(null);
     }
   }
 
@@ -1742,11 +1764,13 @@ export default function Users() {
         <SkippedAccountsPanel
           items={skippedRestore}
           heading={`${skippedRestore.length} ${skippedRestore.length === 1 ? 'Account' : 'Accounts'} Skipped`}
-          description="These accounts could not be restored because their linked client or driver is already taken by an active account. The remaining accounts were restored successfully."
+          description="These accounts could not be restored because their linked client or driver is already taken by an active account. Restore without the link to clear it, or unlink the active account elsewhere and retry."
           onCopyEmails={() => copyEmails(skippedRestore)}
           onClose={() => setSkippedRestore(null)}
           onRetry={retryRestore}
           retryingId={retryingRestoreId}
+          onResolve={restoreWithoutLink}
+          resolvingId={resolvingRestoreId}
         />
       )}
 
