@@ -54,3 +54,16 @@ export async function cleanupOldAttempts(): Promise<void> {
   const cutoff = new Date(Date.now() - LOCKOUT_MS);
   await db.delete(loginAttempts).where(lt(loginAttempts.updatedAt, cutoff));
 }
+
+export async function getLockoutInfo(key: string): Promise<{ locked: boolean; lockedUntil: number | null }> {
+  const [row] = await db.select().from(loginAttempts).where(eq(loginAttempts.key, key));
+  if (!row || row.lockedUntil === null) return { locked: false, lockedUntil: null };
+  const remaining = row.lockedUntil.getTime() - Date.now();
+  if (remaining <= 0) {
+    await db.update(loginAttempts)
+      .set({ count: 0, lockedUntil: null, updatedAt: new Date() })
+      .where(eq(loginAttempts.key, key));
+    return { locked: false, lockedUntil: null };
+  }
+  return { locked: true, lockedUntil: row.lockedUntil.getTime() };
+}

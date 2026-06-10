@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send } from 'lucide-react';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
@@ -62,6 +62,8 @@ const labelStyle: React.CSSProperties = {
   color: 'var(--muted)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.4px',
 };
 
+type LockoutInfo = { locked: boolean; lockedUntil: number | null };
+
 type FormData = {
   name: string;
   email: string;
@@ -96,14 +98,30 @@ export default function Users() {
   const [clientOptions, setClientOptions] = useState<LinkOption[]>([]);
   const [driverOptions, setDriverOptions] = useState<LinkOption[]>([]);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [lockoutStatus, setLockoutStatus] = useState<Record<number, LockoutInfo>>({});
+  const [unlocking, setUnlocking] = useState<number | null>(null);
 
   function load() {
     api.get<UserRecord[]>('/users').then(setUsers).catch(() => {});
     api.get<LinkOption[]>('/users/clients-list').then(setClientOptions).catch(() => {});
     api.get<LinkOption[]>('/users/drivers-list').then(setDriverOptions).catch(() => {});
     api.get<AuditEntry[]>('/users/audit-log').then(setAuditLog).catch(() => {});
+    api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
   }
   useEffect(load, []);
+
+  async function unlock(u: UserRecord) {
+    setUnlocking(u.id);
+    try {
+      await api.post(`/users/${u.id}/unlock`, {});
+      setLockoutStatus(prev => ({ ...prev, [u.id]: { locked: false, lockedUntil: null } }));
+      showToast(`${u.name}'s account has been unlocked.`, 'success');
+    } catch {
+      showToast('Failed to unlock account.', 'error');
+    } finally {
+      setUnlocking(null);
+    }
+  }
 
   function openCreate() {
     setForm(emptyForm());
@@ -259,10 +277,15 @@ export default function Users() {
                 : u.linkedDriverId
                 ? `Driver #${u.linkedDriverId} — ${driverOptions.find(d => d.id === u.linkedDriverId)?.name ?? '…'}`
                 : '—';
+              const lockout = lockoutStatus[u.id];
+              const isLocked = lockout?.locked === true;
+              const lockExpiry = lockout?.lockedUntil
+                ? new Date(lockout.lockedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : null;
               return (
                 <tr key={u.id} style={{
                   borderBottom: '1px solid rgba(255,255,255,.05)',
-                  background: u.isActive ? 'transparent' : 'rgba(239,68,68,.03)',
+                  background: isLocked ? 'rgba(239,160,68,.04)' : u.isActive ? 'transparent' : 'rgba(239,68,68,.03)',
                   opacity: u.isActive ? 1 : 0.65,
                 }}>
                   <td style={{ padding: '12px 14px' }}>
@@ -288,21 +311,50 @@ export default function Users() {
                     </span>
                   </td>
                   <td style={{ padding: '12px 14px' }}>
-                    <button
-                      onClick={() => toggleActive(u)}
-                      style={{
-                        padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                        background: u.isActive ? '#22c55e20' : '#ef444420',
-                        color: u.isActive ? 'var(--green)' : 'var(--red)',
-                        border: `1px solid ${u.isActive ? '#22c55e35' : '#ef444435'}`,
-                      }}
-                    >
-                      {u.isActive ? 'Active' : 'Inactive'}
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start' }}>
+                      <button
+                        onClick={() => toggleActive(u)}
+                        style={{
+                          padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                          background: u.isActive ? '#22c55e20' : '#ef444420',
+                          color: u.isActive ? 'var(--green)' : 'var(--red)',
+                          border: `1px solid ${u.isActive ? '#22c55e35' : '#ef444435'}`,
+                        }}
+                      >
+                        {u.isActive ? 'Active' : 'Inactive'}
+                      </button>
+                      {isLocked && (
+                        <span title={lockExpiry ? `Locked until ${lockExpiry}` : 'Locked'} style={{
+                          padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                          background: '#f9731620', color: '#f97316',
+                          border: '1px solid #f9731635',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          🔒 Locked{lockExpiry ? ` until ${lockExpiry}` : ''}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{linked}</td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
+                      {isLocked && (
+                        <button
+                          onClick={() => unlock(u)}
+                          disabled={unlocking === u.id}
+                          title="Unlock account"
+                          style={{
+                            background: unlocking === u.id ? 'rgba(249,115,22,.1)' : 'rgba(249,115,22,.15)',
+                            border: '1px solid rgba(249,115,22,.3)',
+                            borderRadius: 7, color: '#f97316', cursor: unlocking === u.id ? 'not-allowed' : 'pointer',
+                            padding: '5px 8px', display: 'flex', alignItems: 'center', gap: 4,
+                            fontSize: 11, fontWeight: 700,
+                          }}
+                        >
+                          <LockOpen size={12} />
+                          {unlocking === u.id ? '…' : 'Unlock'}
+                        </button>
+                      )}
                       <button
                         onClick={() => openEdit(u)}
                         title="Edit user"

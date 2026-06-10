@@ -6,6 +6,7 @@ import { db } from '../db/index.js';
 import { users, clients, drivers, auditLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { sendPasswordResetNotification, sendWelcomeEmail } from '../lib/email.js';
+import { getLockoutInfo, resetAttempts } from '../lib/loginAttempts.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('admin'));
@@ -53,6 +54,27 @@ router.get('/', async (_req, res) => {
     createdAt: users.createdAt,
   }).from(users).orderBy(asc(users.createdAt));
   res.json(rows);
+});
+
+router.get('/lockout-status', async (_req, res) => {
+  const rows = await db.select({ id: users.id, email: users.email }).from(users);
+  const result: Record<number, { locked: boolean; lockedUntil: number | null }> = {};
+  for (const user of rows) {
+    result[user.id] = await getLockoutInfo(`login:${user.email.toLowerCase().trim()}`);
+  }
+  res.json(result);
+});
+
+router.post('/:id/unlock', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const [user] = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, id));
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+  const lockoutKey = `login:${user.email.toLowerCase().trim()}`;
+  resetAttempts(lockoutKey);
+  res.json({ ok: true, userId: user.id });
 });
 
 router.get('/clients-list', async (_req, res) => {
