@@ -62,4 +62,27 @@ describe('Layout live status-change toasts', () => {
     emit('challan.updated', { challanNo: 'CH-3003', status: 'in_transit' });
     expect(screen.queryByText(/CH-3003/)).not.toBeInTheDocument();
   });
+
+  it('removes its SSE handlers when Layout unmounts', () => {
+    const { unmount } = renderLayout();
+
+    expect(handlers.get('challan.created')?.size ?? 0).toBeGreaterThan(0);
+    expect(handlers.get('challan.updated')?.size ?? 0).toBeGreaterThan(0);
+
+    unmount();
+
+    expect(handlers.get('challan.created')?.size ?? 0).toBe(0);
+    expect(handlers.get('challan.updated')?.size ?? 0).toBe(0);
+  });
+
+  it('does not show a toast after unmount when events are emitted', () => {
+    const { unmount } = renderLayout();
+    unmount();
+
+    emit('challan.created', { challanNo: 'CH-4004' });
+    emit('challan.updated', { challanNo: 'CH-5005', status: 'delivered' });
+
+    expect(screen.queryByText(/CH-4004/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/CH-5005/)).not.toBeInTheDocument();
+  });
 });
