@@ -5,15 +5,6 @@ export const orderStatusEnum = pgEnum('order_status', ['pending', 'in_progress',
 export const challanStatusEnum = pgEnum('challan_status', ['pending', 'dispatched', 'delivered', 'cancelled']);
 export const vehicleStatusEnum = pgEnum('vehicle_status', ['active', 'maintenance', 'inactive']);
 export const ledgerTypeEnum = pgEnum('ledger_type', ['debit', 'credit']);
-export const users = pgTable('users', {
-    id: serial('id').primaryKey(),
-    name: text('name').notNull(),
-    email: text('email').notNull().unique(),
-    passwordHash: text('password_hash').notNull(),
-    role: userRoleEnum('role').notNull().default('dispatcher'),
-    isActive: boolean('is_active').notNull().default(true),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-});
 export const clients = pgTable('clients', {
     id: serial('id').primaryKey(),
     name: text('name').notNull(),
@@ -27,14 +18,6 @@ export const clients = pgTable('clients', {
     outstandingAmount: decimal('outstanding_amount', { precision: 12, scale: 2 }).default('0'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });
-export const sites = pgTable('sites', {
-    id: serial('id').primaryKey(),
-    clientId: integer('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    address: text('address'),
-    city: text('city'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-});
 export const drivers = pgTable('drivers', {
     id: serial('id').primaryKey(),
     name: text('name').notNull(),
@@ -42,6 +25,25 @@ export const drivers = pgTable('drivers', {
     licenseNo: text('license_no'),
     licenseExpiry: date('license_expiry'),
     isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+export const users = pgTable('users', {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    email: text('email').notNull().unique(),
+    passwordHash: text('password_hash').notNull(),
+    role: userRoleEnum('role').notNull().default('dispatcher'),
+    isActive: boolean('is_active').notNull().default(true),
+    linkedClientId: integer('linked_client_id').references(() => clients.id, { onDelete: 'set null' }),
+    linkedDriverId: integer('linked_driver_id').references(() => drivers.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+export const sites = pgTable('sites', {
+    id: serial('id').primaryKey(),
+    clientId: integer('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    address: text('address'),
+    city: text('city'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 export const vehicles = pgTable('vehicles', {
@@ -108,11 +110,21 @@ export const ledgerEntries = pgTable('ledger_entries', {
     referenceNo: text('reference_no'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+export const loginAttempts = pgTable('login_attempts', {
+    key: text('key').primaryKey(),
+    count: integer('count').notNull().default(0),
+    lockedUntil: timestamp('locked_until'),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
 export const clientsRelations = relations(clients, ({ many }) => ({
     sites: many(sites),
     orders: many(orders),
     challans: many(challans),
     ledgerEntries: many(ledgerEntries),
+}));
+export const driversRelations = relations(drivers, ({ many }) => ({
+    vehicles: many(vehicles),
+    challans: many(challans),
 }));
 export const sitesRelations = relations(sites, ({ one }) => ({
     client: one(clients, { fields: [sites.clientId], references: [clients.id] }),

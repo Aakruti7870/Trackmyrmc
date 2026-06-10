@@ -1,45 +1,56 @@
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 15 * 60 * 1000;
+import { eq, lt, sql } from 'drizzle-orm';
+import { db } from '../db/index.js';
+import { loginAttempts } from '../db/schema.js';
 
-interface AttemptRecord {
-  count: number;
-  lockedUntil: number | null;
-}
+export const MAX_ATTEMPTS = 5;
+export const LOCKOUT_MS = 15 * 60 * 1000;
 
-const attempts = new Map<string, AttemptRecord>();
+export async function isLockedOut(key: string): Promise<{ locked: boolean; retryAfterMs?: number }> {
+  const [row] = await db.select().from(loginAttempts).where(eq(loginAttempts.key, key));
+  if (!row || row.lockedUntil === null) return { locked: false };
 
-function getRecord(key: string): AttemptRecord {
-  let record = attempts.get(key);
-  if (!record) {
-    record = { count: 0, lockedUntil: null };
-    attempts.set(key, record);
+  const remaining = row.lockedUntil.getTime() - Date.now();
+  if (remaining > 0) {
+    return { locked: true, retryAfterMs: remaining };
   }
-  return record;
-}
 
-export function isLockedOut(key: string): { locked: boolean; retryAfterMs?: number } {
-  const record = getRecord(key);
-  if (record.lockedUntil !== null) {
-    const remaining = record.lockedUntil - Date.now();
-    if (remaining > 0) {
-      return { locked: true, retryAfterMs: remaining };
-    }
-    record.count = 0;
-    record.lockedUntil = null;
-  }
+  await db.update(loginAttempts)
+    .set({ count: 0, lockedUntil: null, updatedAt: new Date() })
+    .where(eq(loginAttempts.key, key));
+
   return { locked: false };
 }
 
-export function recordFailure(key: string): void {
-  const record = getRecord(key);
-  record.count += 1;
-  if (record.count >= MAX_ATTEMPTS) {
-    record.lockedUntil = Date.now() + LOCKOUT_MS;
-  }
+export async function recordFailure(key: string): Promise<void> {
+  await db
+    .insert(loginAttempts)
+    .values({
+      key,
+      count: 1,
+      lockedUntil: null,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: loginAttempts.key,
+      set: {
+        count: sql`${loginAttempts.count} + 1`,
+        lockedUntil: sql`
+          CASE
+            WHEN ${loginAttempts.count} + 1 >= ${MAX_ATTEMPTS}
+            THEN NOW() + (${LOCKOUT_MS} * INTERVAL '1 millisecond')
+            ELSE NULL
+          END
+        `,
+        updatedAt: sql`NOW()`,
+      },
+    });
 }
 
-export function resetAttempts(key: string): void {
-  attempts.delete(key);
+export async function resetAttempts(key: string): Promise<void> {
+  await db.delete(loginAttempts).where(eq(loginAttempts.key, key));
 }
 
-export { MAX_ATTEMPTS, LOCKOUT_MS };
+export async function cleanupOldAttempts(): Promise<void> {
+  const cutoff = new Date(Date.now() - LOCKOUT_MS);
+  await db.delete(loginAttempts).where(lt(loginAttempts.updatedAt, cutoff));
+}

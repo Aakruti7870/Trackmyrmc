@@ -3,6 +3,9 @@ import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { challans, clients, sites, vehicles, drivers, orders } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { emitSSEEvent } from '../lib/sseEmitter.js';
+const WRITE_ROLES = ['admin', 'dispatcher'];
+const DRIVER_ALLOWED_STATUS = ['delivered'];
 const router = Router();
 router.use(requireAuth);
 async function nextChallanNo() {
@@ -81,9 +84,40 @@ router.post('/', async (req, res) => {
     if (orderId) {
         await db.update(orders).set({ status: 'in_progress' }).where(eq(orders.id, +orderId));
     }
+    emitSSEEvent('challan.created', row);
     res.status(201).json(row);
 });
 router.put('/:id', async (req, res) => {
+    const role = req.user.role;
+    const challanId = +req.params.id;
+    if (role === 'driver') {
+        const { status, deliveryTime } = req.body;
+        if (!DRIVER_ALLOWED_STATUS.includes(status)) {
+            res.status(403).json({ error: 'Drivers may only mark challans as delivered' });
+            return;
+        }
+        const driver = await db.select({ id: drivers.id })
+            .from(drivers).where(eq(drivers.name, req.user.name)).limit(1);
+        if (!driver.length) {
+            res.status(403).json({ error: 'Driver profile not found' });
+            return;
+        }
+        const [challan] = await db.select({ driverId: challans.driverId })
+            .from(challans).where(eq(challans.id, challanId)).limit(1);
+        if (!challan || challan.driverId !== driver[0].id) {
+            res.status(403).json({ error: 'Not assigned to this challan' });
+            return;
+        }
+        const [row] = await db.update(challans)
+            .set({ status: 'delivered', deliveryTime: deliveryTime ? new Date(deliveryTime) : new Date() })
+            .where(eq(challans.id, challanId)).returning();
+        res.json(row);
+        return;
+    }
+    if (!WRITE_ROLES.includes(role)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+    }
     const { vehicleId, driverId, status, notes, deliveryTime } = req.body;
     const updateData = {};
     if (vehicleId !== undefined)
@@ -97,7 +131,8 @@ router.put('/:id', async (req, res) => {
     if (status === 'delivered')
         updateData.deliveryTime = deliveryTime ? new Date(deliveryTime) : new Date();
     const [row] = await db.update(challans).set(updateData)
-        .where(eq(challans.id, +req.params.id)).returning();
+        .where(eq(challans.id, challanId)).returning();
+    emitSSEEvent('challan.updated', row);
     res.json(row);
 });
 router.delete('/:id', async (req, res) => {

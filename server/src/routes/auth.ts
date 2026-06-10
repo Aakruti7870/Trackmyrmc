@@ -16,7 +16,7 @@ router.post('/login', async (req, res) => {
   }
 
   const lockoutKey = `login:${email.toLowerCase().trim()}`;
-  const { locked, retryAfterMs } = isLockedOut(lockoutKey);
+  const { locked, retryAfterMs } = await isLockedOut(lockoutKey);
   if (locked) {
     const minutes = Math.ceil(retryAfterMs! / 60000);
     res.status(429).json({
@@ -27,14 +27,14 @@ router.post('/login', async (req, res) => {
 
   const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
   if (!user || !user.isActive) {
-    recordFailure(lockoutKey);
+    await recordFailure(lockoutKey);
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) {
-    recordFailure(lockoutKey);
-    const { locked: nowLocked, retryAfterMs: retryMs } = isLockedOut(lockoutKey);
+    await recordFailure(lockoutKey);
+    const { locked: nowLocked, retryAfterMs: retryMs } = await isLockedOut(lockoutKey);
     if (nowLocked) {
       const minutes = Math.ceil(retryMs! / 60000);
       res.status(429).json({
@@ -46,7 +46,7 @@ router.post('/login', async (req, res) => {
     return;
   }
 
-  resetAttempts(lockoutKey);
+  await resetAttempts(lockoutKey);
   const token = signToken({
     id: user.id, email: user.email, role: user.role, name: user.name,
     linkedClientId: user.linkedClientId,
@@ -125,7 +125,7 @@ router.put('/change-password', requireAuth, async (req, res) => {
   }
 
   const lockoutKey = `change-password:${user.id}`;
-  const { locked, retryAfterMs } = isLockedOut(lockoutKey);
+  const { locked, retryAfterMs } = await isLockedOut(lockoutKey);
   if (locked) {
     const minutes = Math.ceil(retryAfterMs! / 60000);
     res.status(429).json({
@@ -136,8 +136,8 @@ router.put('/change-password', requireAuth, async (req, res) => {
 
   const match = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!match) {
-    recordFailure(lockoutKey);
-    const { locked: nowLocked, retryAfterMs: retryMs } = isLockedOut(lockoutKey);
+    await recordFailure(lockoutKey);
+    const { locked: nowLocked, retryAfterMs: retryMs } = await isLockedOut(lockoutKey);
     if (nowLocked) {
       const minutes = Math.ceil(retryMs! / 60000);
       res.status(429).json({
@@ -149,7 +149,7 @@ router.put('/change-password', requireAuth, async (req, res) => {
     return;
   }
 
-  resetAttempts(lockoutKey);
+  await resetAttempts(lockoutKey);
   const newHash = await bcrypt.hash(newPassword, 10);
   await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
   res.json({ message: 'Password updated successfully' });

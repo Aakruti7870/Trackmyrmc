@@ -124,6 +124,13 @@ export const ledgerEntries = pgTable('ledger_entries', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const loginAttempts = pgTable('login_attempts', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull().default(0),
+  lockedUntil: timestamp('locked_until'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const clientsRelations = relations(clients, ({ many }) => ({
   sites: many(sites),
   orders: many(orders),

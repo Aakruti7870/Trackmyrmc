@@ -16,6 +16,7 @@ import meRoutes from './routes/me.js';
 import userRoutes from './routes/users.js';
 import adminRoutes from './routes/admin.js';
 import { addSSEClient, removeSSEClient } from './lib/sseEmitter.js';
+import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { verifyToken } from './middleware/auth.js';
 import { eq } from 'drizzle-orm';
 import { db } from './db/index.js';
@@ -86,6 +87,8 @@ if (isProd) {
 
 app.listen(PORT, () => {
   console.log(`TrackMyRMC API running on port ${PORT}`);
+  cleanupOldAttempts().catch(() => {});
+  setInterval(() => cleanupOldAttempts().catch(() => {}), 60 * 60 * 1000);
 });
 
 export default app;

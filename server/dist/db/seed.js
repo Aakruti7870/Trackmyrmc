@@ -9,13 +9,13 @@ const db = drizzle(pool, { schema });
 async function seed() {
     console.log('🌱 Seeding database...');
     const hash = (p) => bcrypt.hash(p, 10);
-    const [admin] = await db.insert(schema.users).values([
+    await db.insert(schema.users).values([
         { name: 'Rajesh Kumar', email: 'admin@aakruti.com', passwordHash: await hash('admin123'), role: 'admin' },
         { name: 'Priya Sharma', email: 'dispatcher@aakruti.com', passwordHash: await hash('dispatch123'), role: 'dispatcher' },
         { name: 'Suresh Patel', email: 'operator@aakruti.com', passwordHash: await hash('operator123'), role: 'plant_operator' },
         { name: 'Arvind Builders', email: 'client@aakruti.com', passwordHash: await hash('client123'), role: 'client' },
         { name: 'Ganesh More', email: 'driver@aakruti.com', passwordHash: await hash('driver123'), role: 'driver' },
-    ]).returning().onConflictDoNothing();
+    ]).onConflictDoNothing();
     const clientRows = await db.insert(schema.clients).values([
         { name: 'Arvind Builders Pvt Ltd', contactPerson: 'Arvind Shah', phone: '9876543210', email: 'arvind@arvindbuilders.com', gstNo: '27AAACL1234F1Z5', address: 'Plot 12, MIDC', city: 'Navi Mumbai', creditLimit: '500000', outstandingAmount: '125000' },
         { name: 'Marvel Realty Ltd', contactPerson: 'Suresh Marvel', phone: '9123456780', email: 'suresh@marvelrealty.com', gstNo: '27AABCM5678G1Z3', address: 'Sector 7, Kharghar', city: 'Navi Mumbai', creditLimit: '1000000', outstandingAmount: '380000' },
@@ -80,6 +80,13 @@ async function seed() {
         { clientId: clientRows[4].id, type: 'debit', amount: '280000', description: 'Invoice #INV-2025-005 - M35 Concrete Supply', referenceNo: 'INV-2025-005' },
         { clientId: clientRows[4].id, type: 'credit', amount: '70000', description: 'Payment received - Cheque', referenceNo: 'CHQ-20250418' },
     ]).onConflictDoNothing();
+    const { eq } = await import('drizzle-orm');
+    await db.update(schema.users)
+        .set({ linkedClientId: clientRows[0].id })
+        .where(eq(schema.users.email, 'client@aakruti.com'));
+    await db.update(schema.users)
+        .set({ linkedDriverId: driverRows[0].id })
+        .where(eq(schema.users.email, 'driver@aakruti.com'));
     console.log('✅ Seed complete!');
     console.log('\n🔑 Demo Credentials:');
     console.log('  Admin:    admin@aakruti.com / admin123');

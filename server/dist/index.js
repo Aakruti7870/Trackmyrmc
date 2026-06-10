@@ -12,6 +12,15 @@ import driverRoutes from './routes/drivers.js';
 import batchRoutes from './routes/batches.js';
 import dashboardRoutes from './routes/dashboard.js';
 import reportRoutes from './routes/reports.js';
+import meRoutes from './routes/me.js';
+import userRoutes from './routes/users.js';
+import adminRoutes from './routes/admin.js';
+import { addSSEClient, removeSSEClient } from './lib/sseEmitter.js';
+import { cleanupOldAttempts } from './lib/loginAttempts.js';
+import { verifyToken } from './middleware/auth.js';
+import { eq } from 'drizzle-orm';
+import { db } from './db/index.js';
+import { users } from './db/schema.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
 const app = express();
@@ -27,8 +36,45 @@ app.use('/api/drivers', driverRoutes);
 app.use('/api/batches', batchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/me', meRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+app.get('/api/events', async (req, res) => {
+    const token = req.query.token;
+    if (!token) {
+        res.status(401).json({ error: 'Token required' });
+        return;
+    }
+    let payload;
+    try {
+        payload = verifyToken(token);
+    }
+    catch {
+        res.status(401).json({ error: 'Invalid token' });
+        return;
+    }
+    const [user] = await db.select({ isActive: users.isActive })
+        .from(users).where(eq(users.id, payload.id));
+    if (!user?.isActive) {
+        res.status(401).json({ error: 'Account deactivated' });
+        return;
+    }
+    const id = addSSEClient(res);
+    const keepAlive = setInterval(() => {
+        try {
+            res.write(':ping\n\n');
+        }
+        catch {
+            clearInterval(keepAlive);
+        }
+    }, 25000);
+    req.on('close', () => {
+        clearInterval(keepAlive);
+        removeSSEClient(id);
+    });
 });
 if (isProd) {
     const staticDir = path.resolve(__dirname, '../../rmc-app/dist');
@@ -39,5 +85,7 @@ if (isProd) {
 }
 app.listen(PORT, () => {
     console.log(`TrackMyRMC API running on port ${PORT}`);
+    cleanupOldAttempts().catch(() => { });
+    setInterval(() => cleanupOldAttempts().catch(() => { }), 60 * 60 * 1000);
 });
 export default app;
