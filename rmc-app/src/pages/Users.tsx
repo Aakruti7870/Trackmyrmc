@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/lib/toast';
+import SearchableSelect from '@/components/SearchableSelect';
 
 type UserRecord = {
   id: number;
@@ -498,16 +499,14 @@ export default function Users() {
               {needsClientLink && (
                 <label>
                   <span style={labelStyle}>Linked Client Account</span>
-                  <select
-                    value={form.linkedClientId ?? ''}
-                    onChange={e => setForm(f => ({ ...f, linkedClientId: e.target.value ? parseInt(e.target.value) : null }))}
-                    style={inputStyle}
-                  >
-                    <option value="">— None —</option>
-                    {clientOptions.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={form.linkedClientId}
+                    onChange={id => setForm(f => ({ ...f, linkedClientId: id }))}
+                    options={clientOptions}
+                    placeholder="Select a client…"
+                    noneLabel="— No linked client —"
+                    emptyLabel="No clients found"
+                  />
                   <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
                     Links this login to a client record so "My Orders" shows their data.
                   </span>
@@ -518,16 +517,14 @@ export default function Users() {
               {needsDriverLink && (
                 <label>
                   <span style={labelStyle}>Linked Driver Record</span>
-                  <select
-                    value={form.linkedDriverId ?? ''}
-                    onChange={e => setForm(f => ({ ...f, linkedDriverId: e.target.value ? parseInt(e.target.value) : null }))}
-                    style={inputStyle}
-                  >
-                    <option value="">— None —</option>
-                    {driverOptions.map(d => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={form.linkedDriverId}
+                    onChange={id => setForm(f => ({ ...f, linkedDriverId: id }))}
+                    options={driverOptions}
+                    placeholder="Select a driver…"
+                    noneLabel="— No linked driver —"
+                    emptyLabel="No drivers found"
+                  />
                   <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
                     Links this login to a driver record so "My Trips" shows their assignments.
                   </span>
