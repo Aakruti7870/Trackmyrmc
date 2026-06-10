@@ -144,6 +144,18 @@ export const challansRelations = relations(challans, ({ one }) => ({
     driver: one(drivers, { fields: [challans.driverId], references: [drivers.id] }),
     order: one(orders, { fields: [challans.orderId], references: [orders.id] }),
 }));
+export const auditLogs = pgTable('audit_logs', {
+    id: serial('id').primaryKey(),
+    actorId: integer('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    actorName: text('actor_name'),
+    action: text('action').notNull(),
+    targetUserId: integer('target_user_id').references(() => users.id, { onDelete: 'set null' }),
+    targetUserEmail: text('target_user_email'),
+    status: text('status'),
+    detail: text('detail'),
+    emailSent: boolean('email_sent'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+});
 export const ledgerRelations = relations(ledgerEntries, ({ one }) => ({
     client: one(clients, { fields: [ledgerEntries.clientId], references: [clients.id] }),
 }));

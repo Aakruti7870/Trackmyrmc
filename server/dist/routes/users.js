@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, desc } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { users, clients, drivers } from '../db/schema.js';
+import { users, clients, drivers, auditLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { sendPasswordResetNotification, sendWelcomeEmail } from '../lib/email.js';
 const router = Router();
@@ -50,6 +50,19 @@ router.get('/clients-list', async (_req, res) => {
 });
 router.get('/drivers-list', async (_req, res) => {
     const rows = await db.select({ id: drivers.id, name: drivers.name }).from(drivers).orderBy(asc(drivers.name));
+    res.json(rows);
+});
+router.get('/audit-log', async (_req, res) => {
+    const rows = await db.select({
+        id: auditLogs.id,
+        actorId: auditLogs.actorId,
+        actorName: auditLogs.actorName,
+        action: auditLogs.action,
+        targetUserId: auditLogs.targetUserId,
+        targetUserEmail: auditLogs.targetUserEmail,
+        emailSent: auditLogs.emailSent,
+        createdAt: auditLogs.createdAt,
+    }).from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(200);
     res.json(rows);
 });
 router.post('/', async (req, res) => {
@@ -113,6 +126,15 @@ router.put('/:id', async (req, res) => {
             console.error('[email] Failed to send password-reset notification:', err);
             emailSent = false;
         }
+        const actor = req.user;
+        await db.insert(auditLogs).values({
+            actorId: actor.id,
+            actorName: actor.name,
+            action: 'password_reset',
+            targetUserId: user.id,
+            targetUserEmail: user.email,
+            emailSent: emailSent ?? false,
+        });
     }
     res.json({ ...safeUser(user), ...(emailSent !== undefined ? { emailSent } : {}) });
 });

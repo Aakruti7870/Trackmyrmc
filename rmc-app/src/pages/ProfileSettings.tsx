@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, User as UserIcon, Mail, Send, Palette } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -24,6 +24,18 @@ const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
   borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
   boxSizing: 'border-box',
+};
+
+type SmtpTestLog = {
+  id: number;
+  action: string;
+  status: string | null;
+  detail: string | null;
+  actorId: number | null;
+  actorName: string | null;
+  targetUserEmail: string | null;
+  emailSent: boolean | null;
+  createdAt: string;
 };
 
 const ROLE_COLOR: Record<string, string> = {
@@ -80,12 +92,32 @@ export default function ProfileSettings() {
   const [testEmailSending, setTestEmailSending] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  const [testHistory, setTestHistory] = useState<SmtpTestLog[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const loadHistory = useCallback(async () => {
+    if (user?.role !== 'admin') return;
+    setHistoryLoading(true);
+    try {
+      const rows = await api.get<SmtpTestLog[]>('/admin/email-test/history');
+      setTestHistory(rows);
+    } catch {
+      /* ignore — history is non-critical */
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [user?.role]);
+
   useEffect(() => {
     if (user) {
       setProfileName(user.name);
       setProfileEmail(user.email);
     }
   }, [user]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
@@ -131,6 +163,7 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setTestEmailSending(false);
+      loadHistory();
     }
   }
 
@@ -324,6 +357,60 @@ export default function ProfileSettings() {
             <span style={{ fontSize: 12, color: 'var(--muted)' }}>
               Sends to <strong style={{ color: 'var(--text)' }}>{user?.email}</strong>
             </span>
+          </div>
+
+          {/* Test history */}
+          <div style={{ marginTop: 22, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,.07)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+              <History size={14} color="#9fb0c7" />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#9fb0c7', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                Test History
+              </span>
+            </div>
+
+            {historyLoading && testHistory.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#9fb0c7' }}>Loading…</div>
+            ) : testHistory.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#9fb0c7' }}>No test attempts recorded yet.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {testHistory.map(log => {
+                  const ok = log.status === 'success';
+                  return (
+                    <div key={log.id} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10,
+                      padding: '10px 12px', borderRadius: 10,
+                      background: 'rgba(255,255,255,.03)',
+                      border: '1px solid rgba(255,255,255,.06)',
+                    }}>
+                      {ok
+                        ? <CheckCircle size={15} color="#22c55e" style={{ flexShrink: 0, marginTop: 1 }} />
+                        : <XCircle size={15} color="#ef4444" style={{ flexShrink: 0, marginTop: 1 }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: ok ? '#22c55e' : '#ef4444' }}>
+                            {ok ? 'Success' : 'Failed'}
+                          </span>
+                          <span style={{ fontSize: 11, color: '#9fb0c7' }}>
+                            {new Date(log.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        {log.detail && (
+                          <div style={{ fontSize: 11, color: '#9fb0c7', marginTop: 3, wordBreak: 'break-word' }}>
+                            {log.detail}
+                          </div>
+                        )}
+                        {log.actorName && (
+                          <div style={{ fontSize: 11, color: '#6b7d96', marginTop: 2 }}>
+                            by {log.actorName}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
