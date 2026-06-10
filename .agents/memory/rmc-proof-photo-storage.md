@@ -33,3 +33,8 @@ with `t.mock.method(proofPhotoStore, 'store', ...)`. This avoids the ESM
 import-ordering trap of `mock.module` (the route already imported the module
 before any top-level mock runs); patching methods on a shared object identity
 works regardless of import order and needs no sidecar.
+
+## Object cleanup on delete & env-dependent PUT tests
+- Deleting a challan must also delete its object-storage proof files (collect /objects/ paths before the row delete, then best-effort remove via proofPhotoStore.remove + Promise.allSettled). FK cascade only drops the child rows, not the bucket objects.
+- proofPhotoStore.remove()/ObjectStorageService.deleteObjectEntity() are idempotent (file.delete ignoreNotFound) and skip legacy base64 (no separate object).
+- WATCH OUT: two driver PUT tests ("replaces an existing proof photo", "omits proof-photo fields leaves an existing stored photo untouched") do NOT mock store() and assert the child table holds raw base64. They PASS only when object storage is unconfigured; with PRIVATE_OBJECT_DIR set, real store() returns an /objects/ path and they FAIL. Pre-existing/env-dependent, not a regression.

@@ -166,6 +166,34 @@ export class ObjectStorageService {
     });
   }
 
+  // Deletes the object referenced by an entity path (/objects/...). Returns true
+  // if an object was deleted, false if it was already gone. Used to clean up a
+  // proof-of-delivery photo when its challan is removed.
+  async deleteObjectEntity(objectPath: string): Promise<boolean> {
+    if (!objectPath.startsWith("/objects/")) {
+      throw new ObjectNotFoundError();
+    }
+
+    const parts = objectPath.slice(1).split("/");
+    if (parts.length < 2) {
+      throw new ObjectNotFoundError();
+    }
+
+    const entityId = parts.slice(1).join("/");
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) {
+      entityDir = `${entityDir}/`;
+    }
+    const objectEntityPath = `${entityDir}${entityId}`;
+    const { bucketName, objectName } = parseObjectPath(objectEntityPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const objectFile = bucket.file(objectName);
+    // ignoreNotFound makes deletion idempotent: a missing object is not an error.
+    const [response] = await objectFile.delete({ ignoreNotFound: true });
+    // GCS returns no response body when the object was already absent.
+    return response != null;
+  }
+
   // Gets the upload URL for an object entity.
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();

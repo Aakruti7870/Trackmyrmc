@@ -258,7 +258,15 @@ router.put('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
-  await db.delete(challans).where(eq(challans.id, +req.params.id));
+  const challanId = +req.params.id;
+  // Collect the proof-photo entity paths before deleting the row. The child
+  // rows go away via FK cascade, but the backing object-storage files would
+  // otherwise be orphaned, so remove them explicitly afterwards.
+  const storedPhotos = await getProofPhotos(challanId);
+  await db.delete(challans).where(eq(challans.id, challanId));
+  // Best-effort cleanup: remove() is idempotent and skips legacy base64 photos
+  // (which have no separate object). A storage failure must not fail the delete.
+  await Promise.allSettled(storedPhotos.map(photo => proofPhotoStore.remove(photo)));
   res.json({ ok: true });
 });
 

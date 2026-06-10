@@ -44,4 +44,18 @@ export const proofPhotoStore = {
     const service = new ObjectStorageService();
     return service.getObjectEntityDownloadURL(stored);
   },
+
+  /**
+   * Removes a stored proof-photo's backing object from object storage.
+   * - object paths (/objects/...) are deleted from storage (idempotently: a
+   *   missing object is not an error)
+   * - legacy base64 data URLs have no separate object, so nothing is removed
+   * - null/empty is a no-op
+   */
+  async remove(stored: string | null | undefined): Promise<void> {
+    if (!stored) return;
+    if (!isObjectStoragePath(stored)) return;
+    const service = new ObjectStorageService();
+    await service.deleteObjectEntity(stored);
+  },
 };
