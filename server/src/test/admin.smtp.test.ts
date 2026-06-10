@@ -81,6 +81,57 @@ test('POST /admin/smtp-settings persists all fields and reports configured', asy
   assert.equal(logs[0].actorId, admin.id);
 });
 
+test('audit detail names which SMTP fields changed (without secret values)', async () => {
+  const admin = await createAdmin();
+  const token = tokenFor(admin);
+
+  // First save: every field is new, so all of them should be listed.
+  await request(app).post('/api/admin/smtp-settings').set('Authorization', `Bearer ${token}`)
+    .send({ host: 'smtp.example.com', port: '587', user: 'mailer@example.com', from: 'noreply@example.com', pass: 'topsecret' });
+
+  let logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'smtp_settings_updated')).orderBy(auditLogs.id);
+  assert.equal(logs.length, 1);
+  const first = logs[0].detail ?? '';
+  assert.match(first, /host/);
+  assert.match(first, /port/);
+  assert.match(first, /username/);
+  assert.match(first, /from address/);
+  assert.match(first, /password rotated/);
+  // The secret value must never appear in the audit detail.
+  assert.ok(!first.includes('topsecret'), 'password value must not be logged');
+
+  // Second save: only the host changes; a blank password keeps the old one.
+  await request(app).post('/api/admin/smtp-settings').set('Authorization', `Bearer ${token}`)
+    .send({ host: 'smtp2.example.com', port: '587', user: 'mailer@example.com', from: 'noreply@example.com', pass: '' });
+
+  logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'smtp_settings_updated')).orderBy(auditLogs.id);
+  assert.equal(logs.length, 2);
+  const second = logs[1].detail ?? '';
+  assert.match(second, /host/);
+  assert.ok(!/port/.test(second), 'unchanged port must not be listed');
+  assert.ok(!/username/.test(second), 'unchanged username must not be listed');
+  assert.ok(!/password rotated/.test(second), 'a kept password must not report rotation');
+
+  // Third save: rotate only the password.
+  await request(app).post('/api/admin/smtp-settings').set('Authorization', `Bearer ${token}`)
+    .send({ host: 'smtp2.example.com', port: '587', user: 'mailer@example.com', from: 'noreply@example.com', pass: 'newsecret' });
+
+  logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'smtp_settings_updated')).orderBy(auditLogs.id);
+  assert.equal(logs.length, 3);
+  const third = logs[2].detail ?? '';
+  assert.match(third, /password rotated/);
+  assert.ok(!third.includes('newsecret'), 'rotated password value must not be logged');
+  assert.ok(!/host/.test(third), 'unchanged host must not be listed');
+
+  // Fourth save: identical values -> no field changes reported.
+  await request(app).post('/api/admin/smtp-settings').set('Authorization', `Bearer ${token}`)
+    .send({ host: 'smtp2.example.com', port: '587', user: 'mailer@example.com', from: 'noreply@example.com', pass: '' });
+
+  logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'smtp_settings_updated')).orderBy(auditLogs.id);
+  assert.equal(logs.length, 4);
+  assert.match(logs[3].detail ?? '', /No fields were changed/);
+});
+
 test('persisted settings take precedence over env vars; blank fields fall back to env', async () => {
   process.env.SMTP_HOST = 'env-host.example.com';
   process.env.SMTP_USER = 'env-user@example.com';
