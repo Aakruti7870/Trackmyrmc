@@ -120,7 +120,7 @@ describe('Users empty-trash bulk-delete UI', () => {
     // The skip toast explains why an admin account was left in the trash.
     expect(
       await screen.findByText(
-        '2 accounts permanently deleted. 1 admin account was skipped to keep at least one admin.',
+        '2 accounts permanently deleted. 1 admin account was skipped — see details below.',
       ),
     ).toBeInTheDocument();
   });
