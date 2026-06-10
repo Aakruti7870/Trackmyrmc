@@ -153,6 +153,40 @@ for (const role of ['admin', 'dispatcher']) {
     );
   });
 
+  test(`${role} editing a challan's note overwrites the existing note (not append) and emits challan.updated`, async () => {
+    const client = await createClient();
+    const actor = await createUser(role, `${role}@test.com`);
+    const challan = await createChallan({
+      clientId: client.id, status: 'dispatched', notes: 'Dispatched at 9am',
+    });
+    sse = captureSSE();
+
+    const res = await request(app)
+      .put(`/api/challans/${challan.id}`)
+      .set('Authorization', `Bearer ${tokenFor(actor)}`)
+      .send({ notes: 'Corrected delivery note' });
+
+    assert.equal(res.status, 200);
+    assert.equal(
+      res.body.notes,
+      'Corrected delivery note',
+      'the dispatcher/admin note edit overwrites, it does not append to the old note',
+    );
+
+    const [row] = await db.select({ notes: challans.notes })
+      .from(challans).where(eq(challans.id, challan.id));
+    assert.equal(row.notes, 'Corrected delivery note', 'overwritten note is persisted (no newline append)');
+    assert.ok(
+      !row.notes?.includes('Dispatched at 9am'),
+      'the original note is gone, confirming overwrite-not-append semantics',
+    );
+
+    assert.ok(
+      sse.events().includes('challan.updated'),
+      'a challan.updated SSE event is emitted on a note edit',
+    );
+  });
+
   test(`${role} marking a challan delivered stamps deliveryTime`, async () => {
     const client = await createClient();
     const actor = await createUser(role, `${role}@test.com`);
