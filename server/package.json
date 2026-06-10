@@ -8,6 +8,7 @@
     "start": "node dist/index.js",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
+    "db:migrate-proof-photos": "tsx src/db/migrate-proof-photos.ts",
     "test": "node scripts/test.mjs"
   },
   "dependencies": {
