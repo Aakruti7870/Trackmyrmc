@@ -14,12 +14,22 @@ function dateRange(req) {
         filters.push(lte(challans.createdAt, new Date(to)));
     return filters;
 }
+// Sum of delivered quantity (treats unrecorded deliveries as 0)
+const deliveredQtySql = sql `coalesce(sum(${challans.deliveredQuantity}::numeric), 0)`;
+// Planned quantity counted only for challans that have a recorded delivered qty,
+// so variance compares like-for-like (delivered subset) and isn't skewed by
+// in-flight/pending challans that have no delivered figure yet.
+const plannedForDeliveredSql = sql `coalesce(sum(${challans.quantity}::numeric) filter (where ${challans.deliveredQuantity} is not null), 0)`;
+const varianceSql = sql `coalesce(sum(${challans.deliveredQuantity}::numeric), 0) - coalesce(sum(${challans.quantity}::numeric) filter (where ${challans.deliveredQuantity} is not null), 0)`;
 router.get('/client-wise', async (req, res) => {
     const filters = dateRange(req);
     const rows = await db.select({
         clientId: challans.clientId,
         clientName: clients.name,
         totalQty: sql `coalesce(sum(${challans.quantity}::numeric), 0)`,
+        deliveredQty: deliveredQtySql,
+        plannedForDelivered: plannedForDeliveredSql,
+        variance: varianceSql,
         totalChallans: sql `count(*)::int`,
     }).from(challans)
         .leftJoin(clients, sql `${challans.clientId} = ${clients.id}`)
@@ -33,6 +43,9 @@ router.get('/grade-wise', async (req, res) => {
     const rows = await db.select({
         grade: challans.grade,
         totalQty: sql `coalesce(sum(${challans.quantity}::numeric), 0)`,
+        deliveredQty: deliveredQtySql,
+        plannedForDelivered: plannedForDeliveredSql,
+        variance: varianceSql,
         totalChallans: sql `count(*)::int`,
     }).from(challans)
         .where(filters.length ? and(...filters) : undefined)
@@ -50,6 +63,9 @@ router.get('/dispatch', async (req, res) => {
     const rows = await db.select({
         date: sql `date(${challans.createdAt})`,
         totalQty: sql `coalesce(sum(${challans.quantity}::numeric), 0)`,
+        deliveredQty: deliveredQtySql,
+        plannedForDelivered: plannedForDeliveredSql,
+        variance: varianceSql,
         count: sql `count(*)::int`,
     }).from(challans)
         .where(filters.length ? and(...filters) : undefined)
@@ -97,8 +113,13 @@ router.get('/export', async (req, res) => {
             .leftJoin(clients, sql `${challans.clientId} = ${clients.id}`)
             .where(filters.length ? and(...filters) : undefined)
             .orderBy(desc(challans.createdAt));
-        csv = 'Challan No,Client,Grade,Planned Qty (m³),Delivered Qty (m³),Status,Dispatch Time,Delivery Time\n';
-        csv += rows.map(r => `${r.challanNo},"${r.clientName}",${r.grade},${r.quantity},${r.deliveredQuantity ?? ''},${r.status},${r.dispatchTime || ''},${r.deliveryTime || ''}`).join('\n');
+        csv = 'Challan No,Client,Grade,Planned Qty (m³),Delivered Qty (m³),Variance (m³),Status,Dispatch Time,Delivery Time\n';
+        csv += rows.map(r => {
+            const variance = r.deliveredQuantity != null
+                ? (Number(r.deliveredQuantity) - Number(r.quantity)).toFixed(2)
+                : '';
+            return `${r.challanNo},"${r.clientName}",${r.grade},${r.quantity},${r.deliveredQuantity ?? ''},${variance},${r.status},${r.dispatchTime || ''},${r.deliveryTime || ''}`;
+        }).join('\n');
     }
     else if (report === 'production') {
         const bfilters = [];

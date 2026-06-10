@@ -106,6 +106,12 @@ export default function Dispatch() {
     return matchSearch && matchStatus;
   });
 
+  const VARIANCE_TOLERANCE = 0.1; // m³ — deltas within this are treated as on-target
+  function variance(ch: Challan): number | null {
+    if (ch.deliveredQuantity == null) return null;
+    return parseFloat(ch.deliveredQuantity) - parseFloat(ch.quantity);
+  }
+
   const statusColor = (s: string) => ({ pending: 'var(--gold)', dispatched: 'var(--blue)', delivered: 'var(--green)', cancelled: 'var(--red)' }[s] || 'var(--muted)');
   const statusBg = (s: string) => ({ pending: 'color-mix(in srgb, var(--gold) 12%, transparent)', dispatched: 'rgba(56,189,248,.12)', delivered: 'rgba(34,197,94,.12)', cancelled: 'rgba(239,68,68,.12)' }[s] || 'rgba(159,176,199,.12)');
 
@@ -201,6 +207,21 @@ export default function Dispatch() {
                   <td style={{ padding: '11px 14px', fontWeight: 700 }}>{ch.quantity} m³</td>
                   <td style={{ padding: '11px 14px', fontWeight: 700, color: ch.deliveredQuantity != null ? 'var(--green)' : 'var(--muted)' }}>
                     {ch.deliveredQuantity != null ? `${parseFloat(ch.deliveredQuantity).toFixed(1)} m³` : '—'}
+                    {(() => {
+                      const v = variance(ch);
+                      if (v == null || Math.abs(v) < VARIANCE_TOLERANCE) return null;
+                      const over = v > 0;
+                      return (
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center', marginLeft: 6,
+                          padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 800,
+                          color: over ? 'var(--blue)' : 'var(--red)',
+                          background: over ? 'rgba(56,189,248,.14)' : 'rgba(239,68,68,.14)',
+                        }} title={over ? 'Over-delivered vs planned' : 'Short delivery vs planned'}>
+                          {over ? '+' : '−'}{Math.abs(v).toFixed(1)}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>
                     {ch.dispatchTime ? new Date(ch.dispatchTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}

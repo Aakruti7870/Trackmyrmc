@@ -4,9 +4,9 @@ import { api } from '@/lib/api';
 
 type ReportTab = 'client-wise' | 'grade-wise' | 'dispatch' | 'production';
 
-interface ClientRow { clientName: string; totalQty: number; totalChallans: number }
-interface GradeRow { grade: string; totalQty: number; totalChallans: number }
-interface DispatchRow { date: string; totalQty: number; count: number }
+interface ClientRow { clientName: string; totalQty: number; deliveredQty: number; plannedForDelivered: number; variance: number; totalChallans: number }
+interface GradeRow { grade: string; totalQty: number; deliveredQty: number; plannedForDelivered: number; variance: number; totalChallans: number }
+interface DispatchRow { date: string; totalQty: number; deliveredQty: number; plannedForDelivered: number; variance: number; count: number }
 interface ProductionRow { date: string; totalQty: number; count: number; grade: string }
 
 const PRESETS = [
@@ -68,6 +68,13 @@ export default function Reports() {
 
   const GRADE_COLORS = ['var(--blue)','var(--green)','var(--gold)','#a78bfa','#f97316','var(--red)','#06b6d4'];
 
+  // Planned-vs-delivered totals over delivered challans only (those with a recorded delivered qty)
+  const totalPlanned = dispatchData.reduce((s, r) => s + Number(r.plannedForDelivered || 0), 0);
+  const totalDelivered = dispatchData.reduce((s, r) => s + Number(r.deliveredQty || 0), 0);
+  const netVariance = totalDelivered - totalPlanned;
+  const varColor = (v: number) => Math.abs(v) < 0.1 ? 'var(--muted)' : v > 0 ? 'var(--blue)' : 'var(--red)';
+  const varText = (v: number) => Math.abs(v) < 0.1 ? '0.0' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`;
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -105,6 +112,25 @@ export default function Reports() {
         </div>
       </div>
 
+      {/* Planned vs delivered variance summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
+        <div className="glass-card" style={{ padding: '14px 16px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>TOTAL PLANNED</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>{totalPlanned.toFixed(1)} <span style={{ fontSize: 13, color: 'var(--muted)' }}>m³</span></div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>across delivered challans</div>
+        </div>
+        <div className="glass-card" style={{ padding: '14px 16px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>TOTAL DELIVERED</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--green)' }}>{totalDelivered.toFixed(1)} <span style={{ fontSize: 13, color: 'var(--muted)' }}>m³</span></div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>actual at site</div>
+        </div>
+        <div className="glass-card" style={{ padding: '14px 16px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>NET VARIANCE</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: varColor(netVariance) }}>{varText(netVariance)} <span style={{ fontSize: 13, color: 'var(--muted)' }}>m³</span></div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{netVariance < -0.1 ? 'short delivery' : netVariance > 0.1 ? 'over delivery' : 'on target'}</div>
+        </div>
+      </div>
+
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 18, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 12, padding: 4 }}>
         {(['client-wise', 'grade-wise', 'dispatch', 'production'] as ReportTab[]).map(t => (
@@ -138,6 +164,7 @@ export default function Reports() {
                     <div style={{ width: `${(Number(r.totalQty) / maxClientQty) * 100}%`, height: '100%', background: 'linear-gradient(90deg,var(--gold),var(--gold-dark))', borderRadius: 999, transition: 'width .5s' }} />
                   </div>
                   <span style={{ minWidth: 70, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{Number(r.totalQty).toFixed(1)} m³</span>
+                  <span style={{ minWidth: 64, fontSize: 12, fontWeight: 700, color: varColor(Number(r.variance)), textAlign: 'right' }} title="Delivered − planned (delivered challans)">{varText(Number(r.variance))}</span>
                   <span style={{ minWidth: 60, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{r.totalChallans} trips</span>
                 </div>
               ))}
@@ -154,6 +181,7 @@ export default function Reports() {
                     <div style={{ width: `${(Number(r.totalQty) / maxGradeQty) * 100}%`, height: '100%', background: GRADE_COLORS[i % GRADE_COLORS.length], borderRadius: 999, transition: 'width .5s', opacity: 0.85 }} />
                   </div>
                   <span style={{ minWidth: 70, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{Number(r.totalQty).toFixed(1)} m³</span>
+                  <span style={{ minWidth: 64, fontSize: 12, fontWeight: 700, color: varColor(Number(r.variance)), textAlign: 'right' }} title="Delivered − planned (delivered challans)">{varText(Number(r.variance))}</span>
                   <span style={{ minWidth: 60, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{r.totalChallans} batches</span>
                 </div>
               ))}
@@ -183,7 +211,7 @@ export default function Reports() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--line)' }}>
-                      {['Date', 'Total (m³)', 'Challans'].map(h => (
+                      {['Date', 'Planned (m³)', 'Delivered (m³)', 'Variance (m³)', 'Challans'].map(h => (
                         <th key={h} style={{ padding: '8px 12px', color: 'var(--muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>
                       ))}
                     </tr>
@@ -193,6 +221,8 @@ export default function Reports() {
                       <tr key={i} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
                         <td style={{ padding: '8px 12px' }}>{new Date(r.date).toLocaleDateString('en-IN')}</td>
                         <td style={{ padding: '8px 12px', fontWeight: 700 }}>{Number(r.totalQty).toFixed(1)}</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--green)' }}>{Number(r.deliveredQty).toFixed(1)}</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: varColor(Number(r.variance)) }} title="Delivered − planned (delivered challans)">{varText(Number(r.variance))}</td>
                         <td style={{ padding: '8px 12px', color: 'var(--muted)' }}>{r.count}</td>
                       </tr>
                     ))}
