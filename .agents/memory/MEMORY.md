@@ -1,0 +1,1 @@
+- [RMC App Layout Fix](rmc-layout-fix.md) — Mobile header must NOT be a grid/flex child alongside sidebar; keep it above the flex row in a column container.
