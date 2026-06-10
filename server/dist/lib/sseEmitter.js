@@ -3,11 +3,11 @@
 // after ~30-60s, so 15s gives at least two pings inside a 30s window.
 export const KEEPALIVE_MS = 15_000;
 // How often the sweep checks for dead connections.
-const SWEEP_MS = 20_000;
+export const SWEEP_MS = 20_000;
 // A connection whose socket has not accepted a flushed write for this long
 // (e.g. the proxy died mid-stream and never fired a 'close' event, leaving
 // the response in permanent backpressure) is reclaimed.
-const STALE_THRESHOLD_MS = 60_000;
+export const STALE_THRESHOLD_MS = 60_000;
 let clientId = 0;
 const clients = new Map();
 let timers = null;
