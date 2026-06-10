@@ -1,19 +1,32 @@
 import { render, screen, act } from '@testing-library/react';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth-provider';
+import { api } from '@/lib/api';
+
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api')>();
+  return { ...actual, api: { ...actual.api, get: vi.fn() } };
+});
 
 function Probe() {
   const { user } = useAuth();
   return <div data-testid="who">{user ? `${user.id}:${user.role}` : 'anon'}</div>;
 }
 
-function renderProbe() {
-  return render(
-    <AuthProvider>
-      <Probe />
-    </AuthProvider>
-  );
+// Render and flush the provider's async session verification (the /auth/me
+// call) inside act(...) so the initial state settles before assertions and
+// no "not wrapped in act" warnings leak out.
+async function renderProbe() {
+  let result!: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+  });
+  return result;
 }
 
 function setSession(id: number, role: string) {
@@ -29,12 +42,19 @@ function fireStorage(key: string | null) {
 
 beforeEach(() => {
   localStorage.clear();
+  // /auth/me echoes back whatever session is currently cached, so the
+  // optimistic user is confirmed rather than dropped.
+  vi.mocked(api.get).mockImplementation(async () => {
+    const stored = localStorage.getItem('rmc_user');
+    if (!stored) throw new Error('Unauthorized');
+    return JSON.parse(stored);
+  });
 });
 
 describe('AuthProvider cross-tab sync', () => {
-  it('logs out other tabs when the session is cleared elsewhere', () => {
+  it('logs out other tabs when the session is cleared elsewhere', async () => {
     setSession(1, 'admin');
-    renderProbe();
+    await renderProbe();
     expect(screen.getByTestId('who')).toHaveTextContent('1:admin');
 
     // Another tab logs out: removes both keys, firing a storage event per key.
@@ -45,9 +65,9 @@ describe('AuthProvider cross-tab sync', () => {
     expect(screen.getByTestId('who')).toHaveTextContent('anon');
   });
 
-  it('switches to the new account when a different user logs in elsewhere', () => {
+  it('switches to the new account when a different user logs in elsewhere', async () => {
     setSession(1, 'admin');
-    renderProbe();
+    await renderProbe();
     expect(screen.getByTestId('who')).toHaveTextContent('1:admin');
 
     // Another tab logs in as a different user.
@@ -57,9 +77,9 @@ describe('AuthProvider cross-tab sync', () => {
     expect(screen.getByTestId('who')).toHaveTextContent('2:driver');
   });
 
-  it('reacts to a token-only removal in another tab', () => {
+  it('reacts to a token-only removal in another tab', async () => {
     setSession(1, 'admin');
-    renderProbe();
+    await renderProbe();
     expect(screen.getByTestId('who')).toHaveTextContent('1:admin');
 
     localStorage.removeItem('rmc_token');
@@ -68,9 +88,9 @@ describe('AuthProvider cross-tab sync', () => {
     expect(screen.getByTestId('who')).toHaveTextContent('anon');
   });
 
-  it('logs out when storage is cleared entirely (key === null)', () => {
+  it('logs out when storage is cleared entirely (key === null)', async () => {
     setSession(1, 'admin');
-    renderProbe();
+    await renderProbe();
     expect(screen.getByTestId('who')).toHaveTextContent('1:admin');
 
     localStorage.clear();
