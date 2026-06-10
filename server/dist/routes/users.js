@@ -405,6 +405,52 @@ router.post('/:id/resend-welcome', async (req, res) => {
     });
     res.json({ emailSent });
 });
+/**
+ * Bulk-purge every soft-deleted account ("empty trash"). Each removal writes its
+ * own 'user.purged' audit entry. The same last-admin guard as the single-purge
+ * route applies: an admin record is skipped whenever erasing it would leave the
+ * system with no other admin (active or still-soft-deleted) to fall back on.
+ */
+router.delete('/purge-all', async (req, res) => {
+    const actor = req.user;
+    const deleted = await db.select({
+        id: users.id, name: users.name, email: users.email, role: users.role,
+    }).from(users).where(isNotNull(users.deletedAt)).orderBy(asc(users.id));
+    if (deleted.length === 0) {
+        res.json({ purged: 0, skipped: 0, skippedAdmins: [] });
+        return;
+    }
+    // Total admin records still present (active or soft-deleted, not yet purged).
+    // We purge soft-deleted admins one at a time only while at least one other
+    // admin would remain afterwards.
+    const [{ count: totalAdmins }] = await db.select({
+        count: sql `count(*)::int`,
+    }).from(users).where(eq(users.role, 'admin'));
+    let remainingAdmins = totalAdmins;
+    let purged = 0;
+    const skippedAdmins = [];
+    for (const u of deleted) {
+        if (u.role === 'admin' && remainingAdmins - 1 < 1) {
+            skippedAdmins.push({ id: u.id, email: u.email });
+            continue;
+        }
+        // Record the audit entry before the row is removed (targetUserId is
+        // ON DELETE SET NULL; the preserved email keeps the entry readable).
+        await db.insert(auditLogs).values({
+            actorId: actor.id,
+            actorName: actor.name,
+            action: 'user.purged',
+            targetUserId: u.id,
+            targetUserEmail: u.email,
+            detail: `Account permanently deleted (${u.email})`,
+        });
+        await db.delete(users).where(eq(users.id, u.id));
+        if (u.role === 'admin')
+            remainingAdmins -= 1;
+        purged += 1;
+    }
+    res.json({ purged, skipped: skippedAdmins.length, skippedAdmins });
+});
 router.delete('/:id', async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {

@@ -640,6 +640,136 @@ test('soft-deleted email: the create-then-restore round trip leaves one active a
   assert.equal(login.status, 200, 'the restored account works');
 });
 
+test('purge-all: empties the trash, leaves active accounts, and writes a user.purged entry per removal', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const keepActive = await createUser({ name: 'Active', email: 'active@test.com', role: 'dispatcher' });
+  const a = await createUser({ name: 'Gone A', email: 'a@test.com', role: 'dispatcher', deletedAt: new Date() });
+  const b = await createUser({ name: 'Gone B', email: 'b@test.com', role: 'client', deletedAt: new Date() });
+  const c = await createUser({ name: 'Gone C', email: 'c@test.com', role: 'driver', deletedAt: new Date() });
+  const token = tokenFor(admin);
+
+  const res = await request(app)
+    .delete('/api/users/purge-all')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.purged, 3, 'all three soft-deleted accounts are purged');
+  assert.equal(res.body.skipped, 0, 'nothing is skipped');
+
+  // All three deleted rows are physically gone.
+  for (const id of [a.id, b.id, c.id]) {
+    const rows = await db.select().from(users).where(eq(users.id, id));
+    assert.equal(rows.length, 0, `deleted user ${id} is removed`);
+  }
+  // The active admin and active dispatcher are untouched.
+  const survivors = await db.select({ id: users.id }).from(users);
+  const ids = survivors.map(r => r.id).sort();
+  assert.deepEqual(ids, [admin.id, keepActive.id].sort(), 'only the active accounts remain');
+
+  // One user.purged audit entry per removal, with preserved email labels.
+  const logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.purged'));
+  assert.equal(logs.length, 3, 'one user.purged entry per purged account');
+  const emails = logs.map(l => l.targetUserEmail).sort();
+  assert.deepEqual(emails, ['a@test.com', 'b@test.com', 'c@test.com']);
+  assert.ok(logs.every(l => l.actorId === admin.id), 'every entry records the acting admin');
+});
+
+test('purge-all: with no deleted accounts, returns zero counts and writes nothing', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  await createUser({ name: 'Active', email: 'active@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+
+  const res = await request(app)
+    .delete('/api/users/purge-all')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body, { purged: 0, skipped: 0, skippedAdmins: [] });
+
+  const logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.purged'));
+  assert.equal(logs.length, 0, 'no audit entries when the trash is empty');
+});
+
+test('purge-all guard: a soft-deleted admin is purged when an active admin remains', async () => {
+  const admin = await createUser({ name: 'Live Admin', email: 'live@test.com', role: 'admin' });
+  const goneAdmin = await createUser({ name: 'Gone Admin', email: 'gone@test.com', role: 'admin', deletedAt: new Date() });
+  const goneUser = await createUser({ name: 'Gone User', email: 'user@test.com', role: 'dispatcher', deletedAt: new Date() });
+  const token = tokenFor(admin);
+
+  const res = await request(app)
+    .delete('/api/users/purge-all')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.purged, 2, 'both deleted accounts purge — the active admin keeps the system safe');
+  assert.equal(res.body.skipped, 0);
+
+  for (const id of [goneAdmin.id, goneUser.id]) {
+    const rows = await db.select().from(users).where(eq(users.id, id));
+    assert.equal(rows.length, 0, `account ${id} is removed`);
+  }
+});
+
+test('purge-all guard: the last admin in the trash is skipped to keep one admin alive', async () => {
+  // Actor is itself a soft-deleted admin (excluded from /auth/login but valid for
+  // requireAuth) and is the ONLY admin. Bulk purge must keep one admin: the actor
+  // (lowest id) is purged-eligible but the guard stops the final admin removal.
+  const actor = await createUser({
+    name: 'Ghost Admin', email: 'ghost@test.com', role: 'admin',
+    isActive: true, deletedAt: new Date(),
+  });
+  const goneUser = await createUser({ name: 'Gone User', email: 'user@test.com', role: 'dispatcher', deletedAt: new Date() });
+  const token = tokenFor(actor);
+
+  const res = await request(app)
+    .delete('/api/users/purge-all')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.purged, 1, 'only the non-admin is purged');
+  assert.equal(res.body.skipped, 1, 'the sole admin is skipped');
+  assert.equal(res.body.skippedAdmins[0].email, 'ghost@test.com');
+
+  // The non-admin is gone; the sole admin survives.
+  const goneRows = await db.select().from(users).where(eq(users.id, goneUser.id));
+  assert.equal(goneRows.length, 0, 'the deleted non-admin is removed');
+  const adminRows = await db.select().from(users).where(eq(users.id, actor.id));
+  assert.equal(adminRows.length, 1, 'the last admin record is preserved');
+});
+
+test('purge-all guard: among several deleted admins and no active admin, exactly one is kept', async () => {
+  const actor = await createUser({
+    name: 'Ghost Admin', email: 'ghost@test.com', role: 'admin',
+    isActive: true, deletedAt: new Date(),
+  });
+  const spareAdmin = await createUser({ name: 'Spare Admin', email: 'spare@test.com', role: 'admin', deletedAt: new Date() });
+  const token = tokenFor(actor);
+
+  const res = await request(app)
+    .delete('/api/users/purge-all')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.purged, 1, 'one of the two deleted admins is purged');
+  assert.equal(res.body.skipped, 1, 'the other is skipped to keep an admin');
+
+  // Exactly one admin row remains; iteration order purges the lower id first,
+  // so the higher-id admin is the one kept.
+  const remaining = await db.select({ id: users.id }).from(users).where(eq(users.role, 'admin'));
+  assert.equal(remaining.length, 1, 'exactly one admin record survives the bulk purge');
+  assert.equal(remaining[0].id, spareAdmin.id, 'the later admin is kept once the guard trips');
+});
+
+test('purge-all: rejected for a non-admin caller (requireRole admin)', async () => {
+  await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const dispatcher = await createUser({ name: 'Dispatch', email: 'dispatch@test.com', role: 'dispatcher' });
+  await createUser({ name: 'Gone', email: 'gone@test.com', role: 'dispatcher', deletedAt: new Date() });
+  const token = tokenFor(dispatcher);
+
+  const res = await request(app)
+    .delete('/api/users/purge-all')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 403, 'a non-admin cannot empty the trash');
+
+  const logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.purged'));
+  assert.equal(logs.length, 0, 'no purge happened');
+});
+
 test('link guard: POST /users rejects a client already linked to another active user', async () => {
   const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
   const client = await createClient('Acme Concrete');

@@ -171,6 +171,8 @@ export default function Users() {
   const [restoringId, setRestoringId] = useState<number | null>(null);
   const [purgeTarget, setPurgeTarget] = useState<UserRecord | null>(null);
   const [purging, setPurging] = useState(false);
+  const [purgeAllOpen, setPurgeAllOpen] = useState(false);
+  const [purgingAll, setPurgingAll] = useState(false);
 
   function loadAudit(userId: number | null) {
     const params = new URLSearchParams();
@@ -295,6 +297,33 @@ export default function Users() {
       showToast(e instanceof Error ? e.message : 'Failed to permanently delete account.', 'error');
     } finally {
       setPurging(false);
+    }
+  }
+
+  async function confirmPurgeAll() {
+    setPurgingAll(true);
+    try {
+      const result = await api.delete<{ purged: number; skipped: number }>('/users/purge-all');
+      if (result.purged === 0 && result.skipped === 0) {
+        showToast('There were no deleted accounts to remove.', 'info');
+      } else {
+        const purgedMsg = `${result.purged} ${result.purged === 1 ? 'account' : 'accounts'} permanently deleted.`;
+        if (result.skipped > 0) {
+          showToast(
+            `${purgedMsg} ${result.skipped} admin ${result.skipped === 1 ? 'account was' : 'accounts were'} skipped to keep at least one admin.`,
+            'info',
+          );
+        } else {
+          showToast(purgedMsg, 'success');
+        }
+      }
+      clearHistory();
+      setPurgeAllOpen(false);
+      load();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to empty the trash.', 'error');
+    } finally {
+      setPurgingAll(false);
     }
   }
 
@@ -512,6 +541,19 @@ export default function Users() {
           <Trash2 size={13} />
           {showDeleted ? 'Showing Deleted' : `Deleted${deletedCount ? ` (${deletedCount})` : ''}`}
         </button>
+        {showDeleted && users.length > 0 && (
+          <button
+            onClick={() => setPurgeAllOpen(true)}
+            title="Permanently delete every account in the trash"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+              borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+              background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', color: '#fff',
+            }}
+          >
+            <Trash2 size={13} /> Empty Trash ({users.length})
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -1209,6 +1251,58 @@ export default function Users() {
                 cursor: purging ? 'not-allowed' : 'pointer', opacity: purging ? 0.7 : 1,
               }}>
                 <Trash2 size={14} /> {purging ? 'Deleting…' : 'Delete Forever'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Empty-trash (bulk purge) confirmation modal */}
+      {purgeAllOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 110,
+          background: 'rgba(5,9,20,.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg,var(--panel),var(--bg))',
+            border: '1px solid rgba(239,68,68,.3)', borderRadius: 18,
+            width: '100%', maxWidth: 440, padding: 24,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.25)',
+                display: 'grid', placeItems: 'center', color: 'var(--red)',
+              }}>
+                <AlertTriangle size={18} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Empty Trash</h3>
+            </div>
+            <p style={{ margin: '0 0 6px', fontSize: 13.5, color: 'var(--text)', lineHeight: 1.5 }}>
+              Permanently delete all <strong>{users.length}</strong> deleted {users.length === 1 ? 'account' : 'accounts'}?
+            </p>
+            <p style={{ margin: '0 0 20px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+              This <strong style={{ color: 'var(--red)' }}>cannot be undone</strong>. Every record in the trash is erased
+              and their emails are freed for new accounts. Any admin account that would leave the system without another
+              admin is kept and skipped. The activity log keeps a record of each removal.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setPurgeAllOpen(false)} disabled={purgingAll} style={{
+                flex: 1, padding: '10px', background: 'rgba(255,255,255,.07)',
+                border: '1px solid rgba(255,255,255,.1)', borderRadius: 10,
+                color: 'var(--muted)', fontWeight: 600, fontSize: 13,
+                cursor: purgingAll ? 'not-allowed' : 'pointer',
+              }}>
+                Cancel
+              </button>
+              <button onClick={confirmPurgeAll} disabled={purgingAll} style={{
+                flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', borderRadius: 10,
+                color: '#fff', fontWeight: 700, fontSize: 13,
+                cursor: purgingAll ? 'not-allowed' : 'pointer', opacity: purgingAll ? 0.7 : 1,
+              }}>
+                <Trash2 size={14} /> {purgingAll ? 'Emptying…' : 'Empty Trash'}
               </button>
             </div>
           </div>

@@ -28,6 +28,13 @@ prevents regressions.
   setState in `.then`/callbacks/timers/event-handlers is fine. "Reset on prop
   change" → adjust state during render (the `if (x !== synced) setSynced(x)`
   pattern), not an effect.
+  IMPORTANT nuance: an external `useCallback` that is `async` and does
+  `setState` AFTER an `await` is STILL flagged when called from the effect — the
+  rule treats the whole async body as synchronous. Fix by rewriting it as a
+  NON-async callback using `.then/.catch/.finally` so every setState lives in a
+  promise callback (mirror `Dashboard.tsx`/`ShiftReport.tsx`/`AuditLog.tsx`
+  `load`). Drive the loading spinner from the user handlers (refresh/filter/
+  pagination) + initial `useState(true)`, not a synchronous `setLoading(true)`.
 - *purity:* no `Date.now()`/impurity during render. Use lazy `useState(() => …)`
   or a mount-captured `const [now] = useState(() => Date.now())`. NOTE: the rule
   special-cases `Date.now()` even in component-body event handlers but does NOT

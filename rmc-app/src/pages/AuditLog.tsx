@@ -80,24 +80,27 @@ export default function AuditLog() {
   const [actionFilter, setActionFilter] = useState('');
   const [offset, setOffset] = useState(0);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set('limit', String(PAGE_SIZE));
-      params.set('offset', String(offset));
-      if (actionFilter) params.set('action', actionFilter);
-      const res = await api.get<AuditResponse>(`/admin/audit-logs?${params.toString()}`);
-      setRows(res.rows);
-      setTotal(res.total);
-      // Keep the full action list stable (it is computed unfiltered server-side).
-      if (res.actions.length) setActions(res.actions);
-    } catch {
-      setRows([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
+  const load = useCallback(() => {
+    // setState lives inside the promise callbacks (never synchronously in the
+    // function body) so calling load() from the effect doesn't trigger a
+    // cascading render. Loading is set true by the user-triggered actions
+    // (refresh, filter, pagination) and the initial useState(true).
+    const params = new URLSearchParams();
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String(offset));
+    if (actionFilter) params.set('action', actionFilter);
+    api.get<AuditResponse>(`/admin/audit-logs?${params.toString()}`)
+      .then(res => {
+        setRows(res.rows);
+        setTotal(res.total);
+        // Keep the full action list stable (it is computed unfiltered server-side).
+        if (res.actions.length) setActions(res.actions);
+      })
+      .catch(() => {
+        setRows([]);
+        setTotal(0);
+      })
+      .finally(() => setLoading(false));
   }, [actionFilter, offset]);
 
   useEffect(() => {
@@ -105,6 +108,7 @@ export default function AuditLog() {
   }, [load]);
 
   function changeFilter(value: string) {
+    setLoading(true);
     setActionFilter(value);
     setOffset(0);
   }
@@ -135,7 +139,7 @@ export default function AuditLog() {
         </div>
         <button
           type="button"
-          onClick={load}
+          onClick={() => { setLoading(true); load(); }}
           disabled={loading}
           title="Refresh"
           style={{
@@ -262,7 +266,7 @@ export default function AuditLog() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 18 }}>
           <button
             type="button"
-            onClick={() => setOffset(o => Math.max(0, o - PAGE_SIZE))}
+            onClick={() => { setLoading(true); setOffset(o => Math.max(0, o - PAGE_SIZE)); }}
             disabled={!canPrev}
             style={pagerStyle(canPrev)}
           >
@@ -271,7 +275,7 @@ export default function AuditLog() {
           </button>
           <button
             type="button"
-            onClick={() => setOffset(o => o + PAGE_SIZE)}
+            onClick={() => { setLoading(true); setOffset(o => o + PAGE_SIZE); }}
             disabled={!canNext}
             style={pagerStyle(canNext)}
           >
