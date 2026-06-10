@@ -70,7 +70,9 @@ function ProtectedRoutes() {
   }
 
   return (
-    <Switch>
+    // Keying on user.id forces a full remount on cross-tab account switch,
+    // so protected pages refetch and never render the previous user's data.
+    <Switch key={user.id}>
       {/* Kiosk renders fullscreen, outside the sidebar Layout */}
       <Route path="/kiosk" component={() => <GuardedRoute path="/kiosk" component={Kiosk} />} />
       <Route>

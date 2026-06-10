@@ -27,7 +27,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
 
     function handleStorage(e: StorageEvent) {
-      if (e.key !== 'rmc_user' && e.key !== null) return;
+      // React to auth-key changes (login/logout/account switch) in other tabs.
+      // e.key is null when storage is cleared entirely.
+      if (e.key !== null && e.key !== 'rmc_user' && e.key !== 'rmc_token') return;
       const nextStored = localStorage.getItem('rmc_user');
       const nextToken = localStorage.getItem('rmc_token');
       if (nextStored && nextToken) {
