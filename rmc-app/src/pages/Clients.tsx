@@ -1,167 +1,291 @@
 import { useState, useEffect } from 'react';
-import { Plus, X, Search, Pencil, Trash2, Phone, Mail, Building } from 'lucide-react';
-import { clientStore } from '@/lib/store';
-import type { Client } from '@/lib/types';
+import { Plus, Search, Edit2, Trash2, X, ChevronRight, MapPin, Phone } from 'lucide-react';
+import { api, type Client, type Site, type LedgerEntry } from '@/lib/api';
 
-const empty: Omit<Client, 'id' | 'createdAt'> = { name: '', contactPerson: '', phone: '', email: '', address: '', gst: '' };
+type Tab = 'overview' | 'sites' | 'ledger';
 
 export default function Clients() {
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ ...empty });
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [modal, setModal] = useState<'create' | 'edit' | null>(null);
+  const [form, setForm] = useState<Partial<Client>>({});
+  const [editing, setEditing] = useState<Client | null>(null);
+  const [drawer, setDrawer] = useState<Client | null>(null);
+  const [tab, setTab] = useState<Tab>('overview');
+  const [sites, setSites] = useState<Site[]>([]);
+  const [ledger, setLedger] = useState<{ entries: LedgerEntry[]; outstanding: number }>({ entries: [], outstanding: 0 });
+  const [siteForm, setSiteForm] = useState<Partial<Site>>({});
+  const [siteModal, setSiteModal] = useState(false);
+  const [ledgerModal, setLedgerModal] = useState(false);
+  const [ledgerForm, setLedgerForm] = useState({ type: 'debit', amount: '', description: '', referenceNo: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const reload = () => setClients(clientStore.getAll());
-  useEffect(() => { reload(); }, []);
+  function load() { api.get<Client[]>('/clients').then(setClients); }
+  useEffect(load, []);
 
-  const filtered = clients.filter(c => {
-    const q = search.toLowerCase();
-    return !q || c.name.toLowerCase().includes(q) || c.contactPerson.toLowerCase().includes(q) || c.phone.includes(q);
-  });
+  function openCreate() { setForm({}); setEditing(null); setModal('create'); setError(''); }
+  function openEdit(c: Client) { setForm({ ...c }); setEditing(c); setModal('edit'); setError(''); }
 
-  function openAdd() { setForm({ ...empty }); setEditId(null); setShowForm(true); }
-  function openEdit(c: Client) { setForm({ name: c.name, contactPerson: c.contactPerson, phone: c.phone, email: c.email, address: c.address, gst: c.gst }); setEditId(c.id); setShowForm(true); }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (editId) clientStore.update(editId, form); else clientStore.add(form);
-    setShowForm(false); reload();
+  async function openDrawer(c: Client) {
+    setDrawer(c); setTab('overview');
+    const [s, l] = await Promise.all([
+      api.get<Site[]>(`/clients/${c.id}/sites`),
+      api.get<{ entries: LedgerEntry[]; outstanding: number }>(`/clients/${c.id}/ledger`),
+    ]);
+    setSites(s); setLedger(l);
   }
 
-  function doDelete() { if (deleteId) { clientStore.remove(deleteId); reload(); setDeleteId(null); } }
+  async function save() {
+    setSaving(true); setError('');
+    try {
+      if (modal === 'create') await api.post('/clients', form);
+      else await api.put(`/clients/${editing!.id}`, form);
+      load(); setModal(null);
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Error'); }
+    finally { setSaving(false); }
+  }
+
+  async function remove(c: Client) {
+    if (!confirm(`Delete ${c.name}?`)) return;
+    await api.delete(`/clients/${c.id}`); load();
+  }
+
+  async function addSite() {
+    await api.post(`/clients/${drawer!.id}/sites`, siteForm);
+    setSites(await api.get<Site[]>(`/clients/${drawer!.id}/sites`));
+    setSiteModal(false); setSiteForm({});
+  }
+
+  async function addLedger() {
+    await api.post(`/clients/${drawer!.id}/ledger`, ledgerForm);
+    const [l, updated] = await Promise.all([
+      api.get<{ entries: LedgerEntry[]; outstanding: number }>(`/clients/${drawer!.id}/ledger`),
+      api.get<Client[]>('/clients'),
+    ]);
+    setLedger(l); setClients(updated);
+    setDrawer(updated.find(c => c.id === drawer!.id) || null);
+    setLedgerModal(false);
+    setLedgerForm({ type: 'debit', amount: '', description: '', referenceNo: '' });
+  }
+
+  const filtered = clients.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.contactPerson || '').toLowerCase().includes(search.toLowerCase())
+  );
+  const fmtRs = (n: number | string) => `₹${Number(n).toLocaleString('en-IN')}`;
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', background: 'rgba(38,52,73,.4)', border: '1px solid #263449',
-    borderRadius: 10, padding: '9px 12px', color: '#eef5ff', fontSize: 14, outline: 'none'
+    width: '100%', padding: '9px 12px', boxSizing: 'border-box',
+    background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+    borderRadius: 8, color: '#eef5ff', fontSize: 13, outline: 'none',
   };
-  const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#9fb0c7', marginBottom: 5, display: 'block' };
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>Clients</h2>
-          <p style={{ margin: '5px 0 0', color: '#9fb0c7', fontSize: 14 }}>{clients.length} registered clients</p>
+          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Clients</h2>
+          <p style={{ margin: '4px 0 0', color: '#9fb0c7', fontSize: 13 }}>{clients.length} registered clients</p>
         </div>
-        <button onClick={openAdd} data-testid="button-add-client" style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          borderRadius: 12, padding: '10px 18px',
+        <button onClick={openCreate} style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
           background: 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)',
-          color: '#111827', fontWeight: 800, fontSize: 14,
-          boxShadow: '0 12px 30px rgba(255,183,3,.18)'
-        }}>
-          <Plus size={16} /> Add Client
-        </button>
+          color: '#111827', fontWeight: 800, fontSize: 13, borderRadius: 10, border: 'none', cursor: 'pointer',
+        }}><Plus size={15} /> Add Client</button>
       </div>
 
-      <div style={{ position: 'relative', marginBottom: 18 }}>
-        <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9fb0c7' }} />
-        <input placeholder="Search by name, contact, phone..." value={search} onChange={e => setSearch(e.target.value)} data-testid="input-search-clients"
-          style={{ ...inputStyle, paddingLeft: 34 }} />
+      <div style={{ position: 'relative', marginBottom: 16, maxWidth: 360 }}>
+        <Search size={14} color="#9fb0c7" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search clients…"
+          style={{ ...inputStyle, paddingLeft: 36 }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 14 }}>
         {filtered.map(c => (
-          <div key={c.id} className="glass-card" style={{ padding: 20 }} data-testid={`client-card-${c.id}`}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 42, height: 42, borderRadius: 14,
-                  background: 'linear-gradient(135deg,#1d2d47,#263449)',
-                  border: '1px solid rgba(255,255,255,.1)',
-                  display: 'grid', placeItems: 'center', flexShrink: 0
-                }}>
-                  <Building size={18} color="#f7c948" />
-                </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{c.name}</div>
-                  <div style={{ color: '#9fb0c7', fontSize: 12, marginTop: 2 }}>{c.contactPerson}</div>
-                </div>
+          <div key={c.id} className="glass-card" style={{ padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>{c.name}</div>
+                <div style={{ fontSize: 12, color: '#9fb0c7', marginTop: 2 }}>{c.contactPerson}</div>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => openEdit(c)} data-testid={`button-edit-client-${c.id}`} style={{ background: 'rgba(56,189,248,.12)', border: 'none', borderRadius: 8, padding: '6px 8px', color: '#38bdf8', cursor: 'pointer' }}><Pencil size={13} /></button>
-                <button onClick={() => setDeleteId(c.id)} data-testid={`button-delete-client-${c.id}`} style={{ background: 'rgba(239,68,68,.12)', border: 'none', borderRadius: 8, padding: '6px 8px', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={13} /></button>
+              <div style={{ display: 'flex', gap: 5 }}>
+                <button onClick={() => openEdit(c)} style={{ padding: 5, background: 'rgba(56,189,248,.1)', border: '1px solid rgba(56,189,248,.2)', borderRadius: 7, cursor: 'pointer', color: '#38bdf8' }}><Edit2 size={12} /></button>
+                <button onClick={() => remove(c)} style={{ padding: 5, background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 7, cursor: 'pointer', color: '#ef4444' }}><Trash2 size={12} /></button>
               </div>
             </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#9fb0c7', fontSize: 13 }}>
-                <Phone size={13} /> {c.phone || '—'}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#9fb0c7', fontSize: 13 }}>
-                <Mail size={13} /> {c.email || '—'}
-              </div>
-              {c.address && <div style={{ color: '#9fb0c7', fontSize: 12, paddingTop: 2, borderTop: '1px solid #263449', marginTop: 4 }}>{c.address}</div>}
-              {c.gst && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: '#9fb0c7' }}>GST:</span>
-                  <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#eef5ff' }}>{c.gst}</span>
-                </div>
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9fb0c7' }}><Phone size={11} /> {c.phone}</div>
+              {c.city && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9fb0c7' }}><MapPin size={11} /> {c.city}</div>}
+              {c.gstNo && <div style={{ fontSize: 11, color: '#9fb0c7', fontFamily: 'monospace' }}>GST: {c.gstNo}</div>}
             </div>
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #263449', fontSize: 11, color: '#9fb0c7' }}>
-              Since {c.createdAt}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 10, color: '#9fb0c7' }}>Outstanding</div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: Number(c.outstandingAmount) > 0 ? '#ef4444' : '#22c55e' }}>{fmtRs(c.outstandingAmount)}</div>
+              </div>
+              <button onClick={() => openDrawer(c)} style={{
+                display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px',
+                background: 'rgba(247,201,72,.1)', border: '1px solid rgba(247,201,72,.2)',
+                borderRadius: 8, cursor: 'pointer', color: '#f7c948', fontSize: 12, fontWeight: 700,
+              }}>View <ChevronRight size={12} /></button>
             </div>
           </div>
         ))}
         {filtered.length === 0 && (
-          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: '#9fb0c7' }}>No clients found</div>
+          <div style={{ gridColumn: '1/-1', padding: 40, textAlign: 'center', color: '#9fb0c7' }}>No clients found</div>
         )}
       </div>
 
       {/* Modal */}
-      {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(5,9,20,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
-          <div className="glass-card" style={{ padding: 28, width: '100%', maxWidth: 520 }}>
+      {modal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div style={{ background: '#0d1930', border: '1px solid #263449', borderRadius: 16, padding: 28, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{editId ? 'Edit Client' : 'Add Client'}</h3>
-              <button onClick={() => setShowForm(false)} style={{ background: 'none', color: '#9fb0c7', padding: 4 }}><X size={18} /></button>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{modal === 'create' ? 'New Client' : 'Edit Client'}</h3>
+              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9fb0c7' }}><X size={18} /></button>
             </div>
-            <form onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
-              <div>
-                <label style={labelStyle}>Company Name *</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required placeholder="e.g. Nexus Infra Pvt Ltd" style={inputStyle} data-testid="input-client-name" />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={labelStyle}>Contact Person</label>
-                  <input value={form.contactPerson} onChange={e => setForm(f => ({ ...f, contactPerson: e.target.value }))} placeholder="Name" style={inputStyle} data-testid="input-contact-person" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {[
+                { key: 'name', label: 'Company Name *', full: true },
+                { key: 'contactPerson', label: 'Contact Person *' },
+                { key: 'phone', label: 'Phone *' },
+                { key: 'email', label: 'Email' },
+                { key: 'gstNo', label: 'GST Number' },
+                { key: 'address', label: 'Address', full: true },
+                { key: 'city', label: 'City' },
+                { key: 'creditLimit', label: 'Credit Limit (₹)' },
+              ].map(({ key, label, full }) => (
+                <div key={key} style={{ gridColumn: full ? '1/-1' : 'auto' }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#9fb0c7', marginBottom: 4 }}>{label}</label>
+                  <input type={key === 'creditLimit' ? 'number' : 'text'}
+                    value={(form as Record<string, string | undefined>)[key] || ''}
+                    onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                    style={inputStyle} />
                 </div>
-                <div>
-                  <label style={labelStyle}>Phone</label>
-                  <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="10-digit number" style={inputStyle} data-testid="input-phone" />
-                </div>
-              </div>
-              <div>
-                <label style={labelStyle}>Email</label>
-                <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@company.com" style={inputStyle} data-testid="input-email" />
-              </div>
-              <div>
-                <label style={labelStyle}>Address</label>
-                <input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="City, State" style={inputStyle} data-testid="input-address" />
-              </div>
-              <div>
-                <label style={labelStyle}>GST Number</label>
-                <input value={form.gst} onChange={e => setForm(f => ({ ...f, gst: e.target.value.toUpperCase() }))} placeholder="27XXXXX1234X1ZX" style={{ ...inputStyle, fontFamily: 'monospace', letterSpacing: '.5px' }} data-testid="input-gst" />
-              </div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-                <button type="button" onClick={() => setShowForm(false)} style={{ padding: '10px 18px', borderRadius: 10, background: '#1a2940', color: '#eef5ff', border: '1px solid #263449', fontWeight: 600, fontSize: 14 }}>Cancel</button>
-                <button type="submit" data-testid="button-save-client" style={{ padding: '10px 22px', borderRadius: 10, background: 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)', color: '#111827', fontWeight: 800, fontSize: 14 }}>{editId ? 'Update' : 'Save Client'}</button>
-              </div>
-            </form>
+              ))}
+            </div>
+            {error && <div style={{ marginTop: 10, color: '#ef4444', fontSize: 13 }}>{error}</div>}
+            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+              <button onClick={() => setModal(null)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: '#9fb0c7', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button onClick={save} disabled={saving} style={{ flex: 2, padding: 10, background: 'linear-gradient(135deg,#ffe08a,#f6b818 48%,#d97706)', color: '#111827', fontWeight: 800, borderRadius: 10, border: 'none', cursor: 'pointer' }}>
+                {saving ? 'Saving…' : modal === 'create' ? 'Add Client' : 'Save Changes'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {deleteId && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(5,9,20,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div className="glass-card" style={{ padding: 28, maxWidth: 400, width: '90%' }}>
-            <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 700 }}>Delete Client?</h3>
-            <p style={{ color: '#9fb0c7', marginBottom: 20, fontSize: 14 }}>This cannot be undone.</p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteId(null)} style={{ padding: '9px 16px', borderRadius: 10, background: '#1a2940', color: '#eef5ff', border: '1px solid #263449', fontSize: 14 }}>Cancel</button>
-              <button onClick={doDelete} data-testid="button-confirm-delete-client" style={{ padding: '9px 16px', borderRadius: 10, background: '#ef4444', color: '#fff', fontWeight: 700, fontSize: 14 }}>Delete</button>
+      {/* Drawer */}
+      {drawer && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}
+          onClick={e => e.target === e.currentTarget && setDrawer(null)}>
+          <div style={{ width: '100%', maxWidth: 480, background: '#080f1e', borderLeft: '1px solid #263449', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '18px 20px', borderBottom: '1px solid #263449', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>{drawer.name}</h3>
+                <div style={{ fontSize: 12, color: '#9fb0c7', marginTop: 2 }}>{drawer.contactPerson} · {drawer.phone}</div>
+              </div>
+              <button onClick={() => setDrawer(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9fb0c7' }}><X size={18} /></button>
+            </div>
+            <div style={{ display: 'flex', borderBottom: '1px solid #263449' }}>
+              {(['overview', 'sites', 'ledger'] as Tab[]).map(t => (
+                <button key={t} onClick={() => setTab(t)} style={{
+                  flex: 1, padding: '11px', background: 'none', border: 'none',
+                  borderBottom: `2px solid ${tab === t ? '#f7c948' : 'transparent'}`,
+                  color: tab === t ? '#f7c948' : '#9fb0c7', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 700, textTransform: 'capitalize',
+                }}>{t}</button>
+              ))}
+            </div>
+            <div style={{ flex: 1, padding: '18px 20px', overflowY: 'auto' }}>
+              {tab === 'overview' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {[['Contact', drawer.contactPerson], ['Phone', drawer.phone], ['Email', drawer.email || '—'], ['GST No', drawer.gstNo || '—'], ['City', drawer.city || '—'], ['Credit Limit', fmtRs(drawer.creditLimit)], ['Outstanding', fmtRs(drawer.outstandingAmount)]].map(([k, v]) => (
+                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, borderBottom: '1px solid rgba(38,52,73,.5)', paddingBottom: 10 }}>
+                      <span style={{ color: '#9fb0c7', fontWeight: 600 }}>{k}</span>
+                      <span style={{ fontWeight: 700, color: k === 'Outstanding' && Number(drawer.outstandingAmount) > 0 ? '#ef4444' : '#eef5ff' }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {tab === 'sites' && (
+                <div>
+                  <button onClick={() => setSiteModal(s => !s)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: 'rgba(247,201,72,.1)', border: '1px solid rgba(247,201,72,.2)', borderRadius: 8, color: '#f7c948', cursor: 'pointer', fontSize: 12, fontWeight: 700, marginBottom: 12 }}>
+                    <Plus size={13} /> Add Site
+                  </button>
+                  {siteModal && (
+                    <div style={{ padding: 14, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, marginBottom: 12 }}>
+                      {[['name', 'Site Name'], ['address', 'Address'], ['city', 'City']].map(([k, l]) => (
+                        <div key={k} style={{ marginBottom: 8 }}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#9fb0c7', marginBottom: 3 }}>{l}</label>
+                          <input value={(siteForm as Record<string, string>)[k] || ''} onChange={e => setSiteForm(f => ({ ...f, [k]: e.target.value }))} style={inputStyle} />
+                        </div>
+                      ))}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button onClick={() => setSiteModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: '#9fb0c7', cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={addSite} style={{ flex: 1, padding: '7px', background: '#f7c948', border: 'none', borderRadius: 8, color: '#111', fontWeight: 700, cursor: 'pointer' }}>Save</button>
+                      </div>
+                    </div>
+                  )}
+                  {sites.map(s => (
+                    <div key={s.id} style={{ padding: '10px 12px', background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.06)', borderRadius: 8, marginBottom: 6 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+                      <div style={{ fontSize: 12, color: '#9fb0c7' }}>{[s.address, s.city].filter(Boolean).join(', ')}</div>
+                    </div>
+                  ))}
+                  {!sites.length && !siteModal && <div style={{ color: '#9fb0c7', textAlign: 'center', padding: '20px 0', fontSize: 13 }}>No sites added</div>}
+                </div>
+              )}
+              {tab === 'ledger' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div>
+                      <span style={{ fontSize: 11, color: '#9fb0c7' }}>Balance: </span>
+                      <span style={{ fontWeight: 800, fontSize: 16, color: ledger.outstanding > 0 ? '#ef4444' : '#22c55e' }}>{fmtRs(ledger.outstanding)}</span>
+                    </div>
+                    <button onClick={() => setLedgerModal(l => !l)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', background: 'rgba(247,201,72,.1)', border: '1px solid rgba(247,201,72,.2)', borderRadius: 8, color: '#f7c948', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                      <Plus size={12} /> Entry
+                    </button>
+                  </div>
+                  {ledgerModal && (
+                    <div style={{ padding: 14, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, marginBottom: 12 }}>
+                      <div style={{ marginBottom: 8 }}>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#9fb0c7', marginBottom: 3 }}>Type</label>
+                        <select value={ledgerForm.type} onChange={e => setLedgerForm(f => ({ ...f, type: e.target.value }))}
+                          style={{ ...inputStyle, padding: '8px 10px' }}>
+                          <option value="debit">Debit (Invoice)</option>
+                          <option value="credit">Credit (Payment)</option>
+                        </select>
+                      </div>
+                      {[['amount', 'Amount (₹)'], ['description', 'Description'], ['referenceNo', 'Reference No']].map(([k, l]) => (
+                        <div key={k} style={{ marginBottom: 8 }}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#9fb0c7', marginBottom: 3 }}>{l}</label>
+                          <input type={k === 'amount' ? 'number' : 'text'} value={(ledgerForm as Record<string, string>)[k]} onChange={e => setLedgerForm(f => ({ ...f, [k]: e.target.value }))} style={inputStyle} />
+                        </div>
+                      ))}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button onClick={() => setLedgerModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: '#9fb0c7', cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={addLedger} style={{ flex: 1, padding: '7px', background: '#f7c948', border: 'none', borderRadius: 8, color: '#111', fontWeight: 700, cursor: 'pointer' }}>Add</button>
+                      </div>
+                    </div>
+                  )}
+                  {ledger.entries.map(e => (
+                    <div key={e.id} style={{ padding: '9px 11px', background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.05)', borderRadius: 8, marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>{e.description}</div>
+                        <div style={{ fontSize: 10, color: '#9fb0c7' }}>{e.referenceNo || '—'} · {new Date(e.createdAt).toLocaleDateString('en-IN')}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: e.type === 'debit' ? '#ef4444' : '#22c55e' }}>{e.type === 'debit' ? '+' : '−'}{fmtRs(e.amount)}</div>
+                        <div style={{ fontSize: 10, color: '#9fb0c7' }}>Bal: {fmtRs(e.runningBalance || 0)}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {!ledger.entries.length && !ledgerModal && <div style={{ color: '#9fb0c7', textAlign: 'center', padding: '20px 0', fontSize: 13 }}>No entries</div>}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,50 +1,66 @@
 import { Link, useLocation } from 'wouter';
 import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
-  FlaskConical, FileText, BarChart3, Menu, X
+  FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
+  ChevronDown
 } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '@/lib/auth';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/orders', label: 'Orders', icon: ClipboardList },
   { path: '/dispatch', label: 'Dispatch', icon: Truck },
   { path: '/clients', label: 'Clients', icon: Users },
-  { path: '/vehicles', label: 'Vehicles', icon: CarFront },
-  { path: '/batch-report', label: 'Batch Report', icon: FileText },
+  { path: '/vehicles', label: 'Fleet', icon: CarFront },
+  { path: '/drivers', label: 'Drivers', icon: UserCheck },
+  { path: '/batch-report', label: 'Production', icon: FileText },
   { path: '/mix-design', label: 'Mix Design', icon: FlaskConical },
   { path: '/reports', label: 'Reports', icon: BarChart3 },
 ];
 
+const ROLE_COLOR: Record<string, string> = {
+  admin: '#f7c948',
+  dispatcher: '#38bdf8',
+  plant_operator: '#22c55e',
+  client: '#a78bfa',
+  driver: '#f97316',
+};
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
+
+  const roleColor = user ? (ROLE_COLOR[user.role] || '#9fb0c7') : '#9fb0c7';
+  const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
 
   const SidebarContent = () => (
     <>
       {/* Brand */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 28 }}>
         <div style={{
-          width: 48, height: 48, borderRadius: 16, flexShrink: 0,
+          width: 44, height: 44, borderRadius: 14, flexShrink: 0,
           background: 'linear-gradient(145deg,#ffe08a,#ffb703 42%,#a16207)',
           display: 'grid', placeItems: 'center',
-          fontWeight: 900, color: '#111827', fontSize: 15,
+          fontWeight: 900, color: '#111827', fontSize: 13,
           boxShadow: '0 18px 38px rgba(255,183,3,.22),inset 0 2px 2px rgba(255,255,255,.7)',
         }}>
           RMC
         </div>
         <div>
           <div style={{
-            fontSize: 13, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase',
+            fontSize: 11, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase',
             background: 'linear-gradient(90deg,#fff7d6,#fbbf24,#e2e8f0)',
             WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
-          }}>AAKRUTI INFRA RMC PLANT</div>
-          <div style={{ fontSize: 11, color: '#9fb0c7', marginTop: 2 }}>Premium 3D Plant System</div>
+          }}>Aakruti Infra</div>
+          <div style={{ fontSize: 10, color: '#9fb0c7', marginTop: 1 }}>TrackMyRMC Platform</div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav style={{ display: 'grid', gap: 4, flex: 1 }}>
+      <nav style={{ display: 'grid', gap: 3, flex: 1 }}>
         {navItems.map(({ path, label, icon: Icon }) => {
           const active = path === '/' ? location === '/' : location.startsWith(path);
           return (
@@ -52,16 +68,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               key={path}
               href={path}
               onClick={() => setMobileOpen(false)}
-              data-testid={`nav-${label.toLowerCase().replace(' ', '-')}`}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '11px 14px',
-                borderRadius: 14,
-                textDecoration: 'none',
-                fontSize: 14,
-                fontWeight: active ? 700 : 500,
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 12px', borderRadius: 12, textDecoration: 'none',
+                fontSize: 13, fontWeight: active ? 700 : 500,
                 color: active ? '#eef5ff' : '#9fb0c7',
                 background: active ? 'linear-gradient(135deg,#1d2d47,#152239)' : 'transparent',
                 border: active ? '1px solid rgba(255,255,255,.09)' : '1px solid transparent',
@@ -69,7 +79,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 transition: 'all .18s ease',
               }}
             >
-              <Icon size={16} />
+              <Icon size={15} />
               {label}
               {active && (
                 <div style={{
@@ -82,12 +92,53 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         })}
       </nav>
 
-      <div style={{
-        paddingTop: 16, fontSize: 12, color: '#9fb0c7',
-        borderTop: '1px solid #263449', marginTop: 16
-      }}>
-        <div style={{ fontWeight: 600, color: '#eef5ff', fontSize: 13 }}>Live System</div>
-        <div>Data stored locally</div>
+      {/* User profile */}
+      <div style={{ marginTop: 16, borderTop: '1px solid #263449', paddingTop: 14 }}>
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+            borderRadius: 12, cursor: 'pointer', position: 'relative',
+            background: userMenuOpen ? 'rgba(38,52,73,.5)' : 'transparent',
+          }}
+          onClick={() => setUserMenuOpen(o => !o)}
+        >
+          <div style={{
+            width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+            background: roleColor + '22', border: `1px solid ${roleColor}44`,
+            display: 'grid', placeItems: 'center',
+            fontSize: 13, fontWeight: 800, color: roleColor,
+          }}>
+            {user?.name?.[0] || '?'}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#eef5ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.name}
+            </div>
+            <div style={{ fontSize: 10, color: roleColor, fontWeight: 600, textTransform: 'capitalize' }}>
+              {roleLabel}
+            </div>
+          </div>
+          <ChevronDown size={13} color="#9fb0c7" style={{ transform: userMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+        </div>
+        {userMenuOpen && (
+          <div style={{
+            marginTop: 4, background: 'rgba(13,25,48,.95)', border: '1px solid #263449',
+            borderRadius: 10, overflow: 'hidden',
+          }}>
+            <button
+              onClick={() => { logout(); setUserMenuOpen(false); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                width: '100%', padding: '10px 14px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#ef4444', fontSize: 13, fontWeight: 600,
+              }}
+            >
+              <LogOut size={14} />
+              Sign Out
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
@@ -96,15 +147,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Mobile header */}
       <div style={{
-        display: 'none',
-        background: 'rgba(8,17,31,.96)',
-        borderBottom: '1px solid #263449',
-        padding: '12px 16px',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
+        display: 'none', background: 'rgba(8,17,31,.96)',
+        borderBottom: '1px solid #263449', padding: '12px 16px',
+        alignItems: 'center', justifyContent: 'space-between',
+        position: 'sticky', top: 0, zIndex: 50,
       }} id="mobile-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
@@ -112,83 +158,48 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             background: 'linear-gradient(145deg,#ffe08a,#ffb703 42%,#a16207)',
             display: 'grid', placeItems: 'center',
             fontWeight: 900, color: '#111827', fontSize: 13,
-            boxShadow: '0 0 20px rgba(247,201,72,.25)'
           }}>RMC</div>
-          <span style={{ fontWeight: 700, fontSize: 14 }}>AAKRUTI INFRA RMC PLANT</span>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>TrackMyRMC</span>
         </div>
-        <button
-          onClick={() => setMobileOpen(o => !o)}
-          style={{ background: 'none', color: '#eef5ff', padding: 4, border: 'none' }}
-          data-testid="button-mobile-menu"
-        >
+        <button onClick={() => setMobileOpen(o => !o)}
+          style={{ background: 'none', color: '#eef5ff', padding: 4, border: 'none' }}>
           {mobileOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
       </div>
 
-      {/* Main layout: sidebar + content */}
       <div style={{ display: 'flex', flex: 1 }}>
         {/* Desktop sidebar */}
-        <aside
-          id="desktop-sidebar"
-          style={{
-            width: 265,
-            flexShrink: 0,
-            background: 'linear-gradient(180deg,rgba(8,17,31,.96),rgba(2,6,18,.96))',
-            borderRight: '1px solid #263449',
-            padding: '20px',
-            position: 'sticky',
-            top: 0,
-            height: '100vh',
-            overflowY: 'auto',
-            boxShadow: 'inset -1px 0 0 rgba(255,255,255,.05)',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
+        <aside id="desktop-sidebar" style={{
+          width: 240, flexShrink: 0,
+          background: 'linear-gradient(180deg,rgba(8,17,31,.97),rgba(2,6,18,.97))',
+          borderRight: '1px solid #263449', padding: '18px 14px',
+          position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column',
+        }}>
           <SidebarContent />
         </aside>
 
-        {/* Mobile drawer overlay */}
+        {/* Mobile overlay */}
         {mobileOpen && (
-          <div
-            style={{
-              position: 'fixed', inset: 0, zIndex: 40,
-              background: 'rgba(5,9,20,.6)', backdropFilter: 'blur(2px)'
-            }}
-            onClick={() => setMobileOpen(false)}
-          />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(5,9,20,.6)', backdropFilter: 'blur(2px)' }}
+            onClick={() => setMobileOpen(false)} />
         )}
-        <div
-          id="mobile-sidebar"
-          style={{
-            position: 'fixed',
-            top: 0, left: 0, bottom: 0,
-            width: 280,
-            zIndex: 45,
-            background: 'linear-gradient(180deg,rgba(8,17,31,.98),rgba(2,6,18,.98))',
-            borderRight: '1px solid #263449',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
-            transition: 'transform .25s ease',
-          }}
-        >
+        <div id="mobile-sidebar" style={{
+          position: 'fixed', top: 0, left: 0, bottom: 0, width: 260, zIndex: 45,
+          background: 'linear-gradient(180deg,rgba(8,17,31,.98),rgba(2,6,18,.98))',
+          borderRight: '1px solid #263449', padding: '18px 14px',
+          display: 'flex', flexDirection: 'column',
+          transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform .25s ease',
+        }}>
           <SidebarContent />
         </div>
 
-        {/* Main content */}
-        <main style={{
-          flex: 1,
-          padding: '22px',
-          minWidth: 0,
-          overflowX: 'hidden',
-        }}>
+        <main style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
           {children}
         </main>
       </div>
 
-      {/* Responsive styles */}
       <style>{`
         @media (max-width: 900px) {
           #desktop-sidebar { display: none !important; }

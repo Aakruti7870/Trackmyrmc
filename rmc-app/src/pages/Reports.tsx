@@ -1,207 +1,230 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Package, Users, Truck, Calendar } from 'lucide-react';
-import { orderStore, challanStore, clientStore, vehicleStore, batchStore } from '@/lib/store';
-import type { Challan, Order } from '@/lib/types';
+import { BarChart3, Download, Calendar } from 'lucide-react';
+import { api } from '@/lib/api';
+
+type ReportTab = 'client-wise' | 'grade-wise' | 'dispatch' | 'production';
+
+interface ClientRow { clientName: string; totalQty: number; totalChallans: number }
+interface GradeRow { grade: string; totalQty: number; totalChallans: number }
+interface DispatchRow { date: string; totalQty: number; count: number }
+interface ProductionRow { date: string; totalQty: number; count: number; grade: string }
+
+const PRESETS = [
+  { label: 'Today', days: 0 },
+  { label: '7 Days', days: 7 },
+  { label: '30 Days', days: 30 },
+  { label: '90 Days', days: 90 },
+];
+
+function isoDate(d: Date) { return d.toISOString().slice(0, 10); }
 
 export default function Reports() {
-  const [challans, setChallans] = useState<Challan[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [range, setRange] = useState<'today' | 'week' | 'month' | 'all'>('month');
+  const [tab, setTab] = useState<ReportTab>('client-wise');
+  const [preset, setPreset] = useState(1);
+  const [from, setFrom] = useState(isoDate(new Date(Date.now() - 7 * 86400000)));
+  const [to, setTo] = useState(isoDate(new Date()));
+  const [clientData, setClientData] = useState<ClientRow[]>([]);
+  const [gradeData, setGradeData] = useState<GradeRow[]>([]);
+  const [dispatchData, setDispatchData] = useState<DispatchRow[]>([]);
+  const [productionData, setProductionData] = useState<ProductionRow[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setChallans(challanStore.getAll());
-    setOrders(orderStore.getAll());
-  }, []);
+  function applyPreset(idx: number) {
+    setPreset(idx);
+    const days = PRESETS[idx].days;
+    const newFrom = days === 0 ? isoDate(new Date()) : isoDate(new Date(Date.now() - days * 86400000));
+    setFrom(newFrom);
+    setTo(isoDate(new Date()));
+  }
 
-  const today = new Date();
-  const dateFrom = (r: typeof range) => {
-    if (r === 'today') return today.toISOString().slice(0, 10);
-    if (r === 'week') { const d = new Date(today); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); }
-    if (r === 'month') { const d = new Date(today); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); }
-    return '2000-01-01';
-  };
+  async function loadAll() {
+    setLoading(true);
+    const params = `?from=${from}T00:00:00&to=${to}T23:59:59`;
+    const [c, g, d, p] = await Promise.all([
+      api.get<ClientRow[]>(`/reports/client-wise${params}`),
+      api.get<GradeRow[]>(`/reports/grade-wise${params}`),
+      api.get<DispatchRow[]>(`/reports/dispatch${params}`),
+      api.get<ProductionRow[]>(`/reports/production${params}`),
+    ]);
+    setClientData(c); setGradeData(g); setDispatchData(d); setProductionData(p);
+    setLoading(false);
+  }
 
-  const from = dateFrom(range);
-  const filteredChallans = challans.filter(c => c.date >= from);
-  const filteredOrders = orders.filter(o => o.date >= from);
+  useEffect(() => { loadAll(); }, [from, to]);
 
-  const totalDispatch = filteredChallans.reduce((s, c) => s + c.qty, 0);
-  const totalOrders = filteredOrders.length;
-  const completedOrders = filteredOrders.filter(o => o.status === 'completed').length;
-  const deliveredChallans = filteredChallans.filter(c => c.status === 'delivered').length;
+  function downloadCSV(report: string) {
+    const params = `?report=${report}&from=${from}T00:00:00&to=${to}T23:59:59`;
+    window.open(`/api/reports/export${params}`, '_blank');
+  }
 
-  // Grade breakdown
-  const byGrade = filteredChallans.reduce<Record<string, number>>((acc, c) => {
-    acc[c.grade] = (acc[c.grade] || 0) + c.qty;
-    return acc;
-  }, {});
-  const gradeEntries = Object.entries(byGrade).sort((a, b) => b[1] - a[1]);
-  const maxGrade = Math.max(...gradeEntries.map(([, v]) => v), 1);
+  const maxClientQty = Math.max(...clientData.map(r => Number(r.totalQty)), 1);
+  const maxGradeQty = Math.max(...gradeData.map(r => Number(r.totalQty)), 1);
+  const maxDispatchQty = Math.max(...dispatchData.map(r => Number(r.totalQty)), 1);
 
-  // Client breakdown
-  const byClient = filteredChallans.reduce<Record<string, number>>((acc, c) => {
-    acc[c.clientName] = (acc[c.clientName] || 0) + c.qty;
-    return acc;
-  }, {});
-  const clientEntries = Object.entries(byClient).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const maxClient = Math.max(...clientEntries.map(([, v]) => v), 1);
-
-  // Daily trend (last 14 days)
-  const last14 = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() - (13 - i));
-    return d.toISOString().slice(0, 10);
-  });
-  const dailyData = last14.map(date => ({
-    date,
-    qty: challans.filter(c => c.date === date).reduce((s, c) => s + c.qty, 0),
-    label: new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-  }));
-  const maxDaily = Math.max(...dailyData.map(d => d.qty), 1);
-
-  const totalClients = clientStore.getAll().length;
-  const totalVehicles = vehicleStore.getAll().length;
-  const totalBatches = batchStore.getAll().length;
-
-  const ranges: { value: typeof range; label: string }[] = [
-    { value: 'today', label: 'Today' },
-    { value: 'week', label: 'Last 7 Days' },
-    { value: 'month', label: 'Last 30 Days' },
-    { value: 'all', label: 'All Time' },
-  ];
-
-  const summaryCards = [
-    { label: 'Total Dispatch', value: `${totalDispatch} m³`, icon: Package, color: '#f7c948' },
-    { label: 'Orders', value: totalOrders, icon: BarChart3, color: '#38bdf8' },
-    { label: 'Completed Orders', value: completedOrders, icon: TrendingUp, color: '#22c55e' },
-    { label: 'Challans Issued', value: filteredChallans.length, icon: Calendar, color: '#f7c948' },
-    { label: 'Delivered', value: deliveredChallans, icon: Truck, color: '#22c55e' },
-    { label: 'Clients', value: totalClients, icon: Users, color: '#38bdf8' },
-  ];
+  const GRADE_COLORS = ['#38bdf8','#22c55e','#f7c948','#a78bfa','#f97316','#ef4444','#06b6d4'];
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>Reports</h2>
-          <p style={{ margin: '5px 0 0', color: '#9fb0c7', fontSize: 14 }}>Production and dispatch analytics</p>
+          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Reports</h2>
+          <p style={{ margin: '4px 0 0', color: '#9fb0c7', fontSize: 13 }}>Analytics &amp; exports</p>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {ranges.map(r => (
-            <button
-              key={r.value}
-              onClick={() => setRange(r.value)}
-              data-testid={`button-range-${r.value}`}
-              style={{
-                padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                background: range === r.value ? 'linear-gradient(135deg,#ffe08a,#f6b818)' : '#1a2940',
-                color: range === r.value ? '#111827' : '#9fb0c7',
-                border: range === r.value ? 'none' : '1px solid #263449',
-              }}
-            >{r.label}</button>
+        <button onClick={() => downloadCSV(tab === 'production' ? 'production' : 'dispatch')} style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
+          background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.2)',
+          color: '#22c55e', fontWeight: 700, fontSize: 13, borderRadius: 10, cursor: 'pointer',
+        }}><Download size={15} /> Export CSV</button>
+      </div>
+
+      {/* Date range */}
+      <div className="glass-card" style={{ padding: '14px 16px', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9fb0c7' }}>
+            <Calendar size={14} /> Date Range:
+          </div>
+          {PRESETS.map((p, i) => (
+            <button key={p.label} onClick={() => applyPreset(i)} style={{
+              padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              background: preset === i ? '#f7c948' : 'rgba(255,255,255,.05)',
+              color: preset === i ? '#111' : '#9fb0c7', border: 'none',
+            }}>{p.label}</button>
           ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+            <input type="date" value={from} onChange={e => { setFrom(e.target.value); setPreset(-1); }}
+              style={{ padding: '5px 10px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: '#eef5ff', fontSize: 12, outline: 'none' }} />
+            <span style={{ color: '#9fb0c7' }}>to</span>
+            <input type="date" value={to} onChange={e => { setTo(e.target.value); setPreset(-1); }}
+              style={{ padding: '5px 10px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: '#eef5ff', fontSize: 12, outline: 'none' }} />
+          </div>
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12, marginBottom: 20 }} className="max-lg:!grid-cols-2">
-        {summaryCards.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="glass-card" style={{ padding: '16px 14px', textAlign: 'center' }} data-testid={`report-metric-${label.toLowerCase().replace(/ /g, '-')}`}>
-            <Icon size={18} color={color} style={{ margin: '0 auto 8px' }} />
-            <div style={{ fontSize: 11, color: '#9fb0c7', fontWeight: 600, marginBottom: 4 }}>{label}</div>
-            <div className="metric-text" style={{ fontSize: '1.4rem' }}>{value}</div>
-          </div>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 18, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 12, padding: 4 }}>
+        {(['client-wise', 'grade-wise', 'dispatch', 'production'] as ReportTab[]).map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            flex: 1, padding: '9px', background: tab === t ? 'rgba(247,201,72,.15)' : 'transparent',
+            border: tab === t ? '1px solid rgba(247,201,72,.25)' : '1px solid transparent',
+            borderRadius: 9, cursor: 'pointer',
+            color: tab === t ? '#f7c948' : '#9fb0c7', fontSize: 13, fontWeight: tab === t ? 700 : 500,
+          }}>{t.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}</button>
         ))}
       </div>
 
-      {/* Daily trend */}
-      <div className="glass-card" style={{ padding: 22, marginBottom: 16 }}>
-        <h3 style={{ margin: '0 0 18px', fontSize: 15, fontWeight: 700 }}>Daily Dispatch Trend (Last 14 Days)</h3>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 120 }}>
-          {dailyData.map(({ date, qty, label }) => (
-            <div key={date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }} data-testid={`bar-${date}`}>
-              <span style={{ fontSize: 10, color: '#9fb0c7', fontWeight: 600 }}>{qty || ''}</span>
-              <div style={{
-                width: '100%', borderRadius: '4px 4px 0 0',
-                background: qty > 0
-                  ? 'linear-gradient(180deg,#f7c948,rgba(247,201,72,.3))'
-                  : 'rgba(38,52,73,.4)',
-                height: `${(qty / maxDaily) * 90}px`,
-                minHeight: qty > 0 ? 4 : 0,
-                transition: 'height .3s ease'
-              }} />
-              <span style={{ fontSize: 9, color: '#9fb0c7', textAlign: 'center', lineHeight: 1.2 }}>{label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {loading && <div style={{ textAlign: 'center', color: '#9fb0c7', padding: '40px', fontSize: 13 }}>Loading…</div>}
 
-      {/* Grade + Client breakdown side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="max-lg:!block">
-        {/* Grade breakdown */}
+      {!loading && (
         <div className="glass-card" style={{ padding: 22 }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700 }}>Dispatch by Grade</h3>
-          {gradeEntries.length === 0 && <div style={{ color: '#9fb0c7', fontSize: 13 }}>No data for this period</div>}
-          <div style={{ display: 'grid', gap: 10 }}>
-            {gradeEntries.map(([grade, qty]) => (
-              <div key={grade} data-testid={`grade-bar-${grade}`}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 13 }}>
-                  <span style={{ fontWeight: 700, color: '#38bdf8' }}>{grade}</span>
-                  <span style={{ color: '#9fb0c7' }}>{qty} m³ ({Math.round((qty / totalDispatch) * 100)}%)</span>
-                </div>
-                <div style={{ height: 8, background: '#263449', borderRadius: 999, overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', width: `${(qty / maxGrade) * 100}%`,
-                    background: 'linear-gradient(90deg,#38bdf8,#0ea5e9)',
-                    borderRadius: 999, transition: 'width .4s ease'
-                  }} />
-                </div>
-              </div>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+            <BarChart3 size={16} color="#f7c948" />
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+              {tab === 'client-wise' ? 'Client-wise Dispatch' : tab === 'grade-wise' ? 'Grade-wise Production' : tab === 'dispatch' ? 'Daily Dispatch Trend' : 'Daily Production'}
+            </h3>
           </div>
-        </div>
 
-        {/* Client breakdown */}
-        <div className="glass-card" style={{ padding: 22 }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700 }}>Top Clients by Volume</h3>
-          {clientEntries.length === 0 && <div style={{ color: '#9fb0c7', fontSize: 13 }}>No data for this period</div>}
-          <div style={{ display: 'grid', gap: 10 }}>
-            {clientEntries.map(([client, qty]) => (
-              <div key={client} data-testid={`client-bar-${client}`}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 13 }}>
-                  <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>{client}</span>
-                  <span style={{ color: '#9fb0c7' }}>{qty} m³</span>
+          {tab === 'client-wise' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {clientData.length === 0 && <div style={{ color: '#9fb0c7', textAlign: 'center', padding: '20px 0' }}>No data for this period</div>}
+              {clientData.map((r, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ minWidth: 160, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.clientName}</span>
+                  <div style={{ flex: 1, background: 'rgba(255,255,255,.05)', borderRadius: 999, overflow: 'hidden', height: 10 }}>
+                    <div style={{ width: `${(Number(r.totalQty) / maxClientQty) * 100}%`, height: '100%', background: 'linear-gradient(90deg,#f7c948,#d97706)', borderRadius: 999, transition: 'width .5s' }} />
+                  </div>
+                  <span style={{ minWidth: 70, fontSize: 12, color: '#9fb0c7', textAlign: 'right' }}>{Number(r.totalQty).toFixed(1)} m³</span>
+                  <span style={{ minWidth: 60, fontSize: 12, color: '#9fb0c7', textAlign: 'right' }}>{r.totalChallans} trips</span>
                 </div>
-                <div style={{ height: 8, background: '#263449', borderRadius: 999, overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', width: `${(qty / maxClient) * 100}%`,
-                    background: 'linear-gradient(90deg,#22c55e,#16a34a)',
-                    borderRadius: 999, transition: 'width .4s ease'
-                  }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Fleet summary */}
-      <div className="glass-card" style={{ padding: 20, marginTop: 16 }}>
-        <h3 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700 }}>Fleet & Production Summary</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, fontSize: 14 }}>
-          {[
-            { label: 'Total Vehicles', value: totalVehicles },
-            { label: 'Active Vehicles', value: vehicleStore.getActive().length },
-            { label: 'Batch Records', value: totalBatches },
-            { label: 'Avg Daily Dispatch', value: `${dailyData.filter(d => d.qty > 0).length > 0 ? Math.round(dailyData.reduce((s, d) => s + d.qty, 0) / 14) : 0} m³` },
-          ].map(({ label, value }) => (
-            <div key={label} style={{ textAlign: 'center', padding: '12px 0', borderRight: '1px solid #263449' }}>
-              <div style={{ color: '#9fb0c7', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{label}</div>
-              <div className="metric-text" style={{ fontSize: '1.5rem' }}>{value}</div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {tab === 'grade-wise' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {gradeData.length === 0 && <div style={{ color: '#9fb0c7', textAlign: 'center', padding: '20px 0' }}>No data for this period</div>}
+              {gradeData.map((r, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ width: 48, fontSize: 13, fontWeight: 700, color: GRADE_COLORS[i % GRADE_COLORS.length] }}>{r.grade}</span>
+                  <div style={{ flex: 1, background: 'rgba(255,255,255,.05)', borderRadius: 999, overflow: 'hidden', height: 10 }}>
+                    <div style={{ width: `${(Number(r.totalQty) / maxGradeQty) * 100}%`, height: '100%', background: GRADE_COLORS[i % GRADE_COLORS.length], borderRadius: 999, transition: 'width .5s', opacity: 0.85 }} />
+                  </div>
+                  <span style={{ minWidth: 70, fontSize: 12, color: '#9fb0c7', textAlign: 'right' }}>{Number(r.totalQty).toFixed(1)} m³</span>
+                  <span style={{ minWidth: 60, fontSize: 12, color: '#9fb0c7', textAlign: 'right' }}>{r.totalChallans} batches</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === 'dispatch' && (
+            <div>
+              {dispatchData.length === 0 && <div style={{ color: '#9fb0c7', textAlign: 'center', padding: '20px 0' }}>No dispatch data for this period</div>}
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 180, padding: '0 4px', overflowX: 'auto' }}>
+                {dispatchData.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 50 }}>
+                    <span style={{ fontSize: 10, color: '#9fb0c7' }}>{Number(r.totalQty).toFixed(0)}</span>
+                    <div style={{
+                      width: 36, background: 'linear-gradient(180deg,#22c55e,#15803d)',
+                      borderRadius: '4px 4px 0 0',
+                      height: `${Math.max(4, (Number(r.totalQty) / maxDispatchQty) * 140)}px`,
+                      transition: 'height .5s',
+                    }} />
+                    <span style={{ fontSize: 9, color: '#9fb0c7', textAlign: 'center', lineHeight: 1.2 }}>
+                      {new Date(r.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 14, overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #263449' }}>
+                      {['Date', 'Total (m³)', 'Challans'].map(h => (
+                        <th key={h} style={{ padding: '8px 12px', color: '#9fb0c7', fontWeight: 600, textAlign: 'left' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dispatchData.map((r, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+                        <td style={{ padding: '8px 12px' }}>{new Date(r.date).toLocaleDateString('en-IN')}</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 700 }}>{Number(r.totalQty).toFixed(1)}</td>
+                        <td style={{ padding: '8px 12px', color: '#9fb0c7' }}>{r.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {tab === 'production' && (
+            <div>
+              {productionData.length === 0 && <div style={{ color: '#9fb0c7', textAlign: 'center', padding: '20px 0' }}>No production data for this period</div>}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #263449' }}>
+                      {['Date', 'Grade', 'Qty (m³)', 'Batches'].map(h => (
+                        <th key={h} style={{ padding: '8px 12px', color: '#9fb0c7', fontWeight: 600, textAlign: 'left' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productionData.map((r, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+                        <td style={{ padding: '8px 12px', color: '#9fb0c7' }}>{new Date(r.date).toLocaleDateString('en-IN')}</td>
+                        <td style={{ padding: '8px 12px' }}><span style={{ padding: '2px 8px', background: 'rgba(56,189,248,.12)', color: '#38bdf8', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>{r.grade}</span></td>
+                        <td style={{ padding: '8px 12px', fontWeight: 700 }}>{Number(r.totalQty).toFixed(1)}</td>
+                        <td style={{ padding: '8px 12px', color: '#9fb0c7' }}>{r.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,121 @@
+import { Router } from 'express';
+import { sql, gte, lte, and, desc } from 'drizzle-orm';
+import { db } from '../db/index.js';
+import { challans, clients, batchRecords } from '../db/schema.js';
+import { requireAuth } from '../middleware/auth.js';
+
+const router = Router();
+router.use(requireAuth);
+
+function dateRange(req: { query: Record<string, unknown> }) {
+  const { from, to } = req.query;
+  const filters = [];
+  if (from) filters.push(gte(challans.createdAt, new Date(from as string)));
+  if (to) filters.push(lte(challans.createdAt, new Date(to as string)));
+  return filters;
+}
+
+router.get('/client-wise', async (req, res) => {
+  const filters = dateRange(req as never);
+  const rows = await db.select({
+    clientId: challans.clientId,
+    clientName: clients.name,
+    totalQty: sql<number>`coalesce(sum(${challans.quantity}::numeric), 0)`,
+    totalChallans: sql<number>`count(*)::int`,
+  }).from(challans)
+    .leftJoin(clients, sql`${challans.clientId} = ${clients.id}`)
+    .where(filters.length ? and(...filters) : undefined)
+    .groupBy(challans.clientId, clients.name)
+    .orderBy(desc(sql`sum(${challans.quantity}::numeric)`));
+  res.json(rows);
+});
+
+router.get('/grade-wise', async (req, res) => {
+  const filters = dateRange(req as never);
+  const rows = await db.select({
+    grade: challans.grade,
+    totalQty: sql<number>`coalesce(sum(${challans.quantity}::numeric), 0)`,
+    totalChallans: sql<number>`count(*)::int`,
+  }).from(challans)
+    .where(filters.length ? and(...filters) : undefined)
+    .groupBy(challans.grade)
+    .orderBy(desc(sql`sum(${challans.quantity}::numeric)`));
+  res.json(rows);
+});
+
+router.get('/dispatch', async (req, res) => {
+  const { from, to } = req.query;
+  const filters = [];
+  if (from) filters.push(gte(challans.createdAt, new Date(from as string)));
+  if (to) filters.push(lte(challans.createdAt, new Date(to as string)));
+  const rows = await db.select({
+    date: sql<string>`date(${challans.createdAt})`,
+    totalQty: sql<number>`coalesce(sum(${challans.quantity}::numeric), 0)`,
+    count: sql<number>`count(*)::int`,
+  }).from(challans)
+    .where(filters.length ? and(...filters) : undefined)
+    .groupBy(sql`date(${challans.createdAt})`)
+    .orderBy(sql`date(${challans.createdAt})`);
+  res.json(rows);
+});
+
+router.get('/production', async (req, res) => {
+  const { from, to } = req.query;
+  const filters = [];
+  if (from) filters.push(gte(batchRecords.createdAt, new Date(from as string)));
+  if (to) filters.push(lte(batchRecords.createdAt, new Date(to as string)));
+  const rows = await db.select({
+    date: sql<string>`date(${batchRecords.createdAt})`,
+    totalQty: sql<number>`coalesce(sum(${batchRecords.quantity}::numeric), 0)`,
+    count: sql<number>`count(*)::int`,
+    grade: batchRecords.grade,
+  }).from(batchRecords)
+    .where(filters.length ? and(...filters) : undefined)
+    .groupBy(sql`date(${batchRecords.createdAt})`, batchRecords.grade)
+    .orderBy(sql`date(${batchRecords.createdAt})`);
+  res.json(rows);
+});
+
+router.get('/export', async (req, res) => {
+  const { report = 'dispatch', from, to } = req.query;
+  const filters = [];
+  if (from) filters.push(gte(challans.createdAt, new Date(from as string)));
+  if (to) filters.push(lte(challans.createdAt, new Date(to as string)));
+
+  let csv = '';
+  if (report === 'dispatch') {
+    const rows = await db.select({
+      challanNo: challans.challanNo,
+      clientName: clients.name,
+      grade: challans.grade,
+      quantity: challans.quantity,
+      status: challans.status,
+      dispatchTime: challans.dispatchTime,
+      deliveryTime: challans.deliveryTime,
+    }).from(challans)
+      .leftJoin(clients, sql`${challans.clientId} = ${clients.id}`)
+      .where(filters.length ? and(...filters) : undefined)
+      .orderBy(desc(challans.createdAt));
+    csv = 'Challan No,Client,Grade,Qty (m³),Status,Dispatch Time,Delivery Time\n';
+    csv += rows.map(r =>
+      `${r.challanNo},"${r.clientName}",${r.grade},${r.quantity},${r.status},${r.dispatchTime || ''},${r.deliveryTime || ''}`
+    ).join('\n');
+  } else if (report === 'production') {
+    const bfilters = [];
+    if (from) bfilters.push(gte(batchRecords.createdAt, new Date(from as string)));
+    if (to) bfilters.push(lte(batchRecords.createdAt, new Date(to as string)));
+    const rows = await db.select().from(batchRecords)
+      .where(bfilters.length ? and(...bfilters) : undefined)
+      .orderBy(desc(batchRecords.createdAt));
+    csv = 'Batch No,Grade,Qty (m³),Cement Bags,Water (L),Sand (kg),Aggregate (kg),Operator,Date\n';
+    csv += rows.map(r =>
+      `${r.batchNo},${r.grade},${r.quantity},${r.cementBags || ''},${r.waterLiters || ''},${r.sandKg || ''},${r.aggregateKg || ''},"${r.operator || ''}",${r.createdAt.toISOString().slice(0, 10)}`
+    ).join('\n');
+  }
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename=${report}-report.csv`);
+  res.send(csv);
+});
+
+export default router;
