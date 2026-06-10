@@ -36,18 +36,30 @@ const updateSchema = z.object({
  * non-deleted user. Returns an HTTP-409-ready error message, or null when the
  * link is free. `excludeUserId` is the user being edited (skipped in the scan).
  */
+type LinkConflict = {
+  reason: string;
+  conflictUserId: number;
+  conflictUserName: string;
+  conflictLinkType: 'client' | 'driver';
+};
+
 async function findLinkConflict(
   linkedClientId: number | null | undefined,
   linkedDriverId: number | null | undefined,
   excludeUserId?: number,
-): Promise<string | null> {
+): Promise<LinkConflict | null> {
   if (linkedClientId != null) {
     const rows = await db.select({ id: users.id, name: users.name })
       .from(users)
       .where(and(eq(users.linkedClientId, linkedClientId), isNull(users.deletedAt)));
     const conflict = rows.find(r => r.id !== excludeUserId);
     if (conflict) {
-      return `This client is already linked to another account (${conflict.name}). Each client can be linked to only one user.`;
+      return {
+        reason: `This client is already linked to another account (${conflict.name}). Each client can be linked to only one user.`,
+        conflictUserId: conflict.id,
+        conflictUserName: conflict.name,
+        conflictLinkType: 'client',
+      };
     }
   }
   if (linkedDriverId != null) {
@@ -56,7 +68,12 @@ async function findLinkConflict(
       .where(and(eq(users.linkedDriverId, linkedDriverId), isNull(users.deletedAt)));
     const conflict = rows.find(r => r.id !== excludeUserId);
     if (conflict) {
-      return `This driver is already linked to another account (${conflict.name}). Each driver can be linked to only one user.`;
+      return {
+        reason: `This driver is already linked to another account (${conflict.name}). Each driver can be linked to only one user.`,
+        conflictUserId: conflict.id,
+        conflictUserName: conflict.name,
+        conflictLinkType: 'driver',
+      };
     }
   }
   return null;
@@ -189,7 +206,7 @@ router.post('/', async (req, res) => {
 
   const linkConflict = await findLinkConflict(linkedClientId, linkedDriverId);
   if (linkConflict) {
-    res.status(409).json({ error: linkConflict });
+    res.status(409).json({ error: linkConflict.reason });
     return;
   }
 
@@ -282,7 +299,7 @@ router.put('/:id', async (req, res) => {
   const effectiveDriverId = rest.linkedDriverId !== undefined ? (rest.linkedDriverId ?? null) : before.linkedDriverId;
   const linkConflict = await findLinkConflict(effectiveClientId, effectiveDriverId, id);
   if (linkConflict) {
-    res.status(409).json({ error: linkConflict });
+    res.status(409).json({ error: linkConflict.reason });
     return;
   }
 
@@ -561,12 +578,20 @@ router.post('/restore-all', async (req, res) => {
 
   const actor = req.user!;
   let restored = 0;
-  const skippedDetails: { id: number; email: string; reason: string }[] = [];
+  const skippedDetails: {
+    id: number; email: string; reason: string;
+    conflictUserId: number; conflictUserName: string; conflictLinkType: 'client' | 'driver';
+  }[] = [];
 
   for (const u of deleted) {
     const linkConflict = await findLinkConflict(u.linkedClientId, u.linkedDriverId, u.id);
     if (linkConflict) {
-      skippedDetails.push({ id: u.id, email: u.email, reason: linkConflict });
+      skippedDetails.push({
+        id: u.id, email: u.email, reason: linkConflict.reason,
+        conflictUserId: linkConflict.conflictUserId,
+        conflictUserName: linkConflict.conflictUserName,
+        conflictLinkType: linkConflict.conflictLinkType,
+      });
       continue;
     }
 
@@ -625,7 +650,7 @@ router.post('/:id/restore', async (req, res) => {
   if (!clearLink) {
     const linkConflict = await findLinkConflict(user.linkedClientId, user.linkedDriverId, user.id);
     if (linkConflict) {
-      res.status(409).json({ error: linkConflict });
+      res.status(409).json({ error: linkConflict.reason });
       return;
     }
   }

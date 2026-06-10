@@ -26,11 +26,6 @@ const updateSchema = z.object({
     linkedDriverId: z.number().int().positive().nullable().optional(),
     password: z.string().min(6, 'Password must be at least 6 characters').optional(),
 });
-/**
- * Ensure a client/driver record isn't already linked to a *different*
- * non-deleted user. Returns an HTTP-409-ready error message, or null when the
- * link is free. `excludeUserId` is the user being edited (skipped in the scan).
- */
 async function findLinkConflict(linkedClientId, linkedDriverId, excludeUserId) {
     if (linkedClientId != null) {
         const rows = await db.select({ id: users.id, name: users.name })
@@ -38,7 +33,12 @@ async function findLinkConflict(linkedClientId, linkedDriverId, excludeUserId) {
             .where(and(eq(users.linkedClientId, linkedClientId), isNull(users.deletedAt)));
         const conflict = rows.find(r => r.id !== excludeUserId);
         if (conflict) {
-            return `This client is already linked to another account (${conflict.name}). Each client can be linked to only one user.`;
+            return {
+                reason: `This client is already linked to another account (${conflict.name}). Each client can be linked to only one user.`,
+                conflictUserId: conflict.id,
+                conflictUserName: conflict.name,
+                conflictLinkType: 'client',
+            };
         }
     }
     if (linkedDriverId != null) {
@@ -47,7 +47,12 @@ async function findLinkConflict(linkedClientId, linkedDriverId, excludeUserId) {
             .where(and(eq(users.linkedDriverId, linkedDriverId), isNull(users.deletedAt)));
         const conflict = rows.find(r => r.id !== excludeUserId);
         if (conflict) {
-            return `This driver is already linked to another account (${conflict.name}). Each driver can be linked to only one user.`;
+            return {
+                reason: `This driver is already linked to another account (${conflict.name}). Each driver can be linked to only one user.`,
+                conflictUserId: conflict.id,
+                conflictUserName: conflict.name,
+                conflictLinkType: 'driver',
+            };
         }
     }
     return null;
@@ -168,7 +173,7 @@ router.post('/', async (req, res) => {
     }
     const linkConflict = await findLinkConflict(linkedClientId, linkedDriverId);
     if (linkConflict) {
-        res.status(409).json({ error: linkConflict });
+        res.status(409).json({ error: linkConflict.reason });
         return;
     }
     const passwordHash = await bcrypt.hash(password, 10);
@@ -265,7 +270,7 @@ router.put('/:id', async (req, res) => {
     const effectiveDriverId = rest.linkedDriverId !== undefined ? (rest.linkedDriverId ?? null) : before.linkedDriverId;
     const linkConflict = await findLinkConflict(effectiveClientId, effectiveDriverId, id);
     if (linkConflict) {
-        res.status(409).json({ error: linkConflict });
+        res.status(409).json({ error: linkConflict.reason });
         return;
     }
     let updated;
@@ -529,7 +534,12 @@ router.post('/restore-all', async (req, res) => {
     for (const u of deleted) {
         const linkConflict = await findLinkConflict(u.linkedClientId, u.linkedDriverId, u.id);
         if (linkConflict) {
-            skippedDetails.push({ id: u.id, email: u.email, reason: linkConflict });
+            skippedDetails.push({
+                id: u.id, email: u.email, reason: linkConflict.reason,
+                conflictUserId: linkConflict.conflictUserId,
+                conflictUserName: linkConflict.conflictUserName,
+                conflictLinkType: linkConflict.conflictLinkType,
+            });
             continue;
         }
         await db.update(users)
@@ -567,7 +577,7 @@ router.post('/:id/restore', async (req, res) => {
     // unlinking the conflicting account.
     const linkConflict = await findLinkConflict(user.linkedClientId, user.linkedDriverId, user.id);
     if (linkConflict) {
-        res.status(409).json({ error: linkConflict });
+        res.status(409).json({ error: linkConflict.reason });
         return;
     }
     const actor = req.user;

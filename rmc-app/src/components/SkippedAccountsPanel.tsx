@@ -1,7 +1,14 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle, Copy, X, Mail, RotateCcw, Unlink } from 'lucide-react';
 
-export type SkippedAccountItem = { id: number; email: string; reason?: string };
+export type SkippedAccountItem = {
+  id: number;
+  email: string;
+  reason?: string;
+  conflictUserId?: number;
+  conflictUserName?: string;
+  conflictLinkType?: 'client' | 'driver';
+};
 
 export default function SkippedAccountsPanel({
   items,
@@ -13,6 +20,8 @@ export default function SkippedAccountsPanel({
   retryingId,
   onResolve,
   resolvingId,
+  onUnlink,
+  unlinkingId,
 }: {
   items: SkippedAccountItem[];
   heading: ReactNode;
@@ -23,8 +32,10 @@ export default function SkippedAccountsPanel({
   retryingId?: number | null;
   onResolve?: (item: SkippedAccountItem) => void;
   resolvingId?: number | null;
+  onUnlink?: (item: SkippedAccountItem) => void;
+  unlinkingId?: number | null;
 }) {
-  const hasActions = Boolean(onRetry || onResolve);
+  const hasActions = Boolean(onRetry || onResolve || onUnlink);
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 120,
@@ -124,6 +135,27 @@ export default function SkippedAccountsPanel({
                   <div style={{ margin: '5px 0 0 20px', fontSize: 12.5, color: '#9fb0c7', lineHeight: 1.45 }}>
                     {item.reason}
                   </div>
+                  {onUnlink && item.conflictUserId != null && item.conflictLinkType && (
+                    <div style={{ margin: '8px 0 0 20px' }}>
+                      <button
+                        onClick={() => onUnlink(item)}
+                        disabled={unlinkingId === item.id || retryingId === item.id}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                          background: 'rgba(56,189,248,.12)', color: 'var(--blue)',
+                          border: '1px solid rgba(56,189,248,.3)',
+                          cursor: (unlinkingId === item.id || retryingId === item.id) ? 'default' : 'pointer',
+                          opacity: (unlinkingId === item.id || retryingId === item.id) ? 0.6 : 1,
+                        }}
+                      >
+                        <Unlink size={13} />
+                        {unlinkingId === item.id
+                          ? 'Unlinking…'
+                          : `Unlink ${item.conflictUserName ?? 'conflicting account'} & restore`}
+                      </button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>

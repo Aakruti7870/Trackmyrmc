@@ -4,7 +4,16 @@ import * as XLSX from 'xlsx';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
-import SkippedAccountsPanel from '@/components/SkippedAccountsPanel';
+import SkippedAccountsPanel, { type SkippedAccountItem } from '@/components/SkippedAccountsPanel';
+
+type SkippedRestoreItem = {
+  id: number;
+  email: string;
+  reason: string;
+  conflictUserId?: number;
+  conflictUserName?: string;
+  conflictLinkType?: 'client' | 'driver';
+};
 
 type UserRecord = {
   id: number;
@@ -204,10 +213,11 @@ export default function Users() {
   const [restoringAll, setRestoringAll] = useState(false);
   const [purgeSelectedOpen, setPurgeSelectedOpen] = useState(false);
   const [purgingSelected, setPurgingSelected] = useState(false);
-  const [skippedRestore, setSkippedRestore] = useState<{ id: number; email: string; reason: string }[] | null>(null);
+  const [skippedRestore, setSkippedRestore] = useState<SkippedRestoreItem[] | null>(null);
   const [skippedPurge, setSkippedPurge] = useState<{ id: number; email: string }[] | null>(null);
   const [retryingRestoreId, setRetryingRestoreId] = useState<number | null>(null);
   const [resolvingRestoreId, setResolvingRestoreId] = useState<number | null>(null);
+  const [unlinkingConflictId, setUnlinkingConflictId] = useState<number | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -474,7 +484,7 @@ export default function Users() {
     }
   }
 
-  async function retryRestore(item: { id: number; email: string; reason?: string }) {
+  async function retryRestore(item: SkippedAccountItem) {
     setRetryingRestoreId(item.id);
     try {
       await api.post(`/users/${item.id}/restore`, {});
@@ -495,7 +505,7 @@ export default function Users() {
     }
   }
 
-  async function restoreWithoutLink(item: { id: number; email: string; reason: string }) {
+  async function restoreWithoutLink(item: SkippedAccountItem) {
     setResolvingRestoreId(item.id);
     try {
       await api.post(`/users/${item.id}/restore`, { clearLink: true });
@@ -513,6 +523,28 @@ export default function Users() {
       showToast(reason, 'error');
     } finally {
       setResolvingRestoreId(null);
+    }
+  }
+
+  // Unlink the active account that's blocking a skipped restore, then retry the
+  // restore so the row drops off the list — closing the loop from one place.
+  async function unlinkConflict(item: SkippedAccountItem) {
+    if (item.conflictUserId == null || !item.conflictLinkType) return;
+    setUnlinkingConflictId(item.id);
+    try {
+      const body = item.conflictLinkType === 'client'
+        ? { linkedClientId: null }
+        : { linkedDriverId: null };
+      await api.put(`/users/${item.conflictUserId}`, body);
+      showToast(
+        `${item.conflictUserName ?? 'The conflicting account'} was unlinked from its ${item.conflictLinkType}.`,
+        'success',
+      );
+      await retryRestore(item);
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to unlink the conflicting account.', 'error');
+    } finally {
+      setUnlinkingConflictId(null);
     }
   }
 
@@ -577,7 +609,7 @@ export default function Users() {
     const ids = selectedIds.size > 0 ? [...selectedIds] : undefined;
     setRestoringAll(true);
     try {
-      const result = await api.post<{ restored: number; skipped: number; skippedDetails: { id: number; email: string; reason: string }[] }>(
+      const result = await api.post<{ restored: number; skipped: number; skippedDetails: SkippedRestoreItem[] }>(
         '/users/restore-all',
         ids ? { ids } : {},
       );
@@ -1771,6 +1803,8 @@ export default function Users() {
           retryingId={retryingRestoreId}
           onResolve={restoreWithoutLink}
           resolvingId={resolvingRestoreId}
+          onUnlink={unlinkConflict}
+          unlinkingId={unlinkingConflictId}
         />
       )}
 

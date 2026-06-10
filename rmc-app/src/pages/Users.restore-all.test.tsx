@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
-  return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn() } };
+  return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn(), put: vi.fn() } };
 });
 
 import Users from '@/pages/Users';
@@ -200,6 +200,45 @@ describe('Users bulk-restore selection UI', () => {
     expect(await screen.findByRole('heading', { name: /1 Account Skipped/i })).toBeInTheDocument();
     expect(within(skippedModal).getByText('chetan@x.com')).toBeInTheDocument();
     expect(within(skippedModal).getByText(/Deleted account not found/i)).toBeInTheDocument();
+  });
+
+  it('unlinks the conflicting account and retries, dropping the row on success', async () => {
+    const user = userEvent.setup();
+    // Restore All reports one skipped account whose driver link is taken by user #99.
+    vi.mocked(api.post).mockResolvedValueOnce({
+      restored: 2, skipped: 1,
+      skippedDetails: [{
+        id: 13, email: 'chetan@x.com',
+        reason: 'This driver is already linked to another account (Deepa). Each driver can be linked to only one user.',
+        conflictUserId: 99, conflictUserName: 'Deepa', conflictLinkType: 'driver',
+      }],
+    } as never);
+    renderUsers();
+    await enterDeletedView(user);
+
+    await user.click(screen.getByRole('button', { name: /Restore All \(3\)/ }));
+    const confirmModal = (await screen.findByRole('heading', { name: 'Restore All' })).closest('div[style]')!.parentElement as HTMLElement;
+    await user.click(within(confirmModal).getByRole('button', { name: /Restore$/ }));
+
+    await screen.findByRole('heading', { name: /1 Account Skipped/i });
+    const skippedModal = screen.getByText(/These accounts could not be restored/i).parentElement as HTMLElement;
+
+    // Unlinking the conflicting account succeeds, and the follow-up retry then succeeds.
+    vi.mocked(api.put).mockResolvedValueOnce({ id: 99 } as never);
+    vi.mocked(api.post).mockResolvedValueOnce({ id: 13, deletedAt: null } as never);
+    await user.click(within(skippedModal).getByRole('button', { name: /Unlink Deepa & restore/i }));
+
+    // The conflicting account is unlinked from its driver, then the restore retries.
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith('/users/99', { linkedDriverId: null });
+    });
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/users/13/restore', {});
+    });
+    // The row was the only one, so the whole modal closes.
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: /Account Skipped/i })).not.toBeInTheDocument();
+    });
   });
 
   it('keeps a skipped row and updates its reason when the retry still conflicts', async () => {
