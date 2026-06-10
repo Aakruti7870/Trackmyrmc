@@ -176,6 +176,17 @@ export default function Users() {
   }
   useEffect(load, [showDeleted]);
 
+  // While any account is locked, poll the lockout status so the locked badge
+  // clears itself once the lockout window expires — no manual reload needed.
+  const anyLocked = Object.values(lockoutStatus).some(l => l.locked);
+  useEffect(() => {
+    if (!anyLocked) return;
+    const id = setInterval(() => {
+      api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
+    }, 30000);
+    return () => clearInterval(id);
+  }, [anyLocked]);
+
   function viewHistory(u: UserRecord) {
     setHistoryUser(u);
     loadAudit(u.id);
