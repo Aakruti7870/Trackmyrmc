@@ -21,7 +21,7 @@ function createTransporter() {
 export async function sendPasswordResetNotification(
   toEmail: string,
   toName: string,
-): Promise<void> {
+): Promise<boolean> {
   const transporter = createTransporter();
 
   if (!transporter) {
@@ -29,7 +29,7 @@ export async function sendPasswordResetNotification(
       '[email] SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing). ' +
       'Skipping password-reset notification email.',
     );
-    return;
+    return false;
   }
 
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
@@ -97,4 +97,5 @@ export async function sendPasswordResetNotification(
 </body>
 </html>`,
   });
+  return true;
 }

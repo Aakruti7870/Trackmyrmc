@@ -110,13 +110,17 @@ router.put('/:id', async (req, res) => {
     .returning();
   if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
+  let emailSent: boolean | undefined;
   if (password) {
-    sendPasswordResetNotification(user.email, user.name).catch((err) => {
+    try {
+      emailSent = await sendPasswordResetNotification(user.email, user.name);
+    } catch (err) {
       console.error('[email] Failed to send password-reset notification:', err);
-    });
+      emailSent = false;
+    }
   }
 
-  res.json(safeUser(user));
+  res.json({ ...safeUser(user), ...(emailSent !== undefined ? { emailSent } : {}) });
 });
 
 export default router;

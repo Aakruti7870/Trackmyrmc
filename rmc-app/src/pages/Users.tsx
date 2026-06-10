@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useToast } from '@/lib/toast';
 
 type UserRecord = {
   id: number;
@@ -61,6 +62,7 @@ const emptyForm = (): FormData => ({
 });
 
 export default function Users() {
+  const { showToast } = useToast();
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -120,7 +122,14 @@ export default function Users() {
           linkedClientId: form.linkedClientId, linkedDriverId: form.linkedDriverId,
         };
         if (form.password) payload.password = form.password;
-        await api.put(`/users/${editing!.id}`, payload);
+        const result = await api.put<{ emailSent?: boolean }>(`/users/${editing!.id}`, payload);
+        if (form.password) {
+          if (result.emailSent) {
+            showToast('Password updated — notification email sent to user.', 'info');
+          } else {
+            showToast('Password updated — email not sent (check SMTP config).', 'error');
+          }
+        }
       }
       load(); setModal(null);
     } catch (e: unknown) {
