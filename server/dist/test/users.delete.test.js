@@ -613,6 +613,71 @@ test('purge-all guard: among several deleted admins and no active admin, exactly
     assert.equal(remaining.length, 1, 'exactly one admin record survives the bulk purge');
     assert.equal(remaining[0].id, spareAdmin.id, 'the later admin is kept once the guard trips');
 });
+test('purge-all selective: only the listed soft-deleted accounts are purged', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const a = await createUser({ name: 'Gone A', email: 'a@test.com', role: 'dispatcher', deletedAt: new Date() });
+    const b = await createUser({ name: 'Gone B', email: 'b@test.com', role: 'client', deletedAt: new Date() });
+    const keep = await createUser({ name: 'Keep', email: 'keep@test.com', role: 'driver', deletedAt: new Date() });
+    const token = tokenFor(admin);
+    const res = await request(app)
+        .delete('/api/users/purge-all')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ids: [a.id, b.id] });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.purged, 2, 'only the two selected accounts are purged');
+    assert.equal(res.body.skipped, 0);
+    for (const id of [a.id, b.id]) {
+        const rows = await db.select().from(users).where(eq(users.id, id));
+        assert.equal(rows.length, 0, `selected user ${id} is removed`);
+    }
+    const keepRows = await db.select().from(users).where(eq(users.id, keep.id));
+    assert.equal(keepRows.length, 1, 'the unselected deleted account stays in the trash');
+    const logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.purged'));
+    assert.equal(logs.length, 2, 'one user.purged entry per selected removal');
+});
+test('purge-all selective: ignores ids that are not soft-deleted', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const active = await createUser({ name: 'Active', email: 'active@test.com', role: 'dispatcher' });
+    const gone = await createUser({ name: 'Gone', email: 'gone@test.com', role: 'client', deletedAt: new Date() });
+    const token = tokenFor(admin);
+    const res = await request(app)
+        .delete('/api/users/purge-all')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ids: [active.id, gone.id, 999999] });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.purged, 1, 'only the soft-deleted id in the list is purged');
+    const activeRows = await db.select().from(users).where(eq(users.id, active.id));
+    assert.equal(activeRows.length, 1, 'the active account is never purged');
+    const goneRows = await db.select().from(users).where(eq(users.id, gone.id));
+    assert.equal(goneRows.length, 0, 'the soft-deleted account is purged');
+});
+test('purge-all selective: the last-admin guard still applies to a selection', async () => {
+    const actor = await createUser({
+        name: 'Ghost Admin', email: 'ghost@test.com', role: 'admin',
+        isActive: true, deletedAt: new Date(),
+    });
+    const goneUser = await createUser({ name: 'Gone User', email: 'user@test.com', role: 'dispatcher', deletedAt: new Date() });
+    const token = tokenFor(actor);
+    const res = await request(app)
+        .delete('/api/users/purge-all')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ids: [actor.id, goneUser.id] });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.purged, 1, 'only the non-admin in the selection is purged');
+    assert.equal(res.body.skipped, 1, 'the sole admin is skipped even when explicitly selected');
+    assert.equal(res.body.skippedAdmins[0].email, 'ghost@test.com');
+    const adminRows = await db.select().from(users).where(eq(users.id, actor.id));
+    assert.equal(adminRows.length, 1, 'the last admin record is preserved');
+});
+test('purge-all selective: an empty ids array is rejected', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const token = tokenFor(admin);
+    const res = await request(app)
+        .delete('/api/users/purge-all')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ids: [] });
+    assert.equal(res.status, 400, 'an empty selection is a bad request');
+});
 test('purge-all: rejected for a non-admin caller (requireRole admin)', async () => {
     await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const dispatcher = await createUser({ name: 'Dispatch', email: 'dispatch@test.com', role: 'dispatcher' });

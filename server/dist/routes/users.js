@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, ne, asc, desc, sql, isNull, isNotNull, and, gte, lte } from 'drizzle-orm';
+import { eq, ne, asc, desc, sql, isNull, isNotNull, and, gte, lte, inArray } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/index.js';
@@ -405,17 +405,31 @@ router.post('/:id/resend-welcome', async (req, res) => {
     });
     res.json({ emailSent });
 });
+const purgeSelectionSchema = z.object({
+    ids: z.array(z.number().int().positive()).min(1).optional(),
+});
 /**
- * Bulk-purge every soft-deleted account ("empty trash"). Each removal writes its
- * own 'user.purged' audit entry. The same last-admin guard as the single-purge
- * route applies: an admin record is skipped whenever erasing it would leave the
- * system with no other admin (active or still-soft-deleted) to fall back on.
+ * Bulk-purge soft-deleted accounts ("empty trash"). With no body, every
+ * soft-deleted account is purged. When an optional `ids` array is supplied, only
+ * those soft-deleted accounts are purged ("delete selected forever"). Each
+ * removal writes its own 'user.purged' audit entry. The same last-admin guard as
+ * the single-purge route applies: an admin record is skipped whenever erasing it
+ * would leave the system with no other admin (active or still-soft-deleted) to
+ * fall back on.
  */
 router.delete('/purge-all', async (req, res) => {
     const actor = req.user;
+    const parsed = purgeSelectionSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+        res.status(400).json({ error: 'Invalid selection of accounts to delete.' });
+        return;
+    }
+    const selectedIds = parsed.data.ids;
     const deleted = await db.select({
         id: users.id, name: users.name, email: users.email, role: users.role,
-    }).from(users).where(isNotNull(users.deletedAt)).orderBy(asc(users.id));
+    }).from(users).where(selectedIds
+        ? and(isNotNull(users.deletedAt), inArray(users.id, selectedIds))
+        : isNotNull(users.deletedAt)).orderBy(asc(users.id));
     if (deleted.length === 0) {
         res.json({ purged: 0, skipped: 0, skippedAdmins: [] });
         return;

@@ -176,6 +176,8 @@ export default function Users() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [restoreAllOpen, setRestoreAllOpen] = useState(false);
   const [restoringAll, setRestoringAll] = useState(false);
+  const [purgeSelectedOpen, setPurgeSelectedOpen] = useState(false);
+  const [purgingSelected, setPurgingSelected] = useState(false);
 
   function loadAudit(userId: number | null) {
     const params = new URLSearchParams();
@@ -364,6 +366,52 @@ export default function Users() {
     } finally {
       setRestoringAll(false);
     }
+  }
+
+  async function confirmPurgeSelected() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setPurgingSelected(true);
+    try {
+      const result = await api.delete<{ purged: number; skipped: number }>('/users/purge-all', { ids });
+      if (result.purged === 0 && result.skipped === 0) {
+        showToast('There were no deleted accounts to remove.', 'info');
+      } else {
+        const purgedMsg = `${result.purged} ${result.purged === 1 ? 'account' : 'accounts'} permanently deleted.`;
+        if (result.skipped > 0) {
+          showToast(
+            `${purgedMsg} ${result.skipped} admin ${result.skipped === 1 ? 'account was' : 'accounts were'} skipped to keep at least one admin.`,
+            'info',
+          );
+        } else {
+          showToast(purgedMsg, 'success');
+        }
+      }
+      clearHistory();
+      setPurgeSelectedOpen(false);
+      setSelectedIds(new Set());
+      load();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to delete the selected accounts.', 'error');
+    } finally {
+      setPurgingSelected(false);
+    }
+  }
+
+  function toggleSelectOne(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds(prev => {
+      const allSelected = filtered.length > 0 && filtered.every(u => prev.has(u.id));
+      if (allSelected) return new Set();
+      return new Set(filtered.map(u => u.id));
+    });
   }
 
   async function restoreFromCreate() {
@@ -607,6 +655,19 @@ export default function Users() {
             <Trash2 size={13} /> Empty Trash ({users.length})
           </button>
         )}
+        {showDeleted && selectedIds.size > 0 && (
+          <button
+            onClick={() => setPurgeSelectedOpen(true)}
+            title="Permanently delete the selected accounts"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+              borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+              background: 'rgba(239,68,68,.14)', border: '1px solid rgba(239,68,68,.3)', color: '#ef4444',
+            }}
+          >
+            <Trash2 size={13} /> Delete selected forever ({selectedIds.size})
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -618,16 +679,20 @@ export default function Users() {
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.15)' }}>
               {showDeleted && (
-                <th style={{ padding: '11px 0 11px 14px', width: 34 }}>
+                <th style={{ padding: '11px 14px', width: 1, whiteSpace: 'nowrap' }}>
                   <input
                     type="checkbox"
                     aria-label="Select all deleted accounts"
+                    title="Select all"
                     checked={filtered.length > 0 && filtered.every(u => selectedIds.has(u.id))}
-                    ref={el => { if (el) el.indeterminate = filtered.some(u => selectedIds.has(u.id)) && !filtered.every(u => selectedIds.has(u.id)); }}
-                    onChange={e => {
-                      setSelectedIds(e.target.checked ? new Set(filtered.map(u => u.id)) : new Set());
+                    ref={el => {
+                      if (el) {
+                        const selectedVisible = filtered.filter(u => selectedIds.has(u.id)).length;
+                        el.indeterminate = selectedVisible > 0 && selectedVisible < filtered.length;
+                      }
                     }}
-                    style={{ cursor: 'pointer', accentColor: 'var(--green)' }}
+                    onChange={toggleSelectAll}
+                    style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--gold)' }}
                   />
                 </th>
               )}
@@ -665,20 +730,13 @@ export default function Users() {
                   opacity: u.isActive ? 1 : 0.65,
                 }}>
                   {showDeleted && (
-                    <td style={{ padding: '12px 0 12px 14px', width: 34 }}>
+                    <td style={{ padding: '12px 14px', width: 1, whiteSpace: 'nowrap' }}>
                       <input
                         type="checkbox"
                         aria-label={`Select ${u.name}`}
                         checked={selectedIds.has(u.id)}
-                        onChange={e => {
-                          setSelectedIds(prev => {
-                            const next = new Set(prev);
-                            if (e.target.checked) next.add(u.id);
-                            else next.delete(u.id);
-                            return next;
-                          });
-                        }}
-                        style={{ cursor: 'pointer', accentColor: 'var(--green)' }}
+                        onChange={() => toggleSelectOne(u.id)}
+                        style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--gold)' }}
                       />
                     </td>
                   )}
@@ -1442,6 +1500,58 @@ export default function Users() {
                 cursor: purgingAll ? 'not-allowed' : 'pointer', opacity: purgingAll ? 0.7 : 1,
               }}>
                 <Trash2 size={14} /> {purgingAll ? 'Emptying…' : 'Empty Trash'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete-selected (partial purge) confirmation modal */}
+      {purgeSelectedOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 110,
+          background: 'rgba(5,9,20,.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg,var(--panel),var(--bg))',
+            border: '1px solid rgba(239,68,68,.3)', borderRadius: 18,
+            width: '100%', maxWidth: 440, padding: 24,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.25)',
+                display: 'grid', placeItems: 'center', color: 'var(--red)',
+              }}>
+                <AlertTriangle size={18} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Delete Selected Forever</h3>
+            </div>
+            <p style={{ margin: '0 0 6px', fontSize: 13.5, color: 'var(--text)', lineHeight: 1.5 }}>
+              Permanently delete the <strong>{selectedIds.size}</strong> selected {selectedIds.size === 1 ? 'account' : 'accounts'}?
+            </p>
+            <p style={{ margin: '0 0 20px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+              This <strong style={{ color: 'var(--red)' }}>cannot be undone</strong>. The selected records are erased
+              and their emails are freed for new accounts. Any admin account that would leave the system without another
+              admin is kept and skipped. The activity log keeps a record of each removal.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setPurgeSelectedOpen(false)} disabled={purgingSelected} style={{
+                flex: 1, padding: '10px', background: 'rgba(255,255,255,.07)',
+                border: '1px solid rgba(255,255,255,.1)', borderRadius: 10,
+                color: 'var(--muted)', fontWeight: 600, fontSize: 13,
+                cursor: purgingSelected ? 'not-allowed' : 'pointer',
+              }}>
+                Cancel
+              </button>
+              <button onClick={confirmPurgeSelected} disabled={purgingSelected} style={{
+                flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', borderRadius: 10,
+                color: '#fff', fontWeight: 700, fontSize: 13,
+                cursor: purgingSelected ? 'not-allowed' : 'pointer', opacity: purgingSelected ? 0.7 : 1,
+              }}>
+                <Trash2 size={14} /> {purgingSelected ? 'Deleting…' : 'Delete selected forever'}
               </button>
             </div>
           </div>
