@@ -17,12 +17,8 @@ import userRoutes from './routes/users.js';
 import auditRoutes from './routes/audit.js';
 import adminRoutes from './routes/admin.js';
 import positionRoutes from './routes/positions.js';
-import { addSSEClient, removeSSEClient } from './lib/sseEmitter.js';
+import eventsRoutes from './routes/events.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
-import { verifyToken } from './middleware/auth.js';
-import { eq } from 'drizzle-orm';
-import { db } from './db/index.js';
-import { users } from './db/schema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
@@ -52,40 +48,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/events', async (req, res) => {
-  const token = req.query.token as string | undefined;
-  if (!token) {
-    res.status(401).json({ error: 'Token required' });
-    return;
-  }
-  let payload;
-  try {
-    payload = verifyToken(token);
-  } catch {
-    res.status(401).json({ error: 'Invalid token' });
-    return;
-  }
-  const [user] = await db.select({
-    isActive: users.isActive, role: users.role,
-    linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
-  }).from(users).where(eq(users.id, payload.id));
-  if (!user?.isActive) {
-    res.status(401).json({ error: 'Account deactivated' });
-    return;
-  }
-
-  // Keepalive pings and dead-connection sweeping are handled centrally by the
-  // SSE emitter (see KEEPALIVE_MS / STALE_THRESHOLD_MS in sseEmitter.ts).
-  // The identity scopes targeted events (order/trip toasts) to their owner.
-  const id = addSSEClient(res, {
-    role: user.role,
-    clientId: user.linkedClientId,
-    driverId: user.linkedDriverId,
-  });
-  req.on('close', () => {
-    removeSSEClient(id);
-  });
-});
+app.use('/api/events', eventsRoutes);
 
 if (isProd) {
   const staticDir = path.resolve(__dirname, '../../rmc-app/dist');

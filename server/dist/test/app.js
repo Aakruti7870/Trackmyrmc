@@ -4,6 +4,7 @@ import userRoutes from '../routes/users.js';
 import adminRoutes from '../routes/admin.js';
 import auditRoutes from '../routes/audit.js';
 import challanRoutes from '../routes/challans.js';
+import eventsRoutes from '../routes/events.js';
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
 // app.listen and registers background intervals).
@@ -17,5 +18,6 @@ export function buildTestApp() {
     app.use('/api/admin', adminRoutes);
     app.use('/api/audit-logs', auditRoutes);
     app.use('/api/challans', challanRoutes);
+    app.use('/api/events', eventsRoutes);
     return app;
 }
