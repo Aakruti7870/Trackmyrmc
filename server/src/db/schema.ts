@@ -134,6 +134,12 @@ export const loginAttempts = pgTable('login_attempts', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: text('value'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const clientsRelations = relations(clients, ({ many }) => ({
   sites: many(sites),
   orders: many(orders),

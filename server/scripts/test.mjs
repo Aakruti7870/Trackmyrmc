@@ -71,9 +71,12 @@ if (testFiles.length === 0) {
 }
 
 console.log(`[test] Running ${testFiles.length} test file(s)...`);
+// Run test files one at a time: every suite TRUNCATEs shared tables in its
+// beforeEach, so concurrent files would clobber each other's data on the single
+// shared test database.
 const run = spawnSync(
   'node',
-  ['--import', 'tsx', '--test', '--test-reporter', 'spec', ...testFiles],
+  ['--import', 'tsx', '--test', '--test-concurrency=1', '--test-reporter', 'spec', ...testFiles],
   { stdio: 'inherit', env, cwd: serverDir },
 );
 process.exit(run.status ?? 1);

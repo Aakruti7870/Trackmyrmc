@@ -1,6 +1,28 @@
 import nodemailer from 'nodemailer';
+import { getSettings } from './settings.js';
 
-function maskValue(value: string | undefined): string | null {
+export const SMTP_KEYS = {
+  host: 'smtp_host',
+  port: 'smtp_port',
+  user: 'smtp_user',
+  pass: 'smtp_pass',
+  from: 'smtp_from',
+} as const;
+
+export interface ResolvedSmtp {
+  host: string | null;
+  port: string | null;
+  user: string | null;
+  pass: string | null;
+  from: string | null;
+}
+
+function clean(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function maskValue(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -19,51 +41,62 @@ function maskValue(value: string | undefined): string | null {
   return `${head}${'•'.repeat(Math.max(3, trimmed.length - 3))}${tail}`;
 }
 
-export function getSmtpSettings() {
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT;
-  const user = process.env.SMTP_USER;
-  const from = process.env.SMTP_FROM;
-  const pass = process.env.SMTP_PASS;
-
+// Resolve the effective SMTP configuration: persisted database settings take
+// precedence, falling back per-field to the matching environment variable.
+export async function getSmtpConfig(): Promise<ResolvedSmtp> {
+  const persisted = await getSettings(Object.values(SMTP_KEYS));
   return {
-    host: host?.trim() || null,
-    port: port?.trim() || (host ? '587' : null),
-    user: maskValue(user),
-    from: maskValue(from || user),
-    configured: Boolean(host && user && pass),
+    host: clean(persisted[SMTP_KEYS.host]) ?? clean(process.env.SMTP_HOST),
+    port: clean(persisted[SMTP_KEYS.port]) ?? clean(process.env.SMTP_PORT),
+    user: clean(persisted[SMTP_KEYS.user]) ?? clean(process.env.SMTP_USER),
+    pass: clean(persisted[SMTP_KEYS.pass]) ?? clean(process.env.SMTP_PASS),
+    from: clean(persisted[SMTP_KEYS.from]) ?? clean(process.env.SMTP_FROM),
   };
 }
 
-function createTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+export async function getSmtpSettings() {
+  const cfg = await getSmtpConfig();
+  return {
+    host: cfg.host,
+    port: cfg.port || (cfg.host ? '587' : null),
+    user: maskValue(cfg.user),
+    from: maskValue(cfg.from || cfg.user),
+    configured: Boolean(cfg.host && cfg.user && cfg.pass),
+  };
+}
 
-  if (!host || !user || !pass) {
+function transporterFor(cfg: ResolvedSmtp) {
+  const port = parseInt(cfg.port || '587', 10);
+
+  if (!cfg.host || !cfg.user || !cfg.pass) {
     return null;
   }
 
   return nodemailer.createTransport({
-    host,
+    host: cfg.host,
     port,
     secure: port === 465,
-    auth: { user, pass },
+    auth: { user: cfg.user, pass: cfg.pass },
   });
+}
+
+async function createTransporter() {
+  const cfg = await getSmtpConfig();
+  return transporterFor(cfg);
 }
 
 export async function sendTestEmail(
   toEmail: string,
   toName: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const transporter = createTransporter();
+  const cfg = await getSmtpConfig();
+  const transporter = transporterFor(cfg);
 
   if (!transporter) {
     return { ok: false, error: 'SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing).' };
   }
 
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const from = cfg.from || cfg.user || undefined;
 
   try {
     await transporter.sendMail({
@@ -137,7 +170,8 @@ export async function sendWelcomeEmail(
   toName: string,
   role: string,
 ): Promise<boolean> {
-  const transporter = createTransporter();
+  const cfg = await getSmtpConfig();
+  const transporter = transporterFor(cfg);
 
   if (!transporter) {
     console.warn(
@@ -147,7 +181,7 @@ export async function sendWelcomeEmail(
     return false;
   }
 
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const from = cfg.from || cfg.user || undefined;
   const roleLabel = role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
   await transporter.sendMail({
@@ -237,7 +271,8 @@ export async function sendPasswordResetNotification(
   toEmail: string,
   toName: string,
 ): Promise<boolean> {
-  const transporter = createTransporter();
+  const cfg = await getSmtpConfig();
+  const transporter = transporterFor(cfg);
 
   if (!transporter) {
     console.warn(
@@ -247,7 +282,7 @@ export async function sendPasswordResetNotification(
     return false;
   }
 
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const from = cfg.from || cfg.user || undefined;
 
   await transporter.sendMail({
     from,

@@ -12,4 +12,6 @@ description: How automated backend tests run for the Express/Drizzle server.
 
 **Why a dedicated DB:** guards like "last remaining admin" depend on the *global* admin count, so tests must own the whole users table — they truncate `audit_logs, users, login_attempts` in `beforeEach`. Never point this at the dev DB.
 
-Tests use `supertest` against a minimal app from `src/test/app.ts` (mounts only `/api/auth` and `/api/users`), avoiding the production entrypoint which calls `app.listen`. The pool is exported from `src/db/index.ts` so tests can close it in `after()`.
+Tests use `supertest` against a minimal app from `src/test/app.ts` (mounts the routes under test, e.g. `/api/auth`, `/api/users`, `/api/admin`), avoiding the production entrypoint which calls `app.listen`. The pool is exported from `src/db/index.ts` so tests can close it in `after()`.
+
+**Test files MUST run serially** (`scripts/test.mjs` passes `--test-concurrency=1`). Every suite TRUNCATEs shared tables in `beforeEach` against the *single* shared test DB, so running files concurrently makes them clobber each other's rows (flaky "row should exist" / guard-count failures). With one test file this never showed up; adding a second made it surface.

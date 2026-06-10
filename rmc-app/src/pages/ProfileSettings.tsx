@@ -103,19 +103,23 @@ function PasswordInput({
   );
 }
 
-function SmtpField({ label: fieldLabel, value }: { label: string; value: string | null }) {
+function SmtpTextField({
+  label: fieldLabel, value, onChange, placeholder, type = 'text',
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; type?: string;
+}) {
   return (
     <div>
       <label style={label}>{fieldLabel}</label>
-      <div style={{
-        padding: '9px 12px', borderRadius: 10,
-        background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)',
-        color: value ? 'var(--text)' : 'var(--muted)', fontSize: 13, fontWeight: 600,
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      }}>
-        {value || 'Not set'}
-      </div>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{ ...inputStyle, padding: '10px 12px' }}
+        autoComplete="off"
+      />
     </div>
   );
 }
@@ -142,6 +146,8 @@ export default function ProfileSettings() {
 
   const [smtpSettings, setSmtpSettings] = useState<SmtpSettings | null>(null);
   const [smtpLoading, setSmtpLoading] = useState(false);
+  const [smtpForm, setSmtpForm] = useState({ host: '', port: '', user: '', from: '', pass: '' });
+  const [smtpSaving, setSmtpSaving] = useState(false);
 
   const [lockouts, setLockouts] = useState<Lockout[]>([]);
   const [lockoutsLoading, setLockoutsLoading] = useState(false);
@@ -179,7 +185,12 @@ export default function ProfileSettings() {
     let cancelled = false;
     setSmtpLoading(true);
     api.get<SmtpSettings>('/admin/smtp-settings')
-      .then(s => { if (!cancelled) setSmtpSettings(s); })
+      .then(s => {
+        if (cancelled) return;
+        setSmtpSettings(s);
+        // Host and port are not sensitive, so prefill them for easy editing.
+        setSmtpForm(f => ({ ...f, host: s.host || '', port: s.port || '' }));
+      })
       .catch(() => { if (!cancelled) setSmtpSettings(null); })
       .finally(() => { if (!cancelled) setSmtpLoading(false); });
     return () => { cancelled = true; };
@@ -250,6 +261,44 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setProfileSaving(false);
+    }
+  }
+
+  async function handleSmtpSave(e: React.FormEvent) {
+    e.preventDefault();
+    const port = smtpForm.port.trim();
+    if (port && !/^\d+$/.test(port)) {
+      showToast('Port must be a number.', 'error');
+      return;
+    }
+    const from = smtpForm.from.trim();
+    if (from && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(from)) {
+      showToast('From must be a valid email address.', 'error');
+      return;
+    }
+    setSmtpSaving(true);
+    try {
+      // Contract: omitted field = keep current, empty string = clear (revert to
+      // env), non-empty = set. Host/port are prefilled so we always send them
+      // (clearing a prefilled field intentionally clears it). Username, From and
+      // password are write-only and only sent when filled, so leaving them blank
+      // keeps the stored value — matching the field placeholders.
+      const body: Record<string, string> = {
+        host: smtpForm.host.trim(),
+        port,
+      };
+      if (smtpForm.user.trim()) body.user = smtpForm.user.trim();
+      if (from) body.from = from;
+      if (smtpForm.pass.trim()) body.pass = smtpForm.pass;
+      const updated = await api.post<SmtpSettings>('/admin/smtp-settings', body);
+      setSmtpSettings(updated);
+      setSmtpForm(f => ({ ...f, host: updated.host || '', port: updated.port || '', user: '', from: '', pass: '' }));
+      showToast('SMTP settings saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save SMTP settings';
+      showToast(msg, 'error');
+    } finally {
+      setSmtpSaving(false);
     }
   }
 
@@ -422,25 +471,17 @@ export default function ProfileSettings() {
             </div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>SMTP Configuration</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Current mail server settings and connection test</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Edit your mail server settings and run a connection test</div>
             </div>
           </div>
 
-          <div style={{ marginBottom: 18 }}>
-            {smtpLoading ? (
-              <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
-            ) : smtpSettings && smtpSettings.host ? (
-              <>
+          {smtpLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18 }}>Loading settings…</div>
+          ) : (
+            <form onSubmit={handleSmtpSave} style={{ marginBottom: 18 }}>
+              {smtpSettings && (
                 <div style={{
-                  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
-                }}>
-                  <SmtpField label="Host" value={smtpSettings.host} />
-                  <SmtpField label="Port" value={smtpSettings.port} />
-                  <SmtpField label="Username" value={smtpSettings.user} />
-                  <SmtpField label="From Address" value={smtpSettings.from} />
-                </div>
-                <div style={{
-                  marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6,
+                  marginBottom: 14, display: 'inline-flex', alignItems: 'center', gap: 6,
                   fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
                   color: smtpSettings.configured ? 'var(--green)' : 'var(--gold)',
                   background: smtpSettings.configured ? 'rgba(34,197,94,.12)' : 'rgba(247,201,72,.12)',
@@ -448,22 +489,66 @@ export default function ProfileSettings() {
                 }}>
                   {smtpSettings.configured ? 'Configured' : 'Incomplete (password missing)'}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10 }}>
-                  Values are read-only and partially masked. To change them, update the
-                  SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM environment variables.
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <SmtpTextField
+                  label="Host"
+                  value={smtpForm.host}
+                  onChange={v => setSmtpForm(f => ({ ...f, host: v }))}
+                  placeholder="smtp.example.com"
+                />
+                <SmtpTextField
+                  label="Port"
+                  value={smtpForm.port}
+                  onChange={v => setSmtpForm(f => ({ ...f, port: v }))}
+                  placeholder="587"
+                />
+                <SmtpTextField
+                  label="Username"
+                  value={smtpForm.user}
+                  onChange={v => setSmtpForm(f => ({ ...f, user: v }))}
+                  placeholder={smtpSettings?.user ? `${smtpSettings.user} — blank keeps` : 'smtp username'}
+                />
+                <SmtpTextField
+                  label="From Address"
+                  value={smtpForm.from}
+                  onChange={v => setSmtpForm(f => ({ ...f, from: v }))}
+                  placeholder={smtpSettings?.from ? `${smtpSettings.from} — blank keeps` : 'noreply@example.com'}
+                />
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <SmtpTextField
+                    label="Password"
+                    type="password"
+                    value={smtpForm.pass}
+                    onChange={v => setSmtpForm(f => ({ ...f, pass: v }))}
+                    placeholder={smtpSettings?.configured ? 'Leave blank to keep current password' : 'smtp password'}
+                  />
                 </div>
-              </>
-            ) : (
-              <div style={{
-                padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                color: 'var(--gold)', background: 'rgba(247,201,72,.1)',
-                border: '1px solid rgba(247,201,72,.25)',
-              }}>
-                SMTP is not configured. Set the SMTP_HOST, SMTP_USER and SMTP_PASS
-                environment variables to enable outgoing email.
               </div>
-            )}
-          </div>
+
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+                Values are saved to the database and survive restarts. Host and port are saved
+                as entered — clear them to fall back to the matching environment variable.
+                Username, From and Password update only when you fill them in; leave them blank
+                to keep the current values.
+              </div>
+
+              <button
+                type="submit"
+                disabled={smtpSaving}
+                style={{
+                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
+                  background: smtpSaving ? 'rgba(34,197,94,.35)' : 'linear-gradient(135deg,var(--green),#16a34a)',
+                  border: 'none', cursor: smtpSaving ? 'not-allowed' : 'pointer',
+                  color: '#fff', fontWeight: 800, fontSize: 14,
+                  transition: 'opacity .15s',
+                }}
+              >
+                {smtpSaving ? 'Saving…' : 'Save SMTP settings'}
+              </button>
+            </form>
+          )}
 
           {testEmailResult && (
             <div style={{
