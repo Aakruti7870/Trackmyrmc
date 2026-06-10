@@ -85,6 +85,38 @@ async function createTransporter() {
   return transporterFor(cfg);
 }
 
+// Verify that the given SMTP values can actually connect/authenticate, without
+// persisting anything. Each override is merged over the effective config so a
+// blank field (e.g. an unchanged password) falls back to the stored value.
+export async function verifySmtpConnection(
+  overrides: Partial<ResolvedSmtp> = {},
+): Promise<{ ok: boolean; error?: string }> {
+  const base = await getSmtpConfig();
+  const cfg: ResolvedSmtp = {
+    host: clean(overrides.host) ?? base.host,
+    port: clean(overrides.port) ?? base.port,
+    user: clean(overrides.user) ?? base.user,
+    pass: clean(overrides.pass) ?? base.pass,
+    from: clean(overrides.from) ?? base.from,
+  };
+
+  const transporter = transporterFor(cfg);
+  if (!transporter) {
+    return {
+      ok: false,
+      error: 'SMTP is incomplete — host, username and password are all required to test the connection.',
+    };
+  }
+
+  try {
+    await transporter.verify();
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
 export async function sendTestEmail(
   toEmail: string,
   toName: string,

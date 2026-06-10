@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -148,6 +148,8 @@ export default function ProfileSettings() {
   const [smtpLoading, setSmtpLoading] = useState(false);
   const [smtpForm, setSmtpForm] = useState({ host: '', port: '', user: '', from: '', pass: '' });
   const [smtpSaving, setSmtpSaving] = useState(false);
+  const [smtpVerifying, setSmtpVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const [lockouts, setLockouts] = useState<Lockout[]>([]);
   const [lockoutsLoading, setLockoutsLoading] = useState(false);
@@ -316,6 +318,42 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setSmtpSaving(false);
+    }
+  }
+
+  async function handleVerifyConnection() {
+    const port = smtpForm.port.trim();
+    if (port && !/^\d+$/.test(port)) {
+      showToast('Port must be a number.', 'error');
+      return;
+    }
+    const from = smtpForm.from.trim();
+    if (from && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(from)) {
+      showToast('From must be a valid email address.', 'error');
+      return;
+    }
+    setSmtpVerifying(true);
+    setVerifyResult(null);
+    try {
+      // Mirror the save contract: host/port are sent as entered (blank falls
+      // back to env on the server); username/from/password are only sent when
+      // filled, so a blank password tests against the currently stored one.
+      const body: Record<string, string> = {
+        host: smtpForm.host.trim(),
+        port,
+      };
+      if (smtpForm.user.trim()) body.user = smtpForm.user.trim();
+      if (from) body.from = from;
+      if (smtpForm.pass.trim()) body.pass = smtpForm.pass;
+      await api.post('/admin/smtp-settings/verify', body);
+      setVerifyResult({ ok: true, message: 'Connection successful — these settings can reach the mail server.' });
+      showToast('SMTP connection verified.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not connect to the mail server.';
+      setVerifyResult({ ok: false, message: msg });
+      showToast(msg, 'error');
+    } finally {
+      setSmtpVerifying(false);
     }
   }
 
@@ -551,19 +589,54 @@ export default function ProfileSettings() {
                 to keep the current values.
               </div>
 
-              <button
-                type="submit"
-                disabled={smtpSaving}
-                style={{
-                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
-                  background: smtpSaving ? 'rgba(34,197,94,.35)' : 'linear-gradient(135deg,var(--green),#16a34a)',
-                  border: 'none', cursor: smtpSaving ? 'not-allowed' : 'pointer',
-                  color: '#fff', fontWeight: 800, fontSize: 14,
-                  transition: 'opacity .15s',
-                }}
-              >
-                {smtpSaving ? 'Saving…' : 'Save SMTP settings'}
-              </button>
+              {verifyResult && (
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 14,
+                  padding: '10px 14px', borderRadius: 10,
+                  background: verifyResult.ok ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)',
+                  border: `1px solid ${verifyResult.ok ? 'rgba(34,197,94,.25)' : 'rgba(239,68,68,.25)'}`,
+                  color: verifyResult.ok ? 'var(--green)' : 'var(--red)',
+                  fontSize: 13, fontWeight: 600,
+                }}>
+                  {verifyResult.ok
+                    ? <CheckCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                    : <XCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />}
+                  {verifyResult.message}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 14 }}>
+                <button
+                  type="submit"
+                  disabled={smtpSaving}
+                  style={{
+                    padding: '10px 22px', borderRadius: 10,
+                    background: smtpSaving ? 'rgba(34,197,94,.35)' : 'linear-gradient(135deg,var(--green),#16a34a)',
+                    border: 'none', cursor: smtpSaving ? 'not-allowed' : 'pointer',
+                    color: '#fff', fontWeight: 800, fontSize: 14,
+                    transition: 'opacity .15s',
+                  }}
+                >
+                  {smtpSaving ? 'Saving…' : 'Save SMTP settings'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleVerifyConnection}
+                  disabled={smtpVerifying}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '10px 22px', borderRadius: 10,
+                    background: 'rgba(56,189,248,.12)',
+                    border: '1px solid rgba(56,189,248,.4)',
+                    cursor: smtpVerifying ? 'not-allowed' : 'pointer',
+                    color: 'var(--blue)', fontWeight: 700, fontSize: 14,
+                    transition: 'opacity .15s',
+                  }}
+                >
+                  <PlugZap size={15} />
+                  {smtpVerifying ? 'Testing…' : 'Test connection'}
+                </button>
+              </div>
             </form>
           )}
 
