@@ -112,6 +112,7 @@ export default function MyTrips() {
   const [viewAll, setViewAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [confirmation, setConfirmation] = useState('');
 
   const load = useCallback((all: boolean) => {
     setLoading(true);
@@ -125,9 +126,13 @@ export default function MyTrips() {
 
   async function handleMarkDelivered(id: number) {
     await api.put(`/challans/${id}`, { status: 'delivered' });
-    setChallans(prev => prev.map(c =>
-      c.id === id ? { ...c, status: 'delivered', deliveryTime: new Date().toISOString() } : c
-    ));
+    let challanNo = '';
+    setChallans(prev => prev.map(c => {
+      if (c.id === id) { challanNo = c.challanNo; return { ...c, status: 'delivered', deliveryTime: new Date().toISOString() }; }
+      return c;
+    }));
+    setConfirmation(`${challanNo} marked as delivered`);
+    window.setTimeout(() => setConfirmation(''), 4000);
   }
 
   const filtered = filter === 'all' ? challans : challans.filter(c => c.status === filter);
@@ -158,6 +163,17 @@ export default function MyTrips() {
           {viewAll ? 'Today only' : 'View history'}
         </button>
       </div>
+
+      {confirmation && (
+        <div role="status" style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, padding: '12px 16px',
+          background: 'rgba(34,197,94,.12)', border: '1px solid color-mix(in srgb, var(--green) 30%, transparent)',
+          borderRadius: 12, color: 'var(--green)', fontSize: 13, fontWeight: 700,
+        }}>
+          <CheckCircle size={16} />
+          {confirmation}
+        </div>
+      )}
 
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 28 }}>

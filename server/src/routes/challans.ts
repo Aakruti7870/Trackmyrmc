@@ -114,6 +114,7 @@ router.put('/:id', async (req, res) => {
     const [row] = await db.update(challans)
       .set({ status: 'delivered', deliveryTime: deliveryTime ? new Date(deliveryTime) : new Date() })
       .where(eq(challans.id, challanId)).returning();
+    emitSSEEvent('challan.updated', row);
     res.json(row);
     return;
   }
