@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History } from 'lucide-react';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
@@ -58,6 +58,8 @@ const ACTION_LABEL: Record<string, string> = {
   account_deactivated: 'Account Deactivated',
   client_link_change: 'Client Link Changed',
   driver_link_change: 'Driver Link Changed',
+  'user.created': 'Account Created',
+  'user.deleted': 'Account Deleted',
 };
 
 const ACTION_COLOR: Record<string, string> = {
@@ -69,6 +71,8 @@ const ACTION_COLOR: Record<string, string> = {
   account_deactivated: '#ef4444',
   client_link_change: '#38bdf8',
   driver_link_change: '#f97316',
+  'user.created': '#22c55e',
+  'user.deleted': '#ef4444',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -147,6 +151,8 @@ export default function Users() {
   const [unlocking, setUnlocking] = useState<number | null>(null);
   const [resendingId, setResendingId] = useState<number | null>(null);
   const [historyUser, setHistoryUser] = useState<UserRecord | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function loadAudit(userId: number | null) {
     const url = userId ? `/users/audit-log?userId=${userId}` : '/users/audit-log';
@@ -183,6 +189,22 @@ export default function Users() {
       showToast('Failed to unlock account.', 'error');
     } finally {
       setUnlocking(null);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/users/${deleteTarget.id}`);
+      showToast(`${deleteTarget.name}'s account has been deleted.`, 'success');
+      if (historyUser?.id === deleteTarget.id) clearHistory();
+      setDeleteTarget(null);
+      load();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to delete account.', 'error');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -480,6 +502,16 @@ export default function Users() {
                       >
                         <Mail size={13} />
                       </button>
+                      <button
+                        onClick={() => setDeleteTarget(u)}
+                        title="Delete user"
+                        style={{
+                          background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.25)',
+                          borderRadius: 7, color: 'var(--red)', cursor: 'pointer', padding: '5px 8px',
+                        }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -767,6 +799,57 @@ export default function Users() {
                   {saving ? 'Saving…' : modal === 'create' ? 'Create Account' : 'Save Changes'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 110,
+          background: 'rgba(5,9,20,.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg,var(--panel),var(--bg))',
+            border: '1px solid rgba(239,68,68,.25)', borderRadius: 18,
+            width: '100%', maxWidth: 420, padding: 24,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.25)',
+                display: 'grid', placeItems: 'center', color: 'var(--red)',
+              }}>
+                <AlertTriangle size={18} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Delete Account</h3>
+            </div>
+            <p style={{ margin: '0 0 6px', fontSize: 13.5, color: 'var(--text)', lineHeight: 1.5 }}>
+              Are you sure you want to delete <strong>{deleteTarget.name}</strong> ({deleteTarget.email})?
+            </p>
+            <p style={{ margin: '0 0 20px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+              The account will be removed and can no longer log in. Their activity history stays in the
+              audit log for record-keeping.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setDeleteTarget(null)} disabled={deleting} style={{
+                flex: 1, padding: '10px', background: 'rgba(255,255,255,.07)',
+                border: '1px solid rgba(255,255,255,.1)', borderRadius: 10,
+                color: 'var(--muted)', fontWeight: 600, fontSize: 13,
+                cursor: deleting ? 'not-allowed' : 'pointer',
+              }}>
+                Cancel
+              </button>
+              <button onClick={confirmDelete} disabled={deleting} style={{
+                flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', borderRadius: 10,
+                color: '#fff', fontWeight: 700, fontSize: 13,
+                cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.7 : 1,
+              }}>
+                <Trash2 size={14} /> {deleting ? 'Deleting…' : 'Delete Account'}
+              </button>
             </div>
           </div>
         </div>

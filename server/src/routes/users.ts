@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, asc, desc, sql } from 'drizzle-orm';
+import { eq, asc, desc, sql, isNull, and } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/index.js';
@@ -52,7 +52,7 @@ router.get('/', async (_req, res) => {
     linkedClientId: users.linkedClientId,
     linkedDriverId: users.linkedDriverId,
     createdAt: users.createdAt,
-  }).from(users).orderBy(asc(users.createdAt));
+  }).from(users).where(isNull(users.deletedAt)).orderBy(asc(users.createdAt));
 
   const counts = await db.select({
     targetUserId: auditLogs.targetUserId,
@@ -68,7 +68,7 @@ router.get('/', async (_req, res) => {
 });
 
 router.get('/lockout-status', async (_req, res) => {
-  const rows = await db.select({ id: users.id, email: users.email }).from(users);
+  const rows = await db.select({ id: users.id, email: users.email }).from(users).where(isNull(users.deletedAt));
   const result: Record<number, { locked: boolean; lockedUntil: number | null }> = {};
   for (const user of rows) {
     result[user.id] = await getLockoutInfo(`login:${user.email.toLowerCase().trim()}`);
@@ -315,6 +315,46 @@ router.post('/:id/resend-welcome', async (req, res) => {
   }
 
   res.json({ emailSent });
+});
+
+router.delete('/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const actor = req.user!;
+  if (actor.id === id) {
+    res.status(400).json({ error: 'You cannot delete your own account.' });
+    return;
+  }
+
+  const [user] = await db.select({
+    id: users.id, email: users.email, role: users.role, deletedAt: users.deletedAt,
+  }).from(users).where(eq(users.id, id));
+  if (!user || user.deletedAt) { res.status(404).json({ error: 'User not found' }); return; }
+
+  if (user.role === 'admin') {
+    const [{ count: activeAdmins }] = await db.select({
+      count: sql<number>`count(*)::int`,
+    }).from(users).where(and(eq(users.role, 'admin'), isNull(users.deletedAt)));
+    if (activeAdmins <= 1) {
+      res.status(400).json({ error: 'Cannot delete the last remaining admin account.' });
+      return;
+    }
+  }
+
+  await db.insert(auditLogs).values({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'user.deleted',
+    targetUserId: user.id,
+    targetUserEmail: user.email,
+  });
+
+  await db.update(users)
+    .set({ deletedAt: new Date(), isActive: false })
+    .where(eq(users.id, id));
+
+  res.json({ ok: true, userId: user.id });
 });
 
 export default router;
