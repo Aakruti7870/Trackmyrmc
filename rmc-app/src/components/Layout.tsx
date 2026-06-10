@@ -32,25 +32,31 @@ const ROLE_COLOR: Record<string, string> = {
   driver: '#f97316',
 };
 
-function SSEDot({ status }: { status: SSEStatus }) {
+function SSEDot({ status, onReconnect }: { status: SSEStatus; onReconnect: () => void }) {
   const isLive = status === 'connected';
   const isReconnecting = status === 'reconnecting' || status === 'connecting';
-  const color = isLive ? '#22c55e' : isReconnecting ? '#f7c948' : '#9fb0c7';
+  const isClosed = status === 'closed';
+  const color = isLive ? '#22c55e' : isReconnecting ? '#f7c948' : '#ef4444';
   const label = isLive ? 'Live' : isReconnecting ? 'Reconnecting…' : 'Offline';
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 5,
-      padding: '3px 8px', borderRadius: 999,
-      background: `${color}12`,
-      border: `1px solid ${color}30`,
-      fontSize: 10, fontWeight: 700, color,
-    }}>
+    <div
+      onClick={isClosed ? onReconnect : undefined}
+      title={isClosed ? 'Click to reconnect' : undefined}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '3px 8px', borderRadius: 999,
+        background: `${color}12`,
+        border: `1px solid ${color}30`,
+        fontSize: 10, fontWeight: 700, color,
+        cursor: isClosed ? 'pointer' : 'default',
+      }}
+    >
       <span style={{
         width: 5, height: 5, borderRadius: '50%', background: color, display: 'inline-block',
         animation: isLive ? 'ssePulse 2s ease-in-out infinite' : (isReconnecting ? 'sseBlink .9s step-end infinite' : 'none'),
       }} />
-      {label}
+      {isClosed ? 'Offline — tap to retry' : label}
     </div>
   );
 }
@@ -60,7 +66,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
-  const { status: sseStatus } = useSSE();
+  const { status: sseStatus, reconnect } = useSSE();
 
   const roleColor = user ? (ROLE_COLOR[user.role] || '#9fb0c7') : '#9fb0c7';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
@@ -91,7 +97,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div style={{ fontSize: 10, color: '#9fb0c7', marginTop: 1 }}>TrackMyRMC Platform</div>
           </div>
         </div>
-        <SSEDot status={sseStatus} />
+        <SSEDot status={sseStatus} onReconnect={reconnect} />
       </div>
 
       {/* Nav */}
@@ -195,7 +201,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             fontWeight: 900, color: '#111827', fontSize: 13,
           }}>RMC</div>
           <span style={{ fontWeight: 700, fontSize: 14 }}>TrackMyRMC</span>
-          <SSEDot status={sseStatus} />
+          <SSEDot status={sseStatus} onReconnect={reconnect} />
         </div>
         <button onClick={() => setMobileOpen(o => !o)}
           style={{ background: 'none', color: '#eef5ff', padding: 4, border: 'none' }}>

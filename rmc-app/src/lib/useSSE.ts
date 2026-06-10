@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 export type SSEStatus = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
 type Handler = (data: unknown) => void;
+
+const MAX_RETRIES = 12;
 
 export function useSSE() {
   const [status, setStatus] = useState<SSEStatus>('connecting');
@@ -11,16 +13,32 @@ export function useSSE() {
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCount = useRef(0);
   const unmounted = useRef(false);
+  const connectRef = useRef<() => void>(() => {});
+
+  const reconnect = useCallback(() => {
+    retryCount.current = 0;
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    esRef.current?.close();
+    esRef.current = null;
+    setStatus('connecting');
+    connectRef.current();
+  }, []);
 
   useEffect(() => {
     unmounted.current = false;
 
     function connect() {
       if (unmounted.current) return;
-      setStatus(retryCount.current === 0 ? 'connecting' : 'reconnecting');
 
       const token = localStorage.getItem('rmc_token');
-      const url = `/api/events${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      if (!token) {
+        setStatus('closed');
+        return;
+      }
+
+      setStatus(retryCount.current === 0 ? 'connecting' : 'reconnecting');
+
+      const url = `/api/events?token=${encodeURIComponent(token)}`;
       const es = new EventSource(url);
       esRef.current = es;
 
@@ -34,6 +52,12 @@ export function useSSE() {
         if (unmounted.current) return;
         es.close();
         esRef.current = null;
+
+        if (retryCount.current >= MAX_RETRIES) {
+          setStatus('closed');
+          return;
+        }
+
         setStatus('reconnecting');
         const delay = Math.min(1000 * 2 ** retryCount.current, 30000);
         retryCount.current += 1;
@@ -41,17 +65,19 @@ export function useSSE() {
       };
 
       es.addEventListener('challan.created', (e: MessageEvent) => {
-        dispatch('challan.created', JSON.parse(e.data));
+        dispatchEvent('challan.created', JSON.parse(e.data));
       });
 
       es.addEventListener('challan.updated', (e: MessageEvent) => {
-        dispatch('challan.updated', JSON.parse(e.data));
+        dispatchEvent('challan.updated', JSON.parse(e.data));
       });
 
       es.addEventListener('ping', () => {});
     }
 
-    function dispatch(event: string, data: unknown) {
+    connectRef.current = connect;
+
+    function dispatchEvent(event: string, data: unknown) {
       const handlers = handlersRef.current.get(event);
       if (handlers) handlers.forEach(h => h(data));
     }
@@ -77,5 +103,5 @@ export function useSSE() {
     };
   }
 
-  return { status, subscribe };
+  return { status, subscribe, reconnect };
 }

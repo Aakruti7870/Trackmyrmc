@@ -15,6 +15,16 @@ export default defineConfig({
     port: 5000,
     allowedHosts: true,
     proxy: {
+      '/api/events': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        selfHandleResponse: false,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (_proxyReq, _req, res) => {
+            res.setHeader('X-Accel-Buffering', 'no');
+          });
+        },
+      },
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,

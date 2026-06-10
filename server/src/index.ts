@@ -15,6 +15,10 @@ import reportRoutes from './routes/reports.js';
 import meRoutes from './routes/me.js';
 import userRoutes from './routes/users.js';
 import { addSSEClient, removeSSEClient } from './lib/sseEmitter.js';
+import { verifyToken } from './middleware/auth.js';
+import { eq } from 'drizzle-orm';
+import { db } from './db/index.js';
+import { users } from './db/schema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
@@ -40,7 +44,26 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/events', (req, res) => {
+app.get('/api/events', async (req, res) => {
+  const token = req.query.token as string | undefined;
+  if (!token) {
+    res.status(401).json({ error: 'Token required' });
+    return;
+  }
+  let payload;
+  try {
+    payload = verifyToken(token);
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+    return;
+  }
+  const [user] = await db.select({ isActive: users.isActive })
+    .from(users).where(eq(users.id, payload.id));
+  if (!user?.isActive) {
+    res.status(401).json({ error: 'Account deactivated' });
+    return;
+  }
+
   const id = addSSEClient(res);
   const keepAlive = setInterval(() => {
     try { res.write(':ping\n\n'); } catch { clearInterval(keepAlive); }
