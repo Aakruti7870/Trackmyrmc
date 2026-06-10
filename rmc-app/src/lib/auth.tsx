@@ -19,12 +19,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const stored = localStorage.getItem('rmc_user');
     const token = localStorage.getItem('rmc_token');
-    if (stored && token) {
-      setUser(JSON.parse(stored));
+
+    async function verify() {
+      if (!stored || !token) {
+        setLoading(false);
+        return;
+      }
+      // Show the cached user optimistically, but keep loading until the token
+      // is verified so a stale session never flashes the authenticated UI.
+      try {
+        setUser(JSON.parse(stored));
+      } catch {
+        // Corrupt cache — drop it and treat as logged out.
+        localStorage.removeItem('rmc_user');
+        localStorage.removeItem('rmc_token');
+        if (!cancelled) {
+          setUser(null);
+          setLoading(false);
+        }
+        return;
+      }
+      try {
+        const me = await api.get<User>('/auth/me');
+        if (cancelled) return;
+        setUser(me);
+        localStorage.setItem('rmc_user', JSON.stringify(me));
+      } catch {
+        // A 401 is handled by the api layer (session cleared + redirect to
+        // /login). For any failure, drop the in-memory user so the protected
+        // UI is never shown with an invalid session.
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
-    setLoading(false);
+
+    verify();
 
     function handleStorage(e: StorageEvent) {
       // React to auth-key changes (login/logout/account switch) in other tabs.
@@ -44,7 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   async function login(email: string, password: string) {
