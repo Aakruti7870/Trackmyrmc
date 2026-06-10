@@ -31,7 +31,7 @@ export function ShiftHandover() {
         {/* Header */}
         <header className="flex justify-between items-end border-b border-slate-800 pb-6">
           <div>
-            <p className="text-slate-500 uppercase tracking-widest text-xs font-semibold mb-2 flex items-center gap-2">
+            <p className="text-slate-5g00 uppercase tracking-widest text-xs font-semibold mb-2 flex items-center gap-2">
               <Clock className="w-3.5 h-3.5" /> Shift Handover Report
             </p>
             <h1 className="text-3xl font-light text-white tracking-tight">Morning Shift</h1>
