@@ -23,13 +23,25 @@ router.post('/login', async (req, res) => {
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
-  const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  const token = signToken({
+    id: user.id, email: user.email, role: user.role, name: user.name,
+    linkedClientId: user.linkedClientId,
+    linkedDriverId: user.linkedDriverId,
+  });
+  res.json({
+    token,
+    user: {
+      id: user.id, name: user.name, email: user.email, role: user.role,
+      linkedClientId: user.linkedClientId,
+      linkedDriverId: user.linkedDriverId,
+    },
+  });
 });
 
 router.get('/me', requireAuth, async (req, res) => {
   const [user] = await db.select({
-    id: users.id, name: users.name, email: users.email, role: users.role
+    id: users.id, name: users.name, email: users.email, role: users.role,
+    linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
   }).from(users).where(eq(users.id, req.user!.id));
   res.json(user);
 });

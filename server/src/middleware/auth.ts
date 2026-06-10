@@ -8,6 +8,8 @@ export interface AuthPayload {
   email: string;
   role: string;
   name: string;
+  linkedClientId?: number | null;
+  linkedDriverId?: number | null;
 }
 
 declare global {

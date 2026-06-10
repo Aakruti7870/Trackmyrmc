@@ -35,7 +35,11 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
-export type User = { id: number; name: string; email: string; role: string };
+export type User = {
+  id: number; name: string; email: string; role: string;
+  linkedClientId?: number | null;
+  linkedDriverId?: number | null;
+};
 
 export interface Client {
   id: number; name: string; contactPerson: string; phone: string;

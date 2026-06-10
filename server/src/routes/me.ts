@@ -22,10 +22,23 @@ const challanSelect = {
   driverPhone: drivers.phone,
 };
 
+async function resolveClientId(userId: number, linkedClientId: number | null | undefined, email: string): Promise<number | null> {
+  if (linkedClientId) return linkedClientId;
+  const [client] = await db.select({ id: clients.id }).from(clients)
+    .where(eq(clients.email, email)).limit(1);
+  return client?.id ?? null;
+}
+
+async function resolveDriverId(userId: number, linkedDriverId: number | null | undefined, name: string): Promise<number | null> {
+  if (linkedDriverId) return linkedDriverId;
+  const [driver] = await db.select({ id: drivers.id }).from(drivers)
+    .where(eq(drivers.name, name)).limit(1);
+  return driver?.id ?? null;
+}
+
 router.get('/orders', requireRole('client'), async (req, res) => {
-  const client = await db.select().from(clients)
-    .where(eq(clients.email, req.user!.email)).limit(1);
-  if (!client.length) { res.json([]); return; }
+  const clientId = await resolveClientId(req.user!.id, req.user!.linkedClientId, req.user!.email);
+  if (!clientId) { res.json([]); return; }
 
   const rows = await db.select({
     id: orders.id, orderNo: orders.orderNo, grade: orders.grade,
@@ -37,33 +50,34 @@ router.get('/orders', requireRole('client'), async (req, res) => {
   }).from(orders)
     .leftJoin(clients, eq(orders.clientId, clients.id))
     .leftJoin(sites, eq(orders.siteId, sites.id))
-    .where(eq(orders.clientId, client[0].id))
+    .where(eq(orders.clientId, clientId))
     .orderBy(desc(orders.createdAt));
   res.json(rows);
 });
 
 router.get('/challans', requireRole('client'), async (req, res) => {
-  const client = await db.select().from(clients)
-    .where(eq(clients.email, req.user!.email)).limit(1);
-  if (!client.length) { res.json([]); return; }
+  const clientId = await resolveClientId(req.user!.id, req.user!.linkedClientId, req.user!.email);
+  if (!clientId) { res.json([]); return; }
 
   const rows = await db.select(challanSelect).from(challans)
     .leftJoin(clients, eq(challans.clientId, clients.id))
     .leftJoin(sites, eq(challans.siteId, sites.id))
     .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
     .leftJoin(drivers, eq(challans.driverId, drivers.id))
-    .where(eq(challans.clientId, client[0].id))
+    .where(eq(challans.clientId, clientId))
     .orderBy(desc(challans.createdAt));
   res.json(rows);
 });
 
 router.get('/ledger', requireRole('client'), async (req, res) => {
-  const client = await db.select().from(clients)
-    .where(eq(clients.email, req.user!.email)).limit(1);
-  if (!client.length) { res.json({ entries: [], outstanding: 0, creditLimit: 0 }); return; }
+  const clientId = await resolveClientId(req.user!.id, req.user!.linkedClientId, req.user!.email);
+  if (!clientId) { res.json({ entries: [], outstanding: 0, creditLimit: 0 }); return; }
+
+  const [client] = await db.select({ outstandingAmount: clients.outstandingAmount, creditLimit: clients.creditLimit })
+    .from(clients).where(eq(clients.id, clientId));
 
   const rows = await db.select().from(ledgerEntries)
-    .where(eq(ledgerEntries.clientId, client[0].id))
+    .where(eq(ledgerEntries.clientId, clientId))
     .orderBy(desc(ledgerEntries.createdAt));
 
   let balance = 0;
@@ -74,22 +88,17 @@ router.get('/ledger', requireRole('client'), async (req, res) => {
 
   res.json({
     entries: withBalance,
-    outstanding: parseFloat(client[0].outstandingAmount ?? '0'),
-    creditLimit: parseFloat(client[0].creditLimit ?? '0'),
+    outstanding: parseFloat(client?.outstandingAmount ?? '0'),
+    creditLimit: parseFloat(client?.creditLimit ?? '0'),
   });
 });
 
 router.get('/trips', requireRole('driver'), async (req, res) => {
-  const driver = await db.select().from(drivers)
-    .where(eq(drivers.name, req.user!.name)).limit(1);
-
-  if (!driver.length) {
-    res.json([]);
-    return;
-  }
+  const driverId = await resolveDriverId(req.user!.id, req.user!.linkedDriverId, req.user!.name);
+  if (!driverId) { res.json([]); return; }
 
   const { from, to } = req.query;
-  const filters: ReturnType<typeof eq>[] = [eq(challans.driverId, driver[0].id)];
+  const filters: ReturnType<typeof eq>[] = [eq(challans.driverId, driverId)];
 
   if (from) {
     filters.push(gte(challans.dispatchTime, new Date(from as string)));

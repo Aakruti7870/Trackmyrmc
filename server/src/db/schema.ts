@@ -17,6 +17,8 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   role: userRoleEnum('role').notNull().default('dispatcher'),
   isActive: boolean('is_active').notNull().default(true),
+  linkedClientId: integer('linked_client_id'),
+  linkedDriverId: integer('linked_driver_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
