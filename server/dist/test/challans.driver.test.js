@@ -240,6 +240,74 @@ test('a note sent to an unassigned challan is rejected and never written', async
     assert.equal(row.notes, 'Dispatched at 9am', "another driver's note is untouched");
     assert.ok(!sse.events().includes('challan.updated'), 'no SSE event on a rejected delivery');
 });
+// A minimal but valid 1x1 transparent PNG as an image data URL.
+const VALID_PROOF_PHOTO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
+test('driver delivery with a proof photo stores it; detail returns it, list returns only the flag', async () => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+    sse = captureSSE();
+    const res = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhoto: VALID_PROOF_PHOTO });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, 'delivered');
+    // The photo is persisted to the DB.
+    const [row] = await db.select({ proofPhoto: challans.proofPhoto })
+        .from(challans).where(eq(challans.id, challan.id));
+    assert.equal(row.proofPhoto, VALID_PROOF_PHOTO, 'the proof photo is stored on the challan');
+    // GET /:id (detail) returns the full proofPhoto for a dispatcher to view.
+    const detail = await request(app)
+        .get(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(detail.status, 200);
+    assert.equal(detail.body.proofPhoto, VALID_PROOF_PHOTO, 'detail endpoint exposes the proof photo');
+    assert.equal(detail.body.hasProofPhoto, true, 'detail also reports the boolean flag');
+    // GET / (list) returns only hasProofPhoto, never the base64 payload.
+    const list = await request(app)
+        .get('/api/challans')
+        .set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(list.status, 200);
+    const listed = list.body.find((c) => c.id === challan.id);
+    assert.ok(listed, 'the delivered challan appears in the list');
+    assert.equal(listed.hasProofPhoto, true, 'list reports a proof photo exists');
+    assert.equal(listed.proofPhoto, undefined, 'list never includes the base64 photo payload');
+    // The SSE update broadcast is also kept light (flag only, no base64).
+    assert.ok(sse.events().includes('challan.updated'), 'a challan.updated SSE event is emitted');
+});
+test('driver delivery with a non-image proof photo is rejected with 400 and stores nothing', async () => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+    const res = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhoto: 'data:application/pdf;base64,Zm9v' });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /image data url/i);
+    const [row] = await db.select({ status: challans.status, proofPhoto: challans.proofPhoto })
+        .from(challans).where(eq(challans.id, challan.id));
+    assert.equal(row.status, 'dispatched', 'the challan is not marked delivered on a bad photo');
+    assert.equal(row.proofPhoto, null, 'no proof photo is stored');
+});
+test('driver delivery with an oversized proof photo is rejected with 400 and stores nothing', async () => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+    // Exceeds the 8MB cap enforced by validateProofPhoto.
+    const oversized = `data:image/png;base64,${'A'.repeat(8 * 1024 * 1024 + 1)}`;
+    const res = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhoto: oversized });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /too large/i);
+    const [row] = await db.select({ status: challans.status, proofPhoto: challans.proofPhoto })
+        .from(challans).where(eq(challans.id, challan.id));
+    assert.equal(row.status, 'dispatched', 'the challan is not marked delivered on an oversized photo');
+    assert.equal(row.proofPhoto, null, 'no proof photo is stored');
+});
 test('a driver user with no matching driver profile gets 403', async () => {
     const client = await createClient();
     // A driver-role user whose name matches NO drivers row (the profile lookup fails).

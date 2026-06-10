@@ -9,7 +9,9 @@ import challanRoutes from '../routes/challans.js';
 // app.listen and registers background intervals).
 export function buildTestApp() {
     const app = express();
-    app.use(express.json());
+    // Mirror the production limit (see src/index.ts) so proof-of-delivery photo
+    // size validation is exercised by validateProofPhoto, not the body parser.
+    app.use(express.json({ limit: '12mb' }));
     app.use('/api/auth', authRoutes);
     app.use('/api/users', userRoutes);
     app.use('/api/admin', adminRoutes);
