@@ -4,11 +4,13 @@ import {
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
+import { useToast } from '@/lib/toast';
 import { ROLE_ALLOWED_PATHS, type Role } from '@/lib/permissions';
 import { useSSE, type SSEStatus } from '@/lib/useSSE';
+import type { Challan } from '@/lib/types';
 
 const ALL_NAV_ITEMS = [
   { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },
@@ -67,8 +69,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
-  const { status: sseStatus, reconnect } = useSSE();
+  const { status: sseStatus, reconnect, subscribe } = useSSE();
   const { theme, themes, setTheme } = useTheme();
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const unsubCreated = subscribe('challan.created', (data: unknown) => {
+      const c = data as Partial<Challan>;
+      if (!c?.challanNo) return;
+      showToast(`New challan ${c.challanNo} created`, 'info');
+    });
+    const unsubUpdated = subscribe('challan.updated', (data: unknown) => {
+      const c = data as Partial<Challan>;
+      if (!c?.challanNo || c.status !== 'delivered') return;
+      showToast(`${c.challanNo} marked Delivered`, 'success');
+    });
+    return () => { unsubCreated(); unsubUpdated(); };
+  }, [subscribe, showToast]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
