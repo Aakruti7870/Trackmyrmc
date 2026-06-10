@@ -612,9 +612,20 @@ router.post('/:id/restore', async (req, res) => {
 
   const [user] = await db.select({
     id: users.id, email: users.email, deletedAt: users.deletedAt,
+    linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
   }).from(users).where(eq(users.id, id));
   if (!user || !user.deletedAt) {
     res.status(404).json({ error: 'Deleted account not found' });
+    return;
+  }
+
+  // Don't restore an account whose linked client/driver is already taken by an
+  // active account — that would break the one-account-per-link rule. The admin
+  // sees the same clear reason as the bulk-restore skip and can retry after
+  // unlinking the conflicting account.
+  const linkConflict = await findLinkConflict(user.linkedClientId, user.linkedDriverId, user.id);
+  if (linkConflict) {
+    res.status(409).json({ error: linkConflict });
     return;
   }
 

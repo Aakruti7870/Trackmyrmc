@@ -181,6 +181,7 @@ export default function Users() {
   const [purgingSelected, setPurgingSelected] = useState(false);
   const [skippedRestore, setSkippedRestore] = useState<{ id: number; email: string; reason: string }[] | null>(null);
   const [skippedPurge, setSkippedPurge] = useState<{ id: number; email: string }[] | null>(null);
+  const [retryingRestoreId, setRetryingRestoreId] = useState<number | null>(null);
 
   function loadAudit(userId: number | null) {
     const params = new URLSearchParams();
@@ -295,6 +296,27 @@ export default function Users() {
       showToast(e instanceof Error ? e.message : 'Failed to restore account.', 'error');
     } finally {
       setRestoringId(null);
+    }
+  }
+
+  async function retryRestore(item: { id: number; email: string; reason: string }) {
+    setRetryingRestoreId(item.id);
+    try {
+      await api.post(`/users/${item.id}/restore`, {});
+      showToast(`${item.email} has been restored.`, 'success');
+      setSkippedRestore(prev => {
+        const next = (prev ?? []).filter(r => r.id !== item.id);
+        return next.length ? next : null;
+      });
+      load();
+    } catch (e: unknown) {
+      const reason = e instanceof Error ? e.message : 'Failed to restore account.';
+      setSkippedRestore(prev =>
+        (prev ?? []).map(r => (r.id === item.id ? { ...r, reason } : r)),
+      );
+      showToast(reason, 'error');
+    } finally {
+      setRetryingRestoreId(null);
     }
   }
 
@@ -1515,9 +1537,26 @@ export default function Users() {
                   padding: '12px 14px', borderRadius: 10,
                   background: 'rgba(245,158,11,.07)', border: '1px solid rgba(245,158,11,.2)',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>
-                    <Mail size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                    {item.email}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 700, color: 'var(--text)', minWidth: 0 }}>
+                      <Mail size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.email}</span>
+                    </div>
+                    <button
+                      onClick={() => retryRestore(item)}
+                      disabled={retryingRestoreId === item.id}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                        padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                        background: 'rgba(34,197,94,.12)', color: 'var(--green)',
+                        border: '1px solid rgba(34,197,94,.3)',
+                        cursor: retryingRestoreId === item.id ? 'default' : 'pointer',
+                        opacity: retryingRestoreId === item.id ? 0.6 : 1,
+                      }}
+                    >
+                      <RotateCcw size={13} />
+                      {retryingRestoreId === item.id ? 'Retrying…' : 'Retry restore'}
+                    </button>
                   </div>
                   <div style={{ margin: '5px 0 0 20px', fontSize: 12.5, color: '#9fb0c7', lineHeight: 1.45 }}>
                     {item.reason}

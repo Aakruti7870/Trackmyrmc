@@ -380,6 +380,56 @@ test('restore: POST /:id/restore un-deletes the user, relists them, and writes u
   assert.ok(login.token, 'a token is issued after restore');
 });
 
+test('restore: POST /:id/restore is blocked with a 409 when the linked client is already taken, and succeeds after the conflict is unlinked', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const client = await createClient('Acme Concrete');
+  const token = tokenFor(admin);
+
+  // An active account already holds the client link.
+  const holder = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Active Holder', email: 'holder@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+  assert.equal(holder.status, 201);
+
+  // A soft-deleted account pointing at the same client.
+  const conflicted = await createUser({
+    name: 'Conflicted', email: 'conflict@test.com', role: 'client',
+    isActive: false, deletedAt: new Date(),
+  });
+  await db.update(users).set({ linkedClientId: client.id }).where(eq(users.id, conflicted.id));
+
+  // Retrying the restore while the conflict stands returns the same clear reason.
+  const blocked = await request(app)
+    .post(`/api/users/${conflicted.id}/restore`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(blocked.status, 409, 'restore is blocked while the link is taken');
+  assert.match(blocked.body.error, /already linked/i);
+
+  // The account is still soft-deleted and no restore audit entry was written.
+  const [stillGone] = await db.select({ deletedAt: users.deletedAt }).from(users).where(eq(users.id, conflicted.id));
+  assert.ok(stillGone.deletedAt instanceof Date, 'a blocked restore leaves the account deleted');
+  const blockedLogs = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, conflicted.id)));
+  assert.equal(blockedLogs.length, 0, 'a blocked restore writes no restore audit entry');
+
+  // Admin unlinks the active holder, then the retry succeeds and the account drops out of the trash.
+  await request(app)
+    .put(`/api/users/${holder.body.id}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ linkedClientId: null });
+
+  const ok = await request(app)
+    .post(`/api/users/${conflicted.id}/restore`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(ok.status, 200, 'restore succeeds once the conflict is resolved');
+  assert.equal(ok.body.deletedAt, null, 'the account is restored');
+
+  const okLogs = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, conflicted.id)));
+  assert.equal(okLogs.length, 1, 'exactly one user.restored entry is written on success');
+});
+
 test('unlock: POST /:id/unlock writes a lockout_cleared audit entry naming the acting admin and target', async () => {
   const admin = await createUser({ name: 'Admin Unlock', email: 'unlock-admin@test.com', role: 'admin' });
   const target = await createUser({ name: 'Locked User', email: 'locked@test.com', role: 'dispatcher' });

@@ -112,6 +112,67 @@ describe('Users bulk-restore selection UI', () => {
     });
   });
 
+  it('shows the skipped-restore results and retries a skipped row, dropping it on success', async () => {
+    const user = userEvent.setup();
+    // Restore All reports one skipped account whose link is taken.
+    vi.mocked(api.post).mockResolvedValueOnce({
+      restored: 2, skipped: 1,
+      skippedDetails: [{ id: 13, email: 'chetan@x.com', reason: 'This driver is already linked to another account (Someone). Each driver can be linked to only one user.' }],
+    } as never);
+    renderUsers();
+    await enterDeletedView(user);
+
+    await user.click(screen.getByRole('button', { name: /Restore All \(3\)/ }));
+    const confirmModal = (await screen.findByRole('heading', { name: 'Restore All' })).closest('div[style]')!.parentElement as HTMLElement;
+    await user.click(within(confirmModal).getByRole('button', { name: /Restore$/ }));
+
+    // The skipped-results modal lists the skipped account with its reason.
+    await screen.findByRole('heading', { name: /1 Account Skipped/i });
+    const skippedModal = screen.getByText(/These accounts could not be restored/i).parentElement as HTMLElement;
+    expect(within(skippedModal).getByText('chetan@x.com')).toBeInTheDocument();
+    expect(within(skippedModal).getByText(/already linked/i)).toBeInTheDocument();
+
+    // The conflict is now resolved — the retry succeeds.
+    vi.mocked(api.post).mockResolvedValueOnce({ id: 13, deletedAt: null } as never);
+    await user.click(within(skippedModal).getByRole('button', { name: /Retry restore/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/users/13/restore', {});
+    });
+    // The row was the only one, so the whole modal closes.
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: /Account Skipped/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps a skipped row and updates its reason when the retry still conflicts', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.post).mockResolvedValueOnce({
+      restored: 0, skipped: 1,
+      skippedDetails: [{ id: 13, email: 'chetan@x.com', reason: 'This driver is already linked to another account (Someone). Each driver can be linked to only one user.' }],
+    } as never);
+    renderUsers();
+    await enterDeletedView(user);
+
+    await user.click(screen.getByRole('button', { name: /Restore All \(3\)/ }));
+    const confirmModal = (await screen.findByRole('heading', { name: 'Restore All' })).closest('div[style]')!.parentElement as HTMLElement;
+    await user.click(within(confirmModal).getByRole('button', { name: /Restore$/ }));
+
+    await screen.findByRole('heading', { name: /1 Account Skipped/i });
+    const skippedModal = screen.getByText(/These accounts could not be restored/i).parentElement as HTMLElement;
+
+    // The retry still hits the conflict (rejects with the 409 message).
+    vi.mocked(api.post).mockRejectedValueOnce(new Error('This driver is already linked to another account (Someone). Each driver can be linked to only one user.'));
+    await user.click(within(skippedModal).getByRole('button', { name: /Retry restore/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/users/13/restore', {});
+    });
+    // The row stays in the still-open modal so the admin can try again later.
+    expect(await screen.findByRole('heading', { name: /1 Account Skipped/i })).toBeInTheDocument();
+    expect(within(skippedModal).getByText('chetan@x.com')).toBeInTheDocument();
+  });
+
   it('clears the selection when toggling out of the deleted view', async () => {
     const user = userEvent.setup();
     renderUsers();
