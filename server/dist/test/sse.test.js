@@ -1,6 +1,6 @@
 import { test, before, after, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { addSSEClient, removeSSEClient, getSSEClientCount, KEEPALIVE_MS, SWEEP_MS, STALE_THRESHOLD_MS, } from '../lib/sseEmitter.js';
+import { addSSEClient, removeSSEClient, getSSEClientCount, emitSSEEvent, KEEPALIVE_MS, SWEEP_MS, STALE_THRESHOLD_MS, } from '../lib/sseEmitter.js';
 // A minimal stand-in for the Express Response object that the SSE emitter
 // writes to. It records headers and writes, and lets a test simulate
 // backpressure (write returns false) or a closed socket (writableEnded).
@@ -32,6 +32,15 @@ class MockResponse {
 }
 function add(res) {
     return addSSEClient(res);
+}
+function addWithIdentity(res, identity) {
+    return addSSEClient(res, identity);
+}
+// Returns the SSE event names a mock response actually received.
+function eventsOf(res) {
+    return res.writes
+        .map((chunk) => /^event: (.+)$/m.exec(chunk)?.[1])
+        .filter((e) => Boolean(e));
 }
 // The emitter keeps a module-level client map and a single pair of shared
 // timers created lazily on the first connection. Enable the fake clock ONCE
@@ -117,4 +126,61 @@ test('proxy headers: HTTP/2 omits the (illegal) Transfer-Encoding header', () =>
     // The other streaming headers still apply regardless of protocol version.
     assert.match(res.headers['content-type'], /text\/event-stream/);
     assert.equal(res.headers['x-accel-buffering'], 'no');
+});
+test('targeted event: a client only receives events for their own company', () => {
+    const ownClient = new MockResponse(2);
+    const otherClient = new MockResponse(2);
+    created.push(addWithIdentity(ownClient, { role: 'client', clientId: 7 }));
+    created.push(addWithIdentity(otherClient, { role: 'client', clientId: 99 }));
+    emitSSEEvent('order.updated', { orderNo: 'ORD-001' }, { clientId: 7 });
+    assert.ok(eventsOf(ownClient).includes('order.updated'), 'the owning client receives the toast');
+    assert.ok(!eventsOf(otherClient).includes('order.updated'), "another company's client must NOT receive the toast");
+});
+test('targeted event: a driver only receives events for trips assigned to them', () => {
+    const ownDriver = new MockResponse(2);
+    const otherDriver = new MockResponse(2);
+    created.push(addWithIdentity(ownDriver, { role: 'driver', driverId: 3 }));
+    created.push(addWithIdentity(otherDriver, { role: 'driver', driverId: 5 }));
+    emitSSEEvent('challan.updated', { challanNo: 'CH-0001', status: 'delivered' }, { clientId: 7, driverId: 3 });
+    assert.ok(eventsOf(ownDriver).includes('challan.updated'), 'the assigned driver receives the toast');
+    assert.ok(!eventsOf(otherDriver).includes('challan.updated'), 'an unassigned driver must NOT receive the toast');
+});
+test('targeted event: staff roles receive all order/trip toasts', () => {
+    const admin = new MockResponse(2);
+    const dispatcher = new MockResponse(2);
+    const operator = new MockResponse(2);
+    created.push(addWithIdentity(admin, { role: 'admin' }));
+    created.push(addWithIdentity(dispatcher, { role: 'dispatcher' }));
+    created.push(addWithIdentity(operator, { role: 'plant_operator' }));
+    // An event scoped to a specific client/driver still reaches every staff member.
+    emitSSEEvent('order.updated', { orderNo: 'ORD-001' }, { clientId: 42 });
+    for (const [name, res] of [['admin', admin], ['dispatcher', dispatcher], ['operator', operator]]) {
+        assert.ok(eventsOf(res).includes('order.updated'), `${name} must receive every order toast`);
+    }
+});
+test('targeted event: a client does not receive driver-only trip events, and vice versa', () => {
+    const client = new MockResponse(2);
+    const driver = new MockResponse(2);
+    created.push(addWithIdentity(client, { role: 'client', clientId: 7 }));
+    created.push(addWithIdentity(driver, { role: 'driver', driverId: 3 }));
+    // A challan for client 7 carried by driver 3: both should see it.
+    emitSSEEvent('challan.created', { challanNo: 'CH-0001' }, { clientId: 7, driverId: 3 });
+    assert.ok(eventsOf(client).includes('challan.created'), 'the owning client sees their challan');
+    assert.ok(eventsOf(driver).includes('challan.created'), 'the assigned driver sees their challan');
+    // A challan for a different client carried by a different driver: neither sees it.
+    client.writes.length = 0;
+    driver.writes.length = 0;
+    emitSSEEvent('challan.created', { challanNo: 'CH-0002' }, { clientId: 99, driverId: 5 });
+    assert.ok(!eventsOf(client).includes('challan.created'), 'client ignores another company challan');
+    assert.ok(!eventsOf(driver).includes('challan.created'), 'driver ignores an unassigned challan');
+});
+test('untargeted event still broadcasts to every connection', () => {
+    const client = new MockResponse(2);
+    const driver = new MockResponse(2);
+    created.push(addWithIdentity(client, { role: 'client', clientId: 7 }));
+    created.push(addWithIdentity(driver, { role: 'driver', driverId: 3 }));
+    // No audience → backward-compatible broadcast (e.g. vehicle.position).
+    emitSSEEvent('vehicle.position', { challanId: 1 });
+    assert.ok(eventsOf(client).includes('vehicle.position'), 'broadcast reaches the client');
+    assert.ok(eventsOf(driver).includes('vehicle.position'), 'broadcast reaches the driver');
 });

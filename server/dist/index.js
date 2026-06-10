@@ -60,15 +60,22 @@ app.get('/api/events', async (req, res) => {
         res.status(401).json({ error: 'Invalid token' });
         return;
     }
-    const [user] = await db.select({ isActive: users.isActive })
-        .from(users).where(eq(users.id, payload.id));
+    const [user] = await db.select({
+        isActive: users.isActive, role: users.role,
+        linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
+    }).from(users).where(eq(users.id, payload.id));
     if (!user?.isActive) {
         res.status(401).json({ error: 'Account deactivated' });
         return;
     }
     // Keepalive pings and dead-connection sweeping are handled centrally by the
     // SSE emitter (see KEEPALIVE_MS / STALE_THRESHOLD_MS in sseEmitter.ts).
-    const id = addSSEClient(res);
+    // The identity scopes targeted events (order/trip toasts) to their owner.
+    const id = addSSEClient(res, {
+        role: user.role,
+        clientId: user.linkedClientId,
+        driverId: user.linkedDriverId,
+    });
     req.on('close', () => {
         removeSSEClient(id);
     });

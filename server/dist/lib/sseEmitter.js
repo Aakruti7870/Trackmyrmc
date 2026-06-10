@@ -1,3 +1,23 @@
+const STAFF_ROLES = new Set(['admin', 'dispatcher', 'plant_operator']);
+function clientMayReceive(client, audience) {
+    // No targeting → broadcast to everyone.
+    if (!audience)
+        return true;
+    const identity = client.identity;
+    // Identity-less observers (e.g. test capture clients) receive everything.
+    if (!identity)
+        return true;
+    // Staff see all order/trip activity.
+    if (STAFF_ROLES.has(identity.role))
+        return true;
+    if (identity.role === 'client') {
+        return audience.clientId != null && identity.clientId === audience.clientId;
+    }
+    if (identity.role === 'driver') {
+        return audience.driverId != null && identity.driverId === audience.driverId;
+    }
+    return false;
+}
 // Keepalive must stay well under the shortest common proxy idle timeout.
 // nginx / Cloudflare / Replit's deployment proxy buffer or drop idle streams
 // after ~30-60s, so 15s gives at least two pings inside a 30s window.
@@ -64,7 +84,7 @@ function ensureTimers() {
     sweep.unref?.();
     timers = { keepAlive, sweep };
 }
-export function addSSEClient(res) {
+export function addSSEClient(res, identity) {
     const id = ++clientId;
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -79,16 +99,18 @@ export function addSSEClient(res) {
     }
     res.flushHeaders();
     res.write(':ok\n\n');
-    clients.set(id, { id, res, lastActive: Date.now() });
+    clients.set(id, { id, res, lastActive: Date.now(), identity });
     ensureTimers();
     return id;
 }
 export function removeSSEClient(id) {
     dropClient(id);
 }
-export function emitSSEEvent(event, data) {
+export function emitSSEEvent(event, data, audience) {
     const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const client of clients.values()) {
+        if (!clientMayReceive(client, audience))
+            continue;
         if (!writeToClient(client, payload))
             dropClient(client.id);
     }

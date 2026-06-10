@@ -8,3 +8,4 @@
 - [RMC lint validation](rmc-lint-validation.md) — eslint-plugin-react-hooks@7 preset over-flags idiomatic code; purity/set-state-in-effect/only-export-components downgraded to warn so `lint` gate only blocks on real errors.
 - [Screenshot URL caching](screenshot-url-cache.md) — external_url screenshots are cached per-URL; add a `?cb=` query param to force a fresh capture of a changed page.
 - [RMC shift windows](rmc-shift-windows.md) — shifts (esp. night 22:00→06:00) cross midnight; use absolute Date start/end + date-anchored persistence keys, never hour-of-day or isToday.
+- [SSE event targeting](sse-event-targeting.md) — emitSSEEvent(event,data,audience?) scopes per-recipient; missing audience silently broadcasts to all.

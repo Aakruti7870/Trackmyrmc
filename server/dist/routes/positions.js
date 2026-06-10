@@ -95,7 +95,7 @@ router.post('/', requireRole('driver'), async (req, res) => {
         delivered = true;
         status = 'delivered';
         inRadiusCount = 0;
-        emitSSEEvent('challan.updated', updated);
+        emitSSEEvent('challan.updated', updated, { clientId: updated.clientId, driverId: updated.driverId });
     }
     const live = {
         challanId: cid,

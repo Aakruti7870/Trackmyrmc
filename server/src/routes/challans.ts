@@ -88,10 +88,10 @@ router.post('/', async (req, res) => {
     const [updatedOrder] = await db.update(orders).set({ status: 'in_progress' })
       .where(eq(orders.id, +orderId)).returning();
     if (updatedOrder && prevOrder?.status !== 'in_progress') {
-      emitSSEEvent('order.updated', updatedOrder);
+      emitSSEEvent('order.updated', updatedOrder, { clientId: updatedOrder.clientId });
     }
   }
-  emitSSEEvent('challan.created', row);
+  emitSSEEvent('challan.created', row, { clientId: row.clientId, driverId: row.driverId });
   res.status(201).json(row);
 });
 
@@ -129,7 +129,7 @@ router.put('/:id', async (req, res) => {
     const [row] = await db.update(challans)
       .set(updateData)
       .where(eq(challans.id, challanId)).returning();
-    emitSSEEvent('challan.updated', row);
+    emitSSEEvent('challan.updated', row, { clientId: row.clientId, driverId: row.driverId });
     res.json(row);
     return;
   }
@@ -149,7 +149,7 @@ router.put('/:id', async (req, res) => {
 
   const [row] = await db.update(challans).set(updateData)
     .where(eq(challans.id, challanId)).returning();
-  emitSSEEvent('challan.updated', row);
+  emitSSEEvent('challan.updated', row, { clientId: row.clientId, driverId: row.driverId });
   res.json(row);
 });
 

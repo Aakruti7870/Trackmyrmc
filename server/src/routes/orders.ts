@@ -81,7 +81,7 @@ router.put('/:id', async (req, res) => {
     deliveryDate, deliveryTime, notes, status,
   }).where(eq(orders.id, +req.params.id)).returning();
   if (row && status !== undefined && prev?.status !== row.status) {
-    emitSSEEvent('order.updated', row);
+    emitSSEEvent('order.updated', row, { clientId: row.clientId });
   }
   res.json(row);
 });

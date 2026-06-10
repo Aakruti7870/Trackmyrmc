@@ -1,6 +1,49 @@
 import type { Response } from 'express';
 
-type SSEClient = { id: number; res: Response; lastActive: number };
+// Identity of the authenticated user behind an SSE connection. Used to scope
+// targeted events so a client/driver only receives notifications about their
+// own orders/trips. A connection registered without an identity (e.g. internal
+// test observers) acts as a wildcard receiver and gets every event.
+export type SSEIdentity = {
+  role: string;
+  clientId?: number | null;
+  driverId?: number | null;
+};
+
+// Describes who an event pertains to. Staff roles always receive targeted
+// events; a client receives one whose `clientId` matches their linked client,
+// and a driver receives one whose `driverId` matches their linked driver.
+// Omitting the audience entirely broadcasts to every connection.
+export type SSEAudience = {
+  clientId?: number | null;
+  driverId?: number | null;
+};
+
+const STAFF_ROLES = new Set(['admin', 'dispatcher', 'plant_operator']);
+
+type SSEClient = {
+  id: number;
+  res: Response;
+  lastActive: number;
+  identity?: SSEIdentity;
+};
+
+function clientMayReceive(client: SSEClient, audience?: SSEAudience): boolean {
+  // No targeting → broadcast to everyone.
+  if (!audience) return true;
+  const identity = client.identity;
+  // Identity-less observers (e.g. test capture clients) receive everything.
+  if (!identity) return true;
+  // Staff see all order/trip activity.
+  if (STAFF_ROLES.has(identity.role)) return true;
+  if (identity.role === 'client') {
+    return audience.clientId != null && identity.clientId === audience.clientId;
+  }
+  if (identity.role === 'driver') {
+    return audience.driverId != null && identity.driverId === audience.driverId;
+  }
+  return false;
+}
 
 // Keepalive must stay well under the shortest common proxy idle timeout.
 // nginx / Cloudflare / Replit's deployment proxy buffer or drop idle streams
@@ -66,7 +109,7 @@ function ensureTimers(): void {
   timers = { keepAlive, sweep };
 }
 
-export function addSSEClient(res: Response): number {
+export function addSSEClient(res: Response, identity?: SSEIdentity): number {
   const id = ++clientId;
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -81,7 +124,7 @@ export function addSSEClient(res: Response): number {
   }
   res.flushHeaders();
   res.write(':ok\n\n');
-  clients.set(id, { id, res, lastActive: Date.now() });
+  clients.set(id, { id, res, lastActive: Date.now(), identity });
   ensureTimers();
   return id;
 }
@@ -90,9 +133,10 @@ export function removeSSEClient(id: number): void {
   dropClient(id);
 }
 
-export function emitSSEEvent(event: string, data: unknown): void {
+export function emitSSEEvent(event: string, data: unknown, audience?: SSEAudience): void {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const client of clients.values()) {
+    if (!clientMayReceive(client, audience)) continue;
     if (!writeToClient(client, payload)) dropClient(client.id);
   }
 }
