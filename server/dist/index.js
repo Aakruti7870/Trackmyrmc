@@ -62,17 +62,10 @@ app.get('/api/events', async (req, res) => {
         res.status(401).json({ error: 'Account deactivated' });
         return;
     }
+    // Keepalive pings and dead-connection sweeping are handled centrally by the
+    // SSE emitter (see KEEPALIVE_MS / STALE_THRESHOLD_MS in sseEmitter.ts).
     const id = addSSEClient(res);
-    const keepAlive = setInterval(() => {
-        try {
-            res.write(':ping\n\n');
-        }
-        catch {
-            clearInterval(keepAlive);
-        }
-    }, 25000);
     req.on('close', () => {
-        clearInterval(keepAlive);
         removeSSEClient(id);
     });
 });

@@ -155,6 +155,16 @@ router.post('/', async (req, res) => {
     emailSent = false;
   }
 
+  const actor = req.user!;
+  await db.insert(auditLogs).values({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'user.created',
+    targetUserId: user.id,
+    targetUserEmail: user.email,
+    emailSent: emailSent ?? false,
+  });
+
   res.status(201).json({ ...safeUser(user), emailSent });
 });
 

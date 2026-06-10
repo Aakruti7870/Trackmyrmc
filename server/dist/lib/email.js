@@ -1,4 +1,37 @@
 import nodemailer from 'nodemailer';
+function maskValue(value) {
+    if (!value)
+        return null;
+    const trimmed = value.trim();
+    if (!trimmed)
+        return null;
+    const atIndex = trimmed.indexOf('@');
+    if (atIndex > 0) {
+        const local = trimmed.slice(0, atIndex);
+        const domain = trimmed.slice(atIndex);
+        const visible = local.slice(0, Math.min(2, local.length));
+        return `${visible}${'•'.repeat(Math.max(3, local.length - visible.length))}${domain}`;
+    }
+    if (trimmed.length <= 2)
+        return '•'.repeat(trimmed.length);
+    const head = trimmed.slice(0, 2);
+    const tail = trimmed.slice(-1);
+    return `${head}${'•'.repeat(Math.max(3, trimmed.length - 3))}${tail}`;
+}
+export function getSmtpSettings() {
+    const host = process.env.SMTP_HOST;
+    const port = process.env.SMTP_PORT;
+    const user = process.env.SMTP_USER;
+    const from = process.env.SMTP_FROM;
+    const pass = process.env.SMTP_PASS;
+    return {
+        host: host?.trim() || null,
+        port: port?.trim() || (host ? '587' : null),
+        user: maskValue(user),
+        from: maskValue(from || user),
+        configured: Boolean(host && user && pass),
+    };
+}
 function createTransporter() {
     const host = process.env.SMTP_HOST;
     const port = parseInt(process.env.SMTP_PORT || '587', 10);
