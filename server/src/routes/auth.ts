@@ -46,6 +46,40 @@ router.get('/me', requireAuth, async (req, res) => {
   res.json(user);
 });
 
+router.put('/me', requireAuth, async (req, res) => {
+  const { name, email } = req.body;
+  if (!name && !email) {
+    res.status(400).json({ error: 'At least one of name or email is required' });
+    return;
+  }
+  if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
+    res.status(400).json({ error: 'Name must be a non-empty string' });
+    return;
+  }
+  if (email !== undefined) {
+    if (typeof email !== 'string' || !email.includes('@')) {
+      res.status(400).json({ error: 'A valid email is required' });
+      return;
+    }
+    const [existing] = await db.select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email.toLowerCase().trim()));
+    if (existing && existing.id !== req.user!.id) {
+      res.status(409).json({ error: 'Email is already in use by another account' });
+      return;
+    }
+  }
+  const updates: Partial<typeof users.$inferInsert> = {};
+  if (name !== undefined) updates.name = name.trim();
+  if (email !== undefined) updates.email = email.toLowerCase().trim();
+  await db.update(users).set(updates).where(eq(users.id, req.user!.id));
+  const [updated] = await db.select({
+    id: users.id, name: users.name, email: users.email, role: users.role,
+    linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
+  }).from(users).where(eq(users.id, req.user!.id));
+  res.json(updated);
+});
+
 router.put('/change-password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {

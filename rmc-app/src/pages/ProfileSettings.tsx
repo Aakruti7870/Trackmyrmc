@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { KeyRound, Eye, EyeOff, CheckCircle, User as UserIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import type { User } from '@/lib/api';
 
 const card: React.CSSProperties = {
   background: 'linear-gradient(135deg,rgba(17,30,55,.85),rgba(10,20,40,.9))',
@@ -62,8 +63,12 @@ function PasswordInput({
 }
 
 export default function ProfileSettings() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { showToast } = useToast();
+
+  const [profileName, setProfileName] = useState(user?.name || '');
+  const [profileEmail, setProfileEmail] = useState(user?.email || '');
+  const [profileSaving, setProfileSaving] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -71,8 +76,43 @@ export default function ProfileSettings() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  useEffect(() => {
+    if (user) {
+      setProfileName(user.name);
+      setProfileEmail(user.email);
+    }
+  }, [user]);
+
   const roleColor = user ? (ROLE_COLOR[user.role] || '#9fb0c7') : '#9fb0c7';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
+
+  const profileDirty = profileName !== (user?.name || '') || profileEmail !== (user?.email || '');
+
+  async function handleProfileSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!profileName.trim()) {
+      showToast('Name cannot be empty.', 'error');
+      return;
+    }
+    if (!profileEmail.trim() || !profileEmail.includes('@')) {
+      showToast('Please enter a valid email address.', 'error');
+      return;
+    }
+    setProfileSaving(true);
+    try {
+      const updated = await api.put<User>('/auth/me', {
+        name: profileName.trim(),
+        email: profileEmail.trim(),
+      });
+      updateUser(updated);
+      showToast('Profile updated successfully.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update profile';
+      showToast(msg, 'error');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -136,6 +176,63 @@ export default function ProfileSettings() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Edit profile card */}
+      <div style={{ ...card, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 10,
+            background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.25)',
+            display: 'grid', placeItems: 'center',
+          }}>
+            <UserIcon size={15} color="#38bdf8" />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#eef5ff' }}>Edit Profile</div>
+            <div style={{ fontSize: 11, color: '#9fb0c7' }}>Update your display name and email address</div>
+          </div>
+        </div>
+
+        <form onSubmit={handleProfileSave} style={{ display: 'grid', gap: 16 }}>
+          <div>
+            <label style={label}>Display Name</label>
+            <input
+              type="text"
+              value={profileName}
+              onChange={e => setProfileName(e.target.value)}
+              placeholder="Your full name"
+              style={{ ...inputStyle, padding: '10px 12px' }}
+              autoComplete="name"
+            />
+          </div>
+          <div>
+            <label style={label}>Email Address</label>
+            <input
+              type="email"
+              value={profileEmail}
+              onChange={e => setProfileEmail(e.target.value)}
+              placeholder="your@email.com"
+              style={{ ...inputStyle, padding: '10px 12px' }}
+              autoComplete="email"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={profileSaving || !profileDirty}
+            style={{
+              marginTop: 4, padding: '11px 22px', borderRadius: 10,
+              background: profileSaving ? 'rgba(56,189,248,.4)' : 'linear-gradient(135deg,#38bdf8,#0ea5e9)',
+              border: 'none', cursor: (profileSaving || !profileDirty) ? 'not-allowed' : 'pointer',
+              color: '#fff', fontWeight: 800, fontSize: 14,
+              opacity: !profileDirty ? 0.5 : 1,
+              transition: 'opacity .15s',
+            }}
+          >
+            {profileSaving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </form>
       </div>
 
       {/* Change password card */}
