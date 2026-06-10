@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw, Download } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
@@ -122,6 +123,15 @@ function formatDate(iso: string) {
   return d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+/** Human-readable label for an audit account reference (actor or target). */
+function accountLabel(id: number | null, label: string | null) {
+  const text = label?.trim();
+  if (!text) return '[deleted]';
+  return id === null ? `${text} (deleted)` : text;
+}
+
+const AUDIT_EXPORT_HEADERS = ['Timestamp', 'Action', 'Details', 'Target Account', 'Performed By', 'Email Sent'] as const;
+
 const deletedTagStyle: React.CSSProperties = {
   marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
   background: 'rgba(239,68,68,.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,.25)',
@@ -188,6 +198,8 @@ export default function Users() {
   const [skippedRestore, setSkippedRestore] = useState<{ id: number; email: string; reason: string }[] | null>(null);
   const [skippedPurge, setSkippedPurge] = useState<{ id: number; email: string }[] | null>(null);
   const [retryingRestoreId, setRetryingRestoreId] = useState<number | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   function loadAudit(userId: number | null) {
     const params = new URLSearchParams();
@@ -230,6 +242,25 @@ export default function Users() {
     return () => clearInterval(id);
   }, [anyLocked]);
 
+  // Close the export menu on outside click or Escape.
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    function onPointer(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setExportMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [exportMenuOpen]);
+
   function viewHistory(u: UserRecord) {
     setHistoryUser(u);
     loadAudit(u.id);
@@ -241,34 +272,33 @@ export default function Users() {
     loadAudit(null);
   }
 
-  function exportAuditCsv() {
-    if (auditLog.length === 0) return;
-    const headers = ['Timestamp', 'Action', 'Details', 'Target Account', 'Performed By', 'Email Sent'];
-    const escape = (value: string) => {
-      const needsQuote = /[",\r\n]/.test(value);
-      const escaped = value.replace(/"/g, '""');
-      return needsQuote ? `"${escaped}"` : escaped;
-    };
-    const accountLabel = (id: number | null, label: string | null) => {
-      const text = label?.trim();
-      if (!text) return '[deleted]';
-      return id === null ? `${text} (deleted)` : text;
-    };
-    const rows = auditLog.map(entry => [
-      formatDate(entry.createdAt),
-      ACTION_LABEL[entry.action] ?? entry.action,
-      entry.detail ?? '',
-      accountLabel(entry.targetUserId, entry.targetUserEmail),
-      accountLabel(entry.actorId, entry.actorName),
-      entry.emailSent === null ? '' : entry.emailSent ? 'Sent' : 'Not sent',
-    ]);
-    const csv = [headers, ...rows]
-      .map(row => row.map(cell => escape(String(cell))).join(','))
-      .join('\r\n');
+  // Shared filename context (matches across CSV / Excel / PDF): user email + date.
+  function exportFilename(ext: string) {
     const date = new Date().toISOString().slice(0, 10);
     const context = historyUser ? historyUser.email.replace(/[^a-zA-Z0-9._-]+/g, '-') : 'all';
-    const filename = `activity-log-${context}-${date}.csv`;
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    return `activity-log-${context}-${date}.${ext}`;
+  }
+
+  // A human-readable description of the active per-user filter, used in the
+  // Excel sheet caption and PDF title so an exported file is self-describing.
+  function exportScopeLabel() {
+    return historyUser ? `${historyUser.name} (${historyUser.email})` : 'All users';
+  }
+
+  // Build the per-entry string cells (shared layout across all formats).
+  function auditExportRows() {
+    return auditLog.map(entry => ({
+      timestamp: new Date(entry.createdAt),
+      timestampText: formatDate(entry.createdAt),
+      action: ACTION_LABEL[entry.action] ?? entry.action,
+      detail: entry.detail ?? '',
+      target: accountLabel(entry.targetUserId, entry.targetUserEmail),
+      performedBy: accountLabel(entry.actorId, entry.actorName),
+      emailSent: entry.emailSent === null ? '' : entry.emailSent ? 'Sent' : 'Not sent',
+    }));
+  }
+
+  function triggerDownload(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -277,6 +307,128 @@ export default function Users() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  function exportAuditCsv() {
+    if (auditLog.length === 0) return;
+    const escape = (value: string) => {
+      const needsQuote = /[",\r\n]/.test(value);
+      const escaped = value.replace(/"/g, '""');
+      return needsQuote ? `"${escaped}"` : escaped;
+    };
+    const rows = auditExportRows().map(r => [
+      r.timestampText, r.action, r.detail, r.target, r.performedBy, r.emailSent,
+    ]);
+    const csv = [[...AUDIT_EXPORT_HEADERS], ...rows]
+      .map(row => row.map(cell => escape(String(cell))).join(','))
+      .join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    triggerDownload(blob, exportFilename('csv'));
+  }
+
+  // Native .xlsx export. The timestamp column carries real Date values (rendered
+  // with a date/time number format) so spreadsheet apps treat it as a date, and
+  // the header row is bolded with sized columns and a filter dropdown.
+  function exportAuditXlsx() {
+    if (auditLog.length === 0) return;
+    const rows = auditExportRows();
+    const aoa: (string | Date)[][] = [
+      [...AUDIT_EXPORT_HEADERS],
+      ...rows.map(r => [r.timestamp, r.action, r.detail, r.target, r.performedBy, r.emailSent]),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true });
+    const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
+
+    // Apply a date/time number format to the timestamp column (col 0).
+    for (let row = 1; row <= range.e.r; row++) {
+      const ref = XLSX.utils.encode_cell({ r: row, c: 0 });
+      const cell = ws[ref];
+      if (cell && cell.t === 'd') cell.z = 'dd-mmm-yyyy hh:mm';
+    }
+
+    // Style + bold the header row (ignored by readers that don't support styles,
+    // but honored by Excel/LibreOffice and the xlsx writer's style path).
+    for (let col = 0; col <= range.e.c; col++) {
+      const ref = XLSX.utils.encode_cell({ r: 0, c: col });
+      const cell = ws[ref];
+      if (cell) {
+        cell.s = {
+          font: { bold: true, color: { rgb: 'FF1B2433' } },
+          fill: { patternType: 'solid', fgColor: { rgb: 'FFF7C948' } },
+          alignment: { horizontal: 'left', vertical: 'center' },
+        };
+      }
+    }
+
+    ws['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 44 }, { wch: 26 }, { wch: 26 }, { wch: 12 }];
+    ws['!autofilter'] = { ref: ws['!ref'] ?? 'A1' };
+    ws['!freeze'] = { xSplit: '0', ySplit: '1', topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
+
+    const wb = XLSX.utils.book_new();
+    wb.Props = {
+      Title: `Activity Log — ${exportScopeLabel()}`,
+      CreatedDate: new Date(),
+    };
+    XLSX.utils.book_append_sheet(wb, ws, 'Activity Log');
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    triggerDownload(
+      new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      exportFilename('xlsx'),
+    );
+  }
+
+  // Print-friendly PDF: open a clean printable document in a new window and
+  // invoke the browser's print dialog (Save as PDF). The active per-user filter
+  // is shown in the title so the printed record is self-describing.
+  function exportAuditPdf() {
+    if (auditLog.length === 0) return;
+    const rows = auditExportRows();
+    const esc = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    const filterBits: string[] = [];
+    if (actionFilter !== 'all') filterBits.push(`Action: ${ACTION_LABEL[actionFilter] ?? actionFilter}`);
+    if (fromDate) filterBits.push(`From: ${fromDate}`);
+    if (toDate) filterBits.push(`To: ${toDate}`);
+    const generated = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+    const headerCells = AUDIT_EXPORT_HEADERS.map(h => `<th>${esc(h)}</th>`).join('');
+    const bodyRows = rows.map(r => `<tr>
+      <td>${esc(r.timestampText)}</td>
+      <td>${esc(r.action)}</td>
+      <td>${esc(r.detail)}</td>
+      <td>${esc(r.target)}</td>
+      <td>${esc(r.performedBy)}</td>
+      <td>${esc(r.emailSent)}</td>
+    </tr>`).join('');
+    const html = `<!doctype html><html><head><meta charset="utf-8">
+      <title>${esc(exportFilename('pdf').replace(/\.pdf$/, ''))}</title>
+      <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; color: #1b2433; margin: 28px; }
+        h1 { font-size: 18px; margin: 0 0 4px; }
+        .scope { font-size: 13px; color: #555; margin: 0 0 2px; }
+        .meta { font-size: 11px; color: #888; margin: 0 0 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th, td { border: 1px solid #d0d5dd; padding: 6px 8px; text-align: left; vertical-align: top; word-break: break-word; }
+        th { background: #f7c948; color: #1b2433; font-weight: 700; }
+        tr:nth-child(even) td { background: #f6f8fb; }
+        @media print { body { margin: 0; } th { -webkit-print-color-adjust: exact; print-color-adjust: exact; } tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      </style></head><body>
+      <h1>Activity Log</h1>
+      <p class="scope">Scope: ${esc(exportScopeLabel())}</p>
+      ${filterBits.length ? `<p class="scope">Filters: ${esc(filterBits.join('  ·  '))}</p>` : ''}
+      <p class="meta">${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} · Generated ${esc(generated)}</p>
+      <table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>
+      <script>window.onload = function(){ window.focus(); window.print(); };</script>
+      </body></html>`;
+    const win = window.open('', '_blank');
+    if (!win) {
+      showToast('Allow pop-ups to export the activity log as PDF.', 'error');
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
   }
 
   async function unlock(u: UserRecord) {
@@ -1067,17 +1219,54 @@ export default function Users() {
             </button>
           )}
           {auditLog.length > 0 && (
-            <button
-              onClick={exportAuditCsv}
-              title={historyUser ? `Download ${historyUser.email}'s activity log as CSV` : 'Download the activity log as CSV'}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto', padding: '9px 14px',
-                borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-                background: 'rgba(247,201,72,.12)', border: '1px solid rgba(247,201,72,.3)', color: '#f7c948',
-              }}
-            >
-              <Download size={13} /> Download CSV
-            </button>
+            <div ref={exportMenuRef} style={{ position: 'relative', marginLeft: 'auto' }}>
+              <button
+                onClick={() => setExportMenuOpen(o => !o)}
+                aria-haspopup="menu"
+                aria-expanded={exportMenuOpen}
+                title={historyUser ? `Export ${historyUser.email}'s activity log` : 'Export the activity log'}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
+                  borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                  background: 'rgba(247,201,72,.12)', border: '1px solid rgba(247,201,72,.3)', color: '#f7c948',
+                }}
+              >
+                <Download size={13} /> Export
+                <ChevronDown size={13} style={{ transform: exportMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+              </button>
+              {exportMenuOpen && (
+                <div
+                  role="menu"
+                  style={{
+                    position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 20, minWidth: 180,
+                    background: '#0e1a2e', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10,
+                    boxShadow: '0 12px 30px rgba(0,0,0,.45)', overflow: 'hidden', padding: 4,
+                  }}
+                >
+                  {([
+                    { key: 'csv', label: 'CSV (.csv)', icon: <FileText size={14} />, fn: exportAuditCsv },
+                    { key: 'xlsx', label: 'Excel (.xlsx)', icon: <FileSpreadsheet size={14} />, fn: exportAuditXlsx },
+                    { key: 'pdf', label: 'PDF (print)', icon: <FileText size={14} />, fn: exportAuditPdf },
+                  ] as const).map(item => (
+                    <button
+                      key={item.key}
+                      role="menuitem"
+                      onClick={() => { setExportMenuOpen(false); item.fn(); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left',
+                        padding: '9px 11px', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                        background: 'transparent', border: 'none', color: 'var(--text)',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.06)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span style={{ color: '#f7c948', display: 'flex' }}>{item.icon}</span>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
