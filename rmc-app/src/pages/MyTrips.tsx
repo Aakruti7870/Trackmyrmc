@@ -1,6 +1,32 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, type Challan, type PositionUpdateResult } from '@/lib/api';
-import { Truck, MapPin, CheckCircle, Clock, Package, AlertCircle, CalendarDays, Navigation, Satellite, AlertTriangle } from 'lucide-react';
+import { Truck, MapPin, CheckCircle, Clock, Package, AlertCircle, CalendarDays, Navigation, Satellite, AlertTriangle, Camera, X } from 'lucide-react';
+
+// Resize/compress an image file to a small JPEG data URL so proof photos stay
+// well under the server's upload limit while remaining legible for billing.
+function compressImage(file: File, maxDim = 1280, quality = 0.7): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read the image file'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not load the image'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        else if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas not supported')); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 const STATUS_STYLES: Record<string, { color: string; bg: string; icon: React.ElementType }> = {
   pending:    { color: 'var(--gold)', bg: 'color-mix(in srgb, var(--gold) 10%, transparent)',  icon: Clock },
@@ -26,7 +52,7 @@ function fmtDist(m: number): string {
 }
 
 function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
-  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string) => void; tracking: boolean; liveDistanceM?: number | null;
+  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhoto?: string) => void; tracking: boolean; liveDistanceM?: number | null;
 }) {
   const s = STATUS_STYLES[challan.status] || STATUS_STYLES.pending;
   const StatusIcon = s.icon;
@@ -36,6 +62,10 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
   const [recipient, setRecipient] = useState('');
   const [note, setNote] = useState('');
   const [deliveredQty, setDeliveredQty] = useState(() => parseFloat(challan.quantity || '0').toString());
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoErr, setPhotoErr] = useState('');
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const hasPin = challan.siteLat != null && challan.siteLng != null;
 
   function composeNotes(): string | undefined {
@@ -47,10 +77,24 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
     return undefined;
   }
 
+  async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoErr(''); setPhotoBusy(true);
+    try {
+      setPhoto(await compressImage(file));
+    } catch (err) {
+      setPhotoErr(err instanceof Error ? err.message : 'Could not process the photo');
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
   async function handleMark() {
     setMarking(true);
     const qty = deliveredQty.trim();
-    try { await onMarkDelivered(challan.id, composeNotes(), qty === '' ? undefined : qty); } finally { setMarking(false); }
+    try { await onMarkDelivered(challan.id, composeNotes(), qty === '' ? undefined : qty, photo ?? undefined); } finally { setMarking(false); }
   }
 
   return (
@@ -203,6 +247,55 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
                 color: 'var(--text)', fontSize: 13, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit',
               }}
             />
+            <label style={{ display: 'block', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Delivery photo (optional)</label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoPick}
+              style={{ display: 'none' }}
+            />
+            {photo ? (
+              <div style={{ position: 'relative', marginBottom: 12 }}>
+                <img
+                  src={photo}
+                  alt="Proof of delivery"
+                  style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', display: 'block' }}
+                />
+                {!marking && (
+                  <button
+                    type="button"
+                    onClick={() => setPhoto(null)}
+                    aria-label="Remove photo"
+                    style={{
+                      position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: '50%',
+                      background: 'rgba(0,0,0,.65)', border: '1px solid rgba(255,255,255,.2)', cursor: 'pointer',
+                      color: '#fff', display: 'grid', placeItems: 'center',
+                    }}
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={marking || photoBusy}
+                style={{
+                  width: '100%', padding: '10px 0', borderRadius: 8, marginBottom: 12,
+                  cursor: marking || photoBusy ? 'not-allowed' : 'pointer',
+                  background: 'rgba(56,189,248,.08)', border: '1px dashed rgba(56,189,248,.35)',
+                  color: 'var(--blue)', fontSize: 13, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                }}
+              >
+                <Camera size={15} />
+                {photoBusy ? 'Processing…' : 'Take / upload photo'}
+              </button>
+            )}
+            {photoErr && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{photoErr}</div>}
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => { setShowForm(false); }}
@@ -361,17 +454,18 @@ export default function MyTrips() {
     return () => { cancelled = true; };
   }, [viewAll]);
 
-  async function handleMarkDelivered(id: number, notes?: string, deliveredQuantity?: string) {
+  async function handleMarkDelivered(id: number, notes?: string, deliveredQuantity?: string, proofPhoto?: string) {
     const updated = await api.put<Challan>(`/challans/${id}`, {
       status: 'delivered',
       ...(notes ? { notes } : {}),
       ...(deliveredQuantity !== undefined ? { deliveredQuantity } : {}),
+      ...(proofPhoto ? { proofPhoto } : {}),
     });
     let challanNo = '';
     setChallans(prev => prev.map(c => {
       if (c.id === id) {
         challanNo = c.challanNo;
-        return { ...c, status: 'delivered', deliveryTime: updated.deliveryTime ?? new Date().toISOString(), notes: updated.notes, deliveredQuantity: updated.deliveredQuantity };
+        return { ...c, status: 'delivered', deliveryTime: updated.deliveryTime ?? new Date().toISOString(), notes: updated.notes, deliveredQuantity: updated.deliveredQuantity, hasProofPhoto: updated.proofPhoto != null };
       }
       return c;
     }));

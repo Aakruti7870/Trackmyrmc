@@ -92,6 +92,7 @@ export interface Challan {
   clientName?: string; siteName?: string;
   siteLat?: string | null; siteLng?: string | null;
   vehicleNo?: string; driverName?: string; driverPhone?: string;
+  proofPhoto?: string | null; hasProofPhoto?: boolean;
 }
 
 export interface Vehicle {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, X, Printer, Check, Truck, StickyNote } from 'lucide-react';
+import { Plus, Search, X, Printer, Check, Truck, StickyNote, Camera } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
@@ -22,8 +22,19 @@ export default function Dispatch() {
   }>({ orderId: '', clientId: '', siteId: '', vehicleId: '', driverId: '', grade: '', quantity: '', pumpRequired: false, notes: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [photoView, setPhotoView] = useState<{ challanNo: string; src: string | null; loading: boolean } | null>(null);
 
   const { subscribe } = useSSE();
+
+  async function viewProof(ch: Challan) {
+    setPhotoView({ challanNo: ch.challanNo, src: null, loading: true });
+    try {
+      const full = await api.get<Challan>(`/challans/${ch.id}`);
+      setPhotoView({ challanNo: ch.challanNo, src: full.proofPhoto ?? null, loading: false });
+    } catch {
+      setPhotoView({ challanNo: ch.challanNo, src: null, loading: false });
+    }
+  }
 
   const load = useCallback(() => { api.get<Challan[]>('/challans').then(setChallans); }, []);
 
@@ -208,6 +219,13 @@ export default function Dispatch() {
                           borderRadius: 7, cursor: 'pointer', color: 'var(--green)', fontSize: 11, fontWeight: 700,
                         }}><Check size={11} /> Delivered</button>
                       )}
+                      {ch.hasProofPhoto && (
+                        <button onClick={() => viewProof(ch)} title="View proof of delivery" style={{
+                          display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                          background: 'color-mix(in srgb, var(--gold) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 28%, transparent)',
+                          borderRadius: 7, cursor: 'pointer', color: 'var(--gold)', fontSize: 11, fontWeight: 700,
+                        }}><Camera size={11} /> Photo</button>
+                      )}
                       <Link href={`/challans/${ch.id}/print`}>
                         <button style={{
                           display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
@@ -300,6 +318,29 @@ export default function Dispatch() {
                 {saving ? 'Creating…' : 'Dispatch Challan'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Proof-of-delivery photo viewer */}
+      {photoView && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.82)', zIndex: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => e.target === e.currentTarget && setPhotoView(null)}>
+          <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 18, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Camera size={16} style={{ color: 'var(--gold)' }} /> Proof of Delivery — #{photoView.challanNo}
+              </h3>
+              <button onClick={() => setPhotoView(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
+            </div>
+            {photoView.loading ? (
+              <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)' }}>Loading photo…</div>
+            ) : photoView.src ? (
+              <img src={photoView.src} alt={`Proof of delivery for ${photoView.challanNo}`}
+                style={{ width: '100%', borderRadius: 10, display: 'block' }} />
+            ) : (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--red)' }}>No photo available</div>
+            )}
           </div>
         </div>
       )}

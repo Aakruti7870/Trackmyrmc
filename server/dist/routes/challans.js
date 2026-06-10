@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, desc, and, gte, lte } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { challans, clients, sites, vehicles, drivers, orders } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -30,7 +30,28 @@ const challanSelect = {
     vehicleNo: vehicles.vehicleNo,
     driverName: drivers.name,
     driverPhone: drivers.phone,
+    hasProofPhoto: sql `${challans.proofPhoto} is not null`,
 };
+// Detail select additionally returns the full proof-of-delivery photo. The list
+// select deliberately omits it (only a boolean flag) to keep responses light.
+const challanDetailSelect = {
+    ...challanSelect,
+    proofPhoto: challans.proofPhoto,
+};
+const MAX_PROOF_PHOTO_BYTES = 8 * 1024 * 1024;
+function validateProofPhoto(value) {
+    if (value === undefined)
+        return undefined;
+    if (value === null)
+        return null;
+    if (typeof value !== 'string')
+        throw new Error('Proof photo must be a string');
+    if (!value.startsWith('data:image/'))
+        throw new Error('Proof photo must be an image data URL');
+    if (value.length > MAX_PROOF_PHOTO_BYTES)
+        throw new Error('Proof photo is too large');
+    return value;
+}
 router.get('/', async (req, res) => {
     const { status, from, to, clientId } = req.query;
     let query = db.select(challanSelect).from(challans)
@@ -54,7 +75,7 @@ router.get('/', async (req, res) => {
     res.json(rows);
 });
 router.get('/:id', async (req, res) => {
-    const [row] = await db.select(challanSelect).from(challans)
+    const [row] = await db.select(challanDetailSelect).from(challans)
         .leftJoin(clients, eq(challans.clientId, clients.id))
         .leftJoin(sites, eq(challans.siteId, sites.id))
         .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
@@ -98,9 +119,17 @@ router.put('/:id', async (req, res) => {
     const role = req.user.role;
     const challanId = +req.params.id;
     if (role === 'driver') {
-        const { status, deliveryTime, notes, deliveredQuantity } = req.body;
+        const { status, deliveryTime, notes, deliveredQuantity, proofPhoto } = req.body;
         if (!DRIVER_ALLOWED_STATUS.includes(status)) {
             res.status(403).json({ error: 'Drivers may only mark challans as delivered' });
+            return;
+        }
+        let validatedPhoto;
+        try {
+            validatedPhoto = validateProofPhoto(proofPhoto);
+        }
+        catch (e) {
+            res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid proof photo' });
             return;
         }
         const driver = await db.select({ id: drivers.id })
@@ -132,10 +161,14 @@ router.put('/:id', async (req, res) => {
             const existing = challan.notes?.trim();
             updateData.notes = existing ? `${existing}\n${deliveryNote}` : deliveryNote;
         }
+        if (validatedPhoto !== undefined) {
+            updateData.proofPhoto = validatedPhoto;
+        }
         const [row] = await db.update(challans)
             .set(updateData)
             .where(eq(challans.id, challanId)).returning();
-        emitSSEEvent('challan.updated', row, { clientId: row.clientId, driverId: row.driverId });
+        const { proofPhoto: rowPhoto, ...rowLight } = row;
+        emitSSEEvent('challan.updated', { ...rowLight, hasProofPhoto: rowPhoto != null }, { clientId: row.clientId, driverId: row.driverId });
         res.json(row);
         return;
     }
@@ -170,7 +203,8 @@ router.put('/:id', async (req, res) => {
         updateData.deliveryTime = deliveryTime ? new Date(deliveryTime) : new Date();
     const [row] = await db.update(challans).set(updateData)
         .where(eq(challans.id, challanId)).returning();
-    emitSSEEvent('challan.updated', row, { clientId: row.clientId, driverId: row.driverId });
+    const { proofPhoto: rowPhoto, ...rowLight } = row;
+    emitSSEEvent('challan.updated', { ...rowLight, hasProofPhoto: rowPhoto != null }, { clientId: row.clientId, driverId: row.driverId });
     res.json(row);
 });
 router.delete('/:id', async (req, res) => {

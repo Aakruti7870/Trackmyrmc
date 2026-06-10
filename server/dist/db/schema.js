@@ -90,6 +90,7 @@ export const challans = pgTable('challans', {
     deliveryTime: timestamp('delivery_time'),
     status: challanStatusEnum('status').notNull().default('pending'),
     notes: text('notes'),
+    proofPhoto: text('proof_photo'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 export const batchRecords = pgTable('batch_records', {

@@ -28,7 +28,8 @@ const isProd = process.env.NODE_ENV === 'production';
 const app = express();
 const PORT = process.env.PORT || process.env.API_PORT || (isProd ? 5000 : 3001);
 app.use(cors({ origin: '*' }));
-app.use(express.json());
+// Larger limit to accommodate proof-of-delivery photos (base64 data URLs).
+app.use(express.json({ limit: '12mb' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/orders', orderRoutes);

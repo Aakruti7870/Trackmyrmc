@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, desc, gte, lte, and } from 'drizzle-orm';
+import { eq, desc, gte, lte, and, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users, clients, orders, challans, sites, vehicles, drivers, ledgerEntries } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
@@ -23,6 +23,7 @@ const challanSelect = {
   vehicleNo: vehicles.vehicleNo,
   driverName: drivers.name,
   driverPhone: drivers.phone,
+  hasProofPhoto: sql<boolean>`${challans.proofPhoto} is not null`,
 };
 
 async function getLinkedClientId(userId: number): Promise<number | null> {
