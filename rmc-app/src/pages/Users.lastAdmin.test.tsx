@@ -47,7 +47,7 @@ function mockReads() {
     if (path === '/users?deleted=true') return [ADMIN_DELETED] as never;
     if (path === '/users/clients-list') return [] as never;
     if (path === '/users/drivers-list') return [] as never;
-    if (path.startsWith('/users/audit-log')) return [] as never;
+    if (path.startsWith('/audit-logs')) return { rows: [], hasMore: false } as never;
     if (path === '/users/lockout-status') return {} as never;
     return [] as never;
   });

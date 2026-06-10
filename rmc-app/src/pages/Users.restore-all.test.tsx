@@ -44,7 +44,7 @@ const deleted: DeletedUser[] = [
 
 function mockGet() {
   vi.mocked(api.get).mockImplementation(async (path: string) => {
-    if (path.startsWith('/users/audit-log')) return [] as never;
+    if (path.startsWith('/audit-logs')) return { rows: [], hasMore: false } as never;
     if (path === '/users/clients-list' || path === '/users/drivers-list') return [] as never;
     if (path === '/users/lockout-status') return {} as never;
     if (path === '/users?deleted=true') return deleted as never;

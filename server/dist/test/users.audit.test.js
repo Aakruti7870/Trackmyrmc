@@ -127,7 +127,11 @@ test('user.created: welcome email SKIPPED (SMTP not configured) writes emailSent
     assert.equal(logs.length, 1, 'a user.created audit entry is written even when the email is skipped');
     assert.equal(logs[0].emailSent, false, 'audit entry records emailSent=false when skipped');
 });
-test('GET /api/users/audit-log returns recorded entries for an admin', async () => {
+// The Users page Activity Log now reads the unified /api/audit-logs endpoint
+// (audit.ts). These tests confirm the audit entries written by the user routes
+// surface through that canonical endpoint, including the per-target filter the
+// Users page relies on (targetUserId).
+test('GET /api/audit-logs returns recorded entries for an admin', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const token = tokenFor(admin);
     disableSmtp();
@@ -137,18 +141,19 @@ test('GET /api/users/audit-log returns recorded entries for an admin', async () 
         .send({ name: 'Audited User', email: 'audited@test.com', password: PASSWORD, role: 'dispatcher' });
     assert.equal(created.status, 201);
     const res = await request(app)
-        .get('/api/users/audit-log')
+        .get('/api/audit-logs')
         .set('Authorization', `Bearer ${token}`);
     assert.equal(res.status, 200);
-    assert.ok(Array.isArray(res.body), 'audit-log returns an array');
-    const entry = res.body.find((e) => e.action === 'user.created' && e.targetUserId === created.body.id);
-    assert.ok(entry, 'the user.created entry is returned from GET /audit-log');
+    assert.ok(Array.isArray(res.body.rows), 'audit-logs returns a paged { rows } payload');
+    assert.equal(typeof res.body.hasMore, 'boolean', 'audit-logs reports hasMore');
+    const entry = res.body.rows.find((e) => e.action === 'user.created' && e.targetUserId === created.body.id);
+    assert.ok(entry, 'the user.created entry is returned from GET /api/audit-logs');
     assert.equal(entry.actorId, admin.id);
     assert.equal(entry.actorName, admin.name);
     assert.equal(entry.targetUserEmail, 'audited@test.com');
     assert.equal(entry.emailSent, false);
 });
-test('GET /api/users/audit-log?userId filters to one target user', async () => {
+test('GET /api/audit-logs?targetUserId filters to one target user', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const token = tokenFor(admin);
     disableSmtp();
@@ -159,18 +164,18 @@ test('GET /api/users/audit-log?userId filters to one target user', async () => {
     assert.equal(a.status, 201);
     assert.equal(b.status, 201);
     const res = await request(app)
-        .get(`/api/users/audit-log?userId=${a.body.id}`)
+        .get(`/api/audit-logs?targetUserId=${a.body.id}`)
         .set('Authorization', `Bearer ${token}`);
     assert.equal(res.status, 200);
-    assert.ok(res.body.length >= 1, 'at least one entry for the filtered user');
-    assert.ok(res.body.every((e) => e.targetUserId === a.body.id), 'every returned entry belongs to the filtered user');
+    assert.ok(res.body.rows.length >= 1, 'at least one entry for the filtered user');
+    assert.ok(res.body.rows.every((e) => e.targetUserId === a.body.id), 'every returned entry belongs to the filtered user');
 });
-test('GET /api/users/audit-log is forbidden for non-admins', async () => {
+test('GET /api/audit-logs is forbidden for non-admins', async () => {
     await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const dispatcher = await createUser({ name: 'Dispatcher', email: 'disp@test.com', role: 'dispatcher' });
     const token = tokenFor(dispatcher);
     const res = await request(app)
-        .get('/api/users/audit-log')
+        .get('/api/audit-logs')
         .set('Authorization', `Bearer ${token}`);
     assert.equal(res.status, 403);
 });

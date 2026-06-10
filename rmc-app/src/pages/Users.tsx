@@ -29,6 +29,11 @@ type AuditEntry = {
   createdAt: string;
 };
 
+type AuditPage = {
+  rows: AuditEntry[];
+  hasMore: boolean;
+};
+
 type LinkOption = { id: number; name: string };
 
 const ROLES = ['admin', 'dispatcher', 'plant_operator', 'client', 'driver'] as const;
@@ -186,12 +191,12 @@ export default function Users() {
 
   function loadAudit(userId: number | null) {
     const params = new URLSearchParams();
-    if (userId) params.set('userId', String(userId));
+    if (userId) params.set('targetUserId', String(userId));
     if (actionFilter !== 'all') params.set('action', actionFilter);
     if (fromDate) params.set('from', fromDate);
     if (toDate) params.set('to', toDate);
     const qs = params.toString();
-    api.get<AuditEntry[]>(`/users/audit-log${qs ? `?${qs}` : ''}`).then(setAuditLog).catch(() => {});
+    api.get<AuditPage>(`/audit-logs${qs ? `?${qs}` : ''}`).then(page => setAuditLog(page.rows)).catch(() => {});
   }
 
   function load() {
