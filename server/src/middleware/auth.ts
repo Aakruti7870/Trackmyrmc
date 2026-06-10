@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { eq } from 'drizzle-orm';
+import { db } from '../db/index.js';
+import { users } from '../db/schema.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trackmyrmc-secret-2024';
 
@@ -28,18 +31,40 @@ export function verifyToken(token: string): AuthPayload {
   return jwt.verify(token, JWT_SECRET) as AuthPayload;
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
+  let payload: AuthPayload;
   try {
-    req.user = verifyToken(header.slice(7));
-    next();
+    payload = verifyToken(header.slice(7));
   } catch {
     res.status(401).json({ error: 'Invalid token' });
+    return;
   }
+
+  const [user] = await db.select({
+    id: users.id, email: users.email, role: users.role, name: users.name,
+    isActive: users.isActive,
+    linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
+  }).from(users).where(eq(users.id, payload.id));
+
+  if (!user || !user.isActive) {
+    res.status(401).json({ error: 'Account deactivated or not found' });
+    return;
+  }
+
+  req.user = {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.name,
+    linkedClientId: user.linkedClientId,
+    linkedDriverId: user.linkedDriverId,
+  };
+  next();
 }
 
 export function requireRole(...roles: string[]) {
