@@ -158,18 +158,22 @@ router.get('/audit-log', async (req, res) => {
     createdAt: auditLogs.createdAt,
   };
 
+  const conditions = [];
+
   const userIdParam = req.query.userId;
   if (userIdParam !== undefined) {
     const userId = parseInt(String(userIdParam), 10);
     if (isNaN(userId)) { res.status(400).json({ error: 'Invalid userId' }); return; }
-    const rows = await db.select(select).from(auditLogs)
-      .where(eq(auditLogs.targetUserId, userId))
-      .orderBy(desc(auditLogs.createdAt)).limit(200);
-    res.json(rows);
-    return;
+    conditions.push(eq(auditLogs.targetUserId, userId));
+  }
+
+  const actionParam = req.query.action;
+  if (actionParam !== undefined && String(actionParam).trim() !== '') {
+    conditions.push(eq(auditLogs.action, String(actionParam)));
   }
 
   const rows = await db.select(select).from(auditLogs)
+    .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(auditLogs.createdAt)).limit(200);
   res.json(rows);
 });

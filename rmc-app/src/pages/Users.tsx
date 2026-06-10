@@ -158,6 +158,7 @@ export default function Users() {
   const [unlocking, setUnlocking] = useState<number | null>(null);
   const [resendingId, setResendingId] = useState<number | null>(null);
   const [historyUser, setHistoryUser] = useState<UserRecord | null>(null);
+  const [actionFilter, setActionFilter] = useState<string>('all');
   const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -165,9 +166,12 @@ export default function Users() {
   const [softDeletedMatch, setSoftDeletedMatch] = useState<{ id: number; name: string } | null>(null);
   const [restoringId, setRestoringId] = useState<number | null>(null);
 
-  function loadAudit(userId: number | null) {
-    const url = userId ? `/users/audit-log?userId=${userId}` : '/users/audit-log';
-    api.get<AuditEntry[]>(url).then(setAuditLog).catch(() => {});
+  function loadAudit(userId: number | null, action: string = actionFilter) {
+    const params = new URLSearchParams();
+    if (userId) params.set('userId', String(userId));
+    if (action && action !== 'all') params.set('action', action);
+    const qs = params.toString();
+    api.get<AuditEntry[]>(`/users/audit-log${qs ? `?${qs}` : ''}`).then(setAuditLog).catch(() => {});
   }
 
   function load() {
@@ -686,18 +690,38 @@ export default function Users() {
           }}>
             {auditLog.length} {auditLog.length === 1 ? 'entry' : 'entries'}
           </span>
-          {historyUser && (
-            <button
-              onClick={clearHistory}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginLeft: 'auto', flexWrap: 'wrap' }}>
+            <select
+              value={actionFilter}
+              onChange={(e) => {
+                const next = e.target.value;
+                setActionFilter(next);
+                loadAudit(historyUser?.id ?? null, next);
+              }}
+              aria-label="Filter activity log by action type"
               style={{
-                display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto',
-                padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--muted)',
+                padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--text)', outline: 'none',
               }}
             >
-              <X size={12} /> Showing {historyUser.email} — Show all
-            </button>
-          )}
+              <option value="all">All actions</option>
+              {Object.entries(ACTION_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            {historyUser && (
+              <button
+                onClick={clearHistory}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--muted)',
+                }}
+              >
+                <X size={12} /> Showing {historyUser.email} — Show all
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={{
