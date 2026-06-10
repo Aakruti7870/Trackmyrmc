@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, asc, desc } from 'drizzle-orm';
+import { eq, asc, desc, sql } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/index.js';
@@ -53,7 +53,18 @@ router.get('/', async (_req, res) => {
     linkedDriverId: users.linkedDriverId,
     createdAt: users.createdAt,
   }).from(users).orderBy(asc(users.createdAt));
-  res.json(rows);
+
+  const counts = await db.select({
+    targetUserId: auditLogs.targetUserId,
+    count: sql<number>`count(*)::int`,
+  }).from(auditLogs).groupBy(auditLogs.targetUserId);
+
+  const countMap = new Map<number, number>();
+  for (const c of counts) {
+    if (c.targetUserId !== null) countMap.set(c.targetUserId, c.count);
+  }
+
+  res.json(rows.map(r => ({ ...r, auditCount: countMap.get(r.id) ?? 0 })));
 });
 
 router.get('/lockout-status', async (_req, res) => {
@@ -87,8 +98,8 @@ router.get('/drivers-list', async (_req, res) => {
   res.json(rows);
 });
 
-router.get('/audit-log', async (_req, res) => {
-  const rows = await db.select({
+router.get('/audit-log', async (req, res) => {
+  const select = {
     id: auditLogs.id,
     actorId: auditLogs.actorId,
     actorName: auditLogs.actorName,
@@ -97,7 +108,21 @@ router.get('/audit-log', async (_req, res) => {
     targetUserEmail: auditLogs.targetUserEmail,
     emailSent: auditLogs.emailSent,
     createdAt: auditLogs.createdAt,
-  }).from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(200);
+  };
+
+  const userIdParam = req.query.userId;
+  if (userIdParam !== undefined) {
+    const userId = parseInt(String(userIdParam), 10);
+    if (isNaN(userId)) { res.status(400).json({ error: 'Invalid userId' }); return; }
+    const rows = await db.select(select).from(auditLogs)
+      .where(eq(auditLogs.targetUserId, userId))
+      .orderBy(desc(auditLogs.createdAt)).limit(200);
+    res.json(rows);
+    return;
+  }
+
+  const rows = await db.select(select).from(auditLogs)
+    .orderBy(desc(auditLogs.createdAt)).limit(200);
   res.json(rows);
 });
 

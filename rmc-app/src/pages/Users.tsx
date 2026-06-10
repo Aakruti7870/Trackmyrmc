@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail } from 'lucide-react';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
@@ -13,6 +13,7 @@ type UserRecord = {
   linkedClientId: number | null;
   linkedDriverId: number | null;
   createdAt: string;
+  auditCount: number;
 };
 
 type AuditEntry = {
@@ -102,15 +103,32 @@ export default function Users() {
   const [lockoutStatus, setLockoutStatus] = useState<Record<number, LockoutInfo>>({});
   const [unlocking, setUnlocking] = useState<number | null>(null);
   const [resendingId, setResendingId] = useState<number | null>(null);
+  const [historyUser, setHistoryUser] = useState<UserRecord | null>(null);
+
+  function loadAudit(userId: number | null) {
+    const url = userId ? `/users/audit-log?userId=${userId}` : '/users/audit-log';
+    api.get<AuditEntry[]>(url).then(setAuditLog).catch(() => {});
+  }
 
   function load() {
     api.get<UserRecord[]>('/users').then(setUsers).catch(() => {});
     api.get<LinkOption[]>('/users/clients-list').then(setClientOptions).catch(() => {});
     api.get<LinkOption[]>('/users/drivers-list').then(setDriverOptions).catch(() => {});
-    api.get<AuditEntry[]>('/users/audit-log').then(setAuditLog).catch(() => {});
+    loadAudit(historyUser?.id ?? null);
     api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
   }
   useEffect(load, []);
+
+  function viewHistory(u: UserRecord) {
+    setHistoryUser(u);
+    loadAudit(u.id);
+    document.getElementById('activity-log')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function clearHistory() {
+    setHistoryUser(null);
+    loadAudit(null);
+  }
 
   async function unlock(u: UserRecord) {
     setUnlocking(u.id);
@@ -374,6 +392,19 @@ export default function Users() {
                         </button>
                       )}
                       <button
+                        onClick={() => viewHistory(u)}
+                        title={`View activity history (${u.auditCount} ${u.auditCount === 1 ? 'entry' : 'entries'})`}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 5,
+                          background: historyUser?.id === u.id ? 'rgba(247,201,72,.16)' : 'rgba(247,201,72,.08)',
+                          border: `1px solid ${historyUser?.id === u.id ? 'rgba(247,201,72,.4)' : 'rgba(247,201,72,.18)'}`,
+                          borderRadius: 7, color: 'var(--gold)', cursor: 'pointer', padding: '5px 8px', fontSize: 11, fontWeight: 700,
+                        }}
+                      >
+                        <History size={13} />
+                        {u.auditCount}
+                      </button>
+                      <button
                         onClick={() => openEdit(u)}
                         title="Edit user"
                         style={{
@@ -416,16 +447,30 @@ export default function Users() {
       </div>
 
       {/* Audit Log */}
-      <div style={{ marginTop: 32 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
+      <div id="activity-log" style={{ marginTop: 32, scrollMarginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14, flexWrap: 'wrap' }}>
           <ClipboardList size={18} color="#f7c948" />
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Activity Log</h3>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
+            {historyUser ? `Activity Log — ${historyUser.name}` : 'Activity Log'}
+          </h3>
           <span style={{
             fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
             background: 'rgba(247,201,72,.12)', color: '#f7c948', border: '1px solid rgba(247,201,72,.25)',
           }}>
             {auditLog.length} {auditLog.length === 1 ? 'entry' : 'entries'}
           </span>
+          {historyUser && (
+            <button
+              onClick={clearHistory}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto',
+                padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--muted)',
+              }}
+            >
+              <X size={12} /> Showing {historyUser.email} — Show all
+            </button>
+          )}
         </div>
 
         <div style={{
@@ -434,7 +479,9 @@ export default function Users() {
         }}>
           {auditLog.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: '#9fb0c7', fontSize: 13 }}>
-              No activity recorded yet. Password resets will appear here.
+              {historyUser
+                ? `No activity recorded for ${historyUser.name} yet.`
+                : 'No activity recorded yet. Password resets will appear here.'}
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
