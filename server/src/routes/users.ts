@@ -196,4 +196,24 @@ router.put('/:id', async (req, res) => {
   res.json({ ...safeUser(user), ...(emailSent !== undefined ? { emailSent } : {}) });
 });
 
+router.post('/:id/resend-welcome', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const [user] = await db.select({
+    id: users.id, name: users.name, email: users.email, role: users.role,
+  }).from(users).where(eq(users.id, id));
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+  let emailSent = false;
+  try {
+    emailSent = await sendWelcomeEmail(user.email, user.name, user.role);
+  } catch (err) {
+    console.error('[email] Failed to resend welcome email:', err);
+    emailSent = false;
+  }
+
+  res.json({ emailSent });
+});
+
 export default router;

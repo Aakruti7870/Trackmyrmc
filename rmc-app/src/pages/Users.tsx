@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen } from 'lucide-react';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
@@ -100,6 +100,7 @@ export default function Users() {
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [lockoutStatus, setLockoutStatus] = useState<Record<number, LockoutInfo>>({});
   const [unlocking, setUnlocking] = useState<number | null>(null);
+  const [resendingId, setResendingId] = useState<number | null>(null);
 
   function load() {
     api.get<UserRecord[]>('/users').then(setUsers).catch(() => {});
@@ -195,6 +196,22 @@ export default function Users() {
       }
     } catch {
       showToast('Failed to resend notification.', 'error');
+    }
+  }
+
+  async function resendWelcome(u: UserRecord) {
+    setResendingId(u.id);
+    try {
+      const result = await api.post<{ emailSent?: boolean }>(`/users/${u.id}/resend-welcome`, {});
+      if (result.emailSent) {
+        showToast(`Welcome email re-sent to ${u.email}.`, 'info');
+      } else {
+        showToast('Welcome email not sent (check SMTP config).', 'error');
+      }
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to resend welcome email.', 'error');
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -374,6 +391,19 @@ export default function Users() {
                         }}
                       >
                         <Send size={13} />
+                      </button>
+                      <button
+                        onClick={() => resendWelcome(u)}
+                        disabled={resendingId === u.id}
+                        title="Resend welcome email"
+                        style={{
+                          background: 'rgba(247,201,72,.1)', border: '1px solid rgba(247,201,72,.25)',
+                          borderRadius: 7, color: 'var(--gold)',
+                          cursor: resendingId === u.id ? 'not-allowed' : 'pointer',
+                          padding: '5px 8px', opacity: resendingId === u.id ? 0.6 : 1,
+                        }}
+                      >
+                        <Mail size={13} />
                       </button>
                     </div>
                   </td>
