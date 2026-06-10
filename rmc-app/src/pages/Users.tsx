@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
@@ -404,58 +406,73 @@ export default function Users() {
     );
   }
 
-  // Print-friendly PDF: open a clean printable document in a new window and
-  // invoke the browser's print dialog (Save as PDF). The active per-user filter
-  // is shown in the title so the printed record is self-describing.
+  // Real .pdf export: build the file client-side with jsPDF + autoTable and
+  // download it directly (no new window or print dialog), matching the CSV/Excel
+  // one-click flow. Layout mirrors the former print view — title, scope, active
+  // filters, gold styled header, zebra rows — so the file stays self-describing.
   function exportAuditPdf() {
     if (auditLog.length === 0) return;
     const rows = auditExportRows();
-    const esc = (s: string) =>
-      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
     const filterBits: string[] = [];
     if (actionFilter !== 'all') filterBits.push(`Action: ${ACTION_LABEL[actionFilter] ?? actionFilter}`);
     if (fromDate) filterBits.push(`From: ${fromDate}`);
     if (toDate) filterBits.push(`To: ${toDate}`);
     const generated = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
-    const headerCells = AUDIT_EXPORT_HEADERS.map(h => `<th>${esc(h)}</th>`).join('');
-    const bodyRows = rows.map(r => `<tr>
-      <td>${esc(r.timestampText)}</td>
-      <td>${esc(r.action)}</td>
-      <td>${esc(r.detail)}</td>
-      <td>${esc(r.target)}</td>
-      <td>${esc(r.performedBy)}</td>
-      <td>${esc(r.emailSent)}</td>
-    </tr>`).join('');
-    const html = `<!doctype html><html><head><meta charset="utf-8">
-      <title>${esc(exportFilename('pdf').replace(/\.pdf$/, ''))}</title>
-      <style>
-        * { box-sizing: border-box; }
-        body { font-family: Arial, Helvetica, sans-serif; color: #1b2433; margin: 28px; }
-        h1 { font-size: 18px; margin: 0 0 4px; }
-        .scope { font-size: 13px; color: #555; margin: 0 0 2px; }
-        .meta { font-size: 11px; color: #888; margin: 0 0 16px; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        th, td { border: 1px solid #d0d5dd; padding: 6px 8px; text-align: left; vertical-align: top; word-break: break-word; }
-        th { background: #f7c948; color: #1b2433; font-weight: 700; }
-        tr:nth-child(even) td { background: #f6f8fb; }
-        @media print { body { margin: 0; } th { -webkit-print-color-adjust: exact; print-color-adjust: exact; } tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-      </style></head><body>
-      <h1>Activity Log</h1>
-      <p class="scope">Scope: ${esc(exportScopeLabel())}</p>
-      ${filterBits.length ? `<p class="scope">Filters: ${esc(filterBits.join('  ·  '))}</p>` : ''}
-      <p class="meta">${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} · Generated ${esc(generated)}</p>
-      <table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>
-      <script>window.onload = function(){ window.focus(); window.print(); };</script>
-      </body></html>`;
-    const win = window.open('', '_blank');
-    if (!win) {
-      showToast('Allow pop-ups to export the activity log as PDF.', 'error');
-      return;
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const marginX = 28;
+
+    doc.setTextColor(27, 36, 51); // #1b2433
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Activity Log', marginX, 36);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(85, 85, 85); // #555
+    doc.text(`Scope: ${exportScopeLabel()}`, marginX, 54);
+
+    let cursorY = 54;
+    if (filterBits.length) {
+      cursorY += 15;
+      doc.text(`Filters: ${filterBits.join('  ·  ')}`, marginX, cursorY);
     }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
+
+    cursorY += 14;
+    doc.setFontSize(9);
+    doc.setTextColor(136, 136, 136); // #888
+    const entryWord = rows.length === 1 ? 'entry' : 'entries';
+    doc.text(`${rows.length} ${entryWord} · Generated ${generated}`, marginX, cursorY);
+
+    autoTable(doc, {
+      startY: cursorY + 10,
+      margin: { left: marginX, right: marginX },
+      head: [[...AUDIT_EXPORT_HEADERS]],
+      body: rows.map(r => [r.timestampText, r.action, r.detail, r.target, r.performedBy, r.emailSent]),
+      styles: {
+        font: 'helvetica',
+        fontSize: 9,
+        cellPadding: 4,
+        textColor: [27, 36, 51],
+        lineColor: [208, 213, 221], // #d0d5dd
+        lineWidth: 0.5,
+        valign: 'top',
+        overflow: 'linebreak',
+      },
+      headStyles: {
+        fillColor: [247, 201, 72], // #f7c948
+        textColor: [27, 36, 51],
+        fontStyle: 'bold',
+      },
+      alternateRowStyles: { fillColor: [246, 248, 251] }, // #f6f8fb
+      columnStyles: {
+        0: { cellWidth: 95 },
+        2: { cellWidth: 'auto' },
+        5: { cellWidth: 55 },
+      },
+    });
+
+    doc.save(exportFilename('pdf'));
   }
 
   async function unlock(u: UserRecord) {
@@ -1335,7 +1352,7 @@ export default function Users() {
                   {([
                     { key: 'csv', label: 'CSV (.csv)', icon: <FileText size={14} />, fn: exportAuditCsv },
                     { key: 'xlsx', label: 'Excel (.xlsx)', icon: <FileSpreadsheet size={14} />, fn: exportAuditXlsx },
-                    { key: 'pdf', label: 'PDF (print)', icon: <FileText size={14} />, fn: exportAuditPdf },
+                    { key: 'pdf', label: 'PDF (.pdf)', icon: <FileText size={14} />, fn: exportAuditPdf },
                   ] as const).map(item => (
                     <button
                       key={item.key}
