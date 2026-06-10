@@ -7,7 +7,7 @@ import type { Express, Response } from 'express';
 
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, clients, drivers, challans } from '../db/schema.js';
+import { users, clients, drivers, challans, challanProofPhotos } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
 import { addSSEClient, removeSSEClient } from '../lib/sseEmitter.js';
 
@@ -91,7 +91,7 @@ before(() => {
 
 beforeEach(async () => {
   await db.execute(
-    sql`TRUNCATE TABLE challans, drivers, clients, audit_logs, users, login_attempts RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE TABLE challan_proof_photos, challans, drivers, clients, audit_logs, users, login_attempts RESTART IDENTITY CASCADE`,
   );
 });
 
@@ -302,7 +302,13 @@ test('a note sent to an unassigned challan is rejected and never written', async
 const VALID_PROOF_PHOTO =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
 
-test('driver delivery with a proof photo stores it; detail returns it, list returns only the flag', async () => {
+async function proofPhotoCount(challanId: number): Promise<number> {
+  const rows = await db.select({ id: challanProofPhotos.id })
+    .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challanId));
+  return rows.length;
+}
+
+test('driver delivery with a single proof photo stores it; detail returns it, list returns only the flag', async () => {
   const client = await createClient();
   const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
   const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
@@ -311,22 +317,23 @@ test('driver delivery with a proof photo stores it; detail returns it, list retu
   const res = await request(app)
     .put(`/api/challans/${challan.id}`)
     .set('Authorization', `Bearer ${tokenFor(user)}`)
-    .send({ status: 'delivered', proofPhoto: VALID_PROOF_PHOTO });
+    .send({ status: 'delivered', proofPhotos: [VALID_PROOF_PHOTO] });
 
   assert.equal(res.status, 200);
   assert.equal(res.body.status, 'delivered');
+  assert.equal(res.body.hasProofPhoto, true, 'response reports the boolean flag');
 
-  // The photo is persisted to the DB.
-  const [row] = await db.select({ proofPhoto: challans.proofPhoto })
-    .from(challans).where(eq(challans.id, challan.id));
-  assert.equal(row.proofPhoto, VALID_PROOF_PHOTO, 'the proof photo is stored on the challan');
+  // The photo is persisted to the child table, linked to the challan.
+  const rows = await db.select({ photo: challanProofPhotos.photo })
+    .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id));
+  assert.deepEqual(rows.map(r => r.photo), [VALID_PROOF_PHOTO], 'the proof photo is stored in the child table');
 
-  // GET /:id (detail) returns the full proofPhoto for a dispatcher to view.
+  // GET /:id (detail) returns the full proofPhotos array for a dispatcher to view.
   const detail = await request(app)
     .get(`/api/challans/${challan.id}`)
     .set('Authorization', `Bearer ${tokenFor(user)}`);
   assert.equal(detail.status, 200);
-  assert.equal(detail.body.proofPhoto, VALID_PROOF_PHOTO, 'detail endpoint exposes the proof photo');
+  assert.deepEqual(detail.body.proofPhotos, [VALID_PROOF_PHOTO], 'detail endpoint exposes the proof photos');
   assert.equal(detail.body.hasProofPhoto, true, 'detail also reports the boolean flag');
 
   // GET / (list) returns only hasProofPhoto, never the base64 payload.
@@ -337,10 +344,47 @@ test('driver delivery with a proof photo stores it; detail returns it, list retu
   const listed = list.body.find((c: { id: number }) => c.id === challan.id);
   assert.ok(listed, 'the delivered challan appears in the list');
   assert.equal(listed.hasProofPhoto, true, 'list reports a proof photo exists');
-  assert.equal(listed.proofPhoto, undefined, 'list never includes the base64 photo payload');
+  assert.equal(listed.proofPhotos, undefined, 'list never includes the base64 photo payload');
 
   // The SSE update broadcast is also kept light (flag only, no base64).
   assert.ok(sse.events().includes('challan.updated'), 'a challan.updated SSE event is emitted');
+});
+
+test('driver delivery with several proof photos stores and links all of them', async () => {
+  const client = await createClient();
+  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+
+  const photoA = VALID_PROOF_PHOTO;
+  const photoB = VALID_PROOF_PHOTO.replace('iVBOR', 'iVBOX'); // a distinct second data URL
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', proofPhotos: [photoA, photoB] });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.hasProofPhoto, true);
+
+  const detail = await request(app)
+    .get(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`);
+  assert.equal(detail.status, 200);
+  assert.deepEqual(detail.body.proofPhotos, [photoA, photoB], 'all photos returned in insertion order');
+  assert.equal(await proofPhotoCount(challan.id), 2, 'both photos are linked to the challan');
+});
+
+test('driver delivery still accepts the legacy single proofPhoto field', async () => {
+  const client = await createClient();
+  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', proofPhoto: VALID_PROOF_PHOTO });
+
+  assert.equal(res.status, 200);
+  assert.equal(await proofPhotoCount(challan.id), 1, 'the legacy single photo is stored in the child table');
 });
 
 test('driver delivery with a non-image proof photo is rejected with 400 and stores nothing', async () => {
@@ -351,15 +395,15 @@ test('driver delivery with a non-image proof photo is rejected with 400 and stor
   const res = await request(app)
     .put(`/api/challans/${challan.id}`)
     .set('Authorization', `Bearer ${tokenFor(user)}`)
-    .send({ status: 'delivered', proofPhoto: 'data:application/pdf;base64,Zm9v' });
+    .send({ status: 'delivered', proofPhotos: [VALID_PROOF_PHOTO, 'data:application/pdf;base64,Zm9v'] });
 
   assert.equal(res.status, 400);
   assert.match(res.body.error, /image data url/i);
 
-  const [row] = await db.select({ status: challans.status, proofPhoto: challans.proofPhoto })
+  const [row] = await db.select({ status: challans.status })
     .from(challans).where(eq(challans.id, challan.id));
   assert.equal(row.status, 'dispatched', 'the challan is not marked delivered on a bad photo');
-  assert.equal(row.proofPhoto, null, 'no proof photo is stored');
+  assert.equal(await proofPhotoCount(challan.id), 0, 'no proof photo is stored when any photo is invalid');
 });
 
 test('driver delivery with an oversized proof photo is rejected with 400 and stores nothing', async () => {
@@ -367,21 +411,37 @@ test('driver delivery with an oversized proof photo is rejected with 400 and sto
   const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
   const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
 
-  // Exceeds the 8MB cap enforced by validateProofPhoto.
+  // Exceeds the 8MB cap enforced by validateOneProofPhoto.
   const oversized = `data:image/png;base64,${'A'.repeat(8 * 1024 * 1024 + 1)}`;
 
   const res = await request(app)
     .put(`/api/challans/${challan.id}`)
     .set('Authorization', `Bearer ${tokenFor(user)}`)
-    .send({ status: 'delivered', proofPhoto: oversized });
+    .send({ status: 'delivered', proofPhotos: [oversized] });
 
   assert.equal(res.status, 400);
   assert.match(res.body.error, /too large/i);
 
-  const [row] = await db.select({ status: challans.status, proofPhoto: challans.proofPhoto })
+  const [row] = await db.select({ status: challans.status })
     .from(challans).where(eq(challans.id, challan.id));
   assert.equal(row.status, 'dispatched', 'the challan is not marked delivered on an oversized photo');
-  assert.equal(row.proofPhoto, null, 'no proof photo is stored');
+  assert.equal(await proofPhotoCount(challan.id), 0, 'no proof photo is stored');
+});
+
+test('driver delivery with too many proof photos is rejected with 400 and stores nothing', async () => {
+  const client = await createClient();
+  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+
+  const tooMany = Array.from({ length: 9 }, () => VALID_PROOF_PHOTO);
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', proofPhotos: tooMany });
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /at most/i);
+  assert.equal(await proofPhotoCount(challan.id), 0, 'no proof photo is stored when over the limit');
 });
 
 test('a driver user with no matching driver profile gets 403', async () => {

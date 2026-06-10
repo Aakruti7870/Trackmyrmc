@@ -151,11 +151,17 @@ export default function ChallanPrint() {
           </div>
         )}
 
-        {challan.proofPhoto && (
+        {challan.proofPhotos && challan.proofPhotos.length > 0 && (
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>Proof of Delivery</div>
-            <img src={challan.proofPhoto} alt="Proof of delivery"
-              style={{ maxWidth: '100%', maxHeight: 320, borderRadius: 6, border: '1px solid #eee', display: 'block' }} />
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>
+              Proof of Delivery{challan.proofPhotos.length > 1 ? ` (${challan.proofPhotos.length} photos)` : ''}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {challan.proofPhotos.map((src, i) => (
+                <img key={i} src={src} alt={`Proof of delivery ${i + 1}`}
+                  style={{ maxWidth: challan.proofPhotos!.length > 1 ? '48%' : '100%', maxHeight: 320, borderRadius: 6, border: '1px solid #eee', display: 'block' }} />
+              ))}
+            </div>
           </div>
         )}
 

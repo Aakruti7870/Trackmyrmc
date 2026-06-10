@@ -51,8 +51,10 @@ function fmtDist(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
+const MAX_PROOF_PHOTOS = 8;
+
 function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
-  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhoto?: string) => void; tracking: boolean; liveDistanceM?: number | null;
+  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[]) => void; tracking: boolean; liveDistanceM?: number | null;
 }) {
   const s = STATUS_STYLES[challan.status] || STATUS_STYLES.pending;
   const StatusIcon = s.icon;
@@ -62,7 +64,7 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
   const [recipient, setRecipient] = useState('');
   const [note, setNote] = useState('');
   const [deliveredQty, setDeliveredQty] = useState(() => parseFloat(challan.quantity || '0').toString());
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoErr, setPhotoErr] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -78,12 +80,20 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
   }
 
   async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file) return;
+    if (!files.length) return;
     setPhotoErr(''); setPhotoBusy(true);
     try {
-      setPhoto(await compressImage(file));
+      const remaining = MAX_PROOF_PHOTOS - photos.length;
+      if (remaining <= 0) {
+        setPhotoErr(`You can attach at most ${MAX_PROOF_PHOTOS} photos`);
+        return;
+      }
+      const picked = files.slice(0, remaining);
+      const compressed = await Promise.all(picked.map(f => compressImage(f)));
+      setPhotos(prev => [...prev, ...compressed].slice(0, MAX_PROOF_PHOTOS));
+      if (files.length > remaining) setPhotoErr(`Only ${MAX_PROOF_PHOTOS} photos allowed — extra photos were skipped`);
     } catch (err) {
       setPhotoErr(err instanceof Error ? err.message : 'Could not process the photo');
     } finally {
@@ -91,10 +101,14 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
     }
   }
 
+  function removePhoto(idx: number) {
+    setPhotos(prev => prev.filter((_, i) => i !== idx));
+  }
+
   async function handleMark() {
     setMarking(true);
     const qty = deliveredQty.trim();
-    try { await onMarkDelivered(challan.id, composeNotes(), qty === '' ? undefined : qty, photo ?? undefined); } finally { setMarking(false); }
+    try { await onMarkDelivered(challan.id, composeNotes(), qty === '' ? undefined : qty, photos.length ? photos : undefined); } finally { setMarking(false); }
   }
 
   return (
@@ -247,38 +261,46 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
                 color: 'var(--text)', fontSize: 13, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit',
               }}
             />
-            <label style={{ display: 'block', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Delivery photo (optional)</label>
+            <label style={{ display: 'block', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>
+              Delivery photos (optional){photos.length > 0 ? ` — ${photos.length}/${MAX_PROOF_PHOTOS}` : ''}
+            </label>
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
               capture="environment"
+              multiple
               onChange={handlePhotoPick}
               style={{ display: 'none' }}
             />
-            {photo ? (
-              <div style={{ position: 'relative', marginBottom: 12 }}>
-                <img
-                  src={photo}
-                  alt="Proof of delivery"
-                  style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', display: 'block' }}
-                />
-                {!marking && (
-                  <button
-                    type="button"
-                    onClick={() => setPhoto(null)}
-                    aria-label="Remove photo"
-                    style={{
-                      position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: '50%',
-                      background: 'rgba(0,0,0,.65)', border: '1px solid rgba(255,255,255,.2)', cursor: 'pointer',
-                      color: '#fff', display: 'grid', placeItems: 'center',
-                    }}
-                  >
-                    <X size={15} />
-                  </button>
-                )}
+            {photos.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))', gap: 8, marginBottom: 10 }}>
+                {photos.map((p, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <img
+                      src={p}
+                      alt={`Proof of delivery ${i + 1}`}
+                      style={{ width: '100%', height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', display: 'block' }}
+                    />
+                    {!marking && (
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(i)}
+                        aria-label={`Remove photo ${i + 1}`}
+                        style={{
+                          position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: '50%',
+                          background: 'rgba(0,0,0,.65)', border: '1px solid rgba(255,255,255,.2)', cursor: 'pointer',
+                          color: '#fff', display: 'grid', placeItems: 'center',
+                        }}
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-            ) : (
+            )}
+            {photos.length < MAX_PROOF_PHOTOS && (
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
@@ -292,7 +314,7 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
                 }}
               >
                 <Camera size={15} />
-                {photoBusy ? 'Processing…' : 'Take / upload photo'}
+                {photoBusy ? 'Processing…' : photos.length > 0 ? 'Add another photo' : 'Take / upload photos'}
               </button>
             )}
             {photoErr && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{photoErr}</div>}
@@ -454,18 +476,18 @@ export default function MyTrips() {
     return () => { cancelled = true; };
   }, [viewAll]);
 
-  async function handleMarkDelivered(id: number, notes?: string, deliveredQuantity?: string, proofPhoto?: string) {
+  async function handleMarkDelivered(id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[]) {
     const updated = await api.put<Challan>(`/challans/${id}`, {
       status: 'delivered',
       ...(notes ? { notes } : {}),
       ...(deliveredQuantity !== undefined ? { deliveredQuantity } : {}),
-      ...(proofPhoto ? { proofPhoto } : {}),
+      ...(proofPhotos && proofPhotos.length ? { proofPhotos } : {}),
     });
     let challanNo = '';
     setChallans(prev => prev.map(c => {
       if (c.id === id) {
         challanNo = c.challanNo;
-        return { ...c, status: 'delivered', deliveryTime: updated.deliveryTime ?? new Date().toISOString(), notes: updated.notes, deliveredQuantity: updated.deliveredQuantity, hasProofPhoto: updated.proofPhoto != null };
+        return { ...c, status: 'delivered', deliveryTime: updated.deliveryTime ?? new Date().toISOString(), notes: updated.notes, deliveredQuantity: updated.deliveredQuantity, hasProofPhoto: updated.hasProofPhoto ?? (proofPhotos != null && proofPhotos.length > 0) };
       }
       return c;
     }));

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { challans, clients, sites, vehicles, drivers, orders } from '../db/schema.js';
+import { challans, challanProofPhotos, clients, sites, vehicles, drivers, orders } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 
@@ -33,25 +33,49 @@ const challanSelect = {
   vehicleNo: vehicles.vehicleNo,
   driverName: drivers.name,
   driverPhone: drivers.phone,
-  hasProofPhoto: sql<boolean>`${challans.proofPhoto} is not null`,
-};
-
-// Detail select additionally returns the full proof-of-delivery photo. The list
-// select deliberately omits it (only a boolean flag) to keep responses light.
-const challanDetailSelect = {
-  ...challanSelect,
-  proofPhoto: challans.proofPhoto,
+  hasProofPhoto: sql<boolean>`exists (select 1 from ${challanProofPhotos} where ${challanProofPhotos.challanId} = ${challans.id})`,
 };
 
 const MAX_PROOF_PHOTO_BYTES = 8 * 1024 * 1024;
+const MAX_PROOF_PHOTOS = 8;
 
-function validateProofPhoto(value: unknown): string | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
+function validateOneProofPhoto(value: unknown): string {
   if (typeof value !== 'string') throw new Error('Proof photo must be a string');
   if (!value.startsWith('data:image/')) throw new Error('Proof photo must be an image data URL');
   if (value.length > MAX_PROOF_PHOTO_BYTES) throw new Error('Proof photo is too large');
   return value;
+}
+
+// Normalises the incoming proof-photo payload into a validated list (or
+// `undefined` to mean "leave existing photos untouched"). Accepts the new
+// `proofPhotos` array as well as the legacy single `proofPhoto` field. A null
+// value or empty array clears the photos.
+function validateProofPhotos(proofPhotos: unknown, legacyPhoto: unknown): string[] | undefined {
+  let raw: unknown;
+  if (proofPhotos !== undefined) raw = proofPhotos;
+  else if (legacyPhoto !== undefined) raw = legacyPhoto;
+  else return undefined;
+
+  if (raw === null) return [];
+  const list = Array.isArray(raw) ? raw : [raw];
+  if (list.length > MAX_PROOF_PHOTOS) throw new Error(`At most ${MAX_PROOF_PHOTOS} proof photos are allowed`);
+  return list.map(validateOneProofPhoto);
+}
+
+async function getProofPhotos(challanId: number): Promise<string[]> {
+  const rows = await db.select({ photo: challanProofPhotos.photo })
+    .from(challanProofPhotos)
+    .where(eq(challanProofPhotos.challanId, challanId))
+    .orderBy(challanProofPhotos.id);
+  return rows.map(r => r.photo);
+}
+
+async function challanHasProofPhoto(challanId: number): Promise<boolean> {
+  const [row] = await db.select({ id: challanProofPhotos.id })
+    .from(challanProofPhotos)
+    .where(eq(challanProofPhotos.challanId, challanId))
+    .limit(1);
+  return !!row;
 }
 
 router.get('/', async (req, res) => {
@@ -75,14 +99,17 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  const [row] = await db.select(challanDetailSelect).from(challans)
+  const [row] = await db.select(challanSelect).from(challans)
     .leftJoin(clients, eq(challans.clientId, clients.id))
     .leftJoin(sites, eq(challans.siteId, sites.id))
     .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
     .leftJoin(drivers, eq(challans.driverId, drivers.id))
     .where(eq(challans.id, +req.params.id));
   if (!row) { res.status(404).json({ error: 'Not found' }); return; }
-  res.json(row);
+  // Detail additionally returns every proof-of-delivery photo. The list select
+  // deliberately omits them (only a boolean flag) to keep responses light.
+  const proofPhotos = await getProofPhotos(+req.params.id);
+  res.json({ ...row, proofPhotos });
 });
 
 router.post('/', async (req, res) => {
@@ -120,14 +147,14 @@ router.put('/:id', async (req, res) => {
   const challanId = +req.params.id;
 
   if (role === 'driver') {
-    const { status, deliveryTime, notes, deliveredQuantity, proofPhoto } = req.body;
+    const { status, deliveryTime, notes, deliveredQuantity, proofPhoto, proofPhotos } = req.body;
     if (!DRIVER_ALLOWED_STATUS.includes(status)) {
       res.status(403).json({ error: 'Drivers may only mark challans as delivered' });
       return;
     }
-    let validatedPhoto: string | null | undefined;
+    let validatedPhotos: string[] | undefined;
     try {
-      validatedPhoto = validateProofPhoto(proofPhoto);
+      validatedPhotos = validateProofPhotos(proofPhotos, proofPhoto);
     } catch (e) {
       res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid proof photo' });
       return;
@@ -161,15 +188,24 @@ router.put('/:id', async (req, res) => {
       const existing = challan.notes?.trim();
       updateData.notes = existing ? `${existing}\n${deliveryNote}` : deliveryNote;
     }
-    if (validatedPhoto !== undefined) {
-      updateData.proofPhoto = validatedPhoto;
-    }
-    const [row] = await db.update(challans)
-      .set(updateData)
-      .where(eq(challans.id, challanId)).returning();
-    const { proofPhoto: rowPhoto, ...rowLight } = row;
-    emitSSEEvent('challan.updated', { ...rowLight, hasProofPhoto: rowPhoto != null }, { clientId: row.clientId, driverId: row.driverId });
-    res.json(row);
+    const [row] = await db.transaction(async (tx) => {
+      const updatedRows = await tx.update(challans)
+        .set(updateData)
+        .where(eq(challans.id, challanId)).returning();
+      if (validatedPhotos !== undefined) {
+        await tx.delete(challanProofPhotos).where(eq(challanProofPhotos.challanId, challanId));
+        if (validatedPhotos.length) {
+          await tx.insert(challanProofPhotos)
+            .values(validatedPhotos.map(photo => ({ challanId, photo })));
+        }
+      }
+      return updatedRows;
+    });
+    const hasProofPhoto = validatedPhotos !== undefined
+      ? validatedPhotos.length > 0
+      : await challanHasProofPhoto(challanId);
+    emitSSEEvent('challan.updated', { ...row, hasProofPhoto }, { clientId: row.clientId, driverId: row.driverId });
+    res.json({ ...row, hasProofPhoto });
     return;
   }
 
@@ -200,9 +236,9 @@ router.put('/:id', async (req, res) => {
 
   const [row] = await db.update(challans).set(updateData)
     .where(eq(challans.id, challanId)).returning();
-  const { proofPhoto: rowPhoto, ...rowLight } = row;
-  emitSSEEvent('challan.updated', { ...rowLight, hasProofPhoto: rowPhoto != null }, { clientId: row.clientId, driverId: row.driverId });
-  res.json(row);
+  const hasProofPhoto = await challanHasProofPhoto(challanId);
+  emitSSEEvent('challan.updated', { ...row, hasProofPhoto }, { clientId: row.clientId, driverId: row.driverId });
+  res.json({ ...row, hasProofPhoto });
 });
 
 router.delete('/:id', async (req, res) => {

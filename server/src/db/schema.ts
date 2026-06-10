@@ -112,7 +112,16 @@ export const challans = pgTable('challans', {
   deliveryTime: timestamp('delivery_time'),
   status: challanStatusEnum('status').notNull().default('pending'),
   notes: text('notes'),
-  proofPhoto: text('proof_photo'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Proof-of-delivery photos. A delivery can have several photos (the pour, the
+// signed slip, the site board), so each lives as its own child row linked to a
+// challan rather than packed into a single text column.
+export const challanProofPhotos = pgTable('challan_proof_photos', {
+  id: serial('id').primaryKey(),
+  challanId: integer('challan_id').notNull().references(() => challans.id, { onDelete: 'cascade' }),
+  photo: text('photo').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -179,12 +188,17 @@ export const vehiclesRelations = relations(vehicles, ({ one }) => ({
   driver: one(drivers, { fields: [vehicles.driverId], references: [drivers.id] }),
 }));
 
-export const challansRelations = relations(challans, ({ one }) => ({
+export const challansRelations = relations(challans, ({ one, many }) => ({
   client: one(clients, { fields: [challans.clientId], references: [clients.id] }),
   site: one(sites, { fields: [challans.siteId], references: [sites.id] }),
   vehicle: one(vehicles, { fields: [challans.vehicleId], references: [vehicles.id] }),
   driver: one(drivers, { fields: [challans.driverId], references: [drivers.id] }),
   order: one(orders, { fields: [challans.orderId], references: [orders.id] }),
+  proofPhotos: many(challanProofPhotos),
+}));
+
+export const challanProofPhotosRelations = relations(challanProofPhotos, ({ one }) => ({
+  challan: one(challans, { fields: [challanProofPhotos.challanId], references: [challans.id] }),
 }));
 
 export const auditLogs = pgTable('audit_logs', {

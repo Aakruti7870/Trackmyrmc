@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { eq, desc, gte, lte, and, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { users, clients, orders, challans, sites, vehicles, drivers, ledgerEntries } from '../db/schema.js';
+import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 const router = Router();
 router.use(requireAuth);
@@ -21,7 +21,7 @@ const challanSelect = {
     vehicleNo: vehicles.vehicleNo,
     driverName: drivers.name,
     driverPhone: drivers.phone,
-    hasProofPhoto: sql `${challans.proofPhoto} is not null`,
+    hasProofPhoto: sql `exists (select 1 from ${challanProofPhotos} where ${challanProofPhotos.challanId} = ${challans.id})`,
 };
 async function getLinkedClientId(userId) {
     const [row] = await db.select({ linkedClientId: users.linkedClientId })

@@ -22,17 +22,17 @@ export default function Dispatch() {
   }>({ orderId: '', clientId: '', siteId: '', vehicleId: '', driverId: '', grade: '', quantity: '', pumpRequired: false, notes: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [photoView, setPhotoView] = useState<{ challanNo: string; src: string | null; loading: boolean } | null>(null);
+  const [photoView, setPhotoView] = useState<{ challanNo: string; srcs: string[]; loading: boolean } | null>(null);
 
   const { subscribe } = useSSE();
 
   async function viewProof(ch: Challan) {
-    setPhotoView({ challanNo: ch.challanNo, src: null, loading: true });
+    setPhotoView({ challanNo: ch.challanNo, srcs: [], loading: true });
     try {
       const full = await api.get<Challan>(`/challans/${ch.id}`);
-      setPhotoView({ challanNo: ch.challanNo, src: full.proofPhoto ?? null, loading: false });
+      setPhotoView({ challanNo: ch.challanNo, srcs: full.proofPhotos ?? [], loading: false });
     } catch {
-      setPhotoView({ challanNo: ch.challanNo, src: null, loading: false });
+      setPhotoView({ challanNo: ch.challanNo, srcs: [], loading: false });
     }
   }
 
@@ -334,10 +334,17 @@ export default function Dispatch() {
               <button onClick={() => setPhotoView(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
             </div>
             {photoView.loading ? (
-              <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)' }}>Loading photo…</div>
-            ) : photoView.src ? (
-              <img src={photoView.src} alt={`Proof of delivery for ${photoView.challanNo}`}
-                style={{ width: '100%', borderRadius: 10, display: 'block' }} />
+              <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)' }}>Loading photos…</div>
+            ) : photoView.srcs.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {photoView.srcs.length > 1 && (
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{photoView.srcs.length} photos</div>
+                )}
+                {photoView.srcs.map((src, i) => (
+                  <img key={i} src={src} alt={`Proof of delivery ${i + 1} for ${photoView.challanNo}`}
+                    style={{ width: '100%', borderRadius: 10, display: 'block' }} />
+                ))}
+              </div>
             ) : (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--red)' }}>No photo available</div>
             )}

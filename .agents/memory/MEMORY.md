@@ -10,3 +10,4 @@
 - [RMC shift windows](rmc-shift-windows.md) — shifts (esp. night 22:00→06:00) cross midnight; use absolute Date start/end + date-anchored persistence keys, never hour-of-day or isToday.
 - [SSE event targeting](sse-event-targeting.md) — emitSSEEvent(event,data,audience?) scopes per-recipient; missing audience silently broadcasts to all.
 - [RMC link delete guard](rmc-link-delete-guard.md) — deleting a client/driver is blocked (409) while a non-soft-deleted user still links to it; scope check with isNull(deletedAt).
+- [RMC proof photos](rmc-proof-photos.md) — proof photos live in challan_proof_photos child table; PUT accepts proofPhotos[] + legacy proofPhoto; lists carry only hasProofPhoto (EXISTS), detail returns full array.
