@@ -373,6 +373,11 @@ export default function Users() {
   const needsClientLink = form.role === 'client';
   const needsDriverLink = form.role === 'driver';
 
+  const unlinkedCount = users.filter(u =>
+    (u.role === 'client' && !u.linkedClientId) ||
+    (u.role === 'driver' && !u.linkedDriverId)
+  ).length;
+
   return (
     <div>
       {/* Header */}
@@ -387,6 +392,15 @@ export default function Users() {
               ? `${users.length} deleted ${users.length === 1 ? 'account' : 'accounts'}`
               : `${users.filter(u => u.isActive).length} active · ${users.length} total accounts`}
           </p>
+          {!showDeleted && unlinkedCount > 0 && (
+            <p title="Client/driver logins with no linked record — these users see an empty dashboard until linked." style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, margin: '6px 0 0',
+              padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              background: 'rgba(245,158,11,.13)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.3)',
+            }}>
+              <AlertTriangle size={13} /> {unlinkedCount} unlinked {unlinkedCount === 1 ? 'account' : 'accounts'}
+            </p>
+          )}
         </div>
         <button onClick={openCreate} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
@@ -458,6 +472,8 @@ export default function Users() {
                 : u.linkedDriverId
                 ? `Driver #${u.linkedDriverId} — ${driverOptions.find(d => d.id === u.linkedDriverId)?.name ?? '…'}`
                 : '—';
+              const isUnlinked = (u.role === 'client' && !u.linkedClientId) ||
+                (u.role === 'driver' && !u.linkedDriverId);
               const lockout = lockoutStatus[u.id];
               const isLocked = lockout?.locked === true;
               const lockExpiry = lockout?.lockedUntil
@@ -525,7 +541,18 @@ export default function Users() {
                       )}
                     </div>
                   </td>
-                  <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{linked}</td>
+                  <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>
+                    {isUnlinked ? (
+                      <span title={`This ${ROLE_LABEL[u.role as Role] ?? u.role} login has no ${u.role === 'client' ? 'client' : 'driver'} record linked — they will see an empty ${u.role === 'client' ? 'My Orders' : 'My Trips'} screen.`} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                        background: 'rgba(245,158,11,.13)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.3)',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        <AlertTriangle size={12} /> Not linked
+                      </span>
+                    ) : linked}
+                  </td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {showDeleted ? (
