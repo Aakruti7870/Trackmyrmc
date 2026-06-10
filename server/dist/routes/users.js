@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, asc, desc, sql, isNull, isNotNull, and } from 'drizzle-orm';
+import { eq, asc, desc, sql, isNull, isNotNull, and, gte, lte } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/index.js';
@@ -150,6 +150,28 @@ router.get('/audit-log', async (req, res) => {
     const actionParam = req.query.action;
     if (actionParam !== undefined && String(actionParam).trim() !== '') {
         conditions.push(eq(auditLogs.action, String(actionParam)));
+    }
+    const fromParam = req.query.from;
+    if (fromParam !== undefined && String(fromParam) !== '') {
+        const from = new Date(String(fromParam));
+        if (isNaN(from.getTime())) {
+            res.status(400).json({ error: 'Invalid from date' });
+            return;
+        }
+        conditions.push(gte(auditLogs.createdAt, from));
+    }
+    const toParam = req.query.to;
+    if (toParam !== undefined && String(toParam) !== '') {
+        const to = new Date(String(toParam));
+        if (isNaN(to.getTime())) {
+            res.status(400).json({ error: 'Invalid to date' });
+            return;
+        }
+        // Treat a date-only `to` (e.g. 2026-06-10) as inclusive of the whole day.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(String(toParam))) {
+            to.setUTCHours(23, 59, 59, 999);
+        }
+        conditions.push(lte(auditLogs.createdAt, to));
     }
     const rows = await db.select(select).from(auditLogs)
         .where(conditions.length ? and(...conditions) : undefined)

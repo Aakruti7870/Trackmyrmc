@@ -159,6 +159,8 @@ export default function Users() {
   const [resendingId, setResendingId] = useState<number | null>(null);
   const [historyUser, setHistoryUser] = useState<UserRecord | null>(null);
   const [actionFilter, setActionFilter] = useState<string>('all');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
   const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -166,10 +168,12 @@ export default function Users() {
   const [softDeletedMatch, setSoftDeletedMatch] = useState<{ id: number; name: string } | null>(null);
   const [restoringId, setRestoringId] = useState<number | null>(null);
 
-  function loadAudit(userId: number | null, action: string = actionFilter) {
+  function loadAudit(userId: number | null) {
     const params = new URLSearchParams();
     if (userId) params.set('userId', String(userId));
-    if (action && action !== 'all') params.set('action', action);
+    if (actionFilter !== 'all') params.set('action', actionFilter);
+    if (fromDate) params.set('from', fromDate);
+    if (toDate) params.set('to', toDate);
     const qs = params.toString();
     api.get<AuditEntry[]>(`/users/audit-log${qs ? `?${qs}` : ''}`).then(setAuditLog).catch(() => {});
   }
@@ -183,6 +187,10 @@ export default function Users() {
     api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
   }
   useEffect(load, [showDeleted]);
+
+  // Re-fetch the audit log when any of the activity-log filters change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadAudit(historyUser?.id ?? null); }, [actionFilter, fromDate, toDate]);
 
   // While any account is locked, poll the lockout status so the locked badge
   // clears itself once the lockout window expires — no manual reload needed.
@@ -690,38 +698,62 @@ export default function Users() {
           }}>
             {auditLog.length} {auditLog.length === 1 ? 'entry' : 'entries'}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginLeft: 'auto', flexWrap: 'wrap' }}>
-            <select
-              value={actionFilter}
-              onChange={(e) => {
-                const next = e.target.value;
-                setActionFilter(next);
-                loadAudit(historyUser?.id ?? null, next);
-              }}
-              aria-label="Filter activity log by action type"
+          {historyUser && (
+            <button
+              onClick={clearHistory}
               style={{
-                padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--text)', outline: 'none',
+                display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto',
+                padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--muted)',
               }}
             >
-              <option value="all">All actions</option>
-              {Object.entries(ACTION_LABEL).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
+              <X size={12} /> Showing {historyUser.email} — Show all
+            </button>
+          )}
+        </div>
+
+        {/* Activity-log filters */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div>
+            <label style={labelStyle}>Action Type</label>
+            <select
+              value={actionFilter} onChange={e => setActionFilter(e.target.value)}
+              style={{ ...inputStyle, width: 'auto', minWidth: 180 }}
+            >
+              <option value="all">All Actions</option>
+              {Object.keys(ACTION_LABEL).map(a => (
+                <option key={a} value={a}>{ACTION_LABEL[a]}</option>
               ))}
             </select>
-            {historyUser && (
-              <button
-                onClick={clearHistory}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                  background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--muted)',
-                }}
-              >
-                <X size={12} /> Showing {historyUser.email} — Show all
-              </button>
-            )}
           </div>
+          <div>
+            <label style={labelStyle}>From</label>
+            <input
+              type="date" value={fromDate} max={toDate || undefined}
+              onChange={e => setFromDate(e.target.value)}
+              style={{ ...inputStyle, width: 'auto', colorScheme: 'dark' }}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>To</label>
+            <input
+              type="date" value={toDate} min={fromDate || undefined}
+              onChange={e => setToDate(e.target.value)}
+              style={{ ...inputStyle, width: 'auto', colorScheme: 'dark' }}
+            />
+          </div>
+          {(actionFilter !== 'all' || fromDate || toDate) && (
+            <button
+              onClick={() => { setActionFilter('all'); setFromDate(''); setToDate(''); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
+                borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', color: 'var(--muted)',
+              }}
+            >
+              <X size={13} /> Clear Filters
+            </button>
+          )}
         </div>
 
         <div style={{
@@ -730,7 +762,9 @@ export default function Users() {
         }}>
           {auditLog.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: '#9fb0c7', fontSize: 13 }}>
-              {historyUser
+              {(actionFilter !== 'all' || fromDate || toDate)
+                ? 'No activity matches the selected filters.'
+                : historyUser
                 ? `No activity recorded for ${historyUser.name} yet.`
                 : 'No activity recorded yet. Account changes and password resets will appear here.'}
             </div>
