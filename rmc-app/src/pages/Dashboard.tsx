@@ -169,23 +169,9 @@ export default function Dashboard() {
         }
       </div>
 
-      {/* ===== Hero command panel: live GPS map + 3D batching plant ===== */}
-      <div className="dash-hero" style={{ display: 'grid', gridTemplateColumns: '1.2fr .8fr', gap: 14, marginBottom: 16 }}>
+      {/* ===== Hero command panel: full-width live GPS map ===== */}
+      <div className="dash-hero" style={{ marginBottom: 16 }}>
         <LiveGPSTracker />
-        <div className="plant-viewport cement-texture">
-          <div className="plant-stage">
-            <div className="base-3d" />
-            <div className="silo silo-1" />
-            <div className="silo silo-2" />
-            <div className="tower-3d" />
-            <div className="belt-3d" />
-            <div className="tm-3d" />
-          </div>
-          <div className="glow-line" />
-          <div className="cc-float" style={{ position: 'absolute', top: 12, left: 14, fontSize: 11, fontWeight: 800, letterSpacing: '.5px', color: 'var(--gold)', textTransform: 'uppercase' }}>
-            Batching Plant · Live
-          </div>
-        </div>
       </div>
 
       {/* ===== Live fleet movement strip (animated transit mixers) ===== */}
@@ -326,7 +312,6 @@ export default function Dashboard() {
           .dash-lower { grid-template-columns: 1fr 1fr !important; }
         }
         @media (max-width: 900px) {
-          .dash-hero { grid-template-columns: 1fr !important; }
           .dash-actions { grid-template-columns: repeat(2,1fr) !important; }
         }
         @media (max-width: 760px) {
