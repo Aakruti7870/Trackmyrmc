@@ -25,6 +25,20 @@ async function createUser(opts) {
 function tokenFor(u) {
     return signToken({ id: u.id, email: u.email, role: u.role, name: u.name });
 }
+// Insert audit rows directly so tests can pin action, targetUserId and
+// createdAt — control the POST flow doesn't give over the recorded timestamp.
+async function seedAudit(rows) {
+    await db.insert(auditLogs).values(rows.map(r => ({
+        actorId: r.actorId ?? null,
+        actorName: r.actorName ?? null,
+        action: r.action,
+        targetUserId: r.targetUserId ?? null,
+        targetUserEmail: r.targetUserEmail ?? null,
+        detail: r.detail ?? null,
+        emailSent: r.emailSent ?? null,
+        ...(r.createdAt ? { createdAt: r.createdAt } : {}),
+    })));
+}
 // Make SMTP appear configured so email.ts proceeds to nodemailer.createTransport,
 // which the tests then mock to simulate the send succeeding or failing.
 function enableSmtp() {
@@ -178,4 +192,72 @@ test('GET /api/audit-logs is forbidden for non-admins', async () => {
         .get('/api/audit-logs')
         .set('Authorization', `Bearer ${token}`);
     assert.equal(res.status, 403);
+});
+test('GET /api/users/audit-log?action filters by event type', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    await seedAudit([
+        { action: 'user.created', targetUserEmail: 'a@x.com' },
+        { action: 'password_reset', targetUserEmail: 'b@x.com' },
+        { action: 'password_reset', targetUserEmail: 'c@x.com' },
+    ]);
+    const res = await request(app)
+        .get('/api/users/audit-log?action=password_reset')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.length, 2);
+    assert.ok(res.body.every((e) => e.action === 'password_reset'), 'every returned entry has the filtered action');
+});
+test('GET /api/users/audit-log?from/to filters by date range (to inclusive of whole day)', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    await seedAudit([
+        { action: 'user.created', targetUserEmail: 'before@x.com', createdAt: new Date('2026-01-31T23:59:59Z') },
+        { action: 'user.created', targetUserEmail: 'start@x.com', createdAt: new Date('2026-02-01T00:00:00Z') },
+        { action: 'user.created', targetUserEmail: 'endday@x.com', createdAt: new Date('2026-02-28T18:30:00Z') },
+        { action: 'user.created', targetUserEmail: 'after@x.com', createdAt: new Date('2026-03-01T00:00:00Z') },
+    ]);
+    const res = await request(app)
+        .get('/api/users/audit-log?from=2026-02-01&to=2026-02-28')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`);
+    assert.equal(res.status, 200);
+    const emails = res.body.map((e) => e.targetUserEmail).sort();
+    // 'endday@x.com' lands at 18:30 on the `to` date and must be included because
+    // a date-only `to` is treated as inclusive of the entire day.
+    assert.deepEqual(emails, ['endday@x.com', 'start@x.com']);
+});
+test('GET /api/users/audit-log combines action, date range and userId via AND', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const target = await createUser({ name: 'Target', email: 'target@x.com', role: 'dispatcher' });
+    const other = await createUser({ name: 'Other', email: 'other@x.com', role: 'dispatcher' });
+    await seedAudit([
+        // Matches all three filters.
+        { action: 'password_reset', targetUserId: target.id, targetUserEmail: 'target@x.com', createdAt: new Date('2026-02-10T10:00:00Z') },
+        // Wrong action.
+        { action: 'user.created', targetUserId: target.id, targetUserEmail: 'target@x.com', createdAt: new Date('2026-02-11T10:00:00Z') },
+        // Wrong user.
+        { action: 'password_reset', targetUserId: other.id, targetUserEmail: 'other@x.com', createdAt: new Date('2026-02-12T10:00:00Z') },
+        // Out of date range.
+        { action: 'password_reset', targetUserId: target.id, targetUserEmail: 'target@x.com', createdAt: new Date('2026-05-10T10:00:00Z') },
+    ]);
+    const res = await request(app)
+        .get(`/api/users/audit-log?action=password_reset&from=2026-02-01&to=2026-02-28&userId=${target.id}`)
+        .set('Authorization', `Bearer ${tokenFor(admin)}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.length, 1, 'only the row matching all filters is returned');
+    assert.equal(res.body[0].action, 'password_reset');
+    assert.equal(res.body[0].targetUserId, target.id);
+    assert.equal(res.body[0].targetUserEmail, 'target@x.com');
+});
+test('GET /api/users/audit-log rejects an invalid from date with 400', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const res = await request(app)
+        .get('/api/users/audit-log?from=not-a-date')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`);
+    assert.equal(res.status, 400);
+});
+test('GET /api/users/audit-log rejects an invalid to date with 400', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const res = await request(app)
+        .get('/api/users/audit-log?to=not-a-date')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`);
+    assert.equal(res.status, 400);
 });
