@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
     .$dynamic();
 
   const filters = [];
-  if (status) filters.push(eq(challans.status, status as string));
+  if (status) filters.push(eq(challans.status, status as 'pending' | 'dispatched' | 'delivered' | 'cancelled'));
   if (clientId) filters.push(eq(challans.clientId, +clientId));
   if (from) filters.push(gte(challans.createdAt, new Date(from as string)));
   if (to) filters.push(lte(challans.createdAt, new Date(to as string)));

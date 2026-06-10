@@ -1,4 +1,4 @@
-import { Route, Switch, useLocation, Redirect } from 'wouter';
+import { Route, Switch, Redirect } from 'wouter';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
@@ -12,10 +12,27 @@ import BatchReport from '@/pages/BatchReport';
 import MixDesign from '@/pages/MixDesign';
 import Reports from '@/pages/Reports';
 import ChallanPrint from '@/pages/ChallanPrint';
+import MyOrders from '@/pages/MyOrders';
+import MyTrips from '@/pages/MyTrips';
+import { canAccess, defaultPath } from '@/lib/permissions';
+
+function GuardedRoute({
+  path,
+  component: Component,
+}: {
+  path: string;
+  component: React.ComponentType;
+}) {
+  const { user } = useAuth();
+  if (!user) return null;
+  if (!canAccess(user.role, path)) {
+    return <Redirect to={defaultPath(user.role)} />;
+  }
+  return <Component />;
+}
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
-  useLocation();
 
   if (loading) {
     return (
@@ -35,17 +52,19 @@ function ProtectedRoutes() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/orders" component={Orders} />
-        <Route path="/dispatch" component={Dispatch} />
-        <Route path="/clients" component={Clients} />
-        <Route path="/vehicles" component={Vehicles} />
-        <Route path="/drivers" component={Drivers} />
-        <Route path="/batch-report" component={BatchReport} />
-        <Route path="/mix-design" component={MixDesign} />
-        <Route path="/reports" component={Reports} />
+        <Route path="/"             component={() => <GuardedRoute path="/"             component={Dashboard}   />} />
+        <Route path="/my-orders"    component={() => <GuardedRoute path="/my-orders"    component={MyOrders}    />} />
+        <Route path="/my-trips"     component={() => <GuardedRoute path="/my-trips"     component={MyTrips}     />} />
+        <Route path="/orders"       component={() => <GuardedRoute path="/orders"       component={Orders}      />} />
+        <Route path="/dispatch"     component={() => <GuardedRoute path="/dispatch"     component={Dispatch}    />} />
+        <Route path="/clients"      component={() => <GuardedRoute path="/clients"      component={Clients}     />} />
+        <Route path="/vehicles"     component={() => <GuardedRoute path="/vehicles"     component={Vehicles}    />} />
+        <Route path="/drivers"      component={() => <GuardedRoute path="/drivers"      component={Drivers}     />} />
+        <Route path="/batch-report" component={() => <GuardedRoute path="/batch-report" component={BatchReport} />} />
+        <Route path="/mix-design"   component={() => <GuardedRoute path="/mix-design"   component={MixDesign}   />} />
+        <Route path="/reports"      component={() => <GuardedRoute path="/reports"      component={Reports}     />} />
         <Route path="/challans/:id/print" component={ChallanPrint} />
-        <Route><Redirect to="/" /></Route>
+        <Route><Redirect to={defaultPath(user.role)} /></Route>
       </Switch>
     </Layout>
   );
@@ -53,7 +72,7 @@ function ProtectedRoutes() {
 
 function LoginRoute() {
   const { user } = useAuth();
-  if (user) return <Redirect to="/" />;
+  if (user) return <Redirect to={defaultPath(user.role)} />;
   return <Login />;
 }
 

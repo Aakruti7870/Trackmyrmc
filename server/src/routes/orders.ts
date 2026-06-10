@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
     .$dynamic();
 
   const filters = [];
-  if (status) filters.push(eq(orders.status, status as string));
+  if (status) filters.push(eq(orders.status, status as 'pending' | 'in_progress' | 'completed' | 'cancelled'));
   if (clientId) filters.push(eq(orders.clientId, +clientId));
   if (from) filters.push(gte(orders.deliveryDate, from as string));
   if (to) filters.push(lte(orders.deliveryDate, to as string));

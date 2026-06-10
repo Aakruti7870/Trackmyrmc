@@ -10,6 +10,7 @@ import driverRoutes from './routes/drivers.js';
 import batchRoutes from './routes/batches.js';
 import dashboardRoutes from './routes/dashboard.js';
 import reportRoutes from './routes/reports.js';
+import meRoutes from './routes/me.js';
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -26,6 +27,7 @@ app.use('/api/drivers', driverRoutes);
 app.use('/api/batches', batchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/me', meRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

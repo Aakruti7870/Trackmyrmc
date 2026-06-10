@@ -2,21 +2,24 @@ import { Link, useLocation } from 'wouter';
 import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
-  ChevronDown
+  ChevronDown, PackageSearch, Route,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
+import { ROLE_ALLOWED_PATHS, type Role } from '@/lib/permissions';
 
-const navItems = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/orders', label: 'Orders', icon: ClipboardList },
-  { path: '/dispatch', label: 'Dispatch', icon: Truck },
-  { path: '/clients', label: 'Clients', icon: Users },
-  { path: '/vehicles', label: 'Fleet', icon: CarFront },
-  { path: '/drivers', label: 'Drivers', icon: UserCheck },
+const ALL_NAV_ITEMS = [
+  { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },
+  { path: '/my-orders',   label: 'My Orders',  icon: PackageSearch },
+  { path: '/my-trips',    label: 'My Trips',   icon: Route },
+  { path: '/orders',      label: 'Orders',     icon: ClipboardList },
+  { path: '/dispatch',    label: 'Dispatch',   icon: Truck },
+  { path: '/clients',     label: 'Clients',    icon: Users },
+  { path: '/vehicles',    label: 'Fleet',      icon: CarFront },
+  { path: '/drivers',     label: 'Drivers',    icon: UserCheck },
   { path: '/batch-report', label: 'Production', icon: FileText },
-  { path: '/mix-design', label: 'Mix Design', icon: FlaskConical },
-  { path: '/reports', label: 'Reports', icon: BarChart3 },
+  { path: '/mix-design',  label: 'Mix Design', icon: FlaskConical },
+  { path: '/reports',     label: 'Reports',    icon: BarChart3 },
 ];
 
 const ROLE_COLOR: Record<string, string> = {
@@ -35,6 +38,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const roleColor = user ? (ROLE_COLOR[user.role] || '#9fb0c7') : '#9fb0c7';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
+
+  const allowedPaths = user ? (ROLE_ALLOWED_PATHS[user.role as Role] ?? []) : [];
+  const navItems = ALL_NAV_ITEMS.filter(item => allowedPaths.includes(item.path));
 
   const SidebarContent = () => (
     <>
