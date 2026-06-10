@@ -153,6 +153,7 @@ export default function Users() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [autoOpenLink, setAutoOpenLink] = useState(false);
   const [clientOptions, setClientOptions] = useState<LinkOption[]>([]);
   const [driverOptions, setDriverOptions] = useState<LinkOption[]>([]);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
@@ -482,10 +483,11 @@ export default function Users() {
     setError('');
     setSoftDeletedMatch(null);
     setShowPassword(false);
+    setAutoOpenLink(false);
     setModal('create');
   }
 
-  function openEdit(u: UserRecord) {
+  function openEdit(u: UserRecord, focusLink = false) {
     setForm({
       name: u.name, email: u.email, password: '',
       role: u.role as Role, isActive: u.isActive,
@@ -494,6 +496,7 @@ export default function Users() {
     setEditing(u);
     setError('');
     setShowPassword(false);
+    setAutoOpenLink(focusLink);
     setModal('edit');
   }
 
@@ -842,14 +845,19 @@ export default function Users() {
                   </td>
                   <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>
                     {isUnlinked ? (
-                      <span title={`This ${ROLE_LABEL[u.role as Role] ?? u.role} login has no ${u.role === 'client' ? 'client' : 'driver'} record linked — they will see an empty ${u.role === 'client' ? 'My Orders' : 'My Trips'} screen.`} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                        padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-                        background: 'rgba(245,158,11,.13)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.3)',
-                        whiteSpace: 'nowrap',
-                      }}>
-                        <AlertTriangle size={12} /> Not linked
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(u, true)}
+                        title={`This ${ROLE_LABEL[u.role as Role] ?? u.role} login has no ${u.role === 'client' ? 'client' : 'driver'} record linked — they will see an empty ${u.role === 'client' ? 'My Orders' : 'My Trips'} screen. Click to link a record.`}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                          background: 'rgba(245,158,11,.13)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.3)',
+                          whiteSpace: 'nowrap', cursor: 'pointer',
+                        }}
+                      >
+                        <AlertTriangle size={12} /> Link record
+                      </button>
                     ) : linked}
                   </td>
                   <td style={{ padding: '12px 14px' }}>
@@ -1244,6 +1252,7 @@ export default function Users() {
                     placeholder="Select a client…"
                     noneLabel="— No linked client —"
                     emptyLabel="No clients found"
+                    autoOpen={autoOpenLink}
                   />
                   <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
                     Links this login to a client record so "My Orders" shows their data.
@@ -1262,6 +1271,7 @@ export default function Users() {
                     placeholder="Select a driver…"
                     noneLabel="— No linked driver —"
                     emptyLabel="No drivers found"
+                    autoOpen={autoOpenLink}
                   />
                   <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
                     Links this login to a driver record so "My Trips" shows their assignments.

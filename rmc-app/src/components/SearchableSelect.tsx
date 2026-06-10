@@ -10,6 +10,7 @@ type Props = {
   placeholder?: string;
   emptyLabel?: string;
   noneLabel?: string;
+  autoOpen?: boolean;
 };
 
 const fieldStyle: React.CSSProperties = {
@@ -25,8 +26,12 @@ export default function SearchableSelect({
   placeholder = 'Select…',
   emptyLabel = 'No matches',
   noneLabel = '— None —',
+  autoOpen = false,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  // Start open when autoOpen is set (e.g. opened from the "Link record" row
+  // action). The component is freshly mounted each time the edit modal opens,
+  // so initial state acts as a one-shot signal — no effect/setState needed.
+  const [open, setOpen] = useState(autoOpen);
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
