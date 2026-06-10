@@ -52,6 +52,8 @@ const ROLE_COLOR: Record<Role, string> = {
 
 const ACTION_LABEL: Record<string, string> = {
   password_reset: 'Password Reset',
+  password_reset_email: 'Password-Reset Email',
+  welcome_email: 'Welcome Email',
   lockout_cleared: 'Lockout Cleared',
   name_change: 'Name Changed',
   role_change: 'Role Changed',
@@ -66,6 +68,8 @@ const ACTION_LABEL: Record<string, string> = {
 
 const ACTION_COLOR: Record<string, string> = {
   password_reset: '#38bdf8',
+  password_reset_email: '#38bdf8',
+  welcome_email: '#a78bfa',
   lockout_cleared: '#22c55e',
   name_change: '#a78bfa',
   role_change: '#f7c948',

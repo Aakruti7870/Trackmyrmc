@@ -199,6 +199,16 @@ router.post('/:id/resend-notification', async (req, res) => {
     console.error('[email] Failed to resend password-reset notification:', err);
   }
 
+  const actor = req.user!;
+  await db.insert(auditLogs).values({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'password_reset_email',
+    targetUserId: user.id,
+    targetUserEmail: user.email,
+    emailSent,
+  });
+
   res.json({ emailSent });
 });
 
@@ -328,6 +338,16 @@ router.post('/:id/resend-welcome', async (req, res) => {
     console.error('[email] Failed to resend welcome email:', err);
     emailSent = false;
   }
+
+  const actor = req.user!;
+  await db.insert(auditLogs).values({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'welcome_email',
+    targetUserId: user.id,
+    targetUserEmail: user.email,
+    emailSent,
+  });
 
   res.json({ emailSent });
 });
