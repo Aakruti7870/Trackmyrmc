@@ -17,6 +17,8 @@ const challanSelect = {
   siteId: challans.siteId, vehicleId: challans.vehicleId, driverId: challans.driverId,
   clientName: clients.name,
   siteName: sites.name,
+  siteLat: sites.latitude,
+  siteLng: sites.longitude,
   vehicleNo: vehicles.vehicleNo,
   driverName: drivers.name,
   driverPhone: drivers.phone,

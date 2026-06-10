@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import {
   TrendingUp, Clock, Truck, Users, IndianRupee, ArrowRight,
-  ClipboardList, UserPlus, Printer, Bell, Radio, CarFront, Boxes,
+  ClipboardList, UserPlus, Printer, Bell, Radio, CarFront, Boxes, Monitor,
 } from 'lucide-react';
 import { api, type DashboardKPIs, type Challan, type Order } from '@/lib/api';
 import LiveGPSTracker from '@/components/LiveGPSTracker';
 import { useAuth } from '@/lib/auth';
 import { useSSE } from '@/lib/useSSE';
+import { canAccess } from '@/lib/permissions';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [challans, setChallans] = useState<Challan[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -109,14 +111,30 @@ export default function Dashboard() {
             Welcome back, {user?.name?.split(' ')[0]} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        {/* Plant status pill */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999,
-          background: 'color-mix(in srgb, var(--green) 12%, transparent)',
-          border: '1px solid color-mix(in srgb, var(--green) 26%, transparent)',
-        }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 10px var(--green)' }} />
-          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--green)', letterSpacing: '.3px' }}>PLANT ONLINE</span>
+        {/* Right: Control Room launcher + plant status pill */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {user && canAccess(user.role, '/kiosk') && (
+            <button
+              onClick={() => navigate('/kiosk')}
+              title="Open big-screen Control Room"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 999, cursor: 'pointer',
+                background: 'color-mix(in srgb, var(--gold) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)',
+                color: 'var(--gold)', fontSize: 12, fontWeight: 800, letterSpacing: '.3px',
+              }}
+            >
+              <Monitor size={14} /> CONTROL ROOM
+            </button>
+          )}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999,
+            background: 'color-mix(in srgb, var(--green) 12%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--green) 26%, transparent)',
+          }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 10px var(--green)' }} />
+            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--green)', letterSpacing: '.3px' }}>PLANT ONLINE</span>
+          </div>
         </div>
       </div>
 

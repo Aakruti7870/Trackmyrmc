@@ -71,7 +71,8 @@ export interface Client {
 }
 
 export interface Site {
-  id: number; clientId: number; name: string; address?: string; city?: string; createdAt: string;
+  id: number; clientId: number; name: string; address?: string; city?: string;
+  latitude?: string | null; longitude?: string | null; createdAt: string;
 }
 
 export interface Order {
@@ -89,6 +90,7 @@ export interface Challan {
   dispatchTime?: string; deliveryTime?: string;
   status: string; notes?: string; createdAt: string;
   clientName?: string; siteName?: string;
+  siteLat?: string | null; siteLng?: string | null;
   vehicleNo?: string; driverName?: string; driverPhone?: string;
 }
 
@@ -122,4 +124,20 @@ export interface DashboardKPIs {
   activeOrders: number; pendingOrders: number; inProgressOrders: number;
   totalVehicles: number; activeVehicles: number; maintenanceVehicles: number;
   outstandingAmount: number; totalClients: number;
+}
+
+export interface LivePosition {
+  challanId: number; challanNo: string | null;
+  driverId: number | null; driverName: string | null;
+  vehicleId: number | null; vehicleNo: string | null;
+  siteId: number | null; siteName: string | null;
+  lat: number; lng: number;
+  accuracy: number | null; speed: number | null; heading: number | null;
+  distanceM: number | null; status: string;
+  inRadiusCount: number; updatedAt: string;
+}
+
+export interface PositionUpdateResult {
+  ok: boolean; distanceM: number | null; delivered: boolean;
+  withinRadius: boolean; inRadiusCount: number;
 }

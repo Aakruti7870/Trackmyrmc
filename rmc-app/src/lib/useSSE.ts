@@ -72,6 +72,10 @@ export function useSSE() {
         dispatchEvent('challan.updated', JSON.parse(e.data));
       });
 
+      es.addEventListener('vehicle.position', (e: MessageEvent) => {
+        dispatchEvent('vehicle.position', JSON.parse(e.data));
+      });
+
       es.addEventListener('ping', () => {});
     }
 

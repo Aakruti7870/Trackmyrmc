@@ -20,6 +20,7 @@ import MyOrders from '@/pages/MyOrders';
 import MyTrips from '@/pages/MyTrips';
 import Users from '@/pages/Users';
 import ProfileSettings from '@/pages/ProfileSettings';
+import Kiosk from '@/pages/Kiosk';
 import { canAccess, defaultPath } from '@/lib/permissions';
 
 function GuardedRoute({
@@ -68,8 +69,12 @@ function ProtectedRoutes() {
   }
 
   return (
-    <Layout>
-      <Switch>
+    <Switch>
+      {/* Kiosk renders fullscreen, outside the sidebar Layout */}
+      <Route path="/kiosk" component={() => <GuardedRoute path="/kiosk" component={Kiosk} />} />
+      <Route>
+        <Layout>
+          <Switch>
         <Route path="/"             component={() => <GuardedRoute path="/"             component={Dashboard}   />} />
         <Route path="/my-orders"    component={() => <GuardedRoute path="/my-orders"    component={MyOrders}    />} />
         <Route path="/my-trips"     component={() => <GuardedRoute path="/my-trips"     component={MyTrips}     />} />
@@ -85,8 +90,10 @@ function ProtectedRoutes() {
         <Route path="/profile"      component={() => <GuardedRoute path="/profile"      component={ProfileSettings} />} />
         <Route path="/challans/:id/print" component={() => <GuardedRoute path="/challans" component={ChallanPrint} />} />
         <Route><Redirect to={defaultPath(user.role)} /></Route>
-      </Switch>
-    </Layout>
+          </Switch>
+        </Layout>
+      </Route>
+    </Switch>
   );
 }
 

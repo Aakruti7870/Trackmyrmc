@@ -53,6 +53,8 @@ export const sites = pgTable('sites', {
   name: text('name').notNull(),
   address: text('address'),
   city: text('city'),
+  latitude: decimal('latitude', { precision: 10, scale: 7 }),
+  longitude: decimal('longitude', { precision: 10, scale: 7 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

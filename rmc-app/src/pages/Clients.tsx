@@ -223,6 +223,23 @@ export default function Clients() {
                           <input value={(siteForm as Record<string, string>)[k] || ''} onChange={e => setSiteForm(f => ({ ...f, [k]: e.target.value }))} style={inputStyle} />
                         </div>
                       ))}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 6 }}>
+                        {([['latitude', 'Latitude'], ['longitude', 'Longitude']] as const).map(([k, l]) => (
+                          <div key={k}>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>{l}</label>
+                            <input
+                              type="number" step="any" inputMode="decimal"
+                              placeholder={k === 'latitude' ? 'e.g. 23.0225' : 'e.g. 72.5714'}
+                              value={(siteForm as Record<string, string>)[k] || ''}
+                              onChange={e => setSiteForm(f => ({ ...f, [k]: e.target.value }))}
+                              style={inputStyle}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, lineHeight: 1.4 }}>
+                        Optional GPS pin for the delivery site. When set, driver trips auto-complete on arrival within {150} m.
+                      </div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <button onClick={() => setSiteModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: 'var(--muted)', cursor: 'pointer' }}>Cancel</button>
                         <button onClick={addSite} style={{ flex: 1, padding: '7px', background: 'var(--gold)', border: 'none', borderRadius: 8, color: '#111', fontWeight: 700, cursor: 'pointer' }}>Save</button>
@@ -231,7 +248,14 @@ export default function Clients() {
                   )}
                   {sites.map(s => (
                     <div key={s.id} style={{ padding: '10px 12px', background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.06)', borderRadius: 8, marginBottom: 6 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</span>
+                        {s.latitude != null && s.longitude != null && (
+                          <span title={`${s.latitude}, ${s.longitude}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'rgba(34,197,94,.12)', border: '1px solid color-mix(in srgb, var(--green) 26%, transparent)', borderRadius: 20, padding: '1px 7px' }}>
+                            <MapPin size={9} /> GPS pinned
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: 12, color: 'var(--muted)' }}>{[s.address, s.city].filter(Boolean).join(', ')}</div>
                     </div>
                   ))}

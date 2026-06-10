@@ -2,7 +2,7 @@ import { Link, useLocation } from 'wouter';
 import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
-  ChevronDown, PackageSearch, Route, ShieldCheck, Settings,
+  ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -11,6 +11,7 @@ import { useToast } from '@/lib/toast';
 import { ROLE_ALLOWED_PATHS, type Role } from '@/lib/permissions';
 import { useSSE, type SSEStatus } from '@/lib/useSSE';
 import type { Challan } from '@/lib/types';
+import CommandPalette from '@/components/CommandPalette';
 
 const ALL_NAV_ITEMS = [
   { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },
@@ -118,6 +119,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
         <SSEDot status={sseStatus} onReconnect={reconnect} />
       </div>
+
+      {/* Quick search → opens the command palette (⌘K) */}
+      <button
+        onClick={() => { window.dispatchEvent(new Event('open-command-palette')); setMobileOpen(false); }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+          padding: '9px 12px', marginBottom: 12, borderRadius: 12, cursor: 'pointer',
+          background: 'rgba(255,255,255,.03)', border: '1px solid var(--line)',
+          color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
+        }}
+      >
+        <Search size={14} />
+        <span style={{ flex: 1 }}>Quick search…</span>
+        <span style={{ fontSize: 10, fontWeight: 700, border: '1px solid var(--line)', borderRadius: 6, padding: '1px 5px' }}>⌘K</span>
+      </button>
 
       {/* Nav */}
       <nav style={{ display: 'grid', gap: 3, flex: 1 }}>
@@ -247,6 +263,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <CommandPalette />
       {/* Mobile header */}
       <div style={{
         display: 'none', background: 'rgba(8,17,31,.96)',

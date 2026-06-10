@@ -15,6 +15,7 @@ import reportRoutes from './routes/reports.js';
 import meRoutes from './routes/me.js';
 import userRoutes from './routes/users.js';
 import adminRoutes from './routes/admin.js';
+import positionRoutes from './routes/positions.js';
 import { addSSEClient, removeSSEClient } from './lib/sseEmitter.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { verifyToken } from './middleware/auth.js';
@@ -42,6 +43,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/positions', positionRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

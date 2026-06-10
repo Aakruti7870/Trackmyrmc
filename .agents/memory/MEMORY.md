@@ -1,4 +1,5 @@
 - [RMC App Layout Fix](rmc-layout-fix.md) — Mobile header must NOT be a grid/flex child alongside sidebar; keep it above the flex row in a column container.
+- [Workbox runtimeCaching urlPattern](workbox-runtimecaching-urlpattern.md) — Workbox RegExp urlPatterns match the full href, not pathname; use a `({url})=>url.pathname.startsWith('/api')` callback or the rule silently no-ops.
 - [RMC runtime theming](rmc-theming.md) — 5 CSS-var themes; accent *tints* must be color-mix(var(--gold)…) not literal amber rgba, or non-gold themes mismatch.
 - [RMC 401 handling](rmc-401-handling.md) — global fetch wrapper clears session+redirects on 401, but only when a token was sent, so login's own 401 isn't hijacked.
 - [RMC last-admin guard](rmc-soft-delete-guard.md) — last-admin delete branch is unreachable via real API (self-delete shadows it); test it with a deletedAt+active admin actor and signToken.

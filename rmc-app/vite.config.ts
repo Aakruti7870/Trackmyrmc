@@ -1,10 +1,50 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg'],
+      manifest: {
+        name: 'Aakruti Infra RMC — Plant & Driver',
+        short_name: 'Aakruti RMC',
+        description: 'Ready-mix concrete plant operations, dispatch and live driver delivery tracking.',
+        theme_color: '#08111f',
+        background_color: '#08111f',
+        display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
+        icons: [
+          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        navigateFallback: '/index.html',
+        // The app is auth'd + realtime: never let the service worker serve
+        // cached HTML for API calls or intercept/cache the SSE stream.
+        navigateFallbackDenylist: [/^\/api/],
+        // Workbox matches RegExp urlPatterns against the full href, so an
+        // ^-anchored pathname regex never fires. Use a callback that tests the
+        // pathname to actually force NetworkOnly for every API call.
+        runtimeCaching: [
+          { urlPattern: ({ url }) => url.pathname.startsWith('/api'), handler: 'NetworkOnly' },
+        ],
+      },
+      // SW only matters in the production static build; keep dev untouched.
+      devOptions: { enabled: false },
+    }),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

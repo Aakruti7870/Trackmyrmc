@@ -42,17 +42,26 @@ router.get('/:id/sites', async (req, res) => {
     const rows = await db.select().from(sites).where(eq(sites.clientId, +req.params.id));
     res.json(rows);
 });
+function coordOrNull(v) {
+    if (v === undefined || v === null || v === '')
+        return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n.toString() : null;
+}
 router.post('/:id/sites', async (req, res) => {
-    const { name, address, city } = req.body;
+    const { name, address, city, latitude, longitude } = req.body;
     const [row] = await db.insert(sites).values({
-        clientId: +req.params.id, name, address, city
+        clientId: +req.params.id, name, address, city,
+        latitude: coordOrNull(latitude), longitude: coordOrNull(longitude),
     }).returning();
     res.status(201).json(row);
 });
 router.put('/:id/sites/:siteId', async (req, res) => {
-    const { name, address, city } = req.body;
-    const [row] = await db.update(sites).set({ name, address, city })
-        .where(eq(sites.id, +req.params.siteId)).returning();
+    const { name, address, city, latitude, longitude } = req.body;
+    const [row] = await db.update(sites).set({
+        name, address, city,
+        latitude: coordOrNull(latitude), longitude: coordOrNull(longitude),
+    }).where(eq(sites.id, +req.params.siteId)).returning();
     res.json(row);
 });
 router.delete('/:id/sites/:siteId', async (req, res) => {
