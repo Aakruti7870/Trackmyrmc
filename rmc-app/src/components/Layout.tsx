@@ -113,7 +113,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               background: 'linear-gradient(90deg,var(--gold-hi),var(--gold),var(--text))',
               WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
             }}>Aakruti Infra</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>TrackMyRMC Platform</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Command Center</div>
           </div>
         </div>
         <SSEDot status={sseStatus} onReconnect={reconnect} />

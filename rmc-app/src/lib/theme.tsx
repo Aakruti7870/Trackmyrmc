@@ -16,9 +16,27 @@ const SEMANTIC = {
   '--green-dark': '#15803d',
   '--blue': '#38bdf8',
   '--red': '#ef4444',
+  '--orange': '#f59e0b', /* command-center warning accent */
 };
 
 export const THEMES: Theme[] = [
+  /* ===== Concept 5: Futuristic 3D Command Center (default) ===== */
+  {
+    id: 'command-center',
+    name: 'Command Center',
+    tagline: 'Matte black & electric gold',
+    fontName: 'Sora',
+    font: "'Sora', system-ui, -apple-system, sans-serif",
+    tokens: {
+      '--bg-top': '#0b1118', '--bg': '#05070a', '--bg-deep': '#020305',
+      '--panel': '#12181f', '--panel2': '#161d27', '--surface': '#1a232f', '--line': 'rgba(255,255,255,0.10)',
+      '--text': '#f5f7fa', '--muted': '#9ca3af',
+      '--gold-hi': '#f3dd86', '--gold-mid': '#e3c14e', '--gold': '#d4af37', '--gold-dark': '#a67c12',
+      '--glow-1': 'rgba(212,175,55,.16)', '--glow-2': 'rgba(0,180,216,.14)',
+      ...SEMANTIC,
+      '--blue': '#00b4d8', /* electric blue is the command-center accent */
+    },
+  },
   {
     id: 'midnight-gold',
     name: 'Midnight Gold',

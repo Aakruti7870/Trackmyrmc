@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'wouter';
-import { TrendingUp, Package, Clock, Truck, Users, IndianRupee, ArrowRight, Activity } from 'lucide-react';
+import {
+  TrendingUp, Clock, Truck, Users, IndianRupee, ArrowRight,
+  ClipboardList, UserPlus, Printer, Bell, Radio, CarFront, Boxes,
+} from 'lucide-react';
 import { api, type DashboardKPIs, type Challan, type Order } from '@/lib/api';
 import LiveGPSTracker from '@/components/LiveGPSTracker';
 import { useAuth } from '@/lib/auth';
@@ -11,6 +14,7 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [challans, setChallans] = useState<Challan[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [onlineChallans, setOnlineChallans] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const { subscribe } = useSSE();
@@ -22,6 +26,7 @@ export default function Dashboard() {
       api.get<Order[]>('/orders'),
     ]).then(([k, c, o]) => {
       setKpis(k);
+      setOnlineChallans(c.filter(x => x.status === 'dispatched').length);
       setChallans(c.slice(0, 8));
       setOrders(o.filter(x => x.status === 'pending' || x.status === 'in_progress').slice(0, 5));
       setLoading(false);
@@ -51,94 +56,109 @@ export default function Dashboard() {
   }[s] || 'var(--muted)');
 
   const statusBg = (s: string) => ({
-    pending: 'color-mix(in srgb, var(--gold) 12%, transparent)', in_progress: 'rgba(56,189,248,.12)',
-    completed: 'rgba(34,197,94,.12)', cancelled: 'rgba(239,68,68,.12)',
-    dispatched: 'rgba(56,189,248,.12)', delivered: 'rgba(34,197,94,.12)',
-  }[s] || 'rgba(159,176,199,.12)');
+    pending: 'color-mix(in srgb, var(--gold) 13%, transparent)', in_progress: 'color-mix(in srgb, var(--blue) 14%, transparent)',
+    completed: 'color-mix(in srgb, var(--green) 14%, transparent)', cancelled: 'color-mix(in srgb, var(--red) 14%, transparent)',
+    dispatched: 'color-mix(in srgb, var(--blue) 14%, transparent)', delivered: 'color-mix(in srgb, var(--green) 14%, transparent)',
+  }[s] || 'color-mix(in srgb, var(--muted) 14%, transparent)');
 
   const statusLabel = (s: string) => s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-  const metrics = kpis ? [
-    {
-      label: 'Today Production',
-      value: `${Number(kpis.todayProduction).toFixed(1)} m³`,
-      sub: `${kpis.todayBatches} batches`,
-      icon: Activity, color: 'var(--gold)',
-    },
-    {
-      label: 'Today Dispatch',
-      value: `${Number(kpis.todayDispatch).toFixed(1)} m³`,
-      sub: `${kpis.todayChallans} challans`,
-      icon: TrendingUp, color: 'var(--green)',
-    },
-    {
-      label: 'Active Orders',
-      value: String(kpis.activeOrders),
-      sub: `${kpis.pendingOrders} pending`,
-      icon: Clock, color: 'var(--gold)',
-    },
-    {
-      label: 'Fleet Status',
-      value: `${kpis.activeVehicles}/${kpis.totalVehicles}`,
-      sub: `${kpis.maintenanceVehicles} in maintenance`,
-      icon: Truck, color: 'var(--green)',
-    },
-    {
-      label: 'Outstanding',
-      value: fmtRs(Number(kpis.outstandingAmount)),
-      sub: `${kpis.totalClients} clients`,
-      icon: IndianRupee, color: 'var(--red)',
-    },
+  /* Command-center stat cards — all values from existing dashboard KPIs + challan feed */
+  const stats = kpis ? [
+    { label: 'Today Dispatch', value: `${Number(kpis.todayDispatch).toFixed(1)} m³`, sub: `${kpis.todayChallans} challans`, icon: TrendingUp, color: 'var(--green)' },
+    { label: 'Active Orders', value: String(kpis.activeOrders), sub: `${kpis.pendingOrders} pending`, icon: Clock, color: 'var(--gold)' },
+    { label: 'Online Challans', value: String(onlineChallans), sub: 'in transit now', icon: Radio, color: 'var(--blue)' },
+    { label: 'Clients', value: String(kpis.totalClients), sub: 'accounts', icon: Users, color: 'var(--gold)' },
+    { label: 'Driver / TM Status', value: `${kpis.activeVehicles}/${kpis.totalVehicles}`, sub: `${kpis.maintenanceVehicles} in maintenance`, icon: CarFront, color: 'var(--orange)' },
+    { label: 'Today Production', value: `${Number(kpis.todayProduction).toFixed(1)} m³`, sub: `${kpis.todayBatches} batches`, icon: Boxes, color: 'var(--blue)' },
+    { label: 'Outstanding', value: fmtRs(Number(kpis.outstandingAmount)), sub: 'receivables', icon: IndianRupee, color: 'var(--red)' },
   ] : [];
+
+  /* Quick actions route to existing pages — no new logic */
+  const quickActions = [
+    { label: 'New Challan', href: '/dispatch', icon: Truck, color: 'var(--green)' },
+    { label: 'New Order', href: '/orders', icon: ClipboardList, color: 'var(--gold)' },
+    { label: 'Add Client', href: '/clients', icon: UserPlus, color: 'var(--blue)' },
+    { label: 'Print Report', href: '/reports', icon: Printer, color: 'var(--orange)' },
+  ];
+
+  /* Notification feed derived from real recent challans + active orders */
+  const notifications = [
+    ...challans.slice(0, 4).map(ch => ({
+      id: 'c' + ch.id, color: statusColor(ch.status), Icon: Truck,
+      title: `Challan #${ch.challanNo} · ${statusLabel(ch.status)}`,
+      sub: `${ch.clientName || '—'} · ${ch.grade} · ${ch.quantity} m³`,
+    })),
+    ...orders.slice(0, 3).map(o => ({
+      id: 'o' + o.id, color: statusColor(o.status), Icon: ClipboardList,
+      title: `Order ${o.orderNo} · ${statusLabel(o.status)}`,
+      sub: `${o.clientName} · ${o.grade} · ${o.quantity} m³`,
+    })),
+  ];
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+      {/* ===== Command Center header: title, live status, date, plant status ===== */}
+      <div className="dash-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
-            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Dashboard</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: '-.5px' }}>Command Center</h2>
             <LiveBadge />
           </div>
           <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>
             Welcome back, {user?.name?.split(' ')[0]} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Link href="/orders">
-            <button style={{
-              borderRadius: 10, padding: '9px 16px',
-              background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
-              color: '#111827', fontWeight: 800, fontSize: 13,
-              boxShadow: '0 8px 24px color-mix(in srgb, var(--gold) 18%, transparent)', border: 'none', cursor: 'pointer',
-            }}>Book Order</button>
-          </Link>
-          <Link href="/dispatch">
-            <button style={{
-              borderRadius: 10, padding: '9px 16px',
-              background: 'linear-gradient(135deg,#86efac,var(--green) 48%,var(--green-dark))',
-              color: '#052e16', fontWeight: 800, fontSize: 13, border: 'none', cursor: 'pointer',
-            }}>Create Challan</button>
-          </Link>
+        {/* Plant status pill */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999,
+          background: 'color-mix(in srgb, var(--green) 12%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--green) 26%, transparent)',
+        }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 10px var(--green)' }} />
+          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--green)', letterSpacing: '.3px' }}>PLANT ONLINE</span>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: 12, marginBottom: 16 }}>
+      {/* ===== Quick action buttons ===== */}
+      <div className="dash-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 12, marginBottom: 16 }}>
+        {quickActions.map(({ label, href, icon: Icon, color }) => (
+          <Link key={label} href={href}>
+            <div className="glass-card cc-card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 11, flexShrink: 0, display: 'grid', placeItems: 'center',
+                background: `color-mix(in srgb, ${color} 14%, transparent)`,
+                border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`,
+              }}>
+                <Icon size={18} style={{ color }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{label}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 3 }}>Open <ArrowRight size={11} /></div>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* ===== Stat cards (glassmorphism + floating depth) ===== */}
+      <div className="dash-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 16 }}>
         {loading
-          ? Array(5).fill(0).map((_, i) => (
-            <div key={i} className="glass-card" style={{ padding: '18px 16px', minHeight: 90 }}>
+          ? Array(7).fill(0).map((_, i) => (
+            <div key={i} className="glass-card" style={{ padding: '18px 16px', minHeight: 96 }}>
               <div style={{ width: 80, height: 12, background: 'rgba(255,255,255,.06)', borderRadius: 6 }} />
             </div>
           ))
-          : metrics.map(({ label, value, sub, icon: Icon, color }) => (
-            <div key={label} className="glass-card" style={{ padding: '18px 16px' }}>
+          : stats.map(({ label, value, sub, icon: Icon, color }) => (
+            <div key={label} className="glass-card cc-card" style={{ padding: 16, position: 'relative', overflow: 'hidden' }}>
+              {/* accent glow bar (theme color) */}
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${color}, transparent)`, opacity: .85 }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <div style={{
                   width: 30, height: 30, borderRadius: 9,
-                  background: `color-mix(in srgb, ${color} 10%, transparent)`, display: 'grid', placeItems: 'center',
+                  background: `color-mix(in srgb, ${color} 13%, transparent)`, display: 'grid', placeItems: 'center',
                 }}>
-                  <Icon size={14} style={{ color: color }} />
+                  <Icon size={14} style={{ color }} />
                 </div>
                 <span style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 600 }}>{label}</span>
               </div>
@@ -149,10 +169,10 @@ export default function Dashboard() {
         }
       </div>
 
-      {/* Hero — GPS + 3D Plant */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .8fr', gap: 14, marginBottom: 16 }}>
+      {/* ===== Hero command panel: live GPS map + 3D batching plant ===== */}
+      <div className="dash-hero" style={{ display: 'grid', gridTemplateColumns: '1.2fr .8fr', gap: 14, marginBottom: 16 }}>
         <LiveGPSTracker />
-        <div className="plant-viewport">
+        <div className="plant-viewport cement-texture">
           <div className="plant-stage">
             <div className="base-3d" />
             <div className="silo silo-1" />
@@ -162,13 +182,30 @@ export default function Dashboard() {
             <div className="tm-3d" />
           </div>
           <div className="glow-line" />
+          <div className="cc-float" style={{ position: 'absolute', top: 12, left: 14, fontSize: 11, fontWeight: 800, letterSpacing: '.5px', color: 'var(--gold)', textTransform: 'uppercase' }}>
+            Batching Plant · Live
+          </div>
         </div>
       </div>
 
-      {/* Recent Challans + Active Orders */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr .9fr', gap: 14 }}>
+      {/* ===== Live fleet movement strip (animated transit mixers) ===== */}
+      <div className="glass-card" style={{ padding: 14, marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Radio size={14} style={{ color: 'var(--blue)' }} /> Live Fleet Movement
+          </h3>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{onlineChallans} mixer{onlineChallans === 1 ? '' : 's'} in transit</span>
+        </div>
+        <div className="track-strip cc-scan">
+          <div className="track-mixer"><span className="cab" /><span className="drum" /></div>
+          <div className="track-mixer" style={{ animationDelay: '3.5s' }}><span className="cab" /><span className="drum" /></div>
+        </div>
+      </div>
+
+      {/* ===== Lower grid: recent dispatch + active orders + notification center ===== */}
+      <div className="dash-lower" style={{ display: 'grid', gridTemplateColumns: '1.2fr .9fr .9fr', gap: 14 }}>
         {/* Recent Challans */}
-        <div className="glass-card" style={{ padding: 18 }}>
+        <div className="glass-card cc-card" style={{ padding: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Recent Dispatch</h3>
             <Link href="/dispatch">
@@ -188,7 +225,7 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {challans.map(ch => (
-                  <tr key={ch.id} style={{ borderBottom: '1px solid rgba(38,52,73,.5)' }}>
+                  <tr key={ch.id} style={{ borderBottom: '1px solid color-mix(in srgb, var(--line) 55%, transparent)' }}>
                     <td style={{ padding: '8px', color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace' }}>#{ch.challanNo}</td>
                     <td style={{ padding: '8px' }}>{(ch.clientName || '').split(' ')[0]}</td>
                     <td style={{ padding: '8px', color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11 }}>{ch.vehicleNo || '—'}</td>
@@ -213,7 +250,7 @@ export default function Dashboard() {
         </div>
 
         {/* Active Orders */}
-        <div className="glass-card" style={{ padding: 18 }}>
+        <div className="glass-card cc-card" style={{ padding: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Active Orders</h3>
             <Link href="/orders">
@@ -250,9 +287,52 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
+        {/* Notification Center */}
+        <div className="glass-card cc-card" style={{ padding: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Bell size={15} style={{ color: 'var(--gold)' }} /> Notifications
+            </h3>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {notifications.map(({ id, color, Icon, title, sub }) => (
+              <div key={id} style={{
+                display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 10,
+                background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
+              }}>
+                <div style={{
+                  width: 30, height: 30, flexShrink: 0, borderRadius: 9, display: 'grid', placeItems: 'center',
+                  background: `color-mix(in srgb, ${color} 14%, transparent)`,
+                }}>
+                  <Icon size={14} style={{ color }} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{sub}</div>
+                </div>
+              </div>
+            ))}
+            {notifications.length === 0 && (
+              <div style={{ padding: '20px 8px', color: 'var(--muted)', textAlign: 'center', fontSize: 13 }}>No recent activity</div>
+            )}
+          </div>
+        </div>
       </div>
 
-      <style>{`@keyframes none{}`}</style>
+      {/* ===== Command-center responsive grid collapses ===== */}
+      <style>{`
+        @media (max-width: 1100px) {
+          .dash-lower { grid-template-columns: 1fr 1fr !important; }
+        }
+        @media (max-width: 900px) {
+          .dash-hero { grid-template-columns: 1fr !important; }
+          .dash-actions { grid-template-columns: repeat(2,1fr) !important; }
+        }
+        @media (max-width: 760px) {
+          .dash-lower { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -266,8 +346,8 @@ function LiveBadge() {
     <div style={{
       display: 'flex', alignItems: 'center', gap: 5,
       padding: '3px 9px', borderRadius: 999,
-      background: isLive ? 'rgba(34,197,94,.12)' : 'color-mix(in srgb, var(--gold) 10%, transparent)',
-      border: `1px solid ${isLive ? 'rgba(34,197,94,.25)' : 'color-mix(in srgb, var(--gold) 20%, transparent)'}`,
+      background: isLive ? 'color-mix(in srgb, var(--green) 12%, transparent)' : 'color-mix(in srgb, var(--gold) 10%, transparent)',
+      border: `1px solid ${isLive ? 'color-mix(in srgb, var(--green) 25%, transparent)' : 'color-mix(in srgb, var(--gold) 20%, transparent)'}`,
       fontSize: 10, fontWeight: 800, letterSpacing: '.4px',
       color: isLive ? 'var(--green)' : 'var(--gold)',
     }}>
@@ -290,6 +370,3 @@ function LiveBadge() {
     </div>
   );
 }
-
-const _unused = { Package, Users };
-void _unused;
