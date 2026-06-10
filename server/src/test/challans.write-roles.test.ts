@@ -187,6 +187,60 @@ for (const role of ['admin', 'dispatcher']) {
     );
   });
 
+  for (const blank of ['', '   ', '\t\n']) {
+    test(`${role} editing a challan with a blank note (${JSON.stringify(blank)}) keeps the existing note`, async () => {
+      const client = await createClient();
+      const actor = await createUser(role, `${role}@test.com`);
+      const challan = await createChallan({
+        clientId: client.id, status: 'dispatched', notes: 'Dispatched at 9am',
+      });
+      sse = captureSSE();
+
+      const res = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(actor)}`)
+        .send({ status: 'delivered', notes: blank });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.status, 'delivered', 'the rest of the update still applies');
+      assert.equal(
+        res.body.notes,
+        'Dispatched at 9am',
+        'a blank/whitespace note edit does not wipe the existing dispatcher note',
+      );
+
+      const [row] = await db.select({ notes: challans.notes })
+        .from(challans).where(eq(challans.id, challan.id));
+      assert.equal(row.notes, 'Dispatched at 9am', 'the existing note survives in the database');
+
+      assert.ok(
+        sse.events().includes('challan.updated'),
+        'a challan.updated SSE event is still emitted',
+      );
+    });
+  }
+
+  test(`${role} can explicitly clear a challan's note with null`, async () => {
+    const client = await createClient();
+    const actor = await createUser(role, `${role}@test.com`);
+    const challan = await createChallan({
+      clientId: client.id, status: 'dispatched', notes: 'Dispatched at 9am',
+    });
+    sse = captureSSE();
+
+    const res = await request(app)
+      .put(`/api/challans/${challan.id}`)
+      .set('Authorization', `Bearer ${tokenFor(actor)}`)
+      .send({ notes: null });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.notes, null, 'an explicit null clears the note (intentional, not blank)');
+
+    const [row] = await db.select({ notes: challans.notes })
+      .from(challans).where(eq(challans.id, challan.id));
+    assert.equal(row.notes, null, 'the cleared note is persisted as null');
+  });
+
   test(`${role} marking a challan delivered stamps deliveryTime`, async () => {
     const client = await createClient();
     const actor = await createUser(role, `${role}@test.com`);

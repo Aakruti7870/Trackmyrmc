@@ -231,8 +231,12 @@ router.put('/:id', async (req, res) => {
         updateData.driverId = driverId ? +driverId : null;
     if (status !== undefined)
         updateData.status = status;
-    if (notes !== undefined)
+    // Ignore blank/whitespace-only notes so an accidental empty edit can't wipe
+    // an existing dispatcher note (mirrors the driver branch's guard above). An
+    // explicit null still clears the note.
+    if (notes !== undefined && (typeof notes !== 'string' || notes.trim())) {
         updateData.notes = notes;
+    }
     if (deliveredQuantity !== undefined) {
         if (deliveredQuantity === null || deliveredQuantity === '') {
             updateData.deliveredQuantity = null;
