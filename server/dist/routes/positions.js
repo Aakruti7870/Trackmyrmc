@@ -50,6 +50,7 @@ router.post('/', requireRole('driver'), async (req, res) => {
         challanNo: challans.challanNo,
         status: challans.status,
         notes: challans.notes,
+        clientId: challans.clientId,
         driverId: challans.driverId,
         siteId: challans.siteId,
         vehicleId: challans.vehicleId,
@@ -117,7 +118,9 @@ router.post('/', requireRole('driver'), async (req, res) => {
         updatedAt: new Date().toISOString(),
     };
     livePositions.set(cid, live);
-    emitSSEEvent('vehicle.position', live);
+    // Scope the live GPS stream so a client only sees positions for their own
+    // deliveries and a driver only sees their own trips; staff still get all.
+    emitSSEEvent('vehicle.position', live, { clientId: row.clientId, driverId: row.driverId });
     // Once delivered there's nothing left to track for this challan.
     if (delivered)
         livePositions.delete(cid);

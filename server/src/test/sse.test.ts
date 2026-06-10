@@ -255,9 +255,65 @@ test('untargeted event still broadcasts to every connection', () => {
   created.push(addWithIdentity(client, { role: 'client', clientId: 7 }));
   created.push(addWithIdentity(driver, { role: 'driver', driverId: 3 }));
 
-  // No audience → backward-compatible broadcast (e.g. vehicle.position).
-  emitSSEEvent('vehicle.position', { challanId: 1 });
+  // No audience → backward-compatible broadcast.
+  emitSSEEvent('system.notice', { message: 'hello' });
 
-  assert.ok(eventsOf(client).includes('vehicle.position'), 'broadcast reaches the client');
-  assert.ok(eventsOf(driver).includes('vehicle.position'), 'broadcast reaches the driver');
+  assert.ok(eventsOf(client).includes('system.notice'), 'broadcast reaches the client');
+  assert.ok(eventsOf(driver).includes('system.notice'), 'broadcast reaches the driver');
+});
+
+test('live position: a client only receives positions for their own deliveries', () => {
+  const ownClient = new MockResponse(2);
+  const otherClient = new MockResponse(2);
+  created.push(addWithIdentity(ownClient, { role: 'client', clientId: 7 }));
+  created.push(addWithIdentity(otherClient, { role: 'client', clientId: 99 }));
+
+  // A live GPS fix for a challan belonging to client 7, carried by driver 3.
+  emitSSEEvent('vehicle.position', { challanId: 1, lat: 1, lng: 2 }, { clientId: 7, driverId: 3 });
+
+  assert.ok(
+    eventsOf(ownClient).includes('vehicle.position'),
+    'the owning client sees their truck position',
+  );
+  assert.ok(
+    !eventsOf(otherClient).includes('vehicle.position'),
+    "another company's client must NOT see the live truck position",
+  );
+});
+
+test('live position: a driver only receives positions for trips assigned to them', () => {
+  const ownDriver = new MockResponse(2);
+  const otherDriver = new MockResponse(2);
+  created.push(addWithIdentity(ownDriver, { role: 'driver', driverId: 3 }));
+  created.push(addWithIdentity(otherDriver, { role: 'driver', driverId: 5 }));
+
+  emitSSEEvent('vehicle.position', { challanId: 1, lat: 1, lng: 2 }, { clientId: 7, driverId: 3 });
+
+  assert.ok(
+    eventsOf(ownDriver).includes('vehicle.position'),
+    'the assigned driver sees their own truck position',
+  );
+  assert.ok(
+    !eventsOf(otherDriver).includes('vehicle.position'),
+    'an unassigned driver must NOT see the live truck position',
+  );
+});
+
+test('live position: staff still receive every truck position for the control-room map', () => {
+  const admin = new MockResponse(2);
+  const dispatcher = new MockResponse(2);
+  const operator = new MockResponse(2);
+  created.push(addWithIdentity(admin, { role: 'admin' }));
+  created.push(addWithIdentity(dispatcher, { role: 'dispatcher' }));
+  created.push(addWithIdentity(operator, { role: 'plant_operator' }));
+
+  // A position scoped to one client/driver must still reach every staff member.
+  emitSSEEvent('vehicle.position', { challanId: 1, lat: 1, lng: 2 }, { clientId: 7, driverId: 3 });
+
+  for (const [name, res] of [['admin', admin], ['dispatcher', dispatcher], ['operator', operator]] as const) {
+    assert.ok(
+      eventsOf(res).includes('vehicle.position'),
+      `${name} must receive every truck position for the live map`,
+    );
+  }
 });
