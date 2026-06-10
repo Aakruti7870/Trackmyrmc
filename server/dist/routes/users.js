@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, asc, desc, sql } from 'drizzle-orm';
+import { eq, asc, desc, sql, isNull, isNotNull, and } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/index.js';
@@ -33,16 +33,21 @@ function safeUser(u) {
         linkedClientId: u.linkedClientId,
         linkedDriverId: u.linkedDriverId,
         createdAt: u.createdAt,
+        deletedAt: u.deletedAt ?? null,
     };
 }
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
+    const deletedOnly = req.query.deleted === 'true';
     const rows = await db.select({
         id: users.id, name: users.name, email: users.email, role: users.role,
         isActive: users.isActive,
         linkedClientId: users.linkedClientId,
         linkedDriverId: users.linkedDriverId,
         createdAt: users.createdAt,
-    }).from(users).orderBy(asc(users.createdAt));
+        deletedAt: users.deletedAt,
+    }).from(users)
+        .where(deletedOnly ? isNotNull(users.deletedAt) : isNull(users.deletedAt))
+        .orderBy(deletedOnly ? desc(users.deletedAt) : asc(users.createdAt));
     const counts = await db.select({
         targetUserId: auditLogs.targetUserId,
         count: sql `count(*)::int`,
@@ -55,7 +60,7 @@ router.get('/', async (_req, res) => {
     res.json(rows.map(r => ({ ...r, auditCount: countMap.get(r.id) ?? 0 })));
 });
 router.get('/lockout-status', async (_req, res) => {
-    const rows = await db.select({ id: users.id, email: users.email }).from(users);
+    const rows = await db.select({ id: users.id, email: users.email }).from(users).where(isNull(users.deletedAt));
     const result = {};
     for (const user of rows) {
         result[user.id] = await getLockoutInfo(`login:${user.email.toLowerCase().trim()}`);
@@ -93,6 +98,7 @@ router.get('/audit-log', async (req, res) => {
         action: auditLogs.action,
         targetUserId: auditLogs.targetUserId,
         targetUserEmail: auditLogs.targetUserEmail,
+        detail: auditLogs.detail,
         emailSent: auditLogs.emailSent,
         createdAt: auditLogs.createdAt,
     };
@@ -120,9 +126,20 @@ router.post('/', async (req, res) => {
         return;
     }
     const { name, email, password, role, linkedClientId, linkedDriverId } = parse.data;
-    const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
+    const [existing] = await db.select({ id: users.id, name: users.name, deletedAt: users.deletedAt })
+        .from(users).where(eq(users.email, email));
     if (existing) {
-        res.status(409).json({ error: 'Email already in use' });
+        if (existing.deletedAt) {
+            res.status(409).json({
+                error: `An account with this email was previously deleted (${existing.name}). Restore it instead of creating a new one.`,
+                code: 'email_soft_deleted',
+                deletedUserId: existing.id,
+                deletedUserName: existing.name,
+            });
+        }
+        else {
+            res.status(409).json({ error: 'Email already in use' });
+        }
         return;
     }
     const passwordHash = await bcrypt.hash(password, 10);
@@ -187,6 +204,14 @@ router.put('/:id', async (req, res) => {
     if (password) {
         updateData.passwordHash = await bcrypt.hash(password, 10);
     }
+    const [before] = await db.select({
+        name: users.name, role: users.role, isActive: users.isActive,
+        linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
+    }).from(users).where(eq(users.id, id));
+    if (!before) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+    }
     const [user] = await db.update(users)
         .set(updateData)
         .where(eq(users.id, id))
@@ -194,6 +219,58 @@ router.put('/:id', async (req, res) => {
     if (!user) {
         res.status(404).json({ error: 'User not found' });
         return;
+    }
+    const actor = req.user;
+    function linkName(kind, value) {
+        if (value == null)
+            return 'none';
+        const list = kind === 'client' ? clientNameCache : driverNameCache;
+        const name = list.get(value);
+        return name ? `${name} (#${value})` : `#${value}`;
+    }
+    const changeEntries = [];
+    if (rest.name !== undefined && rest.name !== before.name) {
+        changeEntries.push({ action: 'name_change', detail: `${before.name} → ${rest.name}` });
+    }
+    if (rest.role !== undefined && rest.role !== before.role) {
+        changeEntries.push({ action: 'role_change', detail: `${before.role} → ${rest.role}` });
+    }
+    if (rest.isActive !== undefined && rest.isActive !== before.isActive) {
+        changeEntries.push({
+            action: rest.isActive ? 'account_activated' : 'account_deactivated',
+            detail: rest.isActive ? 'Account reactivated' : 'Account deactivated',
+        });
+    }
+    const clientNameCache = new Map();
+    const driverNameCache = new Map();
+    const clientLinkChanged = rest.linkedClientId !== undefined && (rest.linkedClientId ?? null) !== before.linkedClientId;
+    const driverLinkChanged = rest.linkedDriverId !== undefined && (rest.linkedDriverId ?? null) !== before.linkedDriverId;
+    if (clientLinkChanged) {
+        const rows = await db.select({ id: clients.id, name: clients.name }).from(clients);
+        rows.forEach(r => clientNameCache.set(r.id, r.name));
+        changeEntries.push({
+            action: 'client_link_change',
+            detail: `${linkName('client', before.linkedClientId)} → ${linkName('client', rest.linkedClientId ?? null)}`,
+        });
+    }
+    if (driverLinkChanged) {
+        const rows = await db.select({ id: drivers.id, name: drivers.name }).from(drivers);
+        rows.forEach(r => driverNameCache.set(r.id, r.name));
+        changeEntries.push({
+            action: 'driver_link_change',
+            detail: `${linkName('driver', before.linkedDriverId)} → ${linkName('driver', rest.linkedDriverId ?? null)}`,
+        });
+    }
+    if (changeEntries.length) {
+        await db.insert(auditLogs).values(changeEntries.map(c => ({
+            actorId: actor.id,
+            actorName: actor.name,
+            action: c.action,
+            targetUserId: user.id,
+            targetUserEmail: user.email,
+            detail: c.detail,
+            emailSent: null,
+        })));
     }
     let emailSent;
     if (password) {
@@ -238,5 +315,72 @@ router.post('/:id/resend-welcome', async (req, res) => {
         emailSent = false;
     }
     res.json({ emailSent });
+});
+router.delete('/:id', async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+        res.status(400).json({ error: 'Invalid id' });
+        return;
+    }
+    const actor = req.user;
+    if (actor.id === id) {
+        res.status(400).json({ error: 'You cannot delete your own account.' });
+        return;
+    }
+    const [user] = await db.select({
+        id: users.id, email: users.email, role: users.role, deletedAt: users.deletedAt,
+    }).from(users).where(eq(users.id, id));
+    if (!user || user.deletedAt) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+    }
+    if (user.role === 'admin') {
+        const [{ count: activeAdmins }] = await db.select({
+            count: sql `count(*)::int`,
+        }).from(users).where(and(eq(users.role, 'admin'), isNull(users.deletedAt)));
+        if (activeAdmins <= 1) {
+            res.status(400).json({ error: 'Cannot delete the last remaining admin account.' });
+            return;
+        }
+    }
+    await db.insert(auditLogs).values({
+        actorId: actor.id,
+        actorName: actor.name,
+        action: 'user.deleted',
+        targetUserId: user.id,
+        targetUserEmail: user.email,
+    });
+    await db.update(users)
+        .set({ deletedAt: new Date(), isActive: false })
+        .where(eq(users.id, id));
+    res.json({ ok: true, userId: user.id });
+});
+router.post('/:id/restore', async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+        res.status(400).json({ error: 'Invalid id' });
+        return;
+    }
+    const [user] = await db.select({
+        id: users.id, email: users.email, deletedAt: users.deletedAt,
+    }).from(users).where(eq(users.id, id));
+    if (!user || !user.deletedAt) {
+        res.status(404).json({ error: 'Deleted account not found' });
+        return;
+    }
+    const actor = req.user;
+    const [restored] = await db.update(users)
+        .set({ deletedAt: null, isActive: true })
+        .where(eq(users.id, id))
+        .returning();
+    await db.insert(auditLogs).values({
+        actorId: actor.id,
+        actorName: actor.name,
+        action: 'user.restored',
+        targetUserId: user.id,
+        targetUserEmail: user.email,
+        detail: 'Account restored and reactivated',
+    });
+    res.json(safeUser(restored));
 });
 export default router;

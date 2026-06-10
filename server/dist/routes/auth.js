@@ -22,7 +22,7 @@ router.post('/login', async (req, res) => {
         return;
     }
     const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || user.deletedAt) {
         await recordFailure(lockoutKey);
         res.status(401).json({ error: 'Invalid credentials' });
         return;

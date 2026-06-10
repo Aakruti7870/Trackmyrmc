@@ -36,6 +36,7 @@ export const users = pgTable('users', {
     isActive: boolean('is_active').notNull().default(true),
     linkedClientId: integer('linked_client_id').references(() => clients.id, { onDelete: 'set null' }),
     linkedDriverId: integer('linked_driver_id').references(() => drivers.id, { onDelete: 'set null' }),
+    deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 export const sites = pgTable('sites', {
