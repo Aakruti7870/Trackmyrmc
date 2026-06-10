@@ -18,6 +18,85 @@ function createTransporter() {
   });
 }
 
+export async function sendTestEmail(
+  toEmail: string,
+  toName: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const transporter = createTransporter();
+
+  if (!transporter) {
+    return { ok: false, error: 'SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing).' };
+  }
+
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  try {
+    await transporter.sendMail({
+      from,
+      to: toEmail,
+      subject: 'SMTP Test — Aakruti Infra RMC Plant',
+      text: [
+        `Hello ${toName},`,
+        '',
+        'This is a test email sent from the Aakruti Infra RMC Plant Management System to verify that your SMTP settings are working correctly.',
+        '',
+        'If you received this message, your email configuration is working.',
+        '',
+        '— Aakruti Infra RMC Plant Management System',
+      ].join('\n'),
+      html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+        <tr>
+          <td style="background:#08111f;padding:24px 32px">
+            <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
+              Aakruti Infra RMC Plant
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px">
+            <h2 style="margin:0 0 16px;color:#1a1a1a;font-size:18px">
+              SMTP Configuration Test
+            </h2>
+            <p style="color:#444;line-height:1.6;margin:0 0 16px">
+              Hello <strong>${toName}</strong>,
+            </p>
+            <p style="color:#444;line-height:1.6;margin:0 0 16px">
+              This is a test email sent from the
+              <strong>Aakruti Infra RMC Plant Management System</strong>
+              to verify that your SMTP settings are configured correctly.
+            </p>
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin:0 0 24px">
+              <p style="color:#15803d;font-weight:700;margin:0;font-size:15px">
+                ✓ Your email configuration is working correctly.
+              </p>
+            </div>
+            <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
+            <p style="color:#888;font-size:13px;margin:0">
+              — Aakruti Infra RMC Plant Management System
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+    });
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
 export async function sendPasswordResetNotification(
   toEmail: string,
   toName: string,

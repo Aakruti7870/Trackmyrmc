@@ -14,6 +14,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import reportRoutes from './routes/reports.js';
 import meRoutes from './routes/me.js';
 import userRoutes from './routes/users.js';
+import adminRoutes from './routes/admin.js';
 import { addSSEClient, removeSSEClient } from './lib/sseEmitter.js';
 import { verifyToken } from './middleware/auth.js';
 import { eq } from 'drizzle-orm';
@@ -39,6 +40,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

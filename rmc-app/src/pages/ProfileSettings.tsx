@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, User as UserIcon } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, User as UserIcon, Mail, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -76,6 +76,9 @@ export default function ProfileSettings() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
+
   useEffect(() => {
     if (user) {
       setProfileName(user.name);
@@ -111,6 +114,22 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setProfileSaving(false);
+    }
+  }
+
+  async function handleTestEmail() {
+    setTestEmailSending(true);
+    setTestEmailResult(null);
+    try {
+      await api.post('/admin/email-test', {});
+      setTestEmailResult({ ok: true, message: `Test email sent to ${user?.email}. Check your inbox.` });
+      showToast('Test email sent successfully.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send test email';
+      setTestEmailResult({ ok: false, message: msg });
+      showToast(msg, 'error');
+    } finally {
+      setTestEmailSending(false);
     }
   }
 
@@ -234,6 +253,61 @@ export default function ProfileSettings() {
           </button>
         </form>
       </div>
+
+      {/* SMTP test card — admins only */}
+      {user?.role === 'admin' && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'rgba(34,197,94,.12)', border: '1px solid rgba(34,197,94,.25)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Mail size={15} color="#22c55e" />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#eef5ff' }}>SMTP Configuration</div>
+              <div style={{ fontSize: 11, color: '#9fb0c7' }}>Send a test email to verify your SMTP settings are working</div>
+            </div>
+          </div>
+
+          {testEmailResult && (
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16,
+              padding: '10px 14px', borderRadius: 10,
+              background: testEmailResult.ok ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)',
+              border: `1px solid ${testEmailResult.ok ? 'rgba(34,197,94,.25)' : 'rgba(239,68,68,.25)'}`,
+              color: testEmailResult.ok ? '#22c55e' : '#ef4444',
+              fontSize: 13, fontWeight: 600,
+            }}>
+              <CheckCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+              {testEmailResult.message}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              type="button"
+              onClick={handleTestEmail}
+              disabled={testEmailSending}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '10px 20px', borderRadius: 10,
+                background: testEmailSending ? 'rgba(34,197,94,.35)' : 'linear-gradient(135deg,#22c55e,#16a34a)',
+                border: 'none', cursor: testEmailSending ? 'not-allowed' : 'pointer',
+                color: '#fff', fontWeight: 700, fontSize: 14,
+                transition: 'opacity .15s',
+              }}
+            >
+              <Send size={14} />
+              {testEmailSending ? 'Sending…' : 'Send test email'}
+            </button>
+            <span style={{ fontSize: 12, color: '#9fb0c7' }}>
+              Sends to <strong style={{ color: '#eef5ff' }}>{user?.email}</strong>
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Change password card */}
       <div style={card}>
