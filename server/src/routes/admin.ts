@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { desc, eq } from 'drizzle-orm';
-import { requireAuth, requireRole } from '../middleware/auth.js';
-import { sendTestEmail, getSmtpSettings } from '../lib/email.js';
+import { z } from 'zod';
 import { db } from '../db/index.js';
 import { auditLogs } from '../db/schema.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { sendTestEmail, getSmtpSettings } from '../lib/email.js';
+import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('admin'));
@@ -45,6 +47,43 @@ router.get('/email-test/history', async (_req, res) => {
     .orderBy(desc(auditLogs.createdAt))
     .limit(50);
   res.json(rows);
+});
+
+router.get('/lockouts', async (_req, res) => {
+  const lockouts = await getActiveLockouts();
+  res.json(lockouts);
+});
+
+const clearLockoutSchema = z.object({
+  key: z.string().min(1, 'Lockout key is required'),
+});
+
+router.post('/lockouts/clear', async (req, res) => {
+  const parse = clearLockoutSchema.safeParse(req.body);
+  if (!parse.success) {
+    res.status(400).json({ error: parse.error.flatten().fieldErrors });
+    return;
+  }
+
+  const { key } = parse.data;
+  const cleared = await clearLockout(key);
+  if (!cleared) {
+    res.status(404).json({ error: 'No active lockout found for that key.' });
+    return;
+  }
+
+  const actor = req.user!;
+  const targetEmail = key.startsWith('login:') ? key.slice('login:'.length) : key;
+  await db.insert(auditLogs).values({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'lockout_cleared',
+    targetUserId: null,
+    targetUserEmail: targetEmail,
+    emailSent: null,
+  });
+
+  res.json({ ok: true });
 });
 
 export default router;

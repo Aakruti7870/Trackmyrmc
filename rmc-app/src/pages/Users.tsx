@@ -49,6 +49,7 @@ const ROLE_COLOR: Record<Role, string> = {
 
 const ACTION_LABEL: Record<string, string> = {
   password_reset: 'Password Reset',
+  lockout_cleared: 'Lockout Cleared',
 };
 
 const inputStyle: React.CSSProperties = {

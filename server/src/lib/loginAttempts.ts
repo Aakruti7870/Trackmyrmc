@@ -1,4 +1,4 @@
-import { eq, lt, sql } from 'drizzle-orm';
+import { eq, gt, lt, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { loginAttempts } from '../db/schema.js';
 
@@ -48,6 +48,40 @@ export async function recordFailure(key: string): Promise<void> {
 
 export async function resetAttempts(key: string): Promise<void> {
   await db.delete(loginAttempts).where(eq(loginAttempts.key, key));
+}
+
+export interface ActiveLockout {
+  key: string;
+  count: number;
+  lockedUntil: Date;
+  retryAfterMs: number;
+}
+
+export async function getActiveLockouts(): Promise<ActiveLockout[]> {
+  const now = new Date();
+  const rows = await db
+    .select()
+    .from(loginAttempts)
+    .where(gt(loginAttempts.lockedUntil, now));
+
+  return rows
+    .filter((row): row is typeof row & { lockedUntil: Date } => row.lockedUntil !== null)
+    .map(row => ({
+      key: row.key,
+      count: row.count,
+      lockedUntil: row.lockedUntil,
+      retryAfterMs: row.lockedUntil.getTime() - Date.now(),
+    }))
+    .filter(l => l.retryAfterMs > 0)
+    .sort((a, b) => b.retryAfterMs - a.retryAfterMs);
+}
+
+export async function clearLockout(key: string): Promise<boolean> {
+  const result = await db
+    .delete(loginAttempts)
+    .where(eq(loginAttempts.key, key))
+    .returning({ key: loginAttempts.key });
+  return result.length > 0;
 }
 
 export async function cleanupOldAttempts(): Promise<void> {

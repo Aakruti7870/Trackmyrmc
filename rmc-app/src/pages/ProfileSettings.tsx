@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -53,6 +53,26 @@ const ROLE_COLOR: Record<string, string> = {
   client: '#a78bfa',
   driver: '#f97316',
 };
+
+interface Lockout {
+  key: string;
+  count: number;
+  lockedUntil: string;
+  retryAfterMs: number;
+}
+
+function lockoutLabel(key: string): string {
+  return key.startsWith('login:') ? key.slice('login:'.length) : key;
+}
+
+function formatRemaining(ms: number): string {
+  if (ms <= 0) return 'expired';
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds}s`;
+  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+}
 
 function PasswordInput({
   value, onChange, placeholder,
@@ -123,6 +143,13 @@ export default function ProfileSettings() {
   const [smtpSettings, setSmtpSettings] = useState<SmtpSettings | null>(null);
   const [smtpLoading, setSmtpLoading] = useState(false);
 
+  const [lockouts, setLockouts] = useState<Lockout[]>([]);
+  const [lockoutsLoading, setLockoutsLoading] = useState(false);
+  const [clearingKey, setClearingKey] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  const isAdmin = user?.role === 'admin';
+
   const loadHistory = useCallback(async () => {
     if (user?.role !== 'admin') return;
     setHistoryLoading(true);
@@ -157,6 +184,43 @@ export default function ProfileSettings() {
       .finally(() => { if (!cancelled) setSmtpLoading(false); });
     return () => { cancelled = true; };
   }, [user?.role]);
+
+  const loadLockouts = useCallback(async () => {
+    setLockoutsLoading(true);
+    try {
+      const rows = await api.get<Lockout[]>('/admin/lockouts');
+      setLockouts(rows);
+    } catch {
+      /* non-fatal */
+    } finally {
+      setLockoutsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin) loadLockouts();
+  }, [isAdmin, loadLockouts]);
+
+  // Tick every second so the remaining-time countdown stays live.
+  useEffect(() => {
+    if (!isAdmin || lockouts.length === 0) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [isAdmin, lockouts.length]);
+
+  async function handleClearLockout(key: string) {
+    setClearingKey(key);
+    try {
+      await api.post('/admin/lockouts/clear', { key });
+      setLockouts(prev => prev.filter(l => l.key !== key));
+      showToast('Lockout cleared.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to clear lockout';
+      showToast(msg, 'error');
+    } finally {
+      setClearingKey(null);
+    }
+  }
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
@@ -490,6 +554,98 @@ export default function ProfileSettings() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Login lockouts card — admins only */}
+      {isAdmin && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.25)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Lock size={15} style={{ color: 'var(--red)' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Login Lockouts</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Accounts locked after too many failed sign-in attempts</div>
+            </div>
+            <button
+              type="button"
+              onClick={loadLockouts}
+              disabled={lockoutsLoading}
+              title="Refresh"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 12px', borderRadius: 9,
+                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+                cursor: lockoutsLoading ? 'not-allowed' : 'pointer',
+                color: 'var(--muted)', fontWeight: 700, fontSize: 12,
+              }}
+            >
+              <RefreshCw size={13} style={{ animation: lockoutsLoading ? 'spin 1s linear infinite' : undefined }} />
+              Refresh
+            </button>
+          </div>
+
+          {lockouts.length === 0 ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '14px 16px', borderRadius: 10,
+              background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.2)',
+              color: 'var(--muted)', fontSize: 13, fontWeight: 600,
+            }}>
+              <CheckCircle size={15} style={{ color: 'var(--green)', flexShrink: 0 }} />
+              {lockoutsLoading ? 'Loading lockouts…' : 'No accounts are currently locked out.'}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {lockouts.map(l => {
+                const remaining = new Date(l.lockedUntil).getTime() - now;
+                const clearing = clearingKey === l.key;
+                return (
+                  <div
+                    key={l.key}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 14px', borderRadius: 12,
+                      background: 'rgba(239,68,68,.07)', border: '1px solid rgba(239,68,68,.18)',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 13, fontWeight: 700, color: 'var(--text)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {lockoutLabel(l.key)}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
+                        {l.count} failed attempt{l.count !== 1 ? 's' : ''} · unlocks in{' '}
+                        <strong style={{ color: 'var(--red)' }}>{formatRemaining(remaining)}</strong>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleClearLockout(l.key)}
+                      disabled={clearing}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                        padding: '8px 14px', borderRadius: 9,
+                        background: clearing ? 'rgba(34,197,94,.35)' : 'linear-gradient(135deg,var(--green),#16a34a)',
+                        border: 'none', cursor: clearing ? 'not-allowed' : 'pointer',
+                        color: '#fff', fontWeight: 700, fontSize: 12.5,
+                      }}
+                    >
+                      <Unlock size={13} />
+                      {clearing ? 'Clearing…' : 'Clear'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

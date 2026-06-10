@@ -207,6 +207,10 @@ button { cursor: pointer; border: 0; }
 }
 .tm-3d { animation: tmPulse 2.4s ease-in-out infinite; }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Metric gradient text */
 .metric-text {
   background: linear-gradient(180deg, #ffffff, #cbd5e1);
