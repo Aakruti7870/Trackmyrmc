@@ -104,11 +104,11 @@ export default function ProfileSettings() {
     }
     setProfileSaving(true);
     try {
-      const updated = await api.put<User>('/auth/me', {
+      const { token, user: updated } = await api.put<{ token: string; user: User }>('/auth/me', {
         name: profileName.trim(),
         email: profileEmail.trim(),
       });
-      updateUser(updated);
+      updateUser(updated, token);
       showToast('Profile updated successfully.', 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to update profile';

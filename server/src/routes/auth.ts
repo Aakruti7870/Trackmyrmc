@@ -101,7 +101,12 @@ router.put('/me', requireAuth, async (req, res) => {
     id: users.id, name: users.name, email: users.email, role: users.role,
     linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
   }).from(users).where(eq(users.id, req.user!.id));
-  res.json(updated);
+  const token = signToken({
+    id: updated.id, email: updated.email, role: updated.role, name: updated.name,
+    linkedClientId: updated.linkedClientId,
+    linkedDriverId: updated.linkedDriverId,
+  });
+  res.json({ token, user: updated });
 });
 
 router.put('/change-password', requireAuth, async (req, res) => {

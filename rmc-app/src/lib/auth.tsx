@@ -6,7 +6,7 @@ interface AuthCtx {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  updateUser: (updated: User) => void;
+  updateUser: (updated: User, token?: string) => void;
 }
 
 const AuthContext = createContext<AuthCtx>({
@@ -40,9 +40,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
-  function updateUser(updated: User) {
+  function updateUser(updated: User, token?: string) {
     setUser(updated);
     localStorage.setItem('rmc_user', JSON.stringify(updated));
+    if (token) {
+      localStorage.setItem('rmc_token', token);
+    }
   }
 
   return (
