@@ -19,6 +19,7 @@ import ChallanPrint from '@/pages/ChallanPrint';
 import MyOrders from '@/pages/MyOrders';
 import MyTrips from '@/pages/MyTrips';
 import Users from '@/pages/Users';
+import ActivityLog from '@/pages/ActivityLog';
 import ProfileSettings from '@/pages/ProfileSettings';
 import Kiosk from '@/pages/Kiosk';
 import { canAccess, defaultPath } from '@/lib/permissions';
@@ -87,6 +88,7 @@ function ProtectedRoutes() {
         <Route path="/mix-design"   component={() => <GuardedRoute path="/mix-design"   component={MixDesign}   />} />
         <Route path="/reports"      component={() => <GuardedRoute path="/reports"      component={Reports}     />} />
         <Route path="/users"        component={() => <GuardedRoute path="/users"        component={Users}           />} />
+        <Route path="/activity-log" component={() => <GuardedRoute path="/activity-log" component={ActivityLog}      />} />
         <Route path="/profile"      component={() => <GuardedRoute path="/profile"      component={ProfileSettings} />} />
         <Route path="/challans/:id/print" component={() => <GuardedRoute path="/challans" component={ChallanPrint} />} />
         <Route><Redirect to={defaultPath(user.role)} /></Route>

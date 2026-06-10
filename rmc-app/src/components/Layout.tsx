@@ -2,7 +2,7 @@ import { Link, useLocation } from 'wouter';
 import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
-  ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search,
+  ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -26,6 +26,7 @@ const ALL_NAV_ITEMS = [
   { path: '/mix-design',  label: 'Mix Design', icon: FlaskConical },
   { path: '/reports',     label: 'Reports',    icon: BarChart3 },
   { path: '/users',       label: 'Users',      icon: ShieldCheck },
+  { path: '/activity-log', label: 'Activity Log', icon: History },
 ];
 
 const ROLE_COLOR: Record<string, string> = {
