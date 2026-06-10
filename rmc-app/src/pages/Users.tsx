@@ -19,10 +19,10 @@ type UserRecord = {
 type AuditEntry = {
   id: number;
   actorId: number | null;
-  actorName: string;
+  actorName: string | null;
   action: string;
   targetUserId: number | null;
-  targetUserEmail: string;
+  targetUserEmail: string | null;
   emailSent: boolean | null;
   createdAt: string;
 };
@@ -84,6 +84,31 @@ const emptyForm = (): FormData => ({
 function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+const deletedTagStyle: React.CSSProperties = {
+  marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
+  background: 'rgba(239,68,68,.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,.25)',
+  textTransform: 'uppercase', letterSpacing: '.3px', whiteSpace: 'nowrap',
+};
+
+/**
+ * Render an audit-log account reference (actor or target). The FK may be null
+ * because the account was deleted (ON DELETE SET NULL), but the human-readable
+ * label is preserved at write time. Show the preserved label plus a "deleted"
+ * tag, or "[deleted]" when no label was captured.
+ */
+function AccountRef({ id, label }: { id: number | null; label: string | null }) {
+  const text = label?.trim();
+  if (!text) {
+    return <span style={{ color: '#6b7a90', fontStyle: 'italic' }}>[deleted]</span>;
+  }
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+      {text}
+      {id === null && <span style={deletedTagStyle}>deleted</span>}
+    </span>
+  );
 }
 
 export default function Users() {
@@ -508,8 +533,12 @@ export default function Users() {
                         {ACTION_LABEL[entry.action] ?? entry.action}
                       </span>
                     </td>
-                    <td style={{ padding: '11px 14px', color: '#eef5ff' }}>{entry.targetUserEmail}</td>
-                    <td style={{ padding: '11px 14px', color: '#9fb0c7' }}>{entry.actorName}</td>
+                    <td style={{ padding: '11px 14px', color: '#eef5ff' }}>
+                      <AccountRef id={entry.targetUserId} label={entry.targetUserEmail} />
+                    </td>
+                    <td style={{ padding: '11px 14px', color: '#9fb0c7' }}>
+                      <AccountRef id={entry.actorId} label={entry.actorName} />
+                    </td>
                     <td style={{ padding: '11px 14px' }}>
                       {entry.emailSent === null ? (
                         <span style={{ color: '#9fb0c7', fontSize: 12 }}>—</span>
