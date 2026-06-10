@@ -504,6 +504,61 @@ router.delete('/:id', async (req, res) => {
         .where(eq(users.id, id));
     res.json({ ok: true, userId: user.id });
 });
+const restoreAllSchema = z.object({
+    ids: z.array(z.number().int().positive()).optional(),
+});
+/**
+ * Bulk-restore soft-deleted accounts. With no `ids` body, every soft-deleted
+ * account is restored ("restore all"); with `ids`, only that subset is.
+ * Each restored account writes its own 'user.restored' audit entry (consistent
+ * with the single-restore route). Accounts whose client/driver link is already
+ * taken by an active user are skipped with a clear reason rather than failing
+ * the whole batch. Because restores run sequentially, restoring one account can
+ * legitimately make a later account in the batch a conflict.
+ */
+router.post('/restore-all', async (req, res) => {
+    const parse = restoreAllSchema.safeParse(req.body ?? {});
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.flatten().fieldErrors });
+        return;
+    }
+    const { ids } = parse.data;
+    const conditions = [isNotNull(users.deletedAt)];
+    if (ids && ids.length) {
+        conditions.push(inArray(users.id, ids));
+    }
+    const deleted = await db.select({
+        id: users.id, name: users.name, email: users.email,
+        linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
+    }).from(users).where(and(...conditions)).orderBy(asc(users.id));
+    if (deleted.length === 0) {
+        res.json({ restored: 0, skipped: 0, skippedDetails: [] });
+        return;
+    }
+    const actor = req.user;
+    let restored = 0;
+    const skippedDetails = [];
+    for (const u of deleted) {
+        const linkConflict = await findLinkConflict(u.linkedClientId, u.linkedDriverId, u.id);
+        if (linkConflict) {
+            skippedDetails.push({ id: u.id, email: u.email, reason: linkConflict });
+            continue;
+        }
+        await db.update(users)
+            .set({ deletedAt: null, isActive: true })
+            .where(eq(users.id, u.id));
+        await db.insert(auditLogs).values({
+            actorId: actor.id,
+            actorName: actor.name,
+            action: 'user.restored',
+            targetUserId: u.id,
+            targetUserEmail: u.email,
+            detail: 'Account restored and reactivated',
+        });
+        restored += 1;
+    }
+    res.json({ restored, skipped: skippedDetails.length, skippedDetails });
+});
 router.post('/:id/restore', async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
