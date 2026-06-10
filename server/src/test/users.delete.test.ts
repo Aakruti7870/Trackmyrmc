@@ -95,6 +95,93 @@ test('soft-delete succeeds: writes an audit entry and hides the user from GET /u
   assert.equal(logs[0].targetUserEmail, target.email);
 });
 
+test('deleted listing: a soft-deleted user appears under ?deleted=true with its deletedAt', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const target = await createUser({ name: 'Target', email: 'target@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+
+  const del = await request(app)
+    .delete(`/api/users/${target.id}`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(del.status, 200);
+
+  // The default (active-only) listing hides it...
+  const active = await request(app).get('/api/users').set('Authorization', `Bearer ${token}`);
+  assert.ok(
+    !active.body.some((u: { id: number }) => u.id === target.id),
+    'a soft-deleted user must not appear in the default listing',
+  );
+
+  // ...but the deleted-only listing surfaces it, with a populated deletedAt.
+  const deleted = await request(app)
+    .get('/api/users?deleted=true').set('Authorization', `Bearer ${token}`);
+  assert.equal(deleted.status, 200);
+  const found = deleted.body.find((u: { id: number }) => u.id === target.id);
+  assert.ok(found, 'a soft-deleted user appears under ?deleted=true');
+  assert.ok(found.deletedAt, 'the deleted listing exposes a deletedAt timestamp');
+  assert.equal(found.isActive, false, 'the deleted listing reports the user as inactive');
+});
+
+test('email collision: recreating a soft-deleted email returns the email_soft_deleted code', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const target = await createUser({ name: 'Gone Person', email: 'reuse@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+
+  const del = await request(app)
+    .delete(`/api/users/${target.id}`)
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(del.status, 200);
+
+  // Trying to create a brand-new account with the same email is blocked with a
+  // dedicated code so the UI can offer to restore the deleted account instead.
+  const recreate = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'New Person', email: 'reuse@test.com', password: PASSWORD, role: 'dispatcher' });
+  assert.equal(recreate.status, 409);
+  assert.equal(recreate.body.code, 'email_soft_deleted');
+  assert.equal(recreate.body.deletedUserId, target.id, 'the response points at the deleted account');
+  assert.equal(recreate.body.deletedUserName, 'Gone Person');
+  assert.match(recreate.body.error, /previously deleted/i);
+
+  // No duplicate row was created — the deleted account is still the only one.
+  const rows = await db.select({ id: users.id }).from(users).where(eq(users.email, 'reuse@test.com'));
+  assert.equal(rows.length, 1, 'recreating must not insert a second row for the email');
+});
+
+test('email collision: an active (not deleted) email returns the plain in-use error, not the restore code', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  await createUser({ name: 'Active Person', email: 'active@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+
+  const res = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Another', email: 'active@test.com', password: PASSWORD, role: 'dispatcher' });
+  assert.equal(res.status, 409);
+  assert.equal(res.body.code, undefined, 'an in-use active email has no restore code');
+  assert.match(res.body.error, /already in use/i);
+});
+
+test('email reuse: once restored, the email is taken again and recreating it conflicts', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const target = await createUser({ name: 'Cycle Person', email: 'cycle@test.com', role: 'dispatcher' });
+  const token = tokenFor(admin);
+
+  await request(app).delete(`/api/users/${target.id}`).set('Authorization', `Bearer ${token}`);
+  await request(app).post(`/api/users/${target.id}/restore`).set('Authorization', `Bearer ${token}`);
+
+  // After restore the account is active again, so the email is once more an
+  // ordinary in-use collision (not a soft-deleted one).
+  const res = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'New Cycle', email: 'cycle@test.com', password: PASSWORD, role: 'dispatcher' });
+  assert.equal(res.status, 409);
+  assert.equal(res.body.code, undefined, 'a restored (active) email is a plain in-use conflict');
+  assert.match(res.body.error, /already in use/i);
+});
+
 test('guard: an admin cannot delete their own account', async () => {
   const admin = await createUser({ name: 'Admin Self', email: 'self@test.com', role: 'admin' });
   // A second admin exists so the block is specifically the self-delete guard,
