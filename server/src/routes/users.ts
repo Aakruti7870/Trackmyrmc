@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { db } from '../db/index.js';
 import { users, clients, drivers } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { sendPasswordResetNotification } from '../lib/email.js';
+import { sendPasswordResetNotification, sendWelcomeEmail } from '../lib/email.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('admin'));
@@ -85,7 +85,16 @@ router.post('/', async (req, res) => {
     linkedClientId: linkedClientId ?? null,
     linkedDriverId: linkedDriverId ?? null,
   }).returning();
-  res.status(201).json(safeUser(user));
+
+  let emailSent: boolean | undefined;
+  try {
+    emailSent = await sendWelcomeEmail(user.email, user.name, user.role);
+  } catch (err) {
+    console.error('[email] Failed to send welcome email:', err);
+    emailSent = false;
+  }
+
+  res.status(201).json({ ...safeUser(user), emailSent });
 });
 
 router.put('/:id', async (req, res) => {
