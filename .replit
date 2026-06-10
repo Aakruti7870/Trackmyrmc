@@ -65,3 +65,6 @@ build = ["bash", "-c", "cd rmc-app && pnpm build && cd ../server && pnpm build"]
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 120000
+
+[objectStorage]
+defaultBucketID = "replit-objstore-7b3ab1c0-032c-43db-81ec-852e30af83da"

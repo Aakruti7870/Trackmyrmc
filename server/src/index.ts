@@ -13,6 +13,7 @@ import batchRoutes from './routes/batches.js';
 import dashboardRoutes from './routes/dashboard.js';
 import reportRoutes from './routes/reports.js';
 import meRoutes from './routes/me.js';
+import userRoutes from './routes/users.js';
 import { addSSEClient, removeSSEClient } from './lib/sseEmitter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -33,6 +34,7 @@ app.use('/api/batches', batchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/me', meRoutes);
+app.use('/api/users', userRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
