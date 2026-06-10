@@ -13,6 +13,7 @@ import batchRoutes from './routes/batches.js';
 import dashboardRoutes from './routes/dashboard.js';
 import reportRoutes from './routes/reports.js';
 import meRoutes from './routes/me.js';
+import { addSSEClient, removeSSEClient } from './lib/sseEmitter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
@@ -35,6 +36,17 @@ app.use('/api/me', meRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/events', (req, res) => {
+  const id = addSSEClient(res);
+  const keepAlive = setInterval(() => {
+    try { res.write(':ping\n\n'); } catch { clearInterval(keepAlive); }
+  }, 25000);
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    removeSSEClient(id);
+  });
 });
 
 if (isProd) {

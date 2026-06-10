@@ -3,6 +3,8 @@ import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { challans, clients, sites, vehicles, drivers, orders } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { emitSSEEvent } from '../lib/sseEmitter.js';
+
 const WRITE_ROLES = ['admin', 'dispatcher'];
 const DRIVER_ALLOWED_STATUS = ['delivered'];
 
@@ -83,6 +85,7 @@ router.post('/', async (req, res) => {
   if (orderId) {
     await db.update(orders).set({ status: 'in_progress' }).where(eq(orders.id, +orderId));
   }
+  emitSSEEvent('challan.created', row);
   res.status(201).json(row);
 });
 
@@ -130,6 +133,7 @@ router.put('/:id', async (req, res) => {
 
   const [row] = await db.update(challans).set(updateData)
     .where(eq(challans.id, challanId)).returning();
+  emitSSEEvent('challan.updated', row);
   res.json(row);
 });
 

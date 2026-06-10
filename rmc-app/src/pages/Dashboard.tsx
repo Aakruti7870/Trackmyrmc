@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'wouter';
 import { TrendingUp, Package, Clock, Truck, Users, IndianRupee, ArrowRight, Activity } from 'lucide-react';
 import { api, type DashboardKPIs, type Challan, type Order } from '@/lib/api';
 import LiveGPSTracker from '@/components/LiveGPSTracker';
 import { useAuth } from '@/lib/auth';
+import { useSSE } from '@/lib/useSSE';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -12,7 +13,9 @@ export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const { subscribe } = useSSE();
+
+  const reload = useCallback(() => {
     Promise.all([
       api.get<DashboardKPIs>('/dashboard/kpis'),
       api.get<Challan[]>('/challans'),
@@ -24,6 +27,18 @@ export default function Dashboard() {
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  useEffect(() => {
+    const unsub1 = subscribe('challan.created', () => { reload(); });
+    const unsub2 = subscribe('challan.updated', (data: unknown) => {
+      const updated = data as Challan;
+      setChallans(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+      reload();
+    });
+    return () => { unsub1(); unsub2(); };
+  }, [subscribe, reload]);
 
   const fmt = (n: number) => n?.toLocaleString('en-IN') ?? '—';
   const fmtRs = (n: number) => n >= 100000
@@ -81,8 +96,11 @@ export default function Dashboard() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Dashboard</h2>
-          <p style={{ margin: '4px 0 0', color: '#9fb0c7', fontSize: 13 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
+            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Dashboard</h2>
+            <LiveBadge />
+          </div>
+          <p style={{ margin: 0, color: '#9fb0c7', fontSize: 13 }}>
             Welcome back, {user?.name?.split(' ')[0]} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
@@ -234,12 +252,44 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Package + Users fallback to suppress unused import warnings */}
       <style>{`@keyframes none{}`}</style>
     </div>
   );
 }
 
-// Suppress unused import lint
+function LiveBadge() {
+  const { status } = useSSE();
+  const isLive = status === 'connected';
+  const isReconnecting = status === 'reconnecting' || status === 'connecting';
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 5,
+      padding: '3px 9px', borderRadius: 999,
+      background: isLive ? 'rgba(34,197,94,.12)' : 'rgba(247,201,72,.1)',
+      border: `1px solid ${isLive ? 'rgba(34,197,94,.25)' : 'rgba(247,201,72,.2)'}`,
+      fontSize: 10, fontWeight: 800, letterSpacing: '.4px',
+      color: isLive ? '#22c55e' : '#f7c948',
+    }}>
+      <span style={{
+        width: 6, height: 6, borderRadius: '50%',
+        background: isLive ? '#22c55e' : '#f7c948',
+        display: 'inline-block',
+        animation: isLive ? 'livePulse 1.8s ease-in-out infinite' : (isReconnecting ? 'liveBlink .8s step-end infinite' : 'none'),
+      }} />
+      {isLive ? 'LIVE' : isReconnecting ? 'RECONNECTING…' : 'OFFLINE'}
+      <style>{`
+        @keyframes livePulse {
+          0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); }
+          50% { box-shadow: 0 0 0 4px rgba(34,197,94,0); }
+        }
+        @keyframes liveBlink {
+          0%,100% { opacity: 1; } 50% { opacity: .3; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 const _unused = { Package, Users };
 void _unused;

@@ -7,6 +7,7 @@ import {
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { ROLE_ALLOWED_PATHS, type Role } from '@/lib/permissions';
+import { useSSE, type SSEStatus } from '@/lib/useSSE';
 
 const ALL_NAV_ITEMS = [
   { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },
@@ -30,11 +31,35 @@ const ROLE_COLOR: Record<string, string> = {
   driver: '#f97316',
 };
 
+function SSEDot({ status }: { status: SSEStatus }) {
+  const isLive = status === 'connected';
+  const isReconnecting = status === 'reconnecting' || status === 'connecting';
+  const color = isLive ? '#22c55e' : isReconnecting ? '#f7c948' : '#9fb0c7';
+  const label = isLive ? 'Live' : isReconnecting ? 'Reconnecting…' : 'Offline';
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 5,
+      padding: '3px 8px', borderRadius: 999,
+      background: `${color}12`,
+      border: `1px solid ${color}30`,
+      fontSize: 10, fontWeight: 700, color,
+    }}>
+      <span style={{
+        width: 5, height: 5, borderRadius: '50%', background: color, display: 'inline-block',
+        animation: isLive ? 'ssePulse 2s ease-in-out infinite' : (isReconnecting ? 'sseBlink .9s step-end infinite' : 'none'),
+      }} />
+      {label}
+    </div>
+  );
+}
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { status: sseStatus } = useSSE();
 
   const roleColor = user ? (ROLE_COLOR[user.role] || '#9fb0c7') : '#9fb0c7';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
@@ -45,24 +70,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const SidebarContent = () => (
     <>
       {/* Brand */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 28 }}>
-        <div style={{
-          width: 44, height: 44, borderRadius: 14, flexShrink: 0,
-          background: 'linear-gradient(145deg,#ffe08a,#ffb703 42%,#a16207)',
-          display: 'grid', placeItems: 'center',
-          fontWeight: 900, color: '#111827', fontSize: 13,
-          boxShadow: '0 18px 38px rgba(255,183,3,.22),inset 0 2px 2px rgba(255,255,255,.7)',
-        }}>
-          RMC
-        </div>
-        <div>
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
           <div style={{
-            fontSize: 11, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase',
-            background: 'linear-gradient(90deg,#fff7d6,#fbbf24,#e2e8f0)',
-            WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
-          }}>Aakruti Infra</div>
-          <div style={{ fontSize: 10, color: '#9fb0c7', marginTop: 1 }}>TrackMyRMC Platform</div>
+            width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+            background: 'linear-gradient(145deg,#ffe08a,#ffb703 42%,#a16207)',
+            display: 'grid', placeItems: 'center',
+            fontWeight: 900, color: '#111827', fontSize: 13,
+            boxShadow: '0 18px 38px rgba(255,183,3,.22),inset 0 2px 2px rgba(255,255,255,.7)',
+          }}>
+            RMC
+          </div>
+          <div>
+            <div style={{
+              fontSize: 11, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase',
+              background: 'linear-gradient(90deg,#fff7d6,#fbbf24,#e2e8f0)',
+              WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
+            }}>Aakruti Infra</div>
+            <div style={{ fontSize: 10, color: '#9fb0c7', marginTop: 1 }}>TrackMyRMC Platform</div>
+          </div>
         </div>
+        <SSEDot status={sseStatus} />
       </div>
 
       {/* Nav */}
@@ -166,6 +194,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             fontWeight: 900, color: '#111827', fontSize: 13,
           }}>RMC</div>
           <span style={{ fontWeight: 700, fontSize: 14 }}>TrackMyRMC</span>
+          <SSEDot status={sseStatus} />
         </div>
         <button onClick={() => setMobileOpen(o => !o)}
           style={{ background: 'none', color: '#eef5ff', padding: 4, border: 'none' }}>
@@ -210,6 +239,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         @media (max-width: 900px) {
           #desktop-sidebar { display: none !important; }
           #mobile-header { display: flex !important; }
+        }
+        @keyframes ssePulse {
+          0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); }
+          50% { box-shadow: 0 0 0 4px rgba(34,197,94,0); }
+        }
+        @keyframes sseBlink {
+          0%,100% { opacity: 1; } 50% { opacity: .25; }
         }
       `}</style>
     </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Search, X, Printer, Check, Truck } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site } from '@/lib/api';
+import { useSSE } from '@/lib/useSSE';
 
 const GRADES = ['M10','M15','M20','M25','M30','M35','M40','M45','M50','M55','M60'];
 
@@ -22,6 +23,8 @@ export default function Dispatch() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const { subscribe } = useSSE();
+
   function load() { api.get<Challan[]>('/challans').then(setChallans); }
 
   useEffect(() => {
@@ -31,6 +34,15 @@ export default function Dispatch() {
     api.get<Driver[]>('/drivers').then(d => setDrivers(d.filter(x => x.isActive)));
     api.get<Client[]>('/clients').then(setClients);
   }, []);
+
+  useEffect(() => {
+    const unsub1 = subscribe('challan.created', () => { load(); });
+    const unsub2 = subscribe('challan.updated', (data: unknown) => {
+      const updated = data as Challan;
+      setChallans(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+    });
+    return () => { unsub1(); unsub2(); };
+  }, [subscribe]);
 
   async function loadSites(clientId: string) {
     if (!clientId) return setSites([]);
@@ -60,7 +72,6 @@ export default function Dispatch() {
         grade: form.grade, quantity: +form.quantity,
         pumpRequired: form.pumpRequired, notes: form.notes,
       });
-      load();
       api.get<Order[]>('/orders').then(o => setOrders(o.filter(x => x.status === 'pending' || x.status === 'in_progress')));
       setModal(false);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Error'); }
@@ -68,7 +79,7 @@ export default function Dispatch() {
   }
 
   async function markDelivered(ch: Challan) {
-    await api.put(`/challans/${ch.id}`, { status: 'delivered' }); load();
+    await api.put(`/challans/${ch.id}`, { status: 'delivered' });
   }
 
   const filtered = challans.filter(ch => {
