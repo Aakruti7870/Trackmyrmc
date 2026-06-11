@@ -3,9 +3,16 @@ import { sql, gte, lte, and, desc } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { challans, clients, batchRecords } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { getVarianceTolerance } from '../lib/variance.js';
 
 const router = Router();
 router.use(requireAuth);
+
+// Effective delivery variance tolerance, readable by any authenticated user so
+// the Dispatch board and Reports views flag short/over deliveries consistently.
+router.get('/variance-tolerance', async (_req, res) => {
+  res.json(await getVarianceTolerance());
+});
 
 function dateRange(req: { query: Record<string, unknown> }) {
   const { from, to } = req.query;

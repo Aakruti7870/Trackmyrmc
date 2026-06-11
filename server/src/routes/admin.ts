@@ -6,6 +6,7 @@ import { auditLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { sendTestEmail, getSmtpSettings, verifySmtpConnection, getSmtpConfig, SMTP_KEYS } from '../lib/email.js';
 import { setSetting } from '../lib/settings.js';
+import { getVarianceTolerance, VARIANCE_KEYS, DEFAULT_VARIANCE_ABS, DEFAULT_VARIANCE_PCT } from '../lib/variance.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 
 const router = Router();
@@ -139,6 +140,73 @@ router.get('/email-test/history', async (_req, res) => {
     .orderBy(desc(auditLogs.createdAt))
     .limit(50);
   res.json(rows);
+});
+
+router.get('/variance-tolerance', async (_req, res) => {
+  res.json(await getVarianceTolerance());
+});
+
+// Both fields optional. An empty string clears the persisted value (reverting to
+// the built-in default). Absolute is m³ (>= 0); percentage is 0–100 (0 = off).
+const varianceToleranceSchema = z.object({
+  abs: z
+    .string()
+    .trim()
+    .optional()
+    .refine(v => v === undefined || v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0), 'Tolerance must be a number of 0 or more'),
+  pct: z
+    .string()
+    .trim()
+    .optional()
+    .refine(
+      v => v === undefined || v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 100),
+      'Percentage must be between 0 and 100',
+    ),
+});
+
+router.post('/variance-tolerance', async (req, res) => {
+  // Coerce numeric inputs to strings so the same schema handles either shape.
+  const raw = {
+    abs: req.body?.abs == null ? undefined : String(req.body.abs),
+    pct: req.body?.pct == null ? undefined : String(req.body.pct),
+  };
+  const parse = varianceToleranceSchema.safeParse(raw);
+  if (!parse.success) {
+    res.status(400).json({ error: parse.error.flatten().fieldErrors });
+    return;
+  }
+
+  const { abs, pct } = parse.data;
+  const before = await getVarianceTolerance();
+
+  if (abs !== undefined) await setSetting(VARIANCE_KEYS.abs, abs.trim() === '' ? null : String(Number(abs)));
+  if (pct !== undefined) await setSetting(VARIANCE_KEYS.pct, pct.trim() === '' ? null : String(Number(pct)));
+
+  const after = await getVarianceTolerance();
+
+  const changed: string[] = [];
+  if (before.abs !== after.abs) changed.push(`absolute ${before.abs} → ${after.abs} m³`);
+  if (before.pct !== after.pct) changed.push(`percentage ${before.pct}% → ${after.pct}%`);
+
+  const detail = changed.length
+    ? `Delivery variance tolerance updated. Changed: ${changed.join('; ')}.`
+    : 'Delivery variance tolerance saved from the admin panel. No values were changed.';
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'variance_tolerance_updated',
+      status: 'success',
+      detail,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write variance tolerance audit log:', err);
+  }
+
+  res.json({ ...after, defaults: { abs: DEFAULT_VARIANCE_ABS, pct: DEFAULT_VARIANCE_PCT } });
 });
 
 const auditLogsQuerySchema = z.object({

@@ -11,4 +11,5 @@
 - [RMC shift windows](rmc-shift-windows.md) — shifts (esp. night 22:00→06:00) cross midnight; use absolute Date start/end + date-anchored persistence keys, never hour-of-day or isToday.
 - [SSE event targeting](sse-event-targeting.md) — emitSSEEvent(event,data,audience?) scopes per-recipient; missing audience silently broadcasts to all.
 - [RMC link delete guard](rmc-link-delete-guard.md) — deleting a client/driver is blocked (409) while a non-soft-deleted user still links to it; scope check with isNull(deletedAt).
+- [RMC test app mounts](rmc-test-app-mounts.md) — server tests use buildTestApp() (subset of routers), not src/index.ts; new routes 404 unless mounted there too; baseline `pnpm test` has 7 unrelated pre-existing failures.
 - [RMC proof photos](rmc-proof-photo-storage.md) — multiple photos per challan in challan_proof_photos child table storing /objects/ paths (not base64), served as signed GCS URLs from the authed detail endpoint; PUT takes proofPhotos[]+legacy proofPhoto; list carries only hasProofPhoto (EXISTS); stub proofPhotoStore via mock.method.

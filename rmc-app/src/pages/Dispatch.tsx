@@ -3,6 +3,7 @@ import { Plus, Search, X, Printer, Check, Truck, StickyNote, Camera, ChevronLeft
 import { Link } from 'wouter';
 import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
+import { useVarianceTolerance, isWithinTolerance } from '@/lib/variance';
 
 const GRADES = ['M10','M15','M20','M25','M30','M35','M40','M45','M50','M55','M60'];
 
@@ -26,6 +27,7 @@ export default function Dispatch() {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [photoZoom, setPhotoZoom] = useState(false);
 
+  const tolerance = useVarianceTolerance();
   const { subscribe } = useSSE();
 
   async function viewProof(ch: Challan) {
@@ -121,7 +123,6 @@ export default function Dispatch() {
     return matchSearch && matchStatus;
   });
 
-  const VARIANCE_TOLERANCE = 0.1; // m³ — deltas within this are treated as on-target
   function variance(ch: Challan): number | null {
     if (ch.deliveredQuantity == null) return null;
     return parseFloat(ch.deliveredQuantity) - parseFloat(ch.quantity);
@@ -224,7 +225,7 @@ export default function Dispatch() {
                     {ch.deliveredQuantity != null ? `${parseFloat(ch.deliveredQuantity).toFixed(1)} m³` : '—'}
                     {(() => {
                       const v = variance(ch);
-                      if (v == null || Math.abs(v) < VARIANCE_TOLERANCE) return null;
+                      if (v == null || isWithinTolerance(v, parseFloat(ch.quantity), tolerance)) return null;
                       const over = v > 0;
                       return (
                         <div style={{

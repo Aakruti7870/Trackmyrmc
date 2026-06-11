@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -152,6 +152,11 @@ export default function ProfileSettings() {
   const [smtpVerifying, setSmtpVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  const [varianceForm, setVarianceForm] = useState({ abs: '', pct: '' });
+  const [varianceDefaults, setVarianceDefaults] = useState({ abs: 0.1, pct: 0 });
+  const [varianceLoading, setVarianceLoading] = useState(false);
+  const [varianceSaving, setVarianceSaving] = useState(false);
+
   const [lockouts, setLockouts] = useState<Lockout[]>([]);
   const [lockoutsLoading, setLockoutsLoading] = useState(false);
   const [clearingKey, setClearingKey] = useState<string | null>(null);
@@ -211,6 +216,25 @@ export default function ProfileSettings() {
       }
     }
     loadSmtp();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function loadVariance() {
+      setVarianceLoading(true);
+      try {
+        const v = await api.get<{ abs: number; pct: number }>('/admin/variance-tolerance');
+        if (cancelled) return;
+        setVarianceForm({ abs: String(v.abs), pct: String(v.pct) });
+      } catch {
+        /* non-fatal — keep defaults */
+      } finally {
+        if (!cancelled) setVarianceLoading(false);
+      }
+    }
+    loadVariance();
     return () => { cancelled = true; };
   }, [isAdmin]);
 
@@ -355,6 +379,36 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setSmtpVerifying(false);
+    }
+  }
+
+  async function handleVarianceSave(e: React.FormEvent) {
+    e.preventDefault();
+    const abs = varianceForm.abs.trim();
+    const pct = varianceForm.pct.trim();
+    if (abs && (!Number.isFinite(Number(abs)) || Number(abs) < 0)) {
+      showToast('Tolerance must be a number of 0 or more.', 'error');
+      return;
+    }
+    if (pct && (!Number.isFinite(Number(pct)) || Number(pct) < 0 || Number(pct) > 100)) {
+      showToast('Percentage must be between 0 and 100.', 'error');
+      return;
+    }
+    setVarianceSaving(true);
+    try {
+      // Empty string clears the value, reverting to the built-in default.
+      const updated = await api.post<{ abs: number; pct: number; defaults: { abs: number; pct: number } }>(
+        '/admin/variance-tolerance',
+        { abs, pct },
+      );
+      setVarianceForm({ abs: String(updated.abs), pct: String(updated.pct) });
+      if (updated.defaults) setVarianceDefaults(updated.defaults);
+      showToast('Delivery tolerance saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save delivery tolerance';
+      showToast(msg, 'error');
+    } finally {
+      setVarianceSaving(false);
     }
   }
 
@@ -730,6 +784,70 @@ export default function ProfileSettings() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Delivery variance tolerance card — admins only */}
+      {isAdmin && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Target size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Delivery Variance Tolerance</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>How far a delivery can deviate from the planned quantity before it's flagged</div>
+            </div>
+          </div>
+
+          {varianceLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
+          ) : (
+            <form onSubmit={handleVarianceSave}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <SmtpTextField
+                  label="Absolute (m³)"
+                  type="number"
+                  value={varianceForm.abs}
+                  onChange={v => setVarianceForm(f => ({ ...f, abs: v }))}
+                  placeholder={String(varianceDefaults.abs)}
+                />
+                <SmtpTextField
+                  label="Percentage (%)"
+                  type="number"
+                  value={varianceForm.pct}
+                  onChange={v => setVarianceForm(f => ({ ...f, pct: v }))}
+                  placeholder={String(varianceDefaults.pct)}
+                />
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+                A delivery is treated as <strong style={{ color: 'var(--text)' }}>on target</strong> when its
+                shortfall or excess is within the larger of these two bands. The percentage is taken against the
+                planned load, so a 5% band tolerates ±0.5 m³ on a 10 m³ load. Set percentage to 0 to use the
+                absolute band only. Clear a field to fall back to the default
+                ({varianceDefaults.abs} m³ / {varianceDefaults.pct}%).
+              </div>
+
+              <button
+                type="submit"
+                disabled={varianceSaving}
+                style={{
+                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
+                  background: varianceSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: varianceSaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14,
+                  transition: 'opacity .15s',
+                }}
+              >
+                {varianceSaving ? 'Saving…' : 'Save tolerance'}
+              </button>
+            </form>
+          )}
         </div>
       )}
 
