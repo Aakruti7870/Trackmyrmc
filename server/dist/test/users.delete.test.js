@@ -1214,6 +1214,113 @@ test('restore-all: a row that trips the DB link constraint (23505) is skipped, t
     const restoredLogs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.restored'));
     assert.equal(restoredLogs.length, 2, 'one user.restored entry per actually-restored account');
 });
+test('restore-all: a single batch with an app-level link skip, a DB-23505 skip, and clean rows accounts for all three correctly', async (t) => {
+    // The two skip paths can fire in the same batch: one row is caught by the
+    // application-level findLinkConflict pre-check (never reaching the update),
+    // another passes the pre-check but trips the raw DB 23505 on its update, and
+    // the remaining rows restore cleanly. This proves the skippedDetails
+    // accounting (counts, ids, reasons) and the per-row audit entries all stay
+    // correct when both skip kinds happen together.
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const client = await createClient('Acme Concrete');
+    const token = tokenFor(admin);
+    // An active user already holds the client link, so the soft-deleted account
+    // pointing at the same client is caught by the app-level pre-check.
+    const activeHolder = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Active Holder', email: 'holder@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+    assert.equal(activeHolder.status, 201);
+    // appConflict: blocked by findLinkConflict (link already taken) — skipped
+    // before any update runs.
+    const appConflict = await createUser({
+        name: 'App Conflict', email: 'app-conflict@test.com', role: 'client',
+        isActive: false, deletedAt: new Date(),
+    });
+    await db.update(users).set({ linkedClientId: client.id }).where(eq(users.id, appConflict.id));
+    // dbRacer: passes the pre-check (no taken link) but its update is forced to
+    // raise a raw 23505, simulating a race that slips past the pre-check.
+    const dbRacer = await createUser({
+        name: 'DB Racer', email: 'db-racer@test.com', role: 'client',
+        isActive: false, deletedAt: new Date(),
+    });
+    // cleanA / cleanB: nothing in their way — they restore normally.
+    const cleanA = await createUser({
+        name: 'Clean A', email: 'clean-a@test.com', role: 'dispatcher',
+        isActive: false, deletedAt: new Date(),
+    });
+    const cleanB = await createUser({
+        name: 'Clean B', email: 'clean-b@test.com', role: 'plant_operator',
+        isActive: false, deletedAt: new Date(),
+    });
+    // Rows are processed in ascending-id order. appConflict is skipped before any
+    // update, so the FIRST db.update inside the handler is dbRacer's — make only
+    // that one reject with a fake 23505; every later update delegates to the real
+    // driver.
+    const originalUpdate = db.update.bind(db);
+    let updateCalls = 0;
+    t.mock.method(db, 'update', (table) => {
+        updateCalls += 1;
+        if (updateCalls === 1) {
+            return {
+                set() { return this; },
+                where() {
+                    return Promise.reject(Object.assign(new Error('duplicate key value'), {
+                        code: '23505',
+                        constraint: 'users_linked_client_unique',
+                    }));
+                },
+            };
+        }
+        return originalUpdate(table);
+    });
+    const res = await request(app)
+        .post('/api/users/restore-all')
+        .set('Authorization', `Bearer ${token}`)
+        .send({});
+    assert.equal(res.status, 200, 'the batch succeeds — two skips do not 500 it');
+    assert.equal(res.body.restored, 2, 'only the two clean accounts restore');
+    assert.equal(res.body.skipped, 2, 'both the app-level and DB-23505 rows are skipped');
+    assert.equal(res.body.skippedDetails.length, 2);
+    // Each skipped row carries the correct id and a friendly link-conflict reason.
+    const byId = new Map(res.body.skippedDetails.map((d) => [d.id, d]));
+    const appSkip = byId.get(appConflict.id);
+    const dbSkip = byId.get(dbRacer.id);
+    assert.ok(appSkip, 'the app-level conflict row is in skippedDetails');
+    assert.ok(dbSkip, 'the DB-23505 row is in skippedDetails');
+    assert.match(appSkip.reason, /already linked/i, 'the app-level skip carries the friendly reason');
+    assert.match(dbSkip.reason, /already linked/i, 'the DB-23505 skip carries the same friendly reason');
+    // The app-level skip knows the holding account (from findLinkConflict); the
+    // raw-23505 skip only knows the message, so its conflict metadata is absent.
+    assert.equal(appSkip.conflictLinkType, 'client', 'the app-level skip records the conflicting link type');
+    assert.equal(appSkip.conflictUserName, 'Active Holder', 'the app-level skip names the holding account');
+    assert.equal(dbSkip.conflictLinkType, undefined, 'the raw-23505 skip carries no conflict metadata');
+    assert.equal(dbSkip.conflictUserId, undefined, 'the raw-23505 skip carries no conflicting user id');
+    // Both skipped rows stay soft-deleted; both clean rows are restored & active.
+    for (const id of [appConflict.id, dbRacer.id]) {
+        const [row] = await db.select({ deletedAt: users.deletedAt }).from(users).where(eq(users.id, id));
+        assert.ok(row.deletedAt instanceof Date, `skipped account ${id} stays deleted`);
+    }
+    for (const id of [cleanA.id, cleanB.id]) {
+        const [row] = await db.select({ deletedAt: users.deletedAt, isActive: users.isActive })
+            .from(users).where(eq(users.id, id));
+        assert.equal(row.deletedAt, null, `clean account ${id} is restored`);
+        assert.equal(row.isActive, true, `clean account ${id} is reactivated`);
+    }
+    // Only the restored rows get a user.restored entry — neither skip does.
+    for (const id of [appConflict.id, dbRacer.id]) {
+        const logs = await db.select().from(auditLogs)
+            .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, id)));
+        assert.equal(logs.length, 0, `skipped account ${id} writes no restore audit entry`);
+    }
+    for (const id of [cleanA.id, cleanB.id]) {
+        const logs = await db.select().from(auditLogs)
+            .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, id)));
+        assert.equal(logs.length, 1, `restored account ${id} writes exactly one restore audit entry`);
+    }
+    const restoredLogs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.restored'));
+    assert.equal(restoredLogs.length, 2, 'one user.restored entry per actually-restored account');
+});
 test('restore-all: with an empty trash returns zero counts and writes nothing', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     await createUser({ name: 'Active', email: 'active@test.com', role: 'dispatcher' });
