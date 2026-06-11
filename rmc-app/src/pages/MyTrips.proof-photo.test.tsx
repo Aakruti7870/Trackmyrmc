@@ -134,6 +134,53 @@ describe('MyTrips proof-of-delivery photo capture', () => {
     vi.unstubAllGlobals();
   });
 
+  it('surfaces an error and clears the busy state when compression fails', async () => {
+    mockTrips([makeChallan({ id: 11, quantity: '8.00' })]);
+    // Force compressImage() to reject: a null 2D context makes it throw
+    // "Canvas not supported" the way an unsupported/locked-down browser would.
+    getContextSpy.mockReturnValue(null);
+    const user = userEvent.setup();
+    render(<MyTrips />);
+
+    await openProofForm(user);
+    await user.upload(fileInput(), makePhoto());
+
+    expect(await screen.findByText(/Canvas not supported/i)).toBeInTheDocument();
+    // No preview is rendered because nothing was compressed.
+    expect(screen.queryByAltText(/Proof of delivery 1/i)).not.toBeInTheDocument();
+    // The busy state clears, so the capture button is interactive again.
+    const captureBtn = screen.getByRole('button', { name: /Take \/ upload photos/i });
+    expect(captureBtn).not.toBeDisabled();
+    expect(screen.queryByText(/Processing…/i)).not.toBeInTheDocument();
+  });
+
+  it('still confirms delivery without proofPhotos after a failed photo upload', async () => {
+    mockTrips([makeChallan({ id: 12, quantity: '8.00' })]);
+    vi.mocked(api.put).mockResolvedValue(
+      makeChallan({ id: 12, status: 'delivered' }) as never,
+    );
+    getContextSpy.mockReturnValue(null);
+    const user = userEvent.setup();
+    render(<MyTrips />);
+
+    await openProofForm(user);
+    await user.upload(fileInput(), makePhoto());
+
+    expect(await screen.findByText(/Canvas not supported/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Confirm Delivery/i }));
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledTimes(1);
+    });
+    expect(api.put).toHaveBeenCalledWith(
+      '/challans/12',
+      expect.objectContaining({ status: 'delivered' }),
+    );
+    const payload = vi.mocked(api.put).mock.calls[0][1] as Record<string, unknown>;
+    expect(payload).not.toHaveProperty('proofPhotos');
+  });
+
   it('omits proofPhotos from the payload after the chosen photo is removed', async () => {
     mockTrips([makeChallan({ id: 9, quantity: '8.00' })]);
     vi.mocked(api.put).mockResolvedValue(
