@@ -69,7 +69,7 @@ describe('Users locked badge — time-sensitive transitions', () => {
     const badge = await screen.findByText(/🔒 Locked/);
     expect(badge).toBeInTheDocument();
     // It must NOT yet be in the amber "expiring soon" warning state.
-    expect(screen.queryByText(/⏳ Unlocking soon/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/⏳ Unlocking in/)).not.toBeInTheDocument();
   });
 
   it('switches to the "Unlocking soon" warning when under 2 minutes remain', async () => {
@@ -78,7 +78,7 @@ describe('Users locked badge — time-sensitive transitions', () => {
     mockApi(() => ({ 1: { locked: true, lockedUntil } }));
     renderUsers();
 
-    const warning = await screen.findByText(/⏳ Unlocking soon/);
+    const warning = await screen.findByText(/⏳ Unlocking in/);
     expect(warning).toBeInTheDocument();
     // The plain "Locked" badge should not be shown in the warning state.
     expect(screen.queryByText(/🔒 Locked/)).not.toBeInTheDocument();
@@ -104,7 +104,7 @@ describe('Users locked badge — time-sensitive transitions', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.getByText(/⏳ Unlocking soon/)).toBeInTheDocument();
+    expect(screen.getByText(/⏳ Unlocking in/)).toBeInTheDocument();
 
     // Advance past the lockout window. The 30s poll re-fetches and the server
     // now reports the account as unlocked, so the badge clears on its own.
@@ -112,7 +112,77 @@ describe('Users locked badge — time-sensitive transitions', () => {
       await vi.advanceTimersByTimeAsync(30_000);
     });
 
-    expect(screen.queryByText(/⏳ Unlocking soon/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/⏳ Unlocking in/)).not.toBeInTheDocument();
     expect(screen.queryByText(/🔒 Locked/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Users locked badge — live countdown', () => {
+  it('renders a live mm:ss countdown derived from the remaining lockout time', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T12:00:00.000Z'));
+
+    // Five minutes out — comfortably above the 2-minute warning threshold, so
+    // the badge stays in its plain "Locked" state but still surfaces a countdown.
+    const lockedUntil = Date.now() + 5 * 60_000;
+    mockApi(() => ({ 1: { locked: true, lockedUntil } }));
+    renderUsers();
+
+    // Flush the on-mount loads so the first lockout-status response is applied.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText(/🔒 Locked · 5:00/)).toBeInTheDocument();
+  });
+
+  it('shows the countdown inside the "Unlocking in" warning when under 2 minutes remain', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T12:00:00.000Z'));
+
+    // 90 seconds left — inside the 2-minute warning window.
+    const lockedUntil = Date.now() + 90_000;
+    mockApi(() => ({ 1: { locked: true, lockedUntil } }));
+    renderUsers();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText(/⏳ Unlocking in 1:30/)).toBeInTheDocument();
+  });
+
+  it('decrements the countdown once per second as time advances toward expiry', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T12:00:00.000Z'));
+
+    // 90 seconds out, modelling the server: locked while now < lockedUntil.
+    const lockedUntil = Date.now() + 90_000;
+    mockApi(() =>
+      Date.now() < lockedUntil
+        ? { 1: { locked: true, lockedUntil } }
+        : { 1: { locked: false, lockedUntil: null } }
+    );
+
+    renderUsers();
+
+    // Flush mount loads — the countdown starts at the full 1:30.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText(/⏳ Unlocking in 1:30/)).toBeInTheDocument();
+
+    // Advance 1 second — the per-second tick re-renders with one less second.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(screen.getByText(/⏳ Unlocking in 1:29/)).toBeInTheDocument();
+
+    // Advance another 10 seconds — the countdown keeps ticking down while the
+    // account stays locked (still well before the 30s status poll fires).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(screen.getByText(/⏳ Unlocking in 1:19/)).toBeInTheDocument();
   });
 });
