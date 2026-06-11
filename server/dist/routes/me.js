@@ -93,8 +93,9 @@ router.post('/orders', requireRole('client'), async (req, res) => {
         notes: typeof notes === 'string' && notes.trim() ? notes : null,
         status: 'pending',
     }).returning();
-    // Notify staff (and the client's own sessions) that a new order arrived.
-    emitSSEEvent('order.created', row);
+    // Notify staff and the client's own sessions — scope to this client so other
+    // clients/drivers don't receive someone else's order.
+    emitSSEEvent('order.created', row, { clientId: row.clientId });
     res.status(201).json(row);
 });
 router.get('/challans', requireRole('client'), async (req, res) => {
