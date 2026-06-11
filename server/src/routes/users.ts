@@ -5,13 +5,14 @@ import { z } from 'zod';
 import { db } from '../db/index.js';
 import { users, clients, drivers, auditLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { getAuthorityEmails, isAuthorityEmail } from '../lib/authority.js';
 import { sendPasswordResetNotification, sendWelcomeEmail } from '../lib/email.js';
 import { getLockoutInfo, resetAttempts } from '../lib/loginAttempts.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('admin'));
+router.use(requireAuth, requireRole('admin', 'authority'));
 
-const ROLES = ['admin', 'dispatcher', 'plant_operator', 'client', 'driver'] as const;
+const ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver'] as const;
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -180,6 +181,13 @@ router.get('/drivers-list', async (_req, res) => {
   res.json(rows);
 });
 
+// The AUTHORITY allow-list (email addresses) so the UI can offer the AUTHORITY
+// role only for eligible accounts. The list is env-controlled; the backend still
+// enforces it on create/update regardless of what the client sends.
+router.get('/authority-emails', (_req, res) => {
+  res.json({ emails: getAuthorityEmails() });
+});
+
 router.post('/', async (req, res) => {
   const parse = createSchema.safeParse(req.body);
   if (!parse.success) {
@@ -187,6 +195,11 @@ router.post('/', async (req, res) => {
     return;
   }
   const { name, email, password, role, linkedClientId, linkedDriverId } = parse.data;
+
+  if (role === 'authority' && !isAuthorityEmail(email)) {
+    res.status(403).json({ error: 'This email is not on the AUTHORITY allow-list, so it cannot be granted the AUTHORITY role.' });
+    return;
+  }
 
   const [existing] = await db.select({ id: users.id, name: users.name, deletedAt: users.deletedAt })
     .from(users).where(eq(users.email, email));
@@ -290,10 +303,16 @@ router.put('/:id', async (req, res) => {
   }
 
   const [before] = await db.select({
+    email: users.email,
     name: users.name, role: users.role, isActive: users.isActive,
     linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
   }).from(users).where(eq(users.id, id));
   if (!before) { res.status(404).json({ error: 'User not found' }); return; }
+
+  if (rest.role === 'authority' && !isAuthorityEmail(before.email)) {
+    res.status(403).json({ error: 'This email is not on the AUTHORITY allow-list, so it cannot be granted the AUTHORITY role.' });
+    return;
+  }
 
   const effectiveClientId = rest.linkedClientId !== undefined ? (rest.linkedClientId ?? null) : before.linkedClientId;
   const effectiveDriverId = rest.linkedDriverId !== undefined ? (rest.linkedDriverId ?? null) : before.linkedDriverId;

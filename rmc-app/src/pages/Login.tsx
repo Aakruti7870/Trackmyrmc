@@ -3,6 +3,8 @@ import { useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
+import { clerkEnabled } from '@/lib/clerk';
+import ClerkStaffLogin from '@/components/ClerkStaffLogin';
 
 const DEMO = [
   { role: 'Admin', email: 'admin@aakruti.com', password: 'admin123', color: 'var(--gold)' },
@@ -184,6 +186,8 @@ export default function Login() {
             <div style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 700, marginBottom: 4 }}>💡 Quick Start</div>
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>Click any demo account above to auto-fill credentials</div>
           </div>
+
+          {clerkEnabled && <ClerkStaffLogin onError={setError} />}
         </div>
       </div>
     </div>

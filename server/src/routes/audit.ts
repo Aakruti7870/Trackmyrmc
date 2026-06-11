@@ -5,7 +5,7 @@ import { auditLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('admin'));
+router.use(requireAuth, requireRole('admin', 'authority'));
 
 const selectCols = {
   id: auditLogs.id,

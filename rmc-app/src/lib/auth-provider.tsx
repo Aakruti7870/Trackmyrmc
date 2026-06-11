@@ -1,6 +1,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { api, type User } from './api';
 import { AuthContext } from './auth';
+import { clerkSignOutIfEnabled } from './clerk';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -82,6 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('rmc_token');
     localStorage.removeItem('rmc_user');
     setUser(null);
+    // Also end the Clerk session (no-op when Clerk isn't configured) so a staff
+    // member who used SSO isn't silently re-authenticated on the next visit.
+    void clerkSignOutIfEnabled();
   }
 
   function updateUser(updated: User, token?: string) {

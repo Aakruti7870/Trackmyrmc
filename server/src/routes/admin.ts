@@ -9,7 +9,7 @@ import { setSetting } from '../lib/settings.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('admin'));
+router.use(requireAuth, requireRole('admin', 'authority'));
 
 router.get('/smtp-settings', async (_req, res) => {
   res.json(await getSmtpSettings());

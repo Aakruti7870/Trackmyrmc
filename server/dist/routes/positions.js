@@ -127,7 +127,7 @@ router.post('/', requireRole('driver'), async (req, res) => {
     res.json({ ok: true, distanceM, delivered, withinRadius, inRadiusCount });
 });
 // Dispatch / control-room view of the latest fix per active challan.
-router.get('/', requireRole('admin', 'dispatcher'), (_req, res) => {
+router.get('/', requireRole('admin', 'dispatcher', 'authority'), (_req, res) => {
     res.json(Array.from(livePositions.values()));
 });
 export default router;

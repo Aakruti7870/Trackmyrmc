@@ -193,7 +193,7 @@ test('GET /api/audit-logs is forbidden for non-admins', async () => {
         .set('Authorization', `Bearer ${token}`);
     assert.equal(res.status, 403);
 });
-test('GET /api/users/audit-log?action filters by event type', async () => {
+test('GET /api/audit-logs?action filters by event type', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     await seedAudit([
         { action: 'user.created', targetUserEmail: 'a@x.com' },
@@ -201,13 +201,13 @@ test('GET /api/users/audit-log?action filters by event type', async () => {
         { action: 'password_reset', targetUserEmail: 'c@x.com' },
     ]);
     const res = await request(app)
-        .get('/api/users/audit-log?action=password_reset')
+        .get('/api/audit-logs?action=password_reset')
         .set('Authorization', `Bearer ${tokenFor(admin)}`);
     assert.equal(res.status, 200);
-    assert.equal(res.body.length, 2);
-    assert.ok(res.body.every((e) => e.action === 'password_reset'), 'every returned entry has the filtered action');
+    assert.equal(res.body.rows.length, 2);
+    assert.ok(res.body.rows.every((e) => e.action === 'password_reset'), 'every returned entry has the filtered action');
 });
-test('GET /api/users/audit-log?from/to filters by date range (to inclusive of whole day)', async () => {
+test('GET /api/audit-logs?from/to filters by date range (to inclusive of whole day)', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     await seedAudit([
         { action: 'user.created', targetUserEmail: 'before@x.com', createdAt: new Date('2026-01-31T23:59:59Z') },
@@ -216,15 +216,15 @@ test('GET /api/users/audit-log?from/to filters by date range (to inclusive of wh
         { action: 'user.created', targetUserEmail: 'after@x.com', createdAt: new Date('2026-03-01T00:00:00Z') },
     ]);
     const res = await request(app)
-        .get('/api/users/audit-log?from=2026-02-01&to=2026-02-28')
+        .get('/api/audit-logs?from=2026-02-01&to=2026-02-28')
         .set('Authorization', `Bearer ${tokenFor(admin)}`);
     assert.equal(res.status, 200);
-    const emails = res.body.map((e) => e.targetUserEmail).sort();
+    const emails = res.body.rows.map((e) => e.targetUserEmail).sort();
     // 'endday@x.com' lands at 18:30 on the `to` date and must be included because
     // a date-only `to` is treated as inclusive of the entire day.
     assert.deepEqual(emails, ['endday@x.com', 'start@x.com']);
 });
-test('GET /api/users/audit-log combines action, date range and userId via AND', async () => {
+test('GET /api/audit-logs combines action, date range and targetUserId via AND', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const target = await createUser({ name: 'Target', email: 'target@x.com', role: 'dispatcher' });
     const other = await createUser({ name: 'Other', email: 'other@x.com', role: 'dispatcher' });
@@ -239,25 +239,85 @@ test('GET /api/users/audit-log combines action, date range and userId via AND', 
         { action: 'password_reset', targetUserId: target.id, targetUserEmail: 'target@x.com', createdAt: new Date('2026-05-10T10:00:00Z') },
     ]);
     const res = await request(app)
-        .get(`/api/users/audit-log?action=password_reset&from=2026-02-01&to=2026-02-28&userId=${target.id}`)
+        .get(`/api/audit-logs?action=password_reset&from=2026-02-01&to=2026-02-28&targetUserId=${target.id}`)
         .set('Authorization', `Bearer ${tokenFor(admin)}`);
     assert.equal(res.status, 200);
-    assert.equal(res.body.length, 1, 'only the row matching all filters is returned');
-    assert.equal(res.body[0].action, 'password_reset');
-    assert.equal(res.body[0].targetUserId, target.id);
-    assert.equal(res.body[0].targetUserEmail, 'target@x.com');
+    assert.equal(res.body.rows.length, 1, 'only the row matching all filters is returned');
+    assert.equal(res.body.rows[0].action, 'password_reset');
+    assert.equal(res.body.rows[0].targetUserId, target.id);
+    assert.equal(res.body.rows[0].targetUserEmail, 'target@x.com');
 });
-test('GET /api/users/audit-log rejects an invalid from date with 400', async () => {
+test('GET /api/audit-logs?actorId filters to one actor', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const other = await createUser({ name: 'Other Admin', email: 'other@test.com', role: 'admin' });
+    await seedAudit([
+        { actorId: admin.id, actorName: admin.name, action: 'user.created', targetUserEmail: 'a@x.com' },
+        { actorId: admin.id, actorName: admin.name, action: 'password_reset', targetUserEmail: 'b@x.com' },
+        { actorId: other.id, actorName: other.name, action: 'user.created', targetUserEmail: 'c@x.com' },
+    ]);
+    const res = await request(app)
+        .get(`/api/audit-logs?actorId=${admin.id}`)
+        .set('Authorization', `Bearer ${tokenFor(admin)}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.rows.length, 2, 'only the chosen actor\'s entries are returned');
+    assert.ok(res.body.rows.every((e) => e.actorId === admin.id), 'every returned entry was performed by the filtered actor');
+});
+test('GET /api/audit-logs combines actorId with action and date range via AND', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const other = await createUser({ name: 'Other Admin', email: 'other@test.com', role: 'admin' });
+    await seedAudit([
+        // Matches actor + action + range.
+        { actorId: admin.id, actorName: admin.name, action: 'password_reset', targetUserEmail: 'a@x.com', createdAt: new Date('2026-02-10T10:00:00Z') },
+        // Right actor, wrong action.
+        { actorId: admin.id, actorName: admin.name, action: 'user.created', targetUserEmail: 'b@x.com', createdAt: new Date('2026-02-11T10:00:00Z') },
+        // Wrong actor.
+        { actorId: other.id, actorName: other.name, action: 'password_reset', targetUserEmail: 'c@x.com', createdAt: new Date('2026-02-12T10:00:00Z') },
+        // Right actor + action, out of range.
+        { actorId: admin.id, actorName: admin.name, action: 'password_reset', targetUserEmail: 'd@x.com', createdAt: new Date('2026-05-10T10:00:00Z') },
+    ]);
+    const res = await request(app)
+        .get(`/api/audit-logs?actorId=${admin.id}&action=password_reset&from=2026-02-01&to=2026-02-28`)
+        .set('Authorization', `Bearer ${tokenFor(admin)}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.rows.length, 1, 'only the row matching actor + action + range is returned');
+    assert.equal(res.body.rows[0].actorId, admin.id);
+    assert.equal(res.body.rows[0].action, 'password_reset');
+    assert.equal(res.body.rows[0].targetUserEmail, 'a@x.com');
+});
+test('GET /api/audit-logs rejects an invalid actorId with 400', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const res = await request(app)
-        .get('/api/users/audit-log?from=not-a-date')
+        .get('/api/audit-logs?actorId=not-a-number')
         .set('Authorization', `Bearer ${tokenFor(admin)}`);
     assert.equal(res.status, 400);
 });
-test('GET /api/users/audit-log rejects an invalid to date with 400', async () => {
+test('GET /api/audit-logs/facets lists the distinct actors', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const other = await createUser({ name: 'Other Admin', email: 'other@test.com', role: 'admin' });
+    await seedAudit([
+        { actorId: admin.id, actorName: admin.name, action: 'user.created', targetUserEmail: 'a@x.com' },
+        { actorId: other.id, actorName: other.name, action: 'user.created', targetUserEmail: 'b@x.com' },
+        // Null-actor (system) entries must not produce a phantom actor facet.
+        { actorId: null, actorName: null, action: 'smtp_test', targetUserEmail: null },
+    ]);
+    const res = await request(app)
+        .get('/api/audit-logs/facets')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`);
+    assert.equal(res.status, 200);
+    const ids = res.body.actors.map((a) => a.id).sort((x, y) => x - y);
+    assert.deepEqual(ids, [admin.id, other.id].sort((x, y) => x - y));
+});
+test('GET /api/audit-logs?from rejects an invalid from date with 400', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const res = await request(app)
-        .get('/api/users/audit-log?to=not-a-date')
+        .get('/api/audit-logs?from=not-a-date')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`);
+    assert.equal(res.status, 400);
+});
+test('GET /api/audit-logs?to rejects an invalid to date with 400', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const res = await request(app)
+        .get('/api/audit-logs?to=not-a-date')
         .set('Authorization', `Bearer ${tokenFor(admin)}`);
     assert.equal(res.status, 400);
 });

@@ -49,10 +49,11 @@ type AuditPage = {
 
 type LinkOption = { id: number; name: string };
 
-const ROLES = ['admin', 'dispatcher', 'plant_operator', 'client', 'driver'] as const;
+const ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver'] as const;
 type Role = typeof ROLES[number];
 
 const ROLE_LABEL: Record<Role, string> = {
+  authority: 'Authority',
   admin: 'Admin',
   dispatcher: 'Dispatcher',
   plant_operator: 'Plant Operator',
@@ -61,6 +62,7 @@ const ROLE_LABEL: Record<Role, string> = {
 };
 
 const ROLE_COLOR: Record<Role, string> = {
+  authority: '#e879f9',
   admin: 'var(--gold)',
   dispatcher: 'var(--blue)',
   plant_operator: 'var(--green)',
@@ -223,6 +225,7 @@ export default function Users() {
   const [resolvingRestoreId, setResolvingRestoreId] = useState<number | null>(null);
   const [unlinkingConflictId, setUnlinkingConflictId] = useState<number | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [authorityEmails, setAuthorityEmails] = useState<string[]>([]);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   function loadAudit(userId: number | null) {
@@ -245,6 +248,7 @@ export default function Users() {
       .then(f => setActorOptions(f.actors ?? [])).catch(() => {});
     loadAudit(historyUser?.id ?? null);
     api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
+    api.get<{ emails: string[] }>('/users/authority-emails').then(d => setAuthorityEmails(d.emails ?? [])).catch(() => {});
   }
   // Reload the page's core data (and the selected user's audit log) when the
   // deleted-filter toggles or the inspected user changes. The audit-filter
@@ -1556,9 +1560,11 @@ export default function Users() {
                   }))}
                   style={inputStyle}
                 >
-                  {ROLES.map(r => (
-                    <option key={r} value={r}>{ROLE_LABEL[r]}</option>
-                  ))}
+                  {ROLES
+                    .filter(r => r !== 'authority' || (authorityEmails ?? []).includes(form.email.trim().toLowerCase()))
+                    .map(r => (
+                      <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+                    ))}
                 </select>
               </label>
 

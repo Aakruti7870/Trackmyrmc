@@ -3,7 +3,10 @@ import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
+import { verifyToken as clerkVerifyToken, createClerkClient } from '@clerk/backend';
 import { signToken, requireAuth } from '../middleware/auth.js';
+import { isAuthorityEmail } from '../lib/authority.js';
+import { resolveStaffSsoUser } from '../lib/staffSso.js';
 import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.js';
 
 const router = Router();
@@ -43,6 +46,11 @@ router.post('/login', async (req, res) => {
       return;
     }
     res.status(401).json({ error: 'Invalid credentials' });
+    return;
+  }
+
+  if (user.role === 'authority' && !isAuthorityEmail(user.email)) {
+    res.status(403).json({ error: 'This account is not on the AUTHORITY allow-list.' });
     return;
   }
 
@@ -158,6 +166,80 @@ router.put('/change-password', requireAuth, async (req, res) => {
   const newHash = await bcrypt.hash(newPassword, 10);
   await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
   res.json({ message: 'Password updated successfully' });
+});
+
+// Token exchange: Clerk authenticates the identity in the browser; the client
+// posts its short-lived Clerk session token here, we verify it server-side with
+// the Clerk secret key, resolve the verified primary email to a staff/authority
+// user, and issue the same legacy JWT the password flow issues. Everything
+// downstream (requireAuth, the api.ts Bearer header, SSE) is unchanged.
+router.post('/clerk', async (req, res) => {
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) {
+    res.status(503).json({ error: 'Single sign-on is not configured on this server.' });
+    return;
+  }
+
+  const { token } = req.body ?? {};
+  if (!token || typeof token !== 'string') {
+    res.status(400).json({ error: 'A Clerk session token is required' });
+    return;
+  }
+
+  let clerkUserId: string | undefined;
+  try {
+    const claims = await clerkVerifyToken(token, { secretKey });
+    clerkUserId = claims.sub;
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired single sign-on session' });
+    return;
+  }
+  if (!clerkUserId) {
+    res.status(401).json({ error: 'Invalid or expired single sign-on session' });
+    return;
+  }
+
+  // The session token only carries the Clerk user id (sub); fetch the profile
+  // to read the *verified* primary email so an unverified address can't be used
+  // to impersonate a staff account.
+  let email: string | null = null;
+  try {
+    const clerk = createClerkClient({ secretKey });
+    const cu = await clerk.users.getUser(clerkUserId);
+    const primary = cu.emailAddresses.find((e) => e.id === cu.primaryEmailAddressId)
+      ?? cu.emailAddresses[0];
+    if (primary && primary.verification?.status === 'verified') {
+      email = primary.emailAddress;
+    }
+  } catch {
+    res.status(502).json({ error: 'Could not read your single sign-on profile' });
+    return;
+  }
+  if (!email) {
+    res.status(403).json({ error: 'A verified email address is required to sign in.' });
+    return;
+  }
+
+  const result = await resolveStaffSsoUser(email);
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+
+  const { user } = result;
+  const appToken = signToken({
+    id: user.id, email: user.email, role: user.role, name: user.name,
+    linkedClientId: user.linkedClientId,
+    linkedDriverId: user.linkedDriverId,
+  });
+  res.json({
+    token: appToken,
+    user: {
+      id: user.id, name: user.name, email: user.email, role: user.role,
+      linkedClientId: user.linkedClientId,
+      linkedDriverId: user.linkedDriverId,
+    },
+  });
 });
 
 export default router;

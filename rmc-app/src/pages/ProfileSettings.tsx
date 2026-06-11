@@ -47,6 +47,7 @@ type SmtpTestLog = {
 };
 
 const ROLE_COLOR: Record<string, string> = {
+  authority: '#e879f9',
   admin: 'var(--gold)',
   dispatcher: 'var(--blue)',
   plant_operator: 'var(--green)',
@@ -157,7 +158,7 @@ export default function ProfileSettings() {
   const [now, setNow] = useState(() => Date.now());
   const [syncedUserId, setSyncedUserId] = useState(user?.id);
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'authority';
 
   // Populate the editable profile fields when the signed-in user loads/changes.
   // Done during render (React's documented adjust-on-change pattern) so it does
@@ -175,7 +176,7 @@ export default function ProfileSettings() {
   const [lockoutsReload, setLockoutsReload] = useState(0);
 
   useEffect(() => {
-    if (user?.role !== 'admin') return;
+    if (!isAdmin) return;
     let cancelled = false;
     async function loadHistory() {
       setHistoryLoading(true);
@@ -190,10 +191,10 @@ export default function ProfileSettings() {
     }
     loadHistory();
     return () => { cancelled = true; };
-  }, [user?.role, historyReload]);
+  }, [isAdmin, historyReload]);
 
   useEffect(() => {
-    if (user?.role !== 'admin') return;
+    if (!isAdmin) return;
     let cancelled = false;
     async function loadSmtp() {
       setSmtpLoading(true);
@@ -211,7 +212,7 @@ export default function ProfileSettings() {
     }
     loadSmtp();
     return () => { cancelled = true; };
-  }, [user?.role]);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -514,7 +515,7 @@ export default function ProfileSettings() {
       </div>
 
       {/* SMTP test card — admins only */}
-      {user?.role === 'admin' && (
+      {isAdmin && (
         <div style={{ ...card, marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
             <div style={{
