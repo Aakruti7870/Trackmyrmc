@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
+import { proofPhotoStore } from '../lib/proofPhoto.js';
 const router = Router();
 router.use(requireAuth);
 async function nextOrderNo() {
@@ -112,6 +113,39 @@ router.get('/challans', requireRole('client'), async (req, res) => {
         .where(eq(challans.clientId, clientId))
         .orderBy(desc(challans.createdAt));
     res.json(rows);
+});
+// Detail for one of the caller's own deliveries, including proof-of-delivery
+// photos resolved to short-lived signed URLs. Scoped to the caller's linked
+// client so a customer can never read another client's challan or photos —
+// the shared /api/challans/:id endpoint is staff-oriented and not client-scoped.
+router.get('/challans/:id', requireRole('client'), async (req, res) => {
+    const clientId = await getLinkedClientId(req.user.id);
+    if (!clientId) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+        res.status(400).json({ error: 'Invalid challan id' });
+        return;
+    }
+    const [row] = await db.select(challanSelect).from(challans)
+        .leftJoin(clients, eq(challans.clientId, clients.id))
+        .leftJoin(sites, eq(challans.siteId, sites.id))
+        .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
+        .leftJoin(drivers, eq(challans.driverId, drivers.id))
+        .where(and(eq(challans.id, id), eq(challans.clientId, clientId)));
+    if (!row) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
+    const stored = await db.select({ photo: challanProofPhotos.photo })
+        .from(challanProofPhotos)
+        .where(eq(challanProofPhotos.challanId, id))
+        .orderBy(challanProofPhotos.id);
+    const proofPhotos = (await Promise.all(stored.map(p => proofPhotoStore.resolve(p.photo))))
+        .filter((url) => url != null);
+    res.json({ ...row, proofPhotos });
 });
 router.get('/ledger', requireRole('client'), async (req, res) => {
     const clientId = await getLinkedClientId(req.user.id);

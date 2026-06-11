@@ -77,16 +77,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { theme, themes, setTheme } = useTheme();
   const { showToast } = useToast();
 
+  const isClient = user?.role === 'client';
+
   useEffect(() => {
     const unsubCreated = subscribe('challan.created', (data: unknown) => {
       const c = data as Partial<Challan>;
       if (!c?.challanNo) return;
-      showToast(`New challan ${c.challanNo} created`, 'info');
+      showToast(
+        isClient ? `Delivery ${c.challanNo} is on the way` : `New challan ${c.challanNo} created`,
+        'info',
+      );
     });
     const unsubUpdated = subscribe('challan.updated', (data: unknown) => {
       const c = data as Partial<Challan>;
       if (!c?.challanNo || c.status !== 'delivered') return;
-      showToast(`${c.challanNo} marked Delivered`, 'success');
+      showToast(
+        isClient ? `Delivery ${c.challanNo} has arrived` : `${c.challanNo} marked Delivered`,
+        'success',
+      );
     });
     const unsubOrder = subscribe('order.updated', (data: unknown) => {
       const o = data as { orderNo?: string; status?: string };
@@ -97,7 +105,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       showToast(`Order ${o.orderNo} now ${label}`, o.status === 'completed' ? 'success' : 'info');
     });
     return () => { unsubCreated(); unsubUpdated(); unsubOrder(); };
-  }, [subscribe, showToast]);
+  }, [subscribe, showToast, isClient]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';

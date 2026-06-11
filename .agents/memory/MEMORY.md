@@ -3,8 +3,7 @@
 - [RMC runtime theming](rmc-theming.md) — 5 CSS-var themes; accent *tints* must be color-mix(var(--gold)…) not literal amber rgba, or non-gold themes mismatch.
 - [RMC 401 handling](rmc-401-handling.md) — global fetch wrapper clears session+redirects on 401, but only when a token was sent, so login's own 401 isn't hijacked.
 - [RMC last-admin guard](rmc-soft-delete-guard.md) — last-admin delete branch is unreachable via real API (self-delete shadows it); test it with a deletedAt+active admin actor and signToken.
-- [RMC server tests](rmc-server-tests.md) — `pnpm test` in server/ provisions an isolated `<db>_test` DB, pushes schema, runs node:test+supertest; needed for deterministic admin-count guards.
-- [RMC shared test DB concurrency](rmc-shared-test-db.md) — never run `pnpm test` while validation also runs; both share one `<db>_test`, races cause spurious FK/duplicate-key/403 failures.
+- [RMC server tests](rmc-server-tests.md) — `pnpm test` in server/ provisions a UNIQUE per-run `<db>_test_<pid>_<ts>` DB (safe to run concurrently with validation), pushes schema, runs node:test+supertest serially.
 - [RMC frontend tests](rmc-frontend-tests.md) — vitest+jsdom+testing-library in rmc-app; `test` validation chains server then rmc-app; mock useSSE, use real ToastProvider to test Layout SSE→toast.
 - [RMC lint validation](rmc-lint-validation.md) — eslint-plugin-react-hooks@7 preset over-flags idiomatic code; purity/set-state-in-effect/only-export-components downgraded to warn so `lint` gate only blocks on real errors.
 - [Screenshot URL caching](screenshot-url-cache.md) — external_url screenshots are cached per-URL; add a `?cb=` query param to force a fresh capture of a changed page.

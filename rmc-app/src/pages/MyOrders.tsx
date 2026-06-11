@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { api, type Order, type Challan, type LedgerEntry } from '@/lib/api';
-import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { api, type Order, type Challan, type LedgerEntry, type LivePosition } from '@/lib/api';
+import { useSSE } from '@/lib/useSSE';
+import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon } from 'lucide-react';
 
 const GRADES = ['M10', 'M15', 'M20', 'M25', 'M30', 'M35', 'M40', 'M45', 'M50', 'M55', 'M60'];
 
@@ -55,6 +56,66 @@ interface LedgerData {
   creditLimit: number;
 }
 
+function formatDistance(m: number | null | undefined): string | null {
+  if (m == null || !Number.isFinite(m)) return null;
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+}
+
+// Rough ETA from current straight-line distance and reported speed (m/s).
+// Shown as an estimate ("~") only — it is not a delivery promise.
+function formatEta(distanceM: number | null | undefined, speed: number | null | undefined): string | null {
+  if (distanceM == null || speed == null || !Number.isFinite(distanceM) || !Number.isFinite(speed)) return null;
+  if (speed < 0.5) return null; // truck not moving meaningfully
+  const mins = distanceM / speed / 60;
+  if (!Number.isFinite(mins) || mins <= 0) return null;
+  if (mins < 1) return '< 1 min';
+  if (mins < 60) return `~${Math.round(mins)} min`;
+  const h = Math.floor(mins / 60);
+  const mm = Math.round(mins % 60);
+  return `~${h} h ${mm} min`;
+}
+
+const TIMELINE_STEPS = ['Pending', 'Dispatched', 'On the way', 'Delivered'] as const;
+
+// Maps a challan status (+ whether a live GPS fix exists) to the active step.
+function activeStep(status: string, hasLive: boolean): number {
+  if (status === 'delivered') return 3;
+  if (status === 'dispatched') return hasLive ? 2 : 1;
+  if (status === 'cancelled') return 1;
+  return 0;
+}
+
+function LiveTimeline({ status, hasLive }: { status: string; hasLive: boolean }) {
+  const step = activeStep(status, hasLive);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginTop: 12 }}>
+      {TIMELINE_STEPS.map((label, i) => {
+        const done = i <= step;
+        const isLast = i === TIMELINE_STEPS.length - 1;
+        const color = i === 3 ? 'var(--green)' : 'var(--blue)';
+        return (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', flex: isLast ? '0 0 auto' : 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+              <div style={{
+                width: 18, height: 18, borderRadius: '50%', display: 'grid', placeItems: 'center',
+                background: done ? color : 'rgba(255,255,255,.06)',
+                border: `1px solid ${done ? color : 'var(--line)'}`,
+                boxShadow: done && i === step ? `0 0 0 4px color-mix(in srgb, ${color} 22%, transparent)` : 'none',
+              }}>
+                {done ? <CheckCircle2 size={11} color="#08111f" /> : <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted)' }} />}
+              </div>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: done ? 'var(--text)' : 'var(--muted)', whiteSpace: 'nowrap' }}>{label}</span>
+            </div>
+            {!isLast && (
+              <div style={{ flex: 1, height: 2, margin: '0 4px', marginBottom: 16, background: i < step ? color : 'var(--line)', borderRadius: 2 }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function MyOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [challans, setChallans] = useState<Challan[]>([]);
@@ -66,8 +127,13 @@ export default function MyOrders() {
   const [form, setForm] = useState<OrderForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [livePositions, setLivePositions] = useState<Record<number, LivePosition>>({});
+  const [proof, setProof] = useState<{ open: boolean; loading: boolean; challanNo: string; photos: string[]; error: string }>(
+    { open: false, loading: false, challanNo: '', photos: [], error: '' },
+  );
+  const { subscribe } = useSSE();
 
-  useEffect(() => {
+  const reloadAll = useCallback(() => {
     Promise.all([
       api.get<Order[]>('/me/orders'),
       api.get<Challan[]>('/me/challans'),
@@ -77,6 +143,44 @@ export default function MyOrders() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { reloadAll(); }, [reloadAll]);
+
+  // Live tracking + freshness. The GPS feed and order/challan events are already
+  // scoped server-side to this client, so we just reflect them in place.
+  useEffect(() => {
+    const unsubPos = subscribe('vehicle.position', (data: unknown) => {
+      const p = data as LivePosition;
+      if (!p?.challanId) return;
+      setLivePositions(prev => ({ ...prev, [p.challanId]: p }));
+    });
+    const unsubCreated = subscribe('challan.created', () => reloadAll());
+    const unsubUpdated = subscribe('challan.updated', (data: unknown) => {
+      const c = data as Partial<Challan>;
+      if (!c?.id) return;
+      setChallans(prev => prev.map(x => x.id === c.id ? { ...x, ...c } as Challan : x));
+      if (c.status === 'delivered') {
+        setLivePositions(prev => { const next = { ...prev }; delete next[c.id!]; return next; });
+      }
+    });
+    const unsubOrder = subscribe('order.updated', (data: unknown) => {
+      const o = data as Partial<Order>;
+      if (!o?.id) return;
+      setOrders(prev => prev.map(x => x.id === o.id ? { ...x, ...o } as Order : x));
+    });
+    const unsubReconnect = subscribe('reconnect', () => reloadAll());
+    return () => { unsubPos(); unsubCreated(); unsubUpdated(); unsubOrder(); unsubReconnect(); };
+  }, [subscribe, reloadAll]);
+
+  async function viewProof(c: Challan) {
+    setProof({ open: true, loading: true, challanNo: c.challanNo, photos: [], error: '' });
+    try {
+      const detail = await api.get<Challan>(`/me/challans/${c.id}`);
+      setProof({ open: true, loading: false, challanNo: c.challanNo, photos: detail.proofPhotos ?? [], error: '' });
+    } catch (e) {
+      setProof({ open: true, loading: false, challanNo: c.challanNo, photos: [], error: e instanceof Error ? e.message : 'Could not load photo' });
+    }
+  }
 
   function openModal() {
     setForm(EMPTY_FORM);
@@ -236,6 +340,58 @@ export default function MyOrders() {
           )}
         </Card>
       ) : tab === 'challans' ? (
+       <>
+        {challans.filter(c => c.status === 'dispatched').length > 0 && (
+          <Card style={{ marginBottom: 16, padding: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Navigation size={15} style={{ color: 'var(--green)' }} />
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Live Deliveries</h3>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent)' }} />
+            </div>
+            <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--muted)' }}>
+              Tracking your in-transit trucks in real time. Distance &amp; ETA are estimates.
+            </p>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {challans.filter(c => c.status === 'dispatched').map(c => {
+                const live = livePositions[c.id];
+                const dist = formatDistance(live?.distanceM);
+                const eta = formatEta(live?.distanceM, live?.speed);
+                return (
+                  <div key={c.id} style={{
+                    border: '1px solid var(--line)', borderRadius: 13, padding: '14px 16px',
+                    background: 'rgba(255,255,255,.02)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--green)', fontSize: 13 }}>{c.challanNo}</span>
+                        <span style={{ background: 'rgba(56,189,248,.12)', color: 'var(--blue)', padding: '2px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{c.grade}</span>
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{parseFloat(c.quantity).toFixed(1)} m³</span>
+                        {c.vehicleNo && <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--muted)' }}>{c.vehicleNo}</span>}
+                        {c.driverName && <span style={{ fontSize: 11, color: 'var(--muted)' }}>· {c.driverName}</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {dist && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--blue)', background: 'rgba(56,189,248,.1)', padding: '4px 10px', borderRadius: 8 }}>
+                            <MapPin size={12} /> {dist} away
+                          </span>
+                        )}
+                        {eta && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--green)', background: 'rgba(34,197,94,.1)', padding: '4px 10px', borderRadius: 8 }}>
+                            <Navigation size={12} /> ETA {eta}
+                          </span>
+                        )}
+                        {!live && (
+                          <span style={{ fontSize: 11.5, color: 'var(--muted)', fontStyle: 'italic' }}>Awaiting GPS…</span>
+                        )}
+                      </div>
+                    </div>
+                    <LiveTimeline status={c.status} hasLive={!!live} />
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
         <Card>
           {challans.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
@@ -246,7 +402,7 @@ export default function MyOrders() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Challan No', 'Grade', 'Qty (m³)', 'Vehicle', 'Driver', 'Dispatch Time', 'Status'].map(h => (
+                  {['Challan No', 'Grade', 'Qty (m³)', 'Vehicle', 'Driver', 'Dispatch Time', 'Status', 'Proof'].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
                   ))}
                 </tr>
@@ -265,12 +421,26 @@ export default function MyOrders() {
                       {c.dispatchTime ? new Date(c.dispatchTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
                     </td>
                     <td style={{ padding: '12px 14px' }}><StatusBadge status={c.status} /></td>
+                    <td style={{ padding: '12px 14px' }}>
+                      {c.hasProofPhoto ? (
+                        <button onClick={() => viewProof(c)} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+                          background: 'rgba(56,189,248,.1)', color: 'var(--blue)', border: '1px solid color-mix(in srgb, var(--blue) 35%, transparent)',
+                          padding: '5px 11px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                        }}>
+                          <Camera size={13} /> Photo
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </Card>
+       </>
       ) : (
         /* Ledger tab */
         <Card>
@@ -404,6 +574,59 @@ export default function MyOrders() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Proof-of-delivery photo modal */}
+      {proof.open && (
+        <div
+          onClick={() => setProof(p => ({ ...p, open: false }))}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 560,
+              background: 'linear-gradient(135deg,rgba(15,28,54,.98),rgba(8,17,31,.98))',
+              border: '1px solid rgba(255,255,255,.1)', borderRadius: 18, padding: 24,
+              boxShadow: '0 24px 60px rgba(0,0,0,.5)', maxHeight: '90vh', overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 9 }}>
+                <ImageIcon size={18} style={{ color: 'var(--blue)' }} />
+                Delivery Proof · <span style={{ fontFamily: 'monospace', color: 'var(--green)' }}>{proof.challanNo}</span>
+              </h3>
+              <button type="button" onClick={() => setProof(p => ({ ...p, open: false }))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {proof.loading ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>Loading photo…</div>
+            ) : proof.error ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 10, padding: '12px 14px' }}>
+                <AlertCircle size={14} style={{ color: 'var(--red)' }} />
+                <span style={{ color: 'var(--red)', fontSize: 13 }}>{proof.error}</span>
+              </div>
+            ) : proof.photos.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                <ImageIcon size={32} style={{ opacity: .4, display: 'block', margin: '0 auto 12px' }} />
+                No proof photo available
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 14 }}>
+                {proof.photos.map((src, i) => (
+                  <a key={i} href={src} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                    <img src={src} alt={`Delivery proof ${i + 1}`} style={{ width: '100%', borderRadius: 12, border: '1px solid var(--line)', display: 'block' }} />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
