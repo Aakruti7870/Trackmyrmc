@@ -56,7 +56,13 @@ describe('Clients page — linked-record delete guard', () => {
     await user.click(deleteBtn);
 
     // The toast surfaces the backend's 409 message.
-    expect(await screen.findByText(CLIENT_CONFLICT)).toBeInTheDocument();
+    const toast = await screen.findByText(CLIENT_CONFLICT);
+    expect(toast).toBeInTheDocument();
+    // It names the SPECIFIC linked login — admins must not be left guessing.
+    expect(toast).toHaveTextContent('Client Login');
+    expect(toast).toHaveTextContent('client@test.com');
+    // It tells the admin what to do next.
+    expect(toast).toHaveTextContent(/remove the login first/i);
     // It is an error toast.
     expect(document.querySelector('[data-toast-type="error"]')).toBeInTheDocument();
     // The failed delete does NOT remove the client from the list.
@@ -82,7 +88,13 @@ describe('Drivers page — linked-record delete guard', () => {
     await user.click(deleteBtn);
 
     // The toast surfaces the backend's 409 message.
-    expect(await screen.findByText(DRIVER_CONFLICT)).toBeInTheDocument();
+    const toast = await screen.findByText(DRIVER_CONFLICT);
+    expect(toast).toBeInTheDocument();
+    // It names the SPECIFIC linked login — admins must not be left guessing.
+    expect(toast).toHaveTextContent('Driver Login');
+    expect(toast).toHaveTextContent('driver@test.com');
+    // It tells the admin what to do next.
+    expect(toast).toHaveTextContent(/remove the login first/i);
     expect(document.querySelector('[data-toast-type="error"]')).toBeInTheDocument();
     // The failed delete does NOT remove the driver from the list.
     expect(screen.getByText('John Driver')).toBeInTheDocument();
