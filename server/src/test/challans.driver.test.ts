@@ -485,10 +485,14 @@ test('driver delivery with too many proof photos is rejected with 400 and stores
   assert.equal(await proofPhotoCount(challan.id), 0, 'no proof photo is stored when over the limit');
 });
 
-test('a driver PUT replaces an existing proof photo with a different one; hasProofPhoto stays true', async () => {
+test('a driver PUT replaces an existing proof photo with a different one; hasProofPhoto stays true', async (t) => {
   const client = await createClient();
   const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
   const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+
+  // Stub the upload so a base64 data URL is persisted verbatim (no sidecar): the
+  // test cares about replacement semantics, not the storage round-trip.
+  t.mock.method(proofPhotoStore, 'store', async (dataUrl: string) => dataUrl);
 
   // Store an initial proof photo on delivery.
   const first = await request(app)
@@ -586,10 +590,14 @@ test('a driver PUT with the legacy proofPhoto: null also clears a stored photo',
   assert.equal(await proofPhotoCount(challan.id), 0, 'legacy null empties the child table');
 });
 
-test('a driver PUT that omits proof-photo fields leaves an existing stored photo untouched', async () => {
+test('a driver PUT that omits proof-photo fields leaves an existing stored photo untouched', async (t) => {
   const client = await createClient();
   const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
   const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+
+  // Persist the base64 data URL verbatim (no sidecar round-trip) so the test can
+  // assert it survives a later, photo-less PUT untouched.
+  t.mock.method(proofPhotoStore, 'store', async (dataUrl: string) => dataUrl);
 
   await request(app)
     .put(`/api/challans/${challan.id}`)
@@ -609,6 +617,74 @@ test('a driver PUT that omits proof-photo fields leaves an existing stored photo
   const rows = await db.select({ photo: challanProofPhotos.photo })
     .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id));
   assert.deepEqual(rows.map(r => r.photo), [VALID_PROOF_PHOTO], 'the original photo is preserved');
+});
+
+test('driver delivery with an object-storage path links it directly without re-uploading', async (t) => {
+  const client = await createClient();
+  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+
+  const OBJECT_PATH = '/objects/uploads/direct-upload';
+  // The phone has already uploaded to storage; the server must only verify the
+  // path exists and persist it — never call store() (no base64 round-trip).
+  const storeMock = t.mock.method(proofPhotoStore, 'store', async () => {
+    throw new Error('store() must not be called for a direct-upload object path');
+  });
+  const verifyMock = t.mock.method(proofPhotoStore, 'verifyExists', async () => true);
+
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', proofPhotos: [OBJECT_PATH] });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.hasProofPhoto, true);
+  assert.equal(storeMock.mock.callCount(), 0, 'a direct-upload path is not re-uploaded');
+  assert.equal(verifyMock.mock.callCount(), 1, 'its existence is verified before linking');
+
+  const rows = await db.select({ photo: challanProofPhotos.photo })
+    .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id));
+  assert.deepEqual(rows.map(r => r.photo), [OBJECT_PATH], 'the entity path is stored as-is');
+});
+
+test('driver delivery with an object path that is not in storage is rejected with 400', async (t) => {
+  const client = await createClient();
+  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
+
+  // Storage reports the path does not exist — the client must not be able to
+  // link a path it never actually uploaded.
+  t.mock.method(proofPhotoStore, 'verifyExists', async () => false);
+
+  const res = await request(app)
+    .put(`/api/challans/${challan.id}`)
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ status: 'delivered', proofPhotos: ['/objects/uploads/missing'] });
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /not found in storage/i);
+
+  const [row] = await db.select({ status: challans.status })
+    .from(challans).where(eq(challans.id, challan.id));
+  assert.equal(row.status, 'dispatched', 'the challan is not marked delivered on a missing upload');
+  assert.equal(await proofPhotoCount(challan.id), 0, 'no proof photo is linked');
+});
+
+test('a driver can mint a presigned proof-photo upload URL', async (t) => {
+  const { user } = await createDriverUser('Dave Driver', 'dave@test.com');
+  t.mock.method(proofPhotoStore, 'createUploadUrl', async () => ({
+    uploadURL: 'https://storage.example/signed-put',
+    objectPath: '/objects/uploads/minted',
+  }));
+
+  const res = await request(app)
+    .post('/api/challans/proof-upload-url')
+    .set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ contentType: 'image/jpeg' });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.uploadURL, 'https://storage.example/signed-put');
+  assert.equal(res.body.objectPath, '/objects/uploads/minted');
 });
 
 test('a driver user with no matching driver profile gets 403', async () => {

@@ -86,11 +86,20 @@ function makePhoto(name = 'site.jpg') {
 }
 
 describe('MyTrips proof-of-delivery photo capture', () => {
-  it('shows a preview after a photo is picked and sends it on confirmation', async () => {
+  it('uploads the photo straight to storage and sends only its object path on confirmation', async () => {
     mockTrips([makeChallan({ id: 7, quantity: '8.00' })]);
     vi.mocked(api.put).mockResolvedValue(
       makeChallan({ id: 7, status: 'delivered', hasProofPhoto: true }) as never,
     );
+    // The presigned-URL request returns where to PUT the bytes and the entity
+    // path to persist on the challan.
+    const OBJECT_PATH = '/objects/uploads/abc-123';
+    vi.mocked(api.post).mockResolvedValue(
+      { uploadURL: 'https://storage.example/signed-put', objectPath: OBJECT_PATH } as never,
+    );
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true } as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
     const user = userEvent.setup();
     render(<MyTrips />);
 
@@ -103,12 +112,26 @@ describe('MyTrips proof-of-delivery photo capture', () => {
 
     await user.click(screen.getByRole('button', { name: /Confirm Delivery/i }));
 
+    // A presigned upload URL is requested, the bytes are PUT directly to storage…
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/challans/proof-upload-url', expect.any(Object));
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://storage.example/signed-put',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+
+    // …and only the returned object path is sent on delivery, never the base64.
     await waitFor(() => {
       expect(api.put).toHaveBeenCalledWith(
         '/challans/7',
-        expect.objectContaining({ status: 'delivered', proofPhotos: [COMPRESSED_DATA_URL] }),
+        expect.objectContaining({ status: 'delivered', proofPhotos: [OBJECT_PATH] }),
       );
     });
+    const putPayload = vi.mocked(api.put).mock.calls[0][1] as { proofPhotos: string[] };
+    expect(putPayload.proofPhotos).not.toContain(COMPRESSED_DATA_URL);
+
+    vi.unstubAllGlobals();
   });
 
   it('omits proofPhotos from the payload after the chosen photo is removed', async () => {

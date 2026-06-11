@@ -4,7 +4,7 @@ import { db } from '../db/index.js';
 import { challans, challanProofPhotos, clients, sites, vehicles, drivers, orders } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
-import { proofPhotoStore } from '../lib/proofPhoto.js';
+import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 
 const WRITE_ROLES = ['admin', 'dispatcher'];
 const DRIVER_ALLOWED_STATUS = ['delivered'];
@@ -40,8 +40,17 @@ const challanSelect = {
 const MAX_PROOF_PHOTO_BYTES = 8 * 1024 * 1024;
 const MAX_PROOF_PHOTOS = 8;
 
+const MAX_OBJECT_PATH_CHARS = 1024;
+
 function validateOneProofPhoto(value: unknown): string {
   if (typeof value !== 'string') throw new Error('Proof photo must be a string');
+  // New flow: the phone uploads the photo directly to storage and sends only the
+  // resulting entity path. Existence in storage is verified separately on store.
+  if (isObjectStoragePath(value)) {
+    if (value.length > MAX_OBJECT_PATH_CHARS) throw new Error('Proof photo path is too long');
+    return value;
+  }
+  // Legacy flow: a base64 image data URL routed through the API.
   if (!value.startsWith('data:image/')) throw new Error('Proof photo must be an image data URL');
   if (value.length > MAX_PROOF_PHOTO_BYTES) throw new Error('Proof photo is too large');
   return value;
@@ -115,6 +124,24 @@ router.get('/:id', async (req, res) => {
   const proofPhotos = (await Promise.all(storedPhotos.map(p => proofPhotoStore.resolve(p))))
     .filter((url): url is string => url != null);
   res.json({ ...row, proofPhotos });
+});
+
+const PROOF_UPLOAD_ROLES = ['driver', 'admin', 'dispatcher'];
+
+// Mints a presigned URL the client uploads a proof-of-delivery photo straight to
+// object storage with, returning the entity path to send back on the challan PUT.
+router.post('/proof-upload-url', async (req, res) => {
+  if (!PROOF_UPLOAD_ROLES.includes(req.user!.role)) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+  try {
+    const { uploadURL, objectPath } = await proofPhotoStore.createUploadUrl();
+    res.json({ uploadURL, objectPath });
+  } catch (e) {
+    console.error('Failed to create proof upload URL:', e);
+    res.status(500).json({ error: 'Failed to create upload URL' });
+  }
 });
 
 router.post('/', async (req, res) => {
@@ -195,9 +222,23 @@ router.put('/:id', async (req, res) => {
     }
     let storedPhotos: string[] | undefined;
     if (validatedPhotos !== undefined) {
-      // Upload each photo to object storage and persist only the entity paths,
-      // keeping the (potentially large) base64 payloads out of the database.
-      storedPhotos = await Promise.all(validatedPhotos.map(photo => proofPhotoStore.store(photo)));
+      // Persist only the entity paths, keeping image bytes out of the database.
+      // - /objects/... paths come from a direct phone upload; just verify they
+      //   exist before linking them so a client can't persist a bogus path.
+      // - legacy base64 data URLs are uploaded server-side via store().
+      try {
+        storedPhotos = await Promise.all(validatedPhotos.map(async (photo) => {
+          if (isObjectStoragePath(photo)) {
+            const exists = await proofPhotoStore.verifyExists(photo);
+            if (!exists) throw new Error('Proof photo upload was not found in storage');
+            return photo;
+          }
+          return proofPhotoStore.store(photo);
+        }));
+      } catch (e) {
+        res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid proof photo' });
+        return;
+      }
     }
     const [row] = await db.transaction(async (tx) => {
       const updatedRows = await tx.update(challans)

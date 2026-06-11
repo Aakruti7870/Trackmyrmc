@@ -22,6 +22,17 @@ the image request and the bucket stays private.
 values through unchanged, so pre-migration rows still render. No bulk migration
 was run (task allowed "remain viewable").
 
+**Driver upload path (presigned direct upload):** drivers no longer POST base64
+through the API. MyTrips requests a presigned PUT URL from
+`POST /api/challans/proof-upload-url`, PUTs the blob straight to object storage,
+then sends only the `/objects/...` path to `PUT /api/challans/:id`. The driver
+PUT branch accepts EITHER an object path (validated via `isObjectStoragePath`,
+existence-checked with `proofPhotoStore.verifyExists()` → 400 if missing) OR a
+legacy base64 data URL (uploaded server-side via `store()` as before). Tests that
+exercise the base64 branch but assert the persisted value must stub
+`proofPhotoStore.store` to identity, else the live sidecar rewrites it to an
+object path and the assertion mismatches.
+
 **Integration must live under `server/src/`** — server `tsconfig.json` sets
 `rootDir: ./src` + `include: ["src/**/*"]`, so the blueprint's default
 `server/replit_integrations/` (outside src) breaks `tsc`. Files were moved to

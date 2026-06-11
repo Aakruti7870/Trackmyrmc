@@ -33,6 +33,33 @@ export const proofPhotoStore = {
   },
 
   /**
+   * Mints a short-lived presigned PUT URL the driver's phone can upload a proof
+   * photo to directly, plus the normalized /objects/... entity path that should
+   * later be sent on the challan PUT. This keeps large image bytes off the API.
+   */
+  async createUploadUrl(): Promise<{ uploadURL: string; objectPath: string }> {
+    const service = new ObjectStorageService();
+    const uploadURL = await service.getObjectEntityUploadURL();
+    const objectPath = service.normalizeObjectEntityPath(uploadURL);
+    return { uploadURL, objectPath };
+  },
+
+  /**
+   * Confirms that an /objects/... entity path actually exists in storage before
+   * it is linked to a challan, so a client can't persist a path it never wrote.
+   */
+  async verifyExists(objectPath: string): Promise<boolean> {
+    if (!isObjectStoragePath(objectPath)) return false;
+    const service = new ObjectStorageService();
+    try {
+      await service.getObjectEntityFile(objectPath);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  /**
    * Turns a stored proof-photo value into something the browser can render:
    * - object paths (/objects/...) become short-lived signed download URLs
    * - legacy base64 data URLs are returned unchanged (transition support)

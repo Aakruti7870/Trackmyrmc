@@ -28,6 +28,39 @@ function compressImage(file: File, maxDim = 1280, quality = 0.7): Promise<string
   });
 }
 
+// Converts a base64 image data URL (the compressed preview) into a Blob so the
+// raw bytes can be PUT straight to object storage, instead of inflating them
+// back into a JSON payload routed through the API.
+function dataURLToBlob(dataUrl: string): Blob {
+  const [head, body] = dataUrl.split(',');
+  const mime = /data:(.*?)(;base64)?$/.exec(head)?.[1] || 'image/jpeg';
+  const binary = atob(body);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+// Uploads each compressed proof photo directly to object storage via a presigned
+// URL and returns the resulting /objects/... entity paths to send on delivery.
+async function uploadProofPhotos(dataUrls: string[]): Promise<string[]> {
+  const paths: string[] = [];
+  for (const dataUrl of dataUrls) {
+    const blob = dataURLToBlob(dataUrl);
+    const { uploadURL, objectPath } = await api.post<{ uploadURL: string; objectPath: string }>(
+      '/challans/proof-upload-url',
+      { contentType: blob.type },
+    );
+    const res = await fetch(uploadURL, {
+      method: 'PUT',
+      body: blob,
+      headers: { 'Content-Type': blob.type },
+    });
+    if (!res.ok) throw new Error('Could not upload the delivery photo. Please try again.');
+    paths.push(objectPath);
+  }
+  return paths;
+}
+
 const STATUS_STYLES: Record<string, { color: string; bg: string; icon: React.ElementType }> = {
   pending:    { color: 'var(--gold)', bg: 'color-mix(in srgb, var(--gold) 10%, transparent)',  icon: Clock },
   dispatched: { color: 'var(--blue)', bg: 'rgba(56,189,248,.1)', icon: Truck },
@@ -107,8 +140,17 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
 
   async function handleMark() {
     setMarking(true);
+    setPhotoErr('');
     const qty = deliveredQty.trim();
-    try { await onMarkDelivered(challan.id, composeNotes(), qty === '' ? undefined : qty, photos.length ? photos : undefined); } finally { setMarking(false); }
+    try {
+      // Upload any photos straight to storage first, then send only their paths.
+      const proofPaths = photos.length ? await uploadProofPhotos(photos) : undefined;
+      await onMarkDelivered(challan.id, composeNotes(), qty === '' ? undefined : qty, proofPaths);
+    } catch (err) {
+      setPhotoErr(err instanceof Error ? err.message : 'Could not complete the delivery');
+    } finally {
+      setMarking(false);
+    }
   }
 
   return (
