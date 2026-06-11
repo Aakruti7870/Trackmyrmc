@@ -49,3 +49,8 @@ works regardless of import order and needs no sidecar.
 - Deleting a challan must also delete its object-storage proof files (collect /objects/ paths before the row delete, then best-effort remove via proofPhotoStore.remove + Promise.allSettled). FK cascade only drops the child rows, not the bucket objects.
 - proofPhotoStore.remove()/ObjectStorageService.deleteObjectEntity() are idempotent (file.delete ignoreNotFound) and skip legacy base64 (no separate object).
 - WATCH OUT: two driver PUT tests ("replaces an existing proof photo", "omits proof-photo fields leaves an existing stored photo untouched") do NOT mock store() and assert the child table holds raw base64. They PASS only when object storage is unconfigured; with PRIVATE_OBJECT_DIR set, real store() returns an /objects/ path and they FAIL. Pre-existing/env-dependent, not a regression.
+
+## Dev DB can be missing challan_proof_photos (Bad gateway crash)
+- Symptom: preview shows "Bad gateway"; Backend API crashes on boot with `relation "challan_proof_photos" does not exist` (42P01) at the first /api/challans query — an unhandled DB error kills the Node process so vite proxy gets ECONNREFUSED on :3001.
+- Tests stay green because `pnpm test` provisions an isolated `<db>_test` and pushes schema; only the real dev DB drifts (post-merge `drizzle-kit push` can fail).
+- Fix WITHOUT data loss: do NOT `pnpm db:push` non-interactively — it aborts on a TTY prompt because it also wants to DROP the legacy `proof_photo` column (data-loss). Instead create the table manually (`CREATE TABLE IF NOT EXISTS challan_proof_photos ...` per schema), then run `pnpm db:migrate-proof-photos`, then restart Backend API.
