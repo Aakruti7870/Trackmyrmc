@@ -393,9 +393,12 @@ test('a driver PUT replaces an existing proof photo with a different one; hasPro
     const client = await createClient();
     const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
     const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
-    // Stub the upload so a base64 data URL is persisted verbatim (no sidecar): the
-    // test cares about replacement semantics, not the storage round-trip.
-    t.mock.method(proofPhotoStore, 'store', async (dataUrl) => dataUrl);
+    // Mock object storage so each upload returns a distinct entity path and the
+    // detail endpoint resolves that path to a signed URL. This keeps the test
+    // deterministic whether or not object storage is configured.
+    let storeCounter = 0;
+    t.mock.method(proofPhotoStore, 'store', async () => `/objects/uploads/replace-${storeCounter++}`);
+    t.mock.method(proofPhotoStore, 'resolve', async (stored) => stored ? `${stored}#signed` : null);
     // Store an initial proof photo on delivery.
     const first = await request(app)
         .put(`/api/challans/${challan.id}`)
@@ -412,17 +415,17 @@ test('a driver PUT replaces an existing proof photo with a different one; hasPro
         .send({ status: 'delivered', proofPhotos: [replacement] });
     assert.equal(second.status, 200);
     assert.equal(second.body.hasProofPhoto, true, 'hasProofPhoto stays true after replacement');
-    // The child table holds only the replacement, never the original.
+    // The child table holds only the replacement's entity path, never the original.
     const rows = await db.select({ photo: challanProofPhotos.photo })
         .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id));
-    assert.deepEqual(rows.map(r => r.photo), [replacement], 'old photo is gone, new photo is stored');
+    assert.deepEqual(rows.map(r => r.photo), ['/objects/uploads/replace-1'], 'old photo is gone, new entity path is stored');
     assert.equal(await proofPhotoCount(challan.id), 1, 'still exactly one photo, not two');
-    // Detail reflects the replacement.
+    // Detail reflects the replacement, resolved to a signed URL.
     const detail = await request(app)
         .get(`/api/challans/${challan.id}`)
         .set('Authorization', `Bearer ${tokenFor(user)}`);
     assert.equal(detail.status, 200);
-    assert.deepEqual(detail.body.proofPhotos, [replacement], 'detail returns the replacement photo');
+    assert.deepEqual(detail.body.proofPhotos, ['/objects/uploads/replace-1#signed'], 'detail returns the resolved signed URL for the replacement photo');
     assert.equal(detail.body.hasProofPhoto, true);
 });
 test('a driver PUT with proofPhotos: null clears a stored photo; hasProofPhoto becomes false on GET /:id and GET /', async () => {
@@ -483,9 +486,10 @@ test('a driver PUT that omits proof-photo fields leaves an existing stored photo
     const client = await createClient();
     const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
     const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'dispatched' });
-    // Persist the base64 data URL verbatim (no sidecar round-trip) so the test can
-    // assert it survives a later, photo-less PUT untouched.
-    t.mock.method(proofPhotoStore, 'store', async (dataUrl) => dataUrl);
+    // Mock object storage so the upload returns a stable entity path; the test can
+    // then assert that path survives a later, photo-less PUT untouched.
+    const OBJECT_PATH = '/objects/uploads/omit-fields';
+    t.mock.method(proofPhotoStore, 'store', async () => OBJECT_PATH);
     await request(app)
         .put(`/api/challans/${challan.id}`)
         .set('Authorization', `Bearer ${tokenFor(user)}`)
@@ -501,7 +505,7 @@ test('a driver PUT that omits proof-photo fields leaves an existing stored photo
     assert.equal(followUp.body.hasProofPhoto, true, 'flag stays true when photo fields are omitted');
     const rows = await db.select({ photo: challanProofPhotos.photo })
         .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id));
-    assert.deepEqual(rows.map(r => r.photo), [VALID_PROOF_PHOTO], 'the original photo is preserved');
+    assert.deepEqual(rows.map(r => r.photo), [OBJECT_PATH], 'the original entity path is preserved');
 });
 test('driver delivery with an object-storage path links it directly without re-uploading', async (t) => {
     const client = await createClient();
