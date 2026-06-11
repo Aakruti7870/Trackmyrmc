@@ -30,8 +30,10 @@ const ADMIN = {
 };
 
 const FACET_ACTORS = [
-  { id: 1, name: 'Anita Admin' },
-  { id: 7, name: 'Bhavesh Boss' },
+  { id: 1, name: 'Anita Admin', deleted: false },
+  { id: 7, name: 'Bhavesh Boss', deleted: false },
+  // A departed admin: account deleted (id nulled) but the name is preserved.
+  { id: null, name: 'Departed Admin', deleted: true },
 ];
 
 // Capture every /audit-logs query string the page issues so a test can assert
@@ -91,6 +93,29 @@ describe('Users activity log — actor (performed-by) filter', () => {
 
     await waitFor(() => {
       expect(auditCalls.some(p => p.includes('actorId=7'))).toBe(true);
+    });
+  });
+
+  it('shows deleted actors in the dropdown with a "(deleted)" label', async () => {
+    renderUsers();
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: 'Departed Admin (deleted)' })).toBeInTheDocument());
+  });
+
+  it('forwards a deleted actor by name (actorName, not actorId)', async () => {
+    const user = userEvent.setup();
+    renderUsers();
+
+    const select = (await screen.findByRole('option', { name: 'All Actors' })).closest('select')!;
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: 'Departed Admin (deleted)' })).toBeInTheDocument());
+
+    auditCalls = [];
+    await user.selectOptions(select, 'name:Departed Admin');
+
+    await waitFor(() => {
+      expect(auditCalls.some(p => p.includes('actorName=Departed+Admin'))).toBe(true);
+      expect(auditCalls.every(p => !p.includes('actorId='))).toBe(true);
     });
   });
 

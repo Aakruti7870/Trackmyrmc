@@ -206,7 +206,7 @@ export default function Users() {
   const [actorFilter, setActorFilter] = useState<string>('all');
   const [searchInput, setSearchInput] = useState<string>('');
   const [qFilter, setQFilter] = useState<string>('');
-  const [actorOptions, setActorOptions] = useState<{ id: number; name: string | null }[]>([]);
+  const [actorOptions, setActorOptions] = useState<{ id: number | null; name: string | null; deleted?: boolean }[]>([]);
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
@@ -243,7 +243,12 @@ export default function Users() {
     const params = new URLSearchParams();
     if (userId) params.set('targetUserId', String(userId));
     if (actionFilter !== 'all') params.set('action', actionFilter);
-    if (actorFilter !== 'all') params.set('actorId', actorFilter);
+    if (actorFilter !== 'all') {
+      // Deleted actors have no id (the FK was nulled on delete) so they are
+      // encoded as "name:<preservedName>" and targeted by name on the backend.
+      if (actorFilter.startsWith('name:')) params.set('actorName', actorFilter.slice(5));
+      else params.set('actorId', actorFilter);
+    }
     if (qFilter) params.set('q', qFilter);
     if (fromDate) params.set('from', fromDate);
     if (toDate) params.set('to', toDate);
@@ -256,7 +261,7 @@ export default function Users() {
     api.get<UserRecord[]>('/users?deleted=true').then(d => setDeletedCount(d.length)).catch(() => {});
     api.get<LinkOption[]>('/users/clients-list').then(setClientOptions).catch(() => {});
     api.get<LinkOption[]>('/users/drivers-list').then(setDriverOptions).catch(() => {});
-    api.get<{ actors: { id: number; name: string | null }[] }>('/audit-logs/facets')
+    api.get<{ actors: { id: number | null; name: string | null; deleted?: boolean }[] }>('/audit-logs/facets')
       .then(f => setActorOptions(f.actors ?? [])).catch(() => {});
     loadAudit(historyUser?.id ?? null);
     api.get<Record<number, LockoutInfo>>('/users/lockout-status').then(setLockoutStatus).catch(() => {});
@@ -448,8 +453,13 @@ export default function Users() {
     const filterBits: string[] = [];
     if (actionFilter !== 'all') filterBits.push(`Action: ${ACTION_LABEL[actionFilter] ?? actionFilter}`);
     if (actorFilter !== 'all') {
-      const actor = actorOptions.find(a => String(a.id) === actorFilter);
-      filterBits.push(`Performed By: ${actor?.name?.trim() || `User #${actorFilter}`}`);
+      if (actorFilter.startsWith('name:')) {
+        const name = actorFilter.slice(5).trim();
+        filterBits.push(`Performed By: ${name || '[deleted]'} (deleted)`);
+      } else {
+        const actor = actorOptions.find(a => String(a.id) === actorFilter);
+        filterBits.push(`Performed By: ${actor?.name?.trim() || `User #${actorFilter}`}`);
+      }
     }
     if (qFilter) filterBits.push(`Search: "${qFilter}"`);
     if (fromDate) filterBits.push(`From: ${fromDate}`);
@@ -1414,7 +1424,9 @@ export default function Users() {
             >
               <option value="all">All Actors</option>
               {actorOptions.map(a => (
-                <option key={a.id} value={String(a.id)}>{a.name?.trim() || `User #${a.id}`}</option>
+                a.deleted
+                  ? <option key={`name:${a.name}`} value={`name:${a.name}`}>{(a.name?.trim() || '[deleted]') + ' (deleted)'}</option>
+                  : <option key={a.id} value={String(a.id)}>{a.name?.trim() || `User #${a.id}`}</option>
               ))}
             </select>
           </div>

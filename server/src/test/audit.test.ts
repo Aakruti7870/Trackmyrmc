@@ -212,6 +212,7 @@ test('facets returns distinct actions and actors', async () => {
     { actorId: admin.id, actorName: admin.name, action: 'user.created', targetUserEmail: 'a@x.com' },
     { actorId: admin.id, actorName: admin.name, action: 'user.created', targetUserEmail: 'b@x.com' },
     { actorId: other.id, actorName: other.name, action: 'password_reset', targetUserEmail: 'c@x.com' },
+    // System action logged with neither an actor id nor a name: not selectable.
     { actorId: null, actorName: null, action: 'lockout_cleared', targetUserEmail: 'd@x.com' },
   ]);
 
@@ -223,6 +224,65 @@ test('facets returns distinct actions and actors', async () => {
   assert.equal(res.body.actors.length, 2);
   const ids = res.body.actors.map((a: { id: number }) => a.id).sort((x: number, y: number) => x - y);
   assert.deepEqual(ids, [admin.id, other.id].sort((x, y) => x - y));
+  assert.ok(res.body.actors.every((a: { deleted: boolean }) => a.deleted === false));
+});
+
+test('facets surfaces deleted actors (null id, preserved name)', async () => {
+  const admin = await createUser({ name: 'Admin One', email: 'admin@test.com', role: 'admin' });
+  await seedAudit([
+    { actorId: admin.id, actorName: admin.name, action: 'user.created', targetUserEmail: 'a@x.com' },
+    // A departed admin: account deleted (actorId nulled) but name preserved.
+    { actorId: null, actorName: 'Departed Admin', action: 'password_reset', targetUserEmail: 'b@x.com' },
+    // A nameless system action stays out of the selectable list.
+    { actorId: null, actorName: null, action: 'lockout_cleared', targetUserEmail: 'c@x.com' },
+  ]);
+
+  const res = await request(app)
+    .get('/api/audit-logs/facets')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.actors.length, 2);
+  const live = res.body.actors.find((a: { deleted: boolean }) => !a.deleted);
+  const deleted = res.body.actors.find((a: { deleted: boolean }) => a.deleted);
+  assert.deepEqual(live, { id: admin.id, name: 'Admin One', deleted: false });
+  assert.deepEqual(deleted, { id: null, name: 'Departed Admin', deleted: true });
+});
+
+test('filters by a deleted actor name (null-actor rows only)', async () => {
+  const admin = await createUser({ name: 'Live Admin', email: 'admin@test.com', role: 'admin' });
+  await seedAudit([
+    { actorId: admin.id, actorName: admin.name, action: 'user.created', targetUserEmail: 'a@x.com' },
+    { actorId: null, actorName: 'Departed Admin', action: 'password_reset', targetUserEmail: 'b@x.com' },
+    { actorId: null, actorName: 'Departed Admin', action: 'welcome_email', targetUserEmail: 'c@x.com' },
+    { actorId: null, actorName: 'Someone Else', action: 'user.deleted', targetUserEmail: 'd@x.com' },
+  ]);
+
+  const res = await request(app)
+    .get(`/api/audit-logs?actorName=${encodeURIComponent('Departed Admin')}`)
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.rows.length, 2);
+  assert.equal(res.body.total, 2);
+  assert.ok(res.body.rows.every((r: { actorId: number | null; actorName: string }) =>
+    r.actorId === null && r.actorName === 'Departed Admin'));
+});
+
+test('deleted-actor name filter never matches a live actor of the same name', async () => {
+  // A live admin shares a name with a previously-deleted admin. Selecting the
+  // deleted actor must only return the null-actor rows, never the live ones.
+  const admin = await createUser({ name: 'Same Name', email: 'admin@test.com', role: 'admin' });
+  await seedAudit([
+    { actorId: admin.id, actorName: 'Same Name', action: 'user.created', targetUserEmail: 'live@x.com' },
+    { actorId: null, actorName: 'Same Name', action: 'password_reset', targetUserEmail: 'gone@x.com' },
+  ]);
+
+  const res = await request(app)
+    .get(`/api/audit-logs?actorName=${encodeURIComponent('Same Name')}`)
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.rows.length, 1);
+  assert.equal(res.body.rows[0].actorId, null);
+  assert.equal(res.body.rows[0].targetUserEmail, 'gone@x.com');
 });
 
 test('invalid actorId returns 400', async () => {
