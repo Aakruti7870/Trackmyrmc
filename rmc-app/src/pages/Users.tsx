@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw, Download, ChevronDown, FileSpreadsheet, FileText, Link2 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
@@ -154,8 +153,6 @@ function accountLabel(id: number | null, label: string | null) {
   if (!text) return '[deleted]';
   return id === null ? `${text} (deleted)` : text;
 }
-
-const AUDIT_EXPORT_HEADERS = ['Timestamp', 'Action', 'Details', 'Target Account', 'Performed By', 'Email Sent'] as const;
 
 const deletedTagStyle: React.CSSProperties = {
   marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
@@ -360,96 +357,8 @@ export default function Users() {
     }));
   }
 
-  function triggerDownload(blob: Blob, filename: string) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }
-
-  function exportAuditCsv() {
-    if (auditLog.length === 0) return;
-    const escape = (value: string) => {
-      const needsQuote = /[",\r\n]/.test(value);
-      const escaped = value.replace(/"/g, '""');
-      return needsQuote ? `"${escaped}"` : escaped;
-    };
-    const rows = auditExportRows().map(r => [
-      r.timestampText, r.action, r.detail, r.target, r.performedBy, r.emailSent,
-    ]);
-    const csv = [[...AUDIT_EXPORT_HEADERS], ...rows]
-      .map(row => row.map(cell => escape(String(cell))).join(','))
-      .join('\r\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    triggerDownload(blob, exportFilename('csv'));
-  }
-
-  // Native .xlsx export. The timestamp column carries real Date values (rendered
-  // with a date/time number format) so spreadsheet apps treat it as a date, and
-  // the header row is bolded with sized columns and a filter dropdown.
-  function exportAuditXlsx() {
-    if (auditLog.length === 0) return;
-    const rows = auditExportRows();
-    const aoa: (string | Date)[][] = [
-      [...AUDIT_EXPORT_HEADERS],
-      ...rows.map(r => [r.timestamp, r.action, r.detail, r.target, r.performedBy, r.emailSent]),
-    ];
-    const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true });
-    const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
-
-    // Apply a date/time number format to the timestamp column (col 0).
-    for (let row = 1; row <= range.e.r; row++) {
-      const ref = XLSX.utils.encode_cell({ r: row, c: 0 });
-      const cell = ws[ref];
-      if (cell && cell.t === 'd') cell.z = 'dd-mmm-yyyy hh:mm';
-    }
-
-    // Style + bold the header row (ignored by readers that don't support styles,
-    // but honored by Excel/LibreOffice and the xlsx writer's style path).
-    for (let col = 0; col <= range.e.c; col++) {
-      const ref = XLSX.utils.encode_cell({ r: 0, c: col });
-      const cell = ws[ref];
-      if (cell) {
-        cell.s = {
-          font: { bold: true, color: { rgb: 'FF1B2433' } },
-          fill: { patternType: 'solid', fgColor: { rgb: 'FFF7C948' } },
-          alignment: { horizontal: 'left', vertical: 'center' },
-        };
-      }
-    }
-
-    ws['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 44 }, { wch: 26 }, { wch: 26 }, { wch: 12 }];
-    ws['!autofilter'] = { ref: ws['!ref'] ?? 'A1' };
-    ws['!freeze'] = { xSplit: '0', ySplit: '1', topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
-
-    const wb = XLSX.utils.book_new();
-    wb.Props = {
-      Title: `Activity Log — ${exportScopeLabel()}`,
-      CreatedDate: new Date(),
-    };
-    XLSX.utils.book_append_sheet(wb, ws, 'Activity Log');
-    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    triggerDownload(
-      new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-      exportFilename('xlsx'),
-    );
-  }
-
-  // Real .pdf export: build the file client-side with jsPDF + autoTable and
-  // download it directly (no new window or print dialog), matching the CSV/Excel
-  // one-click flow. Layout mirrors the former print view — title, scope, active
-  // filters, gold styled header, zebra rows — so the file stays self-describing.
-  async function exportAuditPdf() {
-    if (auditLog.length === 0) return;
-    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-      import('jspdf'),
-      import('jspdf-autotable'),
-    ]);
-    const rows = auditExportRows();
+  // Build the active per-user filter description used in the PDF title.
+  function auditFilterBits() {
     const filterBits: string[] = [];
     if (actionFilter !== 'all') filterBits.push(`Action: ${ACTION_LABEL[actionFilter] ?? actionFilter}`);
     if (actorFilter !== 'all') {
@@ -464,62 +373,34 @@ export default function Users() {
     if (qFilter) filterBits.push(`Search: "${qFilter}"`);
     if (fromDate) filterBits.push(`From: ${fromDate}`);
     if (toDate) filterBits.push(`To: ${toDate}`);
-    const generated = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+    return filterBits;
+  }
 
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-    const marginX = 28;
+  // Export handlers lazily import ./usersAuditExport so the heavy xlsx / jspdf
+  // build code stays out of this page's static module graph (faster loads/tests).
+  async function exportAuditCsv() {
+    if (auditLog.length === 0) return;
+    const { exportAuditCsv: run } = await import('./usersAuditExport');
+    run(auditExportRows(), exportFilename('csv'));
+  }
 
-    doc.setTextColor(27, 36, 51); // #1b2433
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
-    doc.text('Activity Log', marginX, 36);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
-    doc.setTextColor(85, 85, 85); // #555
-    doc.text(`Scope: ${exportScopeLabel()}`, marginX, 54);
-
-    let cursorY = 54;
-    if (filterBits.length) {
-      cursorY += 15;
-      doc.text(`Filters: ${filterBits.join('  ·  ')}`, marginX, cursorY);
-    }
-
-    cursorY += 14;
-    doc.setFontSize(9);
-    doc.setTextColor(136, 136, 136); // #888
-    const entryWord = rows.length === 1 ? 'entry' : 'entries';
-    doc.text(`${rows.length} ${entryWord} · Generated ${generated}`, marginX, cursorY);
-
-    autoTable(doc, {
-      startY: cursorY + 10,
-      margin: { left: marginX, right: marginX },
-      head: [[...AUDIT_EXPORT_HEADERS]],
-      body: rows.map(r => [r.timestampText, r.action, r.detail, r.target, r.performedBy, r.emailSent]),
-      styles: {
-        font: 'helvetica',
-        fontSize: 9,
-        cellPadding: 4,
-        textColor: [27, 36, 51],
-        lineColor: [208, 213, 221], // #d0d5dd
-        lineWidth: 0.5,
-        valign: 'top',
-        overflow: 'linebreak',
-      },
-      headStyles: {
-        fillColor: [247, 201, 72], // #f7c948
-        textColor: [27, 36, 51],
-        fontStyle: 'bold',
-      },
-      alternateRowStyles: { fillColor: [246, 248, 251] }, // #f6f8fb
-      columnStyles: {
-        0: { cellWidth: 95 },
-        2: { cellWidth: 'auto' },
-        5: { cellWidth: 55 },
-      },
+  async function exportAuditXlsx() {
+    if (auditLog.length === 0) return;
+    const { exportAuditXlsx: run } = await import('./usersAuditExport');
+    await run(auditExportRows(), {
+      filename: exportFilename('xlsx'),
+      title: `Activity Log — ${exportScopeLabel()}`,
     });
+  }
 
-    doc.save(exportFilename('pdf'));
+  async function exportAuditPdf() {
+    if (auditLog.length === 0) return;
+    const { exportAuditPdf: run } = await import('./usersAuditExport');
+    await run(auditExportRows(), {
+      filename: exportFilename('pdf'),
+      scopeLabel: exportScopeLabel(),
+      filterBits: auditFilterBits(),
+    });
   }
 
   async function unlock(u: UserRecord) {
