@@ -106,6 +106,36 @@ test('sweep: a stalled (backpressured) connection ages out after the stale thres
     mock.timers.tick(SWEEP_MS);
     assert.equal(getSSEClientCount(), 0, 'a stalled connection must be swept once it goes stale');
 });
+test('sweep: a destroyed socket (no close event) is reclaimed', () => {
+    const res = new MockResponse(1);
+    const id = add(res);
+    created.push(id);
+    assert.equal(getSSEClientCount(), 1);
+    // The underlying socket was torn down (e.g. the proxy vanished) so the
+    // response is marked destroyed, but no 'close' event ever reached the route
+    // to call removeSSEClient. The sweep is the only thing that can reclaim it.
+    res.destroyed = true;
+    mock.timers.tick(SWEEP_MS);
+    assert.equal(getSSEClientCount(), 0, 'a destroyed socket must be swept out');
+});
+test('sweep: a healthy connection survives the sweep', () => {
+    const res = new MockResponse(1);
+    const id = add(res);
+    created.push(id);
+    assert.equal(getSSEClientCount(), 1);
+    // The socket is open and every keepalive ping flushes (writeReturn stays
+    // true), so lastActive keeps advancing and the connection never goes stale.
+    // Drive several sweep cycles well past the stale threshold; the keepalive
+    // must refresh lastActive between sweeps so the connection is always live.
+    // (Ticked one sweep window at a time so the singleton keepalive interval
+    // gets to fire between sweeps, exactly as it would against a real clock.)
+    const cycles = Math.ceil(STALE_THRESHOLD_MS / SWEEP_MS) + 3;
+    for (let i = 0; i < cycles; i++) {
+        mock.timers.tick(SWEEP_MS);
+        assert.equal(getSSEClientCount(), 1, 'a live, flushing connection must never be swept out');
+    }
+    assert.ok(res.writes.includes(':ping\n\n'), 'the surviving connection should still be receiving keepalive pings');
+});
 test('proxy headers: HTTP/1.x stream is unbuffered, no-transform, and chunked', () => {
     const res = new MockResponse(1);
     const id = add(res);
