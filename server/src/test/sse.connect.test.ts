@@ -9,7 +9,7 @@ import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
 import { users, clients, drivers } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
-import { emitSSEEvent } from '../lib/sseEmitter.js';
+import { emitSSEEvent, getSSEClientCount } from '../lib/sseEmitter.js';
 
 // End-to-end coverage of the REAL `GET /api/events` connect handler. Unlike
 // sse.routes.test.ts (which registers identities by hand against the emitter),
@@ -223,6 +223,50 @@ test('a client connection does not receive a different company by driver targeti
   assert.ok(sawSentinel, 'sentinel broadcast should reach the connection');
   assert.ok(!conn.events().includes('driver.only'),
     'a client must not receive driver-targeted events');
+});
+
+test('closing a connection unregisters it so it no longer receives events', async () => {
+  // The connect handler must wire `req.on('close')` -> removeSSEClient. If that
+  // teardown ever regressed, the disconnected stream would stay registered:
+  // getSSEClientCount() would never drop and the emitter would keep writing
+  // targeted events to a dead socket. This drives the real lifecycle end to end.
+  const ownClient = await createClientRow('Acme Co');
+  const clientUser = await createUser({
+    role: 'client', email: 'leaver@test.com', linkedClientId: ownClient.id,
+  });
+
+  const before = getSSEClientCount();
+
+  const conn = await connect(tokenFor(clientUser));
+  open.push(conn);
+  assert.equal(conn.status, 200);
+
+  // The connection is registered once :ok has been flushed.
+  const registered = await waitFor(() => getSSEClientCount() === before + 1);
+  assert.ok(registered, 'the connection should be registered with the emitter');
+
+  // Confirm it is live by delivering one targeted event before disconnecting.
+  emitSSEEvent('match.event', { ok: true }, { clientId: ownClient.id });
+  const sawMatch = await waitFor(() => conn.events().includes('match.event'));
+  assert.ok(sawMatch, 'the live connection should receive its targeted event');
+
+  const eventsBeforeClose = conn.events().length;
+
+  // Disconnect. The server's `req.on('close')` should fire and unregister us.
+  conn.close();
+
+  const unregistered = await waitFor(() => getSSEClientCount() === before);
+  assert.ok(unregistered,
+    'closing the socket must call removeSSEClient so the count drops back');
+
+  // A subsequent event addressed to this (now-gone) connection must not be
+  // written to the closed stream — nothing new should have arrived.
+  emitSSEEvent('after.close', { ok: false }, { clientId: ownClient.id });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(conn.events().length, eventsBeforeClose,
+    'no events should be written to the stream after it was closed');
+  assert.ok(!conn.events().includes('after.close'),
+    'events emitted after close must not reach the unregistered connection');
 });
 
 test('a connection without a token is rejected with 401', async () => {
