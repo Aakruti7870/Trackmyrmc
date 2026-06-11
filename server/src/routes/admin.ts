@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { auditLogs } from '../db/schema.js';
@@ -230,49 +230,6 @@ router.post('/variance-tolerance', async (req, res) => {
   }
 
   res.json({ ...after, defaults: { abs: DEFAULT_VARIANCE_ABS, pct: DEFAULT_VARIANCE_PCT } });
-});
-
-const auditLogsQuerySchema = z.object({
-  action: z.string().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(200).optional().default(50),
-  offset: z.coerce.number().int().min(0).optional().default(0),
-});
-
-router.get('/audit-logs', async (req, res) => {
-  const parse = auditLogsQuerySchema.safeParse(req.query);
-  if (!parse.success) {
-    res.status(400).json({ error: parse.error.flatten().fieldErrors });
-    return;
-  }
-
-  const { action, limit, offset } = parse.data;
-  const filter = action ? eq(auditLogs.action, action) : undefined;
-
-  const [rows, totalRows, actionRows] = await Promise.all([
-    db
-      .select()
-      .from(auditLogs)
-      .where(filter)
-      .orderBy(desc(auditLogs.createdAt))
-      .limit(limit)
-      .offset(offset),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(auditLogs)
-      .where(filter),
-    db
-      .selectDistinct({ action: auditLogs.action })
-      .from(auditLogs)
-      .orderBy(auditLogs.action),
-  ]);
-
-  res.json({
-    rows,
-    total: totalRows[0]?.count ?? 0,
-    limit,
-    offset,
-    actions: actionRows.map(r => r.action),
-  });
 });
 
 router.get('/lockouts', async (_req, res) => {

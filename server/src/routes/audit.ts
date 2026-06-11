@@ -14,6 +14,7 @@ const selectCols = {
   action: auditLogs.action,
   targetUserId: auditLogs.targetUserId,
   targetUserEmail: auditLogs.targetUserEmail,
+  status: auditLogs.status,
   detail: auditLogs.detail,
   emailSent: auditLogs.emailSent,
   createdAt: auditLogs.createdAt,
@@ -113,6 +114,9 @@ router.get('/', async (req, res) => {
   ]);
 
   const hasMore = rows.length > limit;
+  // The COUNT (honoring the same filters) is computed unconditionally above so
+  // the numbered-pager UI (standalone Audit Log) can render "x–y of N" and
+  // disable Next on the final page, while infinite-scroll callers ignore it.
   // Some pg drivers serialize COUNT as a string; normalize to a number.
   res.json({ rows: hasMore ? rows.slice(0, limit) : rows, hasMore, total: Number(total) });
 });

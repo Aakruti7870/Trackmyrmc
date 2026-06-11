@@ -20,7 +20,11 @@ type AuditResponse = {
   total: number;
   limit: number;
   offset: number;
+};
+
+type Facets = {
   actions: string[];
+  actors: { id: number; name: string | null }[];
 };
 
 const ACTION_LABEL: Record<string, string> = {
@@ -88,13 +92,14 @@ export default function AuditLog() {
     const params = new URLSearchParams();
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(offset));
+    // The numbered pager needs an absolute count for "x–y of N"; opt in so the
+    // canonical endpoint runs the extra COUNT only for this view.
+    params.set('withTotal', '1');
     if (actionFilter) params.set('action', actionFilter);
-    api.get<AuditResponse>(`/admin/audit-logs?${params.toString()}`)
+    api.get<AuditResponse>(`/audit-logs?${params.toString()}`)
       .then(res => {
         setRows(res.rows);
         setTotal(res.total);
-        // Keep the full action list stable (it is computed unfiltered server-side).
-        if (res.actions.length) setActions(res.actions);
       })
       .catch(() => {
         setRows([]);
@@ -106,6 +111,14 @@ export default function AuditLog() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // The action dropdown is driven by the shared facets endpoint (every action
+  // ever logged), kept stable regardless of the current filter/page.
+  useEffect(() => {
+    api.get<Facets>('/audit-logs/facets')
+      .then(f => setActions(f.actions))
+      .catch(() => {});
+  }, []);
 
   function changeFilter(value: string) {
     setLoading(true);
