@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
+import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw, Download, ChevronDown, FileSpreadsheet, FileText, Link2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
@@ -228,6 +228,11 @@ export default function Users() {
   const [retryingRestoreId, setRetryingRestoreId] = useState<number | null>(null);
   const [resolvingRestoreId, setResolvingRestoreId] = useState<number | null>(null);
   const [unlinkingConflictId, setUnlinkingConflictId] = useState<number | null>(null);
+  const [reassignItem, setReassignItem] = useState<SkippedAccountItem | null>(null);
+  const [reassignType, setReassignType] = useState<'client' | 'driver'>('client');
+  const [reassignTargetId, setReassignTargetId] = useState<number | null>(null);
+  const [reassignOptions, setReassignOptions] = useState<LinkOption[]>([]);
+  const [reassigningRestoreId, setReassigningRestoreId] = useState<number | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [authorityEmails, setAuthorityEmails] = useState<string[]>([]);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -583,6 +588,58 @@ export default function Users() {
       showToast(e instanceof Error ? e.message : 'Failed to unlink the conflicting account.', 'error');
     } finally {
       setUnlinkingConflictId(null);
+    }
+  }
+
+  // Open the reassign picker for a skipped restore: offer only clients/drivers
+  // (matching the conflicting link type) that aren't already taken by an active
+  // account, so picking one is guaranteed to clear the conflict.
+  async function openReassign(item: SkippedAccountItem) {
+    const type = item.conflictLinkType;
+    if (!type) return;
+    let active: UserRecord[] = [];
+    try {
+      active = await api.get<UserRecord[]>('/users');
+    } catch {
+      // Fall back to the full list if active links can't be loaded; the server
+      // still rejects a taken target with a clear 409.
+    }
+    const taken = new Set(
+      active
+        .map(u => (type === 'client' ? u.linkedClientId : u.linkedDriverId))
+        .filter((x): x is number => x != null),
+    );
+    const all = type === 'client' ? clientOptions : driverOptions;
+    setReassignOptions(all.filter(o => !taken.has(o.id)));
+    setReassignType(type);
+    setReassignTargetId(null);
+    setReassignItem(item);
+  }
+
+  async function confirmReassign() {
+    if (!reassignItem || reassignTargetId == null) return;
+    const item = reassignItem;
+    setReassigningRestoreId(item.id);
+    try {
+      const body = reassignType === 'client'
+        ? { linkedClientId: reassignTargetId }
+        : { linkedDriverId: reassignTargetId };
+      await api.post(`/users/${item.id}/restore`, body);
+      showToast(`${item.email} was restored with a new ${reassignType} link.`, 'success');
+      setSkippedRestore(prev => {
+        const next = (prev ?? []).filter(r => r.id !== item.id);
+        return next.length ? next : null;
+      });
+      setReassignItem(null);
+      load();
+    } catch (e: unknown) {
+      const reason = e instanceof Error ? e.message : 'Failed to reassign the link.';
+      setSkippedRestore(prev =>
+        (prev ?? []).map(r => (r.id === item.id ? { ...r, reason } : r)),
+      );
+      showToast(reason, 'error');
+    } finally {
+      setReassigningRestoreId(null);
     }
   }
 
@@ -1878,7 +1935,82 @@ export default function Users() {
           resolvingId={resolvingRestoreId}
           onUnlink={unlinkConflict}
           unlinkingId={unlinkingConflictId}
+          onReassign={openReassign}
+          reassigningId={reassigningRestoreId}
         />
+      )}
+
+      {/* Reassign-link picker modal (for a skipped restore) */}
+      {reassignItem && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 130,
+          background: 'rgba(5,9,20,.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg,var(--panel),var(--bg))',
+            border: '1px solid rgba(167,139,250,.3)', borderRadius: 18,
+            width: '100%', maxWidth: 440, padding: 24,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                  background: 'rgba(167,139,250,.12)', border: '1px solid rgba(167,139,250,.25)',
+                  display: 'grid', placeItems: 'center', color: '#a78bfa',
+                }}>
+                  <Link2 size={18} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Reassign {reassignType} link</h3>
+              </div>
+              <button
+                onClick={() => setReassignItem(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+              Pick a free {reassignType} to link <strong style={{ color: 'var(--text)' }}>{reassignItem.email}</strong> to.
+              The account is restored with the new link and the change is recorded in the activity log.
+            </p>
+            <SearchableSelect
+              value={reassignTargetId}
+              onChange={setReassignTargetId}
+              options={reassignOptions}
+              placeholder={`Select a ${reassignType}…`}
+              emptyLabel={`No free ${reassignType}s available`}
+              noneLabel={`— Select a ${reassignType} —`}
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button
+                onClick={() => setReassignItem(null)}
+                disabled={reassigningRestoreId === reassignItem.id}
+                style={{
+                  flex: 1, padding: '10px', background: 'rgba(255,255,255,.07)',
+                  border: '1px solid rgba(255,255,255,.1)', borderRadius: 10,
+                  color: 'var(--muted)', fontWeight: 600, fontSize: 13,
+                  cursor: reassigningRestoreId === reassignItem.id ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReassign}
+                disabled={reassignTargetId == null || reassigningRestoreId === reassignItem.id}
+                style={{
+                  flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  background: 'linear-gradient(135deg,#a78bfa,#7c3aed)', border: 'none', borderRadius: 10,
+                  color: '#fff', fontWeight: 700, fontSize: 13,
+                  cursor: (reassignTargetId == null || reassigningRestoreId === reassignItem.id) ? 'not-allowed' : 'pointer',
+                  opacity: (reassignTargetId == null || reassigningRestoreId === reassignItem.id) ? 0.6 : 1,
+                }}
+              >
+                <Link2 size={14} /> {reassigningRestoreId === reassignItem.id ? 'Reassigning…' : 'Reassign & restore'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Skipped-purge results modal */}

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, Copy, X, Mail, RotateCcw, Unlink, Trash2 } from 'lucide-react';
+import { AlertTriangle, Copy, X, Mail, RotateCcw, Unlink, Trash2, Link2 } from 'lucide-react';
 
 export type SkippedAccountItem = {
   id: number;
@@ -25,6 +25,8 @@ export default function SkippedAccountsPanel({
   resolvingId,
   onUnlink,
   unlinkingId,
+  onReassign,
+  reassigningId,
 }: {
   items: SkippedAccountItem[];
   heading: ReactNode;
@@ -40,8 +42,10 @@ export default function SkippedAccountsPanel({
   resolvingId?: number | null;
   onUnlink?: (item: SkippedAccountItem) => void;
   unlinkingId?: number | null;
+  onReassign?: (item: SkippedAccountItem) => void;
+  reassigningId?: number | null;
 }) {
-  const hasActions = Boolean(onRetry || onResolve || onUnlink);
+  const hasActions = Boolean(onRetry || onResolve || onUnlink || onReassign);
   const retryColors = retryTone === 'danger'
     ? { bg: 'rgba(239,68,68,.12)', color: 'var(--red)', border: 'rgba(239,68,68,.3)' }
     : { bg: 'rgba(34,197,94,.12)', color: 'var(--green)', border: 'rgba(34,197,94,.3)' };
@@ -145,25 +149,45 @@ export default function SkippedAccountsPanel({
                   <div style={{ margin: '5px 0 0 20px', fontSize: 12.5, color: '#9fb0c7', lineHeight: 1.45 }}>
                     {item.reason}
                   </div>
-                  {onUnlink && item.conflictUserId != null && item.conflictLinkType && (
-                    <div style={{ margin: '8px 0 0 20px' }}>
-                      <button
-                        onClick={() => onUnlink(item)}
-                        disabled={unlinkingId === item.id || retryingId === item.id}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                          padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                          background: 'rgba(56,189,248,.12)', color: 'var(--blue)',
-                          border: '1px solid rgba(56,189,248,.3)',
-                          cursor: (unlinkingId === item.id || retryingId === item.id) ? 'default' : 'pointer',
-                          opacity: (unlinkingId === item.id || retryingId === item.id) ? 0.6 : 1,
-                        }}
-                      >
-                        <Unlink size={13} />
-                        {unlinkingId === item.id
-                          ? 'Unlinking…'
-                          : `Unlink ${item.conflictUserName ?? 'conflicting account'} & restore`}
-                      </button>
+                  {((onUnlink && item.conflictUserId != null && item.conflictLinkType) || (onReassign && item.conflictLinkType)) && (
+                    <div style={{ margin: '8px 0 0 20px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {onUnlink && item.conflictUserId != null && item.conflictLinkType && (
+                        <button
+                          onClick={() => onUnlink(item)}
+                          disabled={unlinkingId === item.id || retryingId === item.id || reassigningId === item.id}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            background: 'rgba(56,189,248,.12)', color: 'var(--blue)',
+                            border: '1px solid rgba(56,189,248,.3)',
+                            cursor: (unlinkingId === item.id || retryingId === item.id || reassigningId === item.id) ? 'default' : 'pointer',
+                            opacity: (unlinkingId === item.id || retryingId === item.id || reassigningId === item.id) ? 0.6 : 1,
+                          }}
+                        >
+                          <Unlink size={13} />
+                          {unlinkingId === item.id
+                            ? 'Unlinking…'
+                            : `Unlink ${item.conflictUserName ?? 'conflicting account'} & restore`}
+                        </button>
+                      )}
+                      {onReassign && item.conflictLinkType && (
+                        <button
+                          onClick={() => onReassign(item)}
+                          disabled={reassigningId === item.id || retryingId === item.id || unlinkingId === item.id}
+                          title={`Restore this account linked to a different, free ${item.conflictLinkType}`}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            background: 'rgba(167,139,250,.14)', color: '#a78bfa',
+                            border: '1px solid rgba(167,139,250,.35)',
+                            cursor: (reassigningId === item.id || retryingId === item.id || unlinkingId === item.id) ? 'default' : 'pointer',
+                            opacity: (reassigningId === item.id || retryingId === item.id || unlinkingId === item.id) ? 0.6 : 1,
+                          }}
+                        >
+                          <Link2 size={13} />
+                          {reassigningId === item.id ? 'Reassigning…' : `Reassign ${item.conflictLinkType}`}
+                        </button>
+                      )}
                     </div>
                   )}
                 </>
