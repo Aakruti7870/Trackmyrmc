@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Search, X, Printer, Check, Truck, StickyNote, Camera, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site } from '@/lib/api';
@@ -26,6 +26,9 @@ export default function Dispatch() {
   const [photoView, setPhotoView] = useState<{ challanNo: string; srcs: string[]; loading: boolean } | null>(null);
   const [photoIdx, setPhotoIdx] = useState(0);
   const [photoZoom, setPhotoZoom] = useState(false);
+  const touchRef = useRef<{ x: number; y: number; t: number; multi: boolean } | null>(null);
+  const swipedRef = useRef(false);
+  const lastTapRef = useRef(0);
 
   const tolerance = useVarianceTolerance();
   const { subscribe } = useSSE();
@@ -377,6 +380,38 @@ export default function Dispatch() {
                 const n = photoView.srcs.length;
                 const cur = Math.min(photoIdx, n - 1);
                 const go = (d: number) => { setPhotoZoom(false); setPhotoIdx((cur + d + n) % n); };
+                const onTouchStart = (e: React.TouchEvent) => {
+                  swipedRef.current = false;
+                  const t = e.touches[0];
+                  touchRef.current = { x: t.clientX, y: t.clientY, t: Date.now(), multi: e.touches.length > 1 };
+                };
+                const onTouchMove = (e: React.TouchEvent) => {
+                  if (e.touches.length > 1 && touchRef.current) touchRef.current.multi = true;
+                };
+                const onTouchEnd = (e: React.TouchEvent) => {
+                  const start = touchRef.current;
+                  touchRef.current = null;
+                  if (!start || start.multi) return;
+                  const end = e.changedTouches[0];
+                  const dx = end.clientX - start.x;
+                  const dy = end.clientY - start.y;
+                  const dt = Date.now() - start.t;
+                  if (n > 1 && Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                    swipedRef.current = true;
+                    go(dx < 0 ? 1 : -1);
+                    return;
+                  }
+                  if (Math.abs(dx) < 12 && Math.abs(dy) < 12 && dt < 300) {
+                    const now = Date.now();
+                    if (now - lastTapRef.current < 300) {
+                      swipedRef.current = true;
+                      setPhotoZoom(z => !z);
+                      lastTapRef.current = 0;
+                    } else {
+                      lastTapRef.current = now;
+                    }
+                  }
+                };
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {n > 1 && (
@@ -384,8 +419,9 @@ export default function Dispatch() {
                     )}
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <img src={photoView.srcs[cur]} alt={`Proof of delivery ${cur + 1} for ${photoView.challanNo}`}
-                        onClick={() => setPhotoZoom(z => !z)}
-                        style={{ width: '100%', borderRadius: 10, display: 'block', cursor: 'zoom-in', maxHeight: photoZoom ? 'none' : '60vh', objectFit: 'contain' }} />
+                        onClick={() => { if (swipedRef.current) { swipedRef.current = false; return; } setPhotoZoom(z => !z); }}
+                        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+                        style={{ width: '100%', borderRadius: 10, display: 'block', cursor: 'zoom-in', maxHeight: photoZoom ? 'none' : '60vh', objectFit: 'contain', touchAction: 'pan-y pinch-zoom', userSelect: 'none' }} />
                       {!photoZoom && (
                         <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,.55)', borderRadius: 8, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#fff', pointerEvents: 'none' }}>
                           <ZoomIn size={13} /> Click to zoom

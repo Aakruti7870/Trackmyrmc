@@ -76,6 +76,18 @@ function linkUniqueViolationMessage(err) {
     }
     return null;
 }
+/**
+ * Resolve a client/driver id to a readable "Name (#id)" label for audit
+ * details, or "none" when unset. Used by the restore-reassign path to log
+ * exactly which record the account moved to.
+ */
+async function linkLabel(kind, value) {
+    if (value == null)
+        return 'none';
+    const table = kind === 'client' ? clients : drivers;
+    const [row] = await db.select({ name: table.name }).from(table).where(eq(table.id, value));
+    return row ? `${row.name} (#${value})` : `#${value}`;
+}
 function safeUser(u) {
     return {
         id: u.id, name: u.name, email: u.email, role: u.role,
@@ -593,6 +605,12 @@ const restoreSchema = z.object({
     // admins resolve a skipped-restore conflict in place instead of hunting down
     // and unlinking the conflicting active account first.
     clearLink: z.boolean().optional(),
+    // Reassign the account to a *different*, free client/driver while restoring,
+    // so the restored account keeps a meaningful link instead of none. Supplying
+    // either field switches the link to the new target (validated like any other
+    // link change); pass null to clear that side explicitly.
+    linkedClientId: z.number().int().positive().nullable().optional(),
+    linkedDriverId: z.number().int().positive().nullable().optional(),
 });
 router.post('/:id/restore', async (req, res) => {
     const id = parseInt(req.params.id, 10);
@@ -606,6 +624,9 @@ router.post('/:id/restore', async (req, res) => {
         return;
     }
     const clearLink = parse.data.clearLink === true;
+    const reassignClient = parse.data.linkedClientId;
+    const reassignDriver = parse.data.linkedDriverId;
+    const isReassign = reassignClient !== undefined || reassignDriver !== undefined;
     const [user] = await db.select({
         id: users.id, email: users.email, deletedAt: users.deletedAt,
         linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
@@ -615,11 +636,24 @@ router.post('/:id/restore', async (req, res) => {
         return;
     }
     const hadLink = user.linkedClientId != null || user.linkedDriverId != null;
+    // The new link the account will hold after restore. A reassign overrides the
+    // affected side; untouched sides keep the account's stored link.
+    const effectiveClientId = reassignClient !== undefined ? (reassignClient ?? null) : user.linkedClientId;
+    const effectiveDriverId = reassignDriver !== undefined ? (reassignDriver ?? null) : user.linkedDriverId;
     // Don't restore an account whose linked client/driver is already taken by an
     // active account — that would break the one-account-per-link rule. The admin
     // sees the same clear reason as the bulk-restore skip and can retry after
-    // unlinking the conflicting account, or pass clearLink to restore without it.
-    if (!clearLink) {
+    // unlinking the conflicting account, pass clearLink to restore without it, or
+    // reassign to a free client/driver. A reassign is always validated against
+    // its new target (clearLink can't waive a freshly chosen conflicting link).
+    if (isReassign) {
+        const linkConflict = await findLinkConflict(effectiveClientId, effectiveDriverId, user.id);
+        if (linkConflict) {
+            res.status(409).json({ error: linkConflict.reason });
+            return;
+        }
+    }
+    else if (!clearLink) {
         const linkConflict = await findLinkConflict(user.linkedClientId, user.linkedDriverId, user.id);
         if (linkConflict) {
             res.status(409).json({ error: linkConflict.reason });
@@ -627,13 +661,15 @@ router.post('/:id/restore', async (req, res) => {
         }
     }
     const actor = req.user;
-    const linkCleared = clearLink && hadLink;
+    const linkCleared = clearLink && hadLink && !isReassign;
     let restored;
     try {
         [restored] = await db.update(users)
-            .set(linkCleared
-            ? { deletedAt: null, isActive: true, linkedClientId: null, linkedDriverId: null }
-            : { deletedAt: null, isActive: true })
+            .set(isReassign
+            ? { deletedAt: null, isActive: true, linkedClientId: effectiveClientId, linkedDriverId: effectiveDriverId }
+            : linkCleared
+                ? { deletedAt: null, isActive: true, linkedClientId: null, linkedDriverId: null }
+                : { deletedAt: null, isActive: true })
             .where(eq(users.id, id))
             .returning();
     }
@@ -651,10 +687,39 @@ router.post('/:id/restore', async (req, res) => {
         action: 'user.restored',
         targetUserId: user.id,
         targetUserEmail: user.email,
-        detail: linkCleared
-            ? 'Account restored and reactivated; linked client/driver cleared to resolve a conflict'
-            : 'Account restored and reactivated',
+        detail: isReassign
+            ? 'Account restored and reactivated; linked client/driver reassigned to resolve a conflict'
+            : linkCleared
+                ? 'Account restored and reactivated; linked client/driver cleared to resolve a conflict'
+                : 'Account restored and reactivated',
     });
+    // Record the reassignment as its own link-change entry (with names) so the
+    // activity log shows exactly which client/driver the account moved to,
+    // matching how the edit route logs link changes.
+    if (isReassign) {
+        const linkChanges = [];
+        if (reassignClient !== undefined && (reassignClient ?? null) !== user.linkedClientId) {
+            const from = await linkLabel('client', user.linkedClientId);
+            const to = await linkLabel('client', reassignClient ?? null);
+            linkChanges.push({ action: 'client_link_change', detail: `${from} → ${to}` });
+        }
+        if (reassignDriver !== undefined && (reassignDriver ?? null) !== user.linkedDriverId) {
+            const from = await linkLabel('driver', user.linkedDriverId);
+            const to = await linkLabel('driver', reassignDriver ?? null);
+            linkChanges.push({ action: 'driver_link_change', detail: `${from} → ${to}` });
+        }
+        if (linkChanges.length) {
+            await db.insert(auditLogs).values(linkChanges.map(c => ({
+                actorId: actor.id,
+                actorName: actor.name,
+                action: c.action,
+                targetUserId: user.id,
+                targetUserEmail: user.email,
+                detail: c.detail,
+                emailSent: null,
+            })));
+        }
+    }
     res.json(safeUser(restored));
 });
 router.delete('/:id/permanent', async (req, res) => {

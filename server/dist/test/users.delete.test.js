@@ -442,6 +442,88 @@ test('restore-all → unlink → restore: a batch surfaces the conflicting accou
         .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, conflicted.id)));
     assert.equal(restoreLogs.length, 1, 'exactly one user.restored entry is written on the follow-up restore');
 });
+test('restore: POST /:id/restore with a new linkedClientId reassigns the account to a free client and records the change', async () => {
+    const admin = await createUser({ name: 'Admin Reassign', email: 'admin-reassign@test.com', role: 'admin' });
+    const takenClient = await createClient('Gamma Concrete');
+    const freeClient = await createClient('Delta Concrete');
+    const token = tokenFor(admin);
+    // An active account already holds the original client link.
+    const holder = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Active Holder 3', email: 'holder3@test.com', password: PASSWORD, role: 'client', linkedClientId: takenClient.id });
+    assert.equal(holder.status, 201);
+    // A soft-deleted account pointing at the same (now taken) client.
+    const conflicted = await createUser({
+        name: 'Conflicted 3', email: 'conflict3@test.com', role: 'client',
+        isActive: false, deletedAt: new Date(),
+    });
+    await db.update(users).set({ linkedClientId: takenClient.id }).where(eq(users.id, conflicted.id));
+    // Reassigning to a free client restores the account with the new link.
+    const ok = await request(app)
+        .post(`/api/users/${conflicted.id}/restore`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ linkedClientId: freeClient.id });
+    assert.equal(ok.status, 200, 'restore-with-reassignment succeeds onto a free client');
+    assert.equal(ok.body.deletedAt, null, 'the account is restored');
+    assert.equal(ok.body.linkedClientId, freeClient.id, 'the account now links to the free client');
+    const [row] = await db.select({ deletedAt: users.deletedAt, isActive: users.isActive, linkedClientId: users.linkedClientId })
+        .from(users).where(eq(users.id, conflicted.id));
+    assert.equal(row.deletedAt, null);
+    assert.equal(row.isActive, true);
+    assert.equal(row.linkedClientId, freeClient.id, 'the new link is persisted');
+    // The active holder keeps its original link untouched.
+    const [holderRow] = await db.select({ linkedClientId: users.linkedClientId })
+        .from(users).where(eq(users.id, holder.body.id));
+    assert.equal(holderRow.linkedClientId, takenClient.id, 'the active holder still owns the original link');
+    // The restore is audited and a client_link_change entry records the move.
+    const restoreLogs = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, conflicted.id)));
+    assert.equal(restoreLogs.length, 1, 'exactly one user.restored entry is written');
+    assert.match(restoreLogs[0].detail ?? '', /reassigned/i, 'the restore detail notes the reassignment');
+    const linkLogs = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.action, 'client_link_change'), eq(auditLogs.targetUserId, conflicted.id)));
+    assert.equal(linkLogs.length, 1, 'a client_link_change entry records the reassignment');
+    assert.match(linkLogs[0].detail ?? '', /Delta Concrete/, 'the link-change detail names the new client');
+});
+test('restore: POST /:id/restore reassigning to a still-taken client is blocked with a 409 and leaves the account deleted', async () => {
+    const admin = await createUser({ name: 'Admin Reassign 2', email: 'admin-reassign2@test.com', role: 'admin' });
+    const takenClient = await createClient('Epsilon Concrete');
+    const otherTakenClient = await createClient('Zeta Concrete');
+    const token = tokenFor(admin);
+    // Two active accounts each hold one client link.
+    const holderA = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Holder A', email: 'holderA@test.com', password: PASSWORD, role: 'client', linkedClientId: takenClient.id });
+    assert.equal(holderA.status, 201);
+    const holderB = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Holder B', email: 'holderB@test.com', password: PASSWORD, role: 'client', linkedClientId: otherTakenClient.id });
+    assert.equal(holderB.status, 201);
+    // A soft-deleted account pointing at the first taken client.
+    const conflicted = await createUser({
+        name: 'Conflicted 4', email: 'conflict4@test.com', role: 'client',
+        isActive: false, deletedAt: new Date(),
+    });
+    await db.update(users).set({ linkedClientId: takenClient.id }).where(eq(users.id, conflicted.id));
+    // Reassigning to the *other* taken client is rejected.
+    const blocked = await request(app)
+        .post(`/api/users/${conflicted.id}/restore`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ linkedClientId: otherTakenClient.id });
+    assert.equal(blocked.status, 409, 'reassigning to a taken client is blocked');
+    assert.match(blocked.body.error, /already linked/i);
+    // The account stays soft-deleted with its original link and no restore entry.
+    const [row] = await db.select({ deletedAt: users.deletedAt, linkedClientId: users.linkedClientId })
+        .from(users).where(eq(users.id, conflicted.id));
+    assert.ok(row.deletedAt instanceof Date, 'a blocked reassignment leaves the account deleted');
+    assert.equal(row.linkedClientId, takenClient.id, 'the original link is untouched');
+    const logs = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, conflicted.id)));
+    assert.equal(logs.length, 0, 'a blocked reassignment writes no restore audit entry');
+});
 test('unlock: POST /:id/unlock writes a lockout_cleared audit entry naming the acting admin and target', async () => {
     const admin = await createUser({ name: 'Admin Unlock', email: 'unlock-admin@test.com', role: 'admin' });
     const target = await createUser({ name: 'Locked User', email: 'locked@test.com', role: 'dispatcher' });
