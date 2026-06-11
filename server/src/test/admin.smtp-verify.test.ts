@@ -8,7 +8,8 @@ import nodemailer from 'nodemailer';
 
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users } from '../db/schema.js';
+import { users, auditLogs } from '../db/schema.js';
+import { desc } from 'drizzle-orm';
 import { signToken } from '../middleware/auth.js';
 import { SMTP_KEYS } from '../lib/email.js';
 import { setSetting } from '../lib/settings.js';
@@ -186,4 +187,50 @@ test('incomplete config (no stored/supplied password) reports a helpful error wi
   assert.equal(res.body.ok, false);
   assert.match(res.body.error, /incomplete/i);
   assert.equal(verify.mock.callCount(), 0, 'no connection attempt when the config is incomplete');
+});
+
+test('records a success audit entry naming the actor when the connection succeeds', async () => {
+  const admin = await createUser('admin', 'admin@test.com');
+  const token = tokenFor(admin);
+  mockTransport('resolve');
+
+  const res = await request(app)
+    .post('/api/admin/smtp-settings/verify')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ host: 'smtp.example.com', port: '587', user: 'u@example.com', pass: 'topsecret' });
+  assert.equal(res.status, 200);
+
+  const [entry] = await db
+    .select()
+    .from(auditLogs)
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(1);
+  assert.ok(entry, 'an audit entry was written');
+  assert.equal(entry.action, 'smtp_verify');
+  assert.equal(entry.status, 'success');
+  assert.equal(entry.actorId, admin.id);
+  assert.equal(entry.actorName, 'Admin');
+});
+
+test('records a failure audit entry with the error message but never the password', async () => {
+  const admin = await createUser('admin', 'admin@test.com');
+  const token = tokenFor(admin);
+  mockTransport('reject', 'getaddrinfo ENOTFOUND smtp.bogus.example');
+
+  const res = await request(app)
+    .post('/api/admin/smtp-settings/verify')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ host: 'smtp.bogus.example', port: '587', user: 'u@example.com', pass: 'topsecret' });
+  assert.equal(res.status, 502);
+
+  const [entry] = await db
+    .select()
+    .from(auditLogs)
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(1);
+  assert.ok(entry, 'an audit entry was written');
+  assert.equal(entry.action, 'smtp_verify');
+  assert.equal(entry.status, 'failure');
+  assert.match(entry.detail ?? '', /ENOTFOUND/);
+  assert.doesNotMatch(entry.detail ?? '', /topsecret/, 'the password is never logged');
 });

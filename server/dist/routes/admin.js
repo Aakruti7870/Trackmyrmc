@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { auditLogs } from '../db/schema.js';
@@ -97,6 +97,26 @@ router.post('/smtp-settings/verify', async (req, res) => {
     }
     const { host, port, user, from, pass } = parse.data;
     const result = await verifySmtpConnection({ host, port, user, from, pass });
+    // Record the verify attempt so admins have a trail of who tested the SMTP
+    // connection and whether it succeeded. The password is never persisted here —
+    // only the actor, outcome and (on failure) the connection error message.
+    const actor = req.user;
+    try {
+        await db.insert(auditLogs).values({
+            action: 'smtp_verify',
+            status: result.ok ? 'success' : 'failure',
+            detail: result.ok
+                ? 'SMTP connection verified successfully.'
+                : (result.error || 'Unknown error'),
+            actorId: actor?.id ?? null,
+            actorName: actor?.name ?? null,
+            targetUserEmail: null,
+            emailSent: false,
+        });
+    }
+    catch (err) {
+        console.error('[admin] Failed to write SMTP verify audit log:', err);
+    }
     res.status(result.ok ? 200 : 502).json(result);
 });
 router.post('/email-test', async (req, res) => {
@@ -123,10 +143,12 @@ router.post('/email-test', async (req, res) => {
     res.status(result.ok ? 200 : 502).json(result);
 });
 router.get('/email-test/history', async (_req, res) => {
+    // Surface both the "Send test email" (smtp_test) and "Test connection"
+    // (smtp_verify) attempts so admins see the full mail-troubleshooting trail.
     const rows = await db
         .select()
         .from(auditLogs)
-        .where(eq(auditLogs.action, 'smtp_test'))
+        .where(inArray(auditLogs.action, ['smtp_test', 'smtp_verify']))
         .orderBy(desc(auditLogs.createdAt))
         .limit(50);
     res.json(rows);

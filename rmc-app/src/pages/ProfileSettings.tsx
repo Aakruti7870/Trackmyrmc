@@ -379,6 +379,7 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setSmtpVerifying(false);
+      setHistoryReload(n => n + 1);
     }
   }
 
@@ -748,6 +749,7 @@ export default function ProfileSettings() {
               <div style={{ display: 'grid', gap: 8 }}>
                 {testHistory.map(log => {
                   const ok = log.status === 'success';
+                  const kindLabel = log.action === 'smtp_verify' ? 'Connection test' : 'Test email';
                   return (
                     <div key={log.id} style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10,
@@ -760,6 +762,13 @@ export default function ProfileSettings() {
                         : <XCircle size={15} color="#ef4444" style={{ flexShrink: 0, marginTop: 1 }} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px',
+                            color: '#9fb0c7', padding: '2px 7px', borderRadius: 6,
+                            background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)',
+                          }}>
+                            {kindLabel}
+                          </span>
                           <span style={{ fontSize: 13, fontWeight: 700, color: ok ? '#22c55e' : '#ef4444' }}>
                             {ok ? 'Success' : 'Failed'}
                           </span>
