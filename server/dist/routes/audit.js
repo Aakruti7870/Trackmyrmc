@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { and, desc, eq, gte, lte, or, ilike, isNotNull, count } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, or, ilike, isNull, count } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { auditLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
@@ -50,6 +50,13 @@ router.get('/', async (req, res) => {
             return;
         }
         conditions.push(eq(auditLogs.actorId, actorId));
+    }
+    // Filter to a deleted actor's preserved name. Deleted accounts have their
+    // actorId nulled (ON DELETE SET NULL) but keep actorName at write time, so all
+    // deleted actors collapse to actorId=null and can only be targeted by name.
+    // Scope to null-actor rows so this never matches a live actor of the same name.
+    if (typeof req.query.actorName === 'string' && req.query.actorName.length > 0) {
+        conditions.push(and(isNull(auditLogs.actorId), eq(auditLogs.actorName, req.query.actorName)));
     }
     if (req.query.targetUserId !== undefined) {
         const targetUserId = parseInt(String(req.query.targetUserId), 10);
@@ -132,13 +139,16 @@ router.get('/facets', async (_req, res) => {
         id: auditLogs.actorId,
         name: auditLogs.actorName,
     }).from(auditLogs)
-        .where(isNotNull(auditLogs.actorId))
         .orderBy(auditLogs.actorName);
+    // Surface both live actors (id present) and deleted actors (id nulled by
+    // ON DELETE SET NULL, but actorName preserved) so an admin can still audit a
+    // departed admin's history. Drop only rows with no usable label at all
+    // (system actions logged with neither an actorId nor an actorName).
     res.json({
         actions: actionRows.map(r => r.action),
         actors: actorRows
-            .filter(r => r.id !== null)
-            .map(r => ({ id: r.id, name: r.name })),
+            .filter(r => r.id !== null || (r.name !== null && r.name.trim() !== ''))
+            .map(r => ({ id: r.id, name: r.name, deleted: r.id === null })),
     });
 });
 export default router;
