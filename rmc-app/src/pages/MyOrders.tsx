@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type Site, type RecurringOrder } from '@/lib/api';
+import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type Site, type RecurringOrder, type FreshnessConfig } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
+import FreshnessCountdown from '@/components/FreshnessCountdown';
 import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
 import SitePicker from '@/components/SitePicker';
@@ -164,6 +165,7 @@ export default function MyOrders() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [livePositions, setLivePositions] = useState<Record<number, LivePosition>>({});
+  const [freshnessConfig, setFreshnessConfig] = useState<FreshnessConfig | null>(null);
   const [cancelingId, setCancelingId] = useState<number | null>(null);
   const [receiptId, setReceiptId] = useState<number | null>(null);
   const [actionError, setActionError] = useState('');
@@ -192,6 +194,16 @@ export default function MyOrders() {
   }, []);
 
   useEffect(() => { reloadAll(); }, [reloadAll]);
+
+  // Working-life config so the pour-by countdown matches the plant's setting.
+  // Best-effort: the chip just hides if this never loads.
+  useEffect(() => {
+    let cancelled = false;
+    api.get<FreshnessConfig>('/positions/freshness-config')
+      .then(cfg => { if (!cancelled) setFreshnessConfig(cfg); })
+      .catch(() => { /* countdown is non-critical */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Seed the live map with positions already in flight, since SSE only delivers
   // *future* movements. Scoped server-side to this client. Best-effort.
@@ -626,6 +638,7 @@ export default function MyOrders() {
                         {!live && (
                           <span style={{ fontSize: 11.5, color: 'var(--muted)', fontStyle: 'italic' }}>Awaiting GPS…</span>
                         )}
+                        <FreshnessCountdown dispatchTime={c.dispatchTime} config={freshnessConfig} variant="chip" />
                       </div>
                     </div>
                     <LiveTimeline status={c.status} hasLive={!!live} />

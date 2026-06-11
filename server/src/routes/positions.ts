@@ -287,4 +287,11 @@ router.get('/freshness', requireRole('admin', 'dispatcher', 'authority', 'plant_
   res.json(await getFreshnessLoads());
 });
 
+// Lightweight freshness config for clients and drivers, who only need the
+// working-life window to render a pour-by countdown on their own loads (they
+// must not see the plant-wide freshness list). Any authenticated user may read.
+router.get('/freshness-config', async (_req, res) => {
+  res.json(await getFreshnessConfig());
+});
+
 export default router;

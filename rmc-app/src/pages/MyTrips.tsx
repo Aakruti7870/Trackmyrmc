@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api, type Challan, type PositionUpdateResult } from '@/lib/api';
-import { Truck, MapPin, CheckCircle, Clock, Package, AlertCircle, CalendarDays, Navigation, Satellite, AlertTriangle, Camera, X } from 'lucide-react';
+import { api, type Challan, type PositionUpdateResult, type FreshnessConfig } from '@/lib/api';
+import { Truck, MapPin, CheckCircle, Clock, Package, AlertCircle, CalendarDays, Navigation, Satellite, AlertTriangle, Camera, X, Map as MapIcon } from 'lucide-react';
+import FreshnessCountdown from '@/components/FreshnessCountdown';
 
 // Resize/compress an image file to a small JPEG data URL so proof photos stay
 // well under the server's upload limit while remaining legible for billing.
@@ -86,8 +87,8 @@ function fmtDist(m: number): string {
 
 const MAX_PROOF_PHOTOS = 8;
 
-function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
-  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[]) => void; tracking: boolean; liveDistanceM?: number | null;
+function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM, freshnessConfig }: {
+  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[]) => void; tracking: boolean; liveDistanceM?: number | null; freshnessConfig: FreshnessConfig | null;
 }) {
   const s = STATUS_STYLES[challan.status] || STATUS_STYLES.pending;
   const StatusIcon = s.icon;
@@ -203,6 +204,26 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM }: {
           <MapPin size={12} style={{ color: 'var(--muted)' }} />
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>{challan.siteName}</span>
         </div>
+      )}
+
+      {isActionable && (
+        <FreshnessCountdown dispatchTime={challan.dispatchTime} config={freshnessConfig} variant="banner" />
+      )}
+
+      {isActionable && hasPin && (
+        <a
+          href={`https://www.google.com/maps/dir/?api=1&destination=${challan.siteLat},${challan.siteLng}&travelmode=driving`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginBottom: 14,
+            padding: '10px 0', borderRadius: 10, textDecoration: 'none',
+            background: 'rgba(56,189,248,.1)', border: '1px solid rgba(56,189,248,.3)',
+            color: 'var(--blue)', fontSize: 13, fontWeight: 700,
+          }}
+        >
+          <MapIcon size={15} /> Navigate to site
+        </a>
       )}
 
       {isActionable && tracking && (
@@ -483,6 +504,7 @@ function GPSPanel({
 
 export default function MyTrips() {
   const [challans, setChallans] = useState<Challan[]>([]);
+  const [freshnessConfig, setFreshnessConfig] = useState<FreshnessConfig | null>(null);
   const [filter, setFilter] = useState<'all' | 'dispatched' | 'delivered'>('all');
   const [viewAll, setViewAll] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -517,6 +539,16 @@ export default function MyTrips() {
     loadTrips();
     return () => { cancelled = true; };
   }, [viewAll]);
+
+  // Working-life config so the pour-by countdown matches the plant's setting.
+  // Best-effort: the banner just hides if this never loads.
+  useEffect(() => {
+    let cancelled = false;
+    api.get<FreshnessConfig>('/positions/freshness-config')
+      .then(cfg => { if (!cancelled) setFreshnessConfig(cfg); })
+      .catch(() => { /* countdown is non-critical */ });
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleMarkDelivered(id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[]) {
     const updated = await api.put<Challan>(`/challans/${id}`, {
@@ -752,7 +784,7 @@ export default function MyTrips() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 16 }}>
           {filtered.map(c => (
-            <TripCard key={c.id} challan={c} onMarkDelivered={handleMarkDelivered} tracking={tracking && geoState === 'active'} liveDistanceM={liveDist[c.id]} />
+            <TripCard key={c.id} challan={c} onMarkDelivered={handleMarkDelivered} tracking={tracking && geoState === 'active'} liveDistanceM={liveDist[c.id]} freshnessConfig={freshnessConfig} />
           ))}
         </div>
       )}
