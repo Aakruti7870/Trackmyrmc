@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Edit2, X, Search, ShieldCheck, UserCog, Eye, EyeOff, ClipboardList, CheckCircle, XCircle, Send, LockOpen, Mail, History, Trash2, AlertTriangle, RotateCcw, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import SearchableSelect from '@/components/SearchableSelect';
@@ -425,8 +423,12 @@ export default function Users() {
   // download it directly (no new window or print dialog), matching the CSV/Excel
   // one-click flow. Layout mirrors the former print view — title, scope, active
   // filters, gold styled header, zebra rows — so the file stays self-describing.
-  function exportAuditPdf() {
+  async function exportAuditPdf() {
     if (auditLog.length === 0) return;
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ]);
     const rows = auditExportRows();
     const filterBits: string[] = [];
     if (actionFilter !== 'all') filterBits.push(`Action: ${ACTION_LABEL[actionFilter] ?? actionFilter}`);
