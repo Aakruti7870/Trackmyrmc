@@ -79,9 +79,13 @@ router.put('/:id', async (req, res) => {
   const notesUpdate = notes !== undefined && (typeof notes !== 'string' || notes.trim())
     ? notes
     : undefined;
+  // Mirror the notes guard for siteId: omitting it (undefined) leaves the saved
+  // site untouched, so a partial edit can't silently clear it. An explicit
+  // falsy value (null/0/'') still clears the optional site on purpose.
+  const siteIdUpdate = siteId === undefined ? undefined : (siteId ? +siteId : null);
   const [row] = await db.update(orders).set({
     clientId: clientId ? +clientId : undefined,
-    siteId: siteId ? +siteId : null,
+    siteId: siteIdUpdate,
     grade, quantity: quantity?.toString(),
     pumpRequired: pumpRequired !== undefined ? !!pumpRequired : undefined,
     deliveryDate, deliveryTime, notes: notesUpdate, status,
