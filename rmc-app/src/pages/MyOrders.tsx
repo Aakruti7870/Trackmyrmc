@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, type Order, type Challan, type LedgerEntry, type LivePosition } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
-import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon } from 'lucide-react';
+import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText } from 'lucide-react';
+import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
 
 const GRADES = ['M10', 'M15', 'M20', 'M25', 'M30', 'M35', 'M40', 'M45', 'M50', 'M55', 'M60'];
 
@@ -128,6 +129,9 @@ export default function MyOrders() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [livePositions, setLivePositions] = useState<Record<number, LivePosition>>({});
+  const [cancelingId, setCancelingId] = useState<number | null>(null);
+  const [receiptId, setReceiptId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState('');
   const [proof, setProof] = useState<{ open: boolean; loading: boolean; challanNo: string; photos: string[]; error: string }>(
     { open: false, loading: false, challanNo: '', photos: [], error: '' },
   );
@@ -179,6 +183,48 @@ export default function MyOrders() {
       setProof({ open: true, loading: false, challanNo: c.challanNo, photos: detail.proofPhotos ?? [], error: '' });
     } catch (e) {
       setProof({ open: true, loading: false, challanNo: c.challanNo, photos: [], error: e instanceof Error ? e.message : 'Could not load photo' });
+    }
+  }
+
+  // One-tap reorder: pre-fill the Place Order modal from a past order. The
+  // delivery date/time are intentionally left blank so the customer picks a
+  // fresh slot rather than re-submitting an old date.
+  function reorder(o: Order) {
+    setForm({
+      grade: o.grade,
+      quantity: parseFloat(o.quantity).toString(),
+      deliveryDate: '',
+      deliveryTime: '',
+      pumpRequired: !!o.pumpRequired,
+      notes: o.notes ?? '',
+    });
+    setFormError('');
+    setModalOpen(true);
+  }
+
+  async function cancelOrder(o: Order) {
+    if (!window.confirm(`Cancel order ${o.orderNo}? This cannot be undone.`)) return;
+    setActionError('');
+    setCancelingId(o.id);
+    try {
+      const updated = await api.patch<Order>(`/me/orders/${o.id}/cancel`, {});
+      setOrders(prev => prev.map(x => x.id === o.id ? updated : x));
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Could not cancel the order.');
+    } finally {
+      setCancelingId(null);
+    }
+  }
+
+  async function downloadReceipt(c: Challan) {
+    setActionError('');
+    setReceiptId(c.id);
+    try {
+      await downloadDeliveryReceipt(c);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Could not generate the receipt.');
+    } finally {
+      setReceiptId(null);
     }
   }
 
@@ -301,6 +347,19 @@ export default function MyOrders() {
         ))}
       </div>
 
+      {actionError && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.35)', color: 'var(--red)',
+          padding: '10px 14px', borderRadius: 10, marginBottom: 14, fontSize: 13, fontWeight: 600,
+        }}>
+          <span>{actionError}</span>
+          <button type="button" onClick={() => setActionError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', padding: 2, display: 'inline-flex' }}>
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
       {/* Content */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>Loading…</div>
@@ -317,8 +376,8 @@ export default function MyOrders() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Order No', 'Grade', 'Qty (m³)', 'Delivery Date', 'Site', 'Status'].map(h => (
-                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
+                  {['Order No', 'Grade', 'Qty (m³)', 'Delivery Date', 'Site', 'Status', 'Actions'].map(h => (
+                    <th key={h} style={{ padding: '10px 14px', textAlign: h === 'Actions' ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -333,6 +392,27 @@ export default function MyOrders() {
                     <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.deliveryDate || '—'}</td>
                     <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || '—'}</td>
                     <td style={{ padding: '12px 14px' }}><StatusBadge status={o.status} /></td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button onClick={() => reorder(o)} title="Reorder" style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5, background: 'color-mix(in srgb, var(--gold) 14%, transparent)',
+                          color: 'var(--gold)', border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', borderRadius: 7,
+                          padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        }}>
+                          <RotateCcw size={13} /> Reorder
+                        </button>
+                        {o.status === 'pending' && (
+                          <button onClick={() => cancelOrder(o)} disabled={cancelingId === o.id} title="Cancel order" style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(239,68,68,.12)',
+                            color: 'var(--red)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 7,
+                            padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: cancelingId === o.id ? 'wait' : 'pointer',
+                            opacity: cancelingId === o.id ? 0.6 : 1,
+                          }}>
+                            <Ban size={13} /> {cancelingId === o.id ? 'Canceling…' : 'Cancel'}
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -402,7 +482,7 @@ export default function MyOrders() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Challan No', 'Grade', 'Qty (m³)', 'Vehicle', 'Driver', 'Dispatch Time', 'Status', 'Proof'].map(h => (
+                  {['Challan No', 'Grade', 'Qty (m³)', 'Vehicle', 'Driver', 'Dispatch Time', 'Status', 'Proof', 'Receipt'].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
                   ))}
                 </tr>
@@ -429,6 +509,21 @@ export default function MyOrders() {
                           padding: '5px 11px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                         }}>
                           <Camera size={13} /> Photo
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      {c.status === 'delivered' ? (
+                        <button onClick={() => downloadReceipt(c)} disabled={receiptId === c.id} title="Download receipt" style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5, cursor: receiptId === c.id ? 'wait' : 'pointer',
+                          background: 'color-mix(in srgb, var(--green) 12%, transparent)', color: 'var(--green)',
+                          border: '1px solid color-mix(in srgb, var(--green) 35%, transparent)',
+                          padding: '5px 11px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                          opacity: receiptId === c.id ? 0.6 : 1,
+                        }}>
+                          <FileText size={13} /> {receiptId === c.id ? 'Preparing…' : 'Receipt'}
                         </button>
                       ) : (
                         <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>

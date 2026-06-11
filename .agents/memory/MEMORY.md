@@ -17,3 +17,4 @@
 - [RMC frontend test flakiness](rmc-frontend-test-flakiness.md) — "passes alone, fails in full run" = ToastProvider 4s timer leak (clear on unmount) or CPU-starved userEvent timeouts (raise global testTimeout); blamed test is usually collateral.
 - [RMC JWT_SECRET & Clerk SSO](rmc-jwt-secret-and-clerk-sso.md) — JWT_SECRET required at boot (no fallback); set as SHARED env var, not a user secret; bash shell can't see it (use viewEnvVars); Clerk SSO is browser→/api/auth/clerk token-exchange→legacy JWT.
 - [RMC frontend test speed](rmc-frontend-test-speed.md) — use vitest `pool:'threads'` (never `isolate:false`); lazy-import heavy export deps (xlsx/jspdf); judge timing from the validation `test` workflow, not ad-hoc runs.
+- [RMC MyOrders error surfaces](rmc-myorders-error-banner.md) — page-level `error` state is a full-page replacement; per-action failures must use a local dismissible banner, not setError.

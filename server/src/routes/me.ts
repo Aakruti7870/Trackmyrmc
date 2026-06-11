@@ -98,6 +98,39 @@ router.post('/orders', requireRole('client'), async (req, res) => {
   res.status(201).json(row);
 });
 
+// A customer cancels one of their own orders, but only while it is still
+// 'pending' (i.e. the plant has not started/dispatched it). Scoped to the
+// caller's linked client so a customer can never touch another client's order.
+router.patch('/orders/:id/cancel', requireRole('client'), async (req, res) => {
+  const clientId = await getLinkedClientId(req.user!.id);
+  if (!clientId) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'Invalid order id' }); return; }
+
+  // Cancel atomically: gate the status inside the UPDATE predicate so a
+  // concurrent staff transition (pending -> in_progress) between a read and a
+  // write can never be clobbered. No row updated means either the order isn't
+  // ours/doesn't exist (404) or it is no longer pending (409); a follow-up
+  // existence check disambiguates the two.
+  const [row] = await db.update(orders)
+    .set({ status: 'cancelled' })
+    .where(and(eq(orders.id, id), eq(orders.clientId, clientId), eq(orders.status, 'pending')))
+    .returning();
+
+  if (!row) {
+    const [existing] = await db.select({ id: orders.id })
+      .from(orders)
+      .where(and(eq(orders.id, id), eq(orders.clientId, clientId)));
+    if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+    res.status(409).json({ error: 'Only a pending order can be cancelled.' });
+    return;
+  }
+
+  emitSSEEvent('order.updated', row, { clientId: row.clientId });
+  res.json(row);
+});
+
 router.get('/challans', requireRole('client'), async (req, res) => {
   const clientId = await getLinkedClientId(req.user!.id);
   if (!clientId) { res.json([]); return; }
