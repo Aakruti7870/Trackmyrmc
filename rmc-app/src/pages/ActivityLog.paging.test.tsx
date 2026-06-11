@@ -100,8 +100,11 @@ describe('ActivityLog — total count', () => {
 });
 
 describe('ActivityLog — page navigation', () => {
+  // These two cases drive many click/type + waitFor cycles; under the full
+  // suite's parallel CPU contention they run slower than the 5s default, so a
+  // generous per-test timeout keeps them reliable (they pass in ~1s in isolation).
   it('advances and rewinds pages with Next/Prev, requesting the right offset', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     mockApi(250); // 3 pages of 100
     render(<ActivityLog />);
 
@@ -139,7 +142,7 @@ describe('ActivityLog — page navigation', () => {
   });
 
   it('jumps to a specific page and clamps an out-of-range page to the last one', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     mockApi(250);
     render(<ActivityLog />);
     await waitFor(() => expect(lastOffset()).toBe(0));
@@ -168,7 +171,7 @@ describe('ActivityLog — page navigation', () => {
 
 describe('ActivityLog — filtering resets paging', () => {
   it('returns to page 1 (offset 0) when a filter changes after navigating away', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     mockApi(250);
     render(<ActivityLog />);
     await waitFor(() => expect(lastOffset()).toBe(0));

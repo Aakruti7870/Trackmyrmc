@@ -1,19 +1,36 @@
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { ToastContext, type Toast, type ToastType } from './toast';
 
 let _counter = 0;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // Track every pending auto-dismiss timer so we can cancel them on unmount.
+  // Otherwise a toast fired right before unmount leaves a 4s timer that fires
+  // into a torn-down tree (setState-after-unmount), which crashes the jsdom
+  // environment in tests as "window is not defined".
+  const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = ++_counter;
     setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+    const handle = setTimeout(() => {
+      timers.current.delete(handle);
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+    timers.current.add(handle);
   }, []);
 
   const dismiss = useCallback((id: number) => {
     setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      pending.forEach(clearTimeout);
+      pending.clear();
+    };
   }, []);
 
   return (

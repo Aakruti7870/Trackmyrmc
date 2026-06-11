@@ -161,7 +161,7 @@ describe('Users activity-log export menu', () => {
 
     expect(within(menu).getByRole('menuitem', { name: /CSV \(\.csv\)/ })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: /Excel \(\.xlsx\)/ })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /PDF \(print\)/ })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /PDF \(\.pdf\)/ })).toBeInTheDocument();
   });
 
   it('exports a CSV blob with headers, escaped cells and a dated filename', async () => {
@@ -227,49 +227,43 @@ describe('Users activity-log export menu', () => {
     expect(wb.SheetNames[0]).toBe('Activity Log');
   });
 
-  it('exports a PDF by opening a print window with the rendered table', async () => {
-    const writes: string[] = [];
-    const fakeWin = {
-      document: {
-        open: vi.fn(),
-        write: vi.fn((html: string) => writes.push(html)),
-        close: vi.fn(),
-      },
-    };
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakeWin as unknown as Window);
+  it('exports a PDF directly via jsPDF without opening a print window', async () => {
+    // The PDF path now builds the file client-side with jsPDF and downloads it
+    // straight away (no new window / print dialog), so window.open must stay
+    // untouched and no download blob is produced.
+    const openSpy = vi.spyOn(window, 'open');
 
     const user = userEvent.setup();
     renderUsers();
     const menu = await openExportMenu(user);
 
-    await user.click(within(menu).getByRole('menuitem', { name: /PDF \(print\)/ }));
+    await user.click(within(menu).getByRole('menuitem', { name: /PDF \(\.pdf\)/ }));
 
-    expect(openSpy).toHaveBeenCalledWith('', '_blank');
-    expect(fakeWin.document.write).toHaveBeenCalledTimes(1);
-    const html = writes[0];
-    expect(html).toContain('<h1>Activity Log</h1>');
-    expect(html).toContain('Account Created');
-    expect(html).toContain('window.print()');
-    // No download blob is produced for the PDF path.
+    await waitFor(() => expect(pdfCapture.savedName).not.toBe(''));
+    // Dated, all-users filename matching the CSV/Excel one-click flow.
+    expect(pdfCapture.savedName).toMatch(/^activity-log-all-\d{4}-\d{2}-\d{2}\.pdf$/);
+
+    const textValues = pdfCapture.textCalls.map(c => c[0]);
+    expect(textValues).toContain('Activity Log');
+    expect(textValues).toContain('Scope: All users');
+
+    expect(openSpy).not.toHaveBeenCalled();
     expect(createdBlobs.length).toBe(0);
 
     openSpy.mockRestore();
   });
 
-  it('shows a pop-up-blocked toast when the PDF window cannot open', async () => {
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
-
+  it('writes a generated entry-count summary line into the PDF', async () => {
     const user = userEvent.setup();
     renderUsers();
     const menu = await openExportMenu(user);
 
-    await user.click(within(menu).getByRole('menuitem', { name: /PDF \(print\)/ }));
+    await user.click(within(menu).getByRole('menuitem', { name: /PDF \(\.pdf\)/ }));
 
-    expect(
-      await screen.findByText('Allow pop-ups to export the activity log as PDF.'),
-    ).toBeInTheDocument();
-
-    openSpy.mockRestore();
+    await waitFor(() => expect(pdfCapture.savedName).not.toBe(''));
+    // The two seeded rows are summarised (pluralised) with a generated-at stamp.
+    const textValues = pdfCapture.textCalls.map(c => String(c[0]));
+    expect(textValues.some(t => /^2 entries · Generated /.test(t))).toBe(true);
   });
 });
 
