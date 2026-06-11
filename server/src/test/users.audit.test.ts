@@ -394,6 +394,135 @@ test('GET /api/audit-logs/facets lists the distinct actors', async () => {
   assert.deepEqual(ids, [admin.id, other.id].sort((x, y) => x - y));
 });
 
+test('GET /api/audit-logs?q matches across actor name, target email, detail and action', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  await seedAudit([
+    // Matches via actorName.
+    { actorId: admin.id, actorName: 'Priya Sharma', action: 'user.created', targetUserEmail: 'a@x.com', detail: 'made an account' },
+    // Matches via targetUserEmail.
+    { actorId: admin.id, actorName: 'Admin', action: 'user.updated', targetUserEmail: 'priya@x.com', detail: 'changed role' },
+    // Matches via detail.
+    { actorId: admin.id, actorName: 'Admin', action: 'password_reset', targetUserEmail: 'b@x.com', detail: 'reset for Priya' },
+    // Matches via action.
+    { actorId: admin.id, actorName: 'Admin', action: 'priya.special', targetUserEmail: 'c@x.com', detail: 'special event' },
+    // Matches none of the four fields.
+    { actorId: admin.id, actorName: 'Other', action: 'user.deleted', targetUserEmail: 'z@x.com', detail: 'nothing here' },
+  ]);
+
+  const res = await request(app)
+    .get('/api/audit-logs?q=priya')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.rows.length, 4, 'every entry mentioning the term in any searchable field is returned');
+  const emails = res.body.rows.map((e: { targetUserEmail: string }) => e.targetUserEmail).sort();
+  assert.deepEqual(emails, ['a@x.com', 'b@x.com', 'c@x.com', 'priya@x.com']);
+});
+
+test('GET /api/audit-logs?q is case-insensitive and excludes non-matches', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  await seedAudit([
+    { actorId: admin.id, actorName: 'Admin', action: 'user.created', targetUserEmail: 'MATCH@x.com', detail: null },
+    { actorId: admin.id, actorName: 'Admin', action: 'user.created', targetUserEmail: 'nope@x.com', detail: null },
+  ]);
+
+  const res = await request(app)
+    .get('/api/audit-logs?q=match')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.rows.length, 1, 'case-insensitive match returns exactly the matching row');
+  assert.equal(res.body.rows[0].targetUserEmail, 'MATCH@x.com');
+});
+
+test('GET /api/audit-logs paging: limit/offset slice and hasMore/total report accurately', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  // Five rows with strictly increasing timestamps so the newest-first ordering
+  // is deterministic: e5 is newest, e1 is oldest.
+  await seedAudit([
+    { actorId: admin.id, actorName: 'Admin', action: 'user.created', targetUserEmail: 'e1@x.com', createdAt: new Date('2026-02-01T10:00:00Z') },
+    { actorId: admin.id, actorName: 'Admin', action: 'user.created', targetUserEmail: 'e2@x.com', createdAt: new Date('2026-02-02T10:00:00Z') },
+    { actorId: admin.id, actorName: 'Admin', action: 'user.created', targetUserEmail: 'e3@x.com', createdAt: new Date('2026-02-03T10:00:00Z') },
+    { actorId: admin.id, actorName: 'Admin', action: 'user.created', targetUserEmail: 'e4@x.com', createdAt: new Date('2026-02-04T10:00:00Z') },
+    { actorId: admin.id, actorName: 'Admin', action: 'user.created', targetUserEmail: 'e5@x.com', createdAt: new Date('2026-02-05T10:00:00Z') },
+  ]);
+
+  const page1 = await request(app)
+    .get('/api/audit-logs?limit=2&offset=0')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(page1.status, 200);
+  assert.equal(page1.body.rows.length, 2, 'first page holds exactly `limit` rows');
+  assert.deepEqual(
+    page1.body.rows.map((e: { targetUserEmail: string }) => e.targetUserEmail),
+    ['e5@x.com', 'e4@x.com'],
+    'first page returns the two newest rows',
+  );
+  assert.equal(page1.body.total, 5, 'total counts every matching row regardless of the page');
+  assert.equal(page1.body.hasMore, true, 'hasMore is true while later pages remain');
+
+  const page2 = await request(app)
+    .get('/api/audit-logs?limit=2&offset=2')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(page2.status, 200);
+  assert.deepEqual(
+    page2.body.rows.map((e: { targetUserEmail: string }) => e.targetUserEmail),
+    ['e3@x.com', 'e2@x.com'],
+    'second page continues after the first page with no overlap',
+  );
+  assert.equal(page2.body.total, 5);
+  assert.equal(page2.body.hasMore, true);
+
+  const page3 = await request(app)
+    .get('/api/audit-logs?limit=2&offset=4')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(page3.status, 200);
+  assert.deepEqual(
+    page3.body.rows.map((e: { targetUserEmail: string }) => e.targetUserEmail),
+    ['e1@x.com'],
+    'the final page returns the remaining row',
+  );
+  assert.equal(page3.body.total, 5);
+  assert.equal(page3.body.hasMore, false, 'hasMore is false on the last page');
+});
+
+test('GET /api/audit-logs?offset rejects a negative offset with 400', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const res = await request(app)
+    .get('/api/audit-logs?offset=-1')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(res.status, 400);
+});
+
+test('GET /api/audit-logs?offset rejects a non-numeric offset with 400', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const res = await request(app)
+    .get('/api/audit-logs?offset=not-a-number')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(res.status, 400);
+});
+
+test('GET /api/audit-logs/facets lists the distinct actions', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  await seedAudit([
+    { actorId: admin.id, actorName: admin.name, action: 'user.created', targetUserEmail: 'a@x.com' },
+    { actorId: admin.id, actorName: admin.name, action: 'password_reset', targetUserEmail: 'b@x.com' },
+    // A duplicate action must collapse to a single facet entry.
+    { actorId: admin.id, actorName: admin.name, action: 'password_reset', targetUserEmail: 'c@x.com' },
+  ]);
+
+  const res = await request(app)
+    .get('/api/audit-logs/facets')
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
+
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body.actions), 'facets returns an actions array');
+  assert.deepEqual(
+    [...res.body.actions].sort(),
+    ['password_reset', 'user.created'],
+    'each distinct action appears exactly once',
+  );
+});
+
 test('GET /api/audit-logs?from rejects an invalid from date with 400', async () => {
   const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
   const res = await request(app)
