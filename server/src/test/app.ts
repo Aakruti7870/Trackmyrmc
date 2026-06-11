@@ -7,6 +7,7 @@ import challanRoutes from '../routes/challans.js';
 import clientRoutes from '../routes/clients.js';
 import driverRoutes from '../routes/drivers.js';
 import eventsRoutes from '../routes/events.js';
+import meRoutes from '../routes/me.js';
 import orderRoutes from '../routes/orders.js';
 import positionRoutes from '../routes/positions.js';
 import reportRoutes from '../routes/reports.js';
@@ -27,6 +28,7 @@ export function buildTestApp(): Express {
   app.use('/api/clients', clientRoutes);
   app.use('/api/drivers', driverRoutes);
   app.use('/api/events', eventsRoutes);
+  app.use('/api/me', meRoutes);
   app.use('/api/orders', orderRoutes);
   app.use('/api/positions', positionRoutes);
   app.use('/api/reports', reportRoutes);

@@ -1,6 +1,21 @@
 import { useState, useEffect } from 'react';
 import { api, type Order, type Challan, type LedgerEntry } from '@/lib/api';
-import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt } from 'lucide-react';
+import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X } from 'lucide-react';
+
+const GRADES = ['M10', 'M15', 'M20', 'M25', 'M30', 'M35', 'M40', 'M45', 'M50', 'M55', 'M60'];
+
+interface OrderForm {
+  grade: string;
+  quantity: string;
+  deliveryDate: string;
+  deliveryTime: string;
+  pumpRequired: boolean;
+  notes: string;
+}
+
+const EMPTY_FORM: OrderForm = {
+  grade: '', quantity: '', deliveryDate: '', deliveryTime: '', pumpRequired: false, notes: '',
+};
 
 const STATUS_STYLES: Record<string, { color: string; bg: string; label: string }> = {
   pending:     { color: 'var(--gold)', bg: 'color-mix(in srgb, var(--gold) 13%, transparent)',  label: 'Pending' },
@@ -47,6 +62,10 @@ export default function MyOrders() {
   const [tab, setTab] = useState<'orders' | 'challans' | 'ledger'>('orders');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState<OrderForm>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -58,6 +77,37 @@ export default function MyOrders() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  function openModal() {
+    setForm(EMPTY_FORM);
+    setFormError('');
+    setModalOpen(true);
+  }
+
+  async function submitOrder(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError('');
+    if (!form.grade) { setFormError('Please select a concrete grade.'); return; }
+    if (!(Number(form.quantity) > 0)) { setFormError('Please enter a quantity greater than zero.'); return; }
+    setSaving(true);
+    try {
+      const created = await api.post<Order>('/me/orders', {
+        grade: form.grade,
+        quantity: form.quantity,
+        pumpRequired: form.pumpRequired,
+        deliveryDate: form.deliveryDate || undefined,
+        deliveryTime: form.deliveryTime || undefined,
+        notes: form.notes || undefined,
+      });
+      setOrders(prev => [created, ...prev]);
+      setModalOpen(false);
+      setTab('orders');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Could not place the order.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const totalQty = (items: { quantity: string }[]) =>
     items.reduce((s, i) => s + parseFloat(i.quantity || '0'), 0).toFixed(1);
@@ -79,13 +129,24 @@ export default function MyOrders() {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)', margin: 0, letterSpacing: '-.3px' }}>
-          My Orders & Deliveries
-        </h1>
-        <p style={{ color: 'var(--muted)', fontSize: 13, margin: '6px 0 0' }}>
-          Track your concrete orders, delivery challans, and billing ledger
-        </p>
+      <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)', margin: 0, letterSpacing: '-.3px' }}>
+            My Orders & Deliveries
+          </h1>
+          <p style={{ color: 'var(--muted)', fontSize: 13, margin: '6px 0 0' }}>
+            Track your concrete orders, delivery challans, and billing ledger
+          </p>
+        </div>
+        <button onClick={openModal} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 18px',
+          borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 800,
+          background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+          color: '#111827', boxShadow: '0 10px 26px color-mix(in srgb, var(--gold) 20%, transparent)',
+          whiteSpace: 'nowrap',
+        }}>
+          <Plus size={17} /> Place Order
+        </button>
       </div>
 
       {/* KPI Row */}
@@ -261,6 +322,100 @@ export default function MyOrders() {
           )}
         </Card>
       )}
+
+      {/* Place Order modal */}
+      {modalOpen && (
+        <div
+          onClick={() => !saving && setModalOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100,
+          }}
+        >
+          <form
+            onClick={e => e.stopPropagation()}
+            onSubmit={submitOrder}
+            style={{
+              width: '100%', maxWidth: 500,
+              background: 'linear-gradient(135deg,rgba(15,28,54,.98),rgba(8,17,31,.98))',
+              border: '1px solid rgba(255,255,255,.1)', borderRadius: 18, padding: 24,
+              boxShadow: '0 24px 60px rgba(0,0,0,.5)', maxHeight: '90vh', overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Place New Order</h3>
+              <button type="button" onClick={() => !saving && setModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Concrete Grade</label>
+                <select value={form.grade} onChange={e => setForm(f => ({ ...f, grade: e.target.value }))} style={inputStyle}>
+                  <option value="">Select grade…</option>
+                  {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Quantity (m³)</label>
+                <input type="number" min="0" step="0.5" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} placeholder="e.g. 10" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Delivery Date</label>
+                <input type="date" value={form.deliveryDate} onChange={e => setForm(f => ({ ...f, deliveryDate: e.target.value }))} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Delivery Time</label>
+                <input type="time" value={form.deliveryTime} onChange={e => setForm(f => ({ ...f, deliveryTime: e.target.value }))} style={inputStyle} />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>Notes / Site details (optional)</label>
+              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Delivery site address, special instructions…" style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, cursor: 'pointer', color: 'var(--text)', fontSize: 13 }}>
+              <input type="checkbox" checked={form.pumpRequired} onChange={e => setForm(f => ({ ...f, pumpRequired: e.target.checked }))} />
+              Concrete pump required
+            </label>
+
+            {formError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 10, padding: '10px 14px', marginTop: 16 }}>
+                <AlertCircle size={14} style={{ color: 'var(--red)' }} />
+                <span style={{ color: 'var(--red)', fontSize: 13 }}>{formError}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+              <button type="button" onClick={() => !saving && setModalOpen(false)} style={{
+                flex: 1, padding: '11px', borderRadius: 11, cursor: 'pointer', fontSize: 14, fontWeight: 700,
+                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', color: 'var(--text)',
+              }}>
+                Cancel
+              </button>
+              <button type="submit" disabled={saving} style={{
+                flex: 1, padding: '11px', borderRadius: 11, border: 'none',
+                cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 800, color: '#111827',
+                background: saving ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+              }}>
+                {saving ? 'Placing…' : 'Place Order'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,.04)',
+  border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: 'var(--text)',
+  fontSize: 14, outline: 'none', boxSizing: 'border-box',
+};

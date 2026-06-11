@@ -3,8 +3,17 @@ import { eq, desc, gte, lte, and, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { emitSSEEvent } from '../lib/sseEmitter.js';
 const router = Router();
 router.use(requireAuth);
+async function nextOrderNo() {
+    const [last] = await db.select({ orderNo: orders.orderNo }).from(orders)
+        .orderBy(desc(orders.id)).limit(1);
+    if (!last)
+        return 'ORD-001';
+    const n = parseInt(last.orderNo.split('-')[1] || '0', 10);
+    return `ORD-${String(n + 1).padStart(3, '0')}`;
+}
 const challanSelect = {
     id: challans.id, challanNo: challans.challanNo,
     grade: challans.grade, quantity: challans.quantity,
@@ -52,6 +61,41 @@ router.get('/orders', requireRole('client'), async (req, res) => {
         .where(eq(orders.clientId, clientId))
         .orderBy(desc(orders.createdAt));
     res.json(rows);
+});
+// A client places a new order for themselves. The order always belongs to the
+// caller's linked client and starts as 'pending' for staff to process — the
+// client can never set the client, status, or order number.
+router.post('/orders', requireRole('client'), async (req, res) => {
+    const clientId = await getLinkedClientId(req.user.id);
+    if (!clientId) {
+        res.status(400).json({ error: 'Your account is not linked to a client.' });
+        return;
+    }
+    const { grade, quantity, pumpRequired, deliveryDate, deliveryTime, notes } = req.body;
+    if (!grade || typeof grade !== 'string') {
+        res.status(400).json({ error: 'Grade is required.' });
+        return;
+    }
+    const qty = Number(quantity);
+    if (!Number.isFinite(qty) || qty <= 0) {
+        res.status(400).json({ error: 'Quantity must be greater than zero.' });
+        return;
+    }
+    const orderNo = await nextOrderNo();
+    const [row] = await db.insert(orders).values({
+        orderNo,
+        clientId,
+        grade,
+        quantity: qty.toString(),
+        pumpRequired: !!pumpRequired,
+        deliveryDate: deliveryDate || null,
+        deliveryTime: deliveryTime || null,
+        notes: typeof notes === 'string' && notes.trim() ? notes : null,
+        status: 'pending',
+    }).returning();
+    // Notify staff (and the client's own sessions) that a new order arrived.
+    emitSSEEvent('order.created', row);
+    res.status(201).json(row);
 });
 router.get('/challans', requireRole('client'), async (req, res) => {
     const clientId = await getLinkedClientId(req.user.id);
