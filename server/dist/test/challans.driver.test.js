@@ -465,6 +465,90 @@ test('a driver PUT with proofPhotos: null clears a stored photo; hasProofPhoto b
     assert.ok(listed, 'the challan appears in the list');
     assert.equal(listed.hasProofPhoto, false, 'list flag is false after clear');
 });
+test('replacing object-storage proof photos removes the previously stored objects', async (t) => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'delivered' });
+    // Seed two existing object-storage proof photos (the new entity-path format).
+    const oldPaths = ['/objects/uploads/old-a', '/objects/uploads/old-b'];
+    await db.insert(challanProofPhotos).values(oldPaths.map(photo => ({ challanId: challan.id, photo })));
+    assert.equal(await proofPhotoCount(challan.id), 2, 'two old proof photos seeded');
+    // The replacement is a direct-upload object path; verify passes, store is unused.
+    t.mock.method(proofPhotoStore, 'verifyExists', async () => true);
+    const removed = [];
+    t.mock.method(proofPhotoStore, 'remove', async (stored) => {
+        removed.push(stored);
+    });
+    const res = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhotos: ['/objects/uploads/new-c'] });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.hasProofPhoto, true);
+    // Only the new photo remains in the child table.
+    const rows = await db.select({ photo: challanProofPhotos.photo })
+        .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id));
+    assert.deepEqual(rows.map(r => r.photo), ['/objects/uploads/new-c'], 'old photos replaced by the new one');
+    // Both old backing objects are removed from storage; the new one is not.
+    assert.deepEqual(removed.sort(), oldPaths.slice().sort(), 'both replaced objects are cleaned up');
+});
+test('clearing proof photos removes the previously stored objects', async (t) => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'delivered' });
+    const oldPaths = ['/objects/uploads/clear-a', '/objects/uploads/clear-b'];
+    await db.insert(challanProofPhotos).values(oldPaths.map(photo => ({ challanId: challan.id, photo })));
+    assert.equal(await proofPhotoCount(challan.id), 2, 'two old proof photos seeded');
+    const removed = [];
+    t.mock.method(proofPhotoStore, 'remove', async (stored) => {
+        removed.push(stored);
+    });
+    // proofPhotos: null clears the photos.
+    const res = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhotos: null });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.hasProofPhoto, false);
+    assert.equal(await proofPhotoCount(challan.id), 0, 'child table emptied');
+    assert.deepEqual(removed.sort(), oldPaths.slice().sort(), 'both cleared objects are removed from storage');
+});
+test('clearing a legacy base64 proof photo removes no object and still succeeds', async (t) => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'delivered' });
+    // A legacy base64 data URL has no separate backing object.
+    await db.insert(challanProofPhotos).values({ challanId: challan.id, photo: VALID_PROOF_PHOTO });
+    assert.equal(await proofPhotoCount(challan.id), 1);
+    // Use the real remove() so its legacy branch (no object-storage call) is exercised.
+    const res = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhotos: null });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.hasProofPhoto, false);
+    assert.equal(await proofPhotoCount(challan.id), 0, 'legacy photo row is gone');
+});
+test('replacing proof photos still succeeds when removing an old object fails', async (t) => {
+    const client = await createClient();
+    const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+    const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'delivered' });
+    await db.insert(challanProofPhotos).values({ challanId: challan.id, photo: '/objects/uploads/will-fail' });
+    t.mock.method(proofPhotoStore, 'store', async (dataUrl) => dataUrl);
+    // Simulate a storage failure removing the old object — the PUT must still succeed.
+    t.mock.method(proofPhotoStore, 'remove', async () => {
+        throw new Error('object storage unavailable');
+    });
+    const res = await request(app)
+        .put(`/api/challans/${challan.id}`)
+        .set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ status: 'delivered', proofPhotos: [VALID_PROOF_PHOTO] });
+    assert.equal(res.status, 200, 'update succeeds despite the storage cleanup failure');
+    assert.equal(res.body.hasProofPhoto, true);
+    const rows = await db.select({ photo: challanProofPhotos.photo })
+        .from(challanProofPhotos).where(eq(challanProofPhotos.challanId, challan.id));
+    assert.deepEqual(rows.map(r => r.photo), [VALID_PROOF_PHOTO], 'the new photo is stored');
+});
 test('a driver PUT with the legacy proofPhoto: null also clears a stored photo', async () => {
     const client = await createClient();
     const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');

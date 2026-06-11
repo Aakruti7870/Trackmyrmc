@@ -241,6 +241,12 @@ router.put('/:id', async (req, res) => {
                 return;
             }
         }
+        // When proof photos are being replaced or cleared, capture the previously
+        // stored entity paths so their backing object-storage files can be cleaned
+        // up afterwards — otherwise the old objects are orphaned in the bucket.
+        const previousPhotos = storedPhotos !== undefined
+            ? await getProofPhotos(challanId)
+            : [];
         const [row] = await db.transaction(async (tx) => {
             const updatedRows = await tx.update(challans)
                 .set(updateData)
@@ -254,6 +260,15 @@ router.put('/:id', async (req, res) => {
             }
             return updatedRows;
         });
+        if (storedPhotos !== undefined) {
+            // Best-effort cleanup of objects that are no longer referenced. remove()
+            // is idempotent and skips legacy base64 photos (which have no separate
+            // object); a storage failure must not fail the update. A path that is
+            // being re-persisted is kept (skipped) so its object isn't deleted.
+            const retained = new Set(storedPhotos);
+            const orphaned = previousPhotos.filter(photo => !retained.has(photo));
+            await Promise.allSettled(orphaned.map(photo => proofPhotoStore.remove(photo)));
+        }
         const hasProofPhoto = storedPhotos !== undefined
             ? storedPhotos.length > 0
             : await challanHasProofPhoto(challanId);
