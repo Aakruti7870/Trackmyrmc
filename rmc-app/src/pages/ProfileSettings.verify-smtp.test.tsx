@@ -111,6 +111,36 @@ describe('ProfileSettings — Test connection (verify SMTP)', () => {
     expect(messages.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('renders "Connection test" for smtp_verify rows and "Test email" for smtp_test rows', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/admin/smtp-settings') return SMTP_SETTINGS as never;
+      if (path === '/admin/email-test/history') {
+        return [
+          {
+            id: 2, action: 'smtp_verify', status: 'failure',
+            detail: 'getaddrinfo ENOTFOUND smtp.bogus.example',
+            actorId: 1, actorName: 'Priya Admin', targetUserEmail: null,
+            emailSent: null, createdAt: '2026-01-01T11:00:00Z',
+          },
+          {
+            id: 1, action: 'smtp_test', status: 'success',
+            detail: 'Test email sent', actorId: 1, actorName: 'Priya Admin',
+            targetUserEmail: 'priya@aakruti.com', emailSent: true,
+            createdAt: '2026-01-01T10:00:00Z',
+          },
+        ] as never;
+      }
+      if (path === '/admin/lockouts') return [] as never;
+      return [] as never;
+    });
+
+    renderPage();
+
+    // Both kind labels render, distinguishing connection tests from test emails.
+    expect(await screen.findByText('Connection test')).toBeInTheDocument();
+    expect(await screen.findByText('Test email')).toBeInTheDocument();
+  });
+
   it('blocks an invalid port locally without calling the verify endpoint', async () => {
     const user = userEvent.setup();
     mockReads();

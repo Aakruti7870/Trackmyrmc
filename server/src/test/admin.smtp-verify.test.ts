@@ -234,3 +234,41 @@ test('records a failure audit entry with the error message but never the passwor
   assert.match(entry.detail ?? '', /ENOTFOUND/);
   assert.doesNotMatch(entry.detail ?? '', /topsecret/, 'the password is never logged');
 });
+
+test('history endpoint returns both smtp_test and smtp_verify rows, newest first', async () => {
+  const admin = await createUser('admin', 'admin@test.com');
+  const token = tokenFor(admin);
+
+  // Seed one of each kind with explicit, ordered timestamps so the "newest
+  // first" assertion is deterministic regardless of insertion speed. An
+  // unrelated action is included to prove the endpoint filters to mail tests.
+  await db.insert(auditLogs).values([
+    {
+      actorId: admin.id, actorName: 'Admin', action: 'smtp_test',
+      status: 'success', detail: 'Test email sent', emailSent: true,
+      createdAt: new Date('2026-01-01T10:00:00Z'),
+    },
+    {
+      actorId: admin.id, actorName: 'Admin', action: 'smtp_verify',
+      status: 'failure', detail: 'getaddrinfo ENOTFOUND smtp.bogus.example',
+      createdAt: new Date('2026-01-01T11:00:00Z'),
+    },
+    {
+      actorId: admin.id, actorName: 'Admin', action: 'user_create',
+      status: 'success', detail: 'unrelated entry',
+      createdAt: new Date('2026-01-01T12:00:00Z'),
+    },
+  ]);
+
+  const res = await request(app)
+    .get('/api/admin/email-test/history')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body));
+
+  // Only the two mail-test kinds are surfaced; the unrelated action is excluded.
+  const actions = res.body.map((r: { action: string }) => r.action);
+  assert.deepEqual(actions, ['smtp_verify', 'smtp_test'], 'both kinds, newest first');
+  assert.ok(!actions.includes('user_create'), 'unrelated actions are filtered out');
+});
