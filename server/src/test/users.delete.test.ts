@@ -701,6 +701,94 @@ test('restore: POST /:id/restore maps a racing DB link constraint (23505) to a f
   assert.equal(logs.length, 0, 'a constraint-blocked restore writes no restore audit entry');
 });
 
+test('create: POST /users maps a racing DB link constraint (23505) to a friendly 409, not a 500', async (t) => {
+  // The create route pre-checks the link with findLinkConflict, but a race can
+  // link the client to an active account *after* that check passes and *before*
+  // the INSERT commits. The partial unique index then raises a raw Postgres
+  // 23505, which the route must map back to the same friendly "already linked"
+  // 409 (via linkUniqueViolationMessage) rather than leaking a 500. We simulate
+  // the race by letting findLinkConflict see no conflict (no active holder
+  // exists) and making the INSERT reject with a fake 23505.
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const client = await createClient('Acme Concrete');
+  const token = tokenFor(admin);
+
+  // The create route runs exactly one db.insert(users) (values → returning).
+  // Make it reject with a fake 23505 on the client-link index, as if a racing
+  // write took the link between the pre-check and the commit.
+  const originalInsert = db.insert.bind(db);
+  t.mock.method(db, 'insert', (() => ({
+    values() { return this; },
+    returning() {
+      return Promise.reject(Object.assign(new Error('duplicate key value'), {
+        code: '23505',
+        constraint: 'users_linked_client_unique',
+      }));
+    },
+  })) as unknown as typeof originalInsert);
+
+  const res = await request(app)
+    .post('/api/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Racer', email: 'racer@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+  assert.equal(res.status, 409, 'the racing constraint surfaces as a 409, not a 500');
+  assert.match(res.body.error, /already linked/i,
+    'the response carries the friendly link-conflict message');
+
+  // No account was created and no audit entry was written.
+  t.mock.restoreAll();
+  const rows = await db.select({ id: users.id }).from(users).where(eq(users.email, 'racer@test.com'));
+  assert.equal(rows.length, 0, 'a constraint-blocked create inserts no user row');
+  const logs = await db.select().from(auditLogs).where(eq(auditLogs.action, 'user.created'));
+  assert.equal(logs.length, 0, 'a constraint-blocked create writes no user.created audit entry');
+});
+
+test('edit: PUT /users/:id maps a racing DB link constraint (23505) to a friendly 409, not a 500', async (t) => {
+  // The edit route pre-checks the (effective) link with findLinkConflict, but a
+  // race can link the client to an active account *after* that check passes and
+  // *before* the UPDATE commits. The partial unique index then raises a raw
+  // Postgres 23505, which the route must map back to the same friendly "already
+  // linked" 409 (via linkUniqueViolationMessage) rather than leaking a 500. We
+  // simulate the race by letting findLinkConflict see no conflict (no active
+  // holder exists) and making the UPDATE reject with a fake 23505.
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const target = await createUser({ name: 'Editable', email: 'editable@test.com', role: 'client' });
+  const client = await createClient('Acme Concrete');
+  const token = tokenFor(admin);
+
+  // The edit route runs exactly one db.update(users) (set → where → returning).
+  // Make it reject with a fake 23505 on the client-link index, as if a racing
+  // write took the link between the pre-check and the commit.
+  const originalUpdate = db.update.bind(db);
+  t.mock.method(db, 'update', (() => ({
+    set() { return this; },
+    where() { return this; },
+    returning() {
+      return Promise.reject(Object.assign(new Error('duplicate key value'), {
+        code: '23505',
+        constraint: 'users_linked_client_unique',
+      }));
+    },
+  })) as unknown as typeof originalUpdate);
+
+  const res = await request(app)
+    .put(`/api/users/${target.id}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ linkedClientId: client.id });
+  assert.equal(res.status, 409, 'the racing constraint surfaces as a 409, not a 500');
+  assert.match(res.body.error, /already linked/i,
+    'the response carries the friendly link-conflict message');
+
+  // The account's link was not changed and no link-change audit entry was written.
+  t.mock.restoreAll();
+  const [row] = await db.select({ linkedClientId: users.linkedClientId })
+    .from(users).where(eq(users.id, target.id));
+  assert.equal(row.linkedClientId, null, 'a constraint-blocked edit leaves the link unchanged');
+  const logs = await db.select().from(auditLogs)
+    .where(and(eq(auditLogs.action, 'client_link_change'), eq(auditLogs.targetUserId, target.id)));
+  assert.equal(logs.length, 0, 'a constraint-blocked edit writes no client_link_change audit entry');
+});
+
 test('unlock: POST /:id/unlock writes a lockout_cleared audit entry naming the acting admin and target', async () => {
   const admin = await createUser({ name: 'Admin Unlock', email: 'unlock-admin@test.com', role: 'admin' });
   const target = await createUser({ name: 'Locked User', email: 'locked@test.com', role: 'dispatcher' });
