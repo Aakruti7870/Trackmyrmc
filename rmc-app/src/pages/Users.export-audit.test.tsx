@@ -8,6 +8,24 @@ vi.mock('@/lib/api', async (importOriginal) => {
   return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn(), delete: vi.fn() } };
 });
 
+// jsPDF attaches its methods to each instance (not the prototype), so it can't
+// be spied on directly. Replace the module with a light stand-in that records
+// the text() lines and the save() filename for the PDF-export assertions.
+const pdfCapture = vi.hoisted(() => ({ textCalls: [] as unknown[][], savedName: '' }));
+
+vi.mock('jspdf', () => {
+  class FakeJsPDF {
+    setTextColor() { return this; }
+    setFont() { return this; }
+    setFontSize() { return this; }
+    text(...args: unknown[]) { pdfCapture.textCalls.push(args); return this; }
+    save(name?: string) { pdfCapture.savedName = name ?? ''; return this; }
+  }
+  return { default: FakeJsPDF };
+});
+
+vi.mock('jspdf-autotable', () => ({ default: () => {} }));
+
 import Users from '@/pages/Users';
 import { ToastProvider } from '@/lib/toast-provider';
 import { api } from '@/lib/api';
@@ -41,15 +59,46 @@ const auditRows: AuditEntry[] = [
   },
 ];
 
-function mockGet() {
+type UserRow = {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  linkedClientId: number | null;
+  linkedDriverId: number | null;
+  createdAt: string;
+  deletedAt: string | null;
+  auditCount: number;
+};
+
+// A single account whose activity an admin can drill into. Its email contains an
+// '@' so the sanitised filename context (asha-x.com) can be asserted.
+const ashaUser: UserRow = {
+  id: 11, name: 'Asha Rao', email: 'asha@x.com', role: 'dispatcher',
+  isActive: true, linkedClientId: null, linkedDriverId: null,
+  createdAt: '2026-01-01T00:00:00.000Z', deletedAt: null, auditCount: 2,
+};
+
+function mockGet(opts: { users?: UserRow[]; audit?: AuditEntry[] } = {}) {
+  const users = opts.users ?? [];
+  const audit = opts.audit ?? auditRows;
   vi.mocked(api.get).mockImplementation(async (path: string) => {
-    if (path.startsWith('/audit-logs')) return { rows: auditRows, hasMore: false } as never;
+    if (path.startsWith('/audit-logs')) return { rows: audit, hasMore: false } as never;
     if (path === '/users/clients-list' || path === '/users/drivers-list') return [] as never;
     if (path === '/users/lockout-status') return {} as never;
+    if (path === '/users/authority-emails') return { emails: [] } as never;
     if (path === '/users?deleted=true') return [] as never;
-    if (path === '/users') return [] as never;
+    if (path === '/users') return users as never;
     return [] as never;
   });
+}
+
+// Click the per-user "View activity history" button so historyUser is set and
+// the activity log (and its export) is scoped to that single account.
+async function enterUserHistory(user: ReturnType<typeof userEvent.setup>) {
+  const historyBtn = await screen.findByTitle(/View activity history/i);
+  await user.click(historyBtn);
 }
 
 function renderUsers() {
@@ -70,8 +119,15 @@ const realRevokeObjectURL = URL.revokeObjectURL;
 beforeEach(() => {
   vi.clearAllMocks();
   mockGet();
+  // jsdom doesn't implement scrollIntoView, which viewHistory() calls when an
+  // admin drills into a single person's activity.
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = vi.fn();
+  }
   createdBlobs = [];
   downloadName = '';
+  pdfCapture.textCalls = [];
+  pdfCapture.savedName = '';
   URL.createObjectURL = vi.fn((blob: Blob) => {
     createdBlobs.push(blob);
     return 'blob:mock-url';
@@ -212,6 +268,79 @@ describe('Users activity-log export menu', () => {
     expect(
       await screen.findByText('Allow pop-ups to export the activity log as PDF.'),
     ).toBeInTheDocument();
+
+    openSpy.mockRestore();
+  });
+});
+
+describe('Users activity-log export scoped to a single person', () => {
+  it('uses the sanitised email filename for a per-user CSV export', async () => {
+    mockGet({ users: [ashaUser], audit: auditRows });
+    const user = userEvent.setup();
+    renderUsers();
+
+    await enterUserHistory(user);
+    const menu = await openExportMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: /CSV \(\.csv\)/ }));
+
+    await waitFor(() => expect(createdBlobs.length).toBe(1));
+    // 'all' is replaced with the sanitised email of the selected account.
+    expect(downloadName).toMatch(/^activity-log-asha-x\.com-\d{4}-\d{2}-\d{2}\.csv$/);
+  });
+
+  it('records the selected person in the Excel filename and workbook Title', async () => {
+    mockGet({ users: [ashaUser], audit: auditRows });
+    const user = userEvent.setup();
+    renderUsers();
+
+    await enterUserHistory(user);
+    const menu = await openExportMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: /Excel \(\.xlsx\)/ }));
+
+    await waitFor(() => expect(createdBlobs.length).toBe(1));
+    expect(downloadName).toMatch(/^activity-log-asha-x\.com-\d{4}-\d{2}-\d{2}\.xlsx$/);
+
+    // The workbook's core Title property carries the human-readable scope label.
+    const buf = await createdBlobs[0].arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    expect(wb.Props?.Title).toBe('Activity Log — Asha Rao (asha@x.com)');
+  });
+
+  it('writes the per-user scope and filename into the PDF export', async () => {
+    mockGet({ users: [ashaUser], audit: auditRows });
+
+    const user = userEvent.setup();
+    renderUsers();
+
+    await enterUserHistory(user);
+    const menu = await openExportMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: /PDF \(\.pdf\)/ }));
+
+    await waitFor(() => expect(pdfCapture.savedName).not.toBe(''));
+    expect(pdfCapture.savedName).toMatch(/^activity-log-asha-x\.com-\d{4}-\d{2}-\d{2}\.pdf$/);
+
+    // The "Scope:" caption names the selected person, not "All users".
+    const scopeCalls = pdfCapture.textCalls.map(c => c[0]);
+    expect(scopeCalls).toContain('Scope: Asha Rao (asha@x.com)');
+    expect(scopeCalls).not.toContain('Scope: All users');
+  });
+
+  it('hides the Export button and skips export when the per-user log is empty', async () => {
+    mockGet({ users: [{ ...ashaUser, auditCount: 0 }], audit: [] });
+    const openSpy = vi.spyOn(window, 'open');
+
+    const user = userEvent.setup();
+    renderUsers();
+
+    await enterUserHistory(user);
+
+    // The empty-state message confirms we are in the per-user view with no rows.
+    expect(await screen.findByText('No activity recorded for Asha Rao yet.')).toBeInTheDocument();
+    // With no entries the Export trigger never renders, so nothing can be exported.
+    expect(screen.queryByRole('button', { name: /Export/i })).not.toBeInTheDocument();
+    expect(createdBlobs.length).toBe(0);
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(pdfCapture.savedName).toBe('');
 
     openSpy.mockRestore();
   });
