@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MapPin, Plus, X } from 'lucide-react';
 import type { Site } from '@/lib/api';
+import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)',
@@ -20,24 +21,35 @@ export default function SitePicker({
   sites: Site[];
   value: string;
   onChange: (siteId: string) => void;
-  onCreate: (payload: { name: string; address?: string; city?: string }) => Promise<Site>;
+  onCreate: (payload: { name: string; address?: string; city?: string; latitude?: string; longitude?: string }) => Promise<Site>;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
+  const [pin, setPin] = useState<LatLng | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  function resetForm() {
+    setName(''); setAddress(''); setCity(''); setPin(null);
+  }
 
   async function save() {
     if (!name.trim()) { setError('Site name is required.'); return; }
     setSaving(true);
     setError('');
     try {
-      const site = await onCreate({ name: name.trim(), address: address.trim() || undefined, city: city.trim() || undefined });
+      const site = await onCreate({
+        name: name.trim(),
+        address: address.trim() || undefined,
+        city: city.trim() || undefined,
+        latitude: pin ? String(pin.lat) : undefined,
+        longitude: pin ? String(pin.lng) : undefined,
+      });
       onChange(String(site.id));
       setAdding(false);
-      setName(''); setAddress(''); setCity('');
+      resetForm();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save site.');
     } finally {
@@ -74,7 +86,9 @@ export default function SitePicker({
           </div>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Site name (e.g. Tower B Foundation)" style={{ ...inputStyle, marginBottom: 8 }} />
           <input value={address} onChange={e => setAddress(e.target.value)} placeholder="Address (optional)" style={{ ...inputStyle, marginBottom: 8 }} />
-          <input value={city} onChange={e => setCity(e.target.value)} placeholder="City (optional)" style={{ ...inputStyle }} />
+          <input value={city} onChange={e => setCity(e.target.value)} placeholder="City (optional)" style={{ ...inputStyle, marginBottom: 10 }} />
+          <label style={{ ...labelStyle, marginBottom: 6 }}>Pin location on map (optional — enables live tracking)</label>
+          <LocationPicker value={pin} onChange={setPin} />
           {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
           <button type="button" onClick={save} disabled={saving} style={{
             marginTop: 10, width: '100%', padding: '9px', borderRadius: 10, border: 'none', cursor: saving ? 'wait' : 'pointer',

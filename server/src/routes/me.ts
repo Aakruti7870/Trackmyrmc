@@ -268,6 +268,37 @@ router.post('/sites', requireRole('client'), async (req, res) => {
   res.status(201).json(row);
 });
 
+// Update a saved site (rename / re-address / move its map pin). Scoped to the
+// caller's linked client so a customer can never edit another client's site.
+// Only the fields present in the body are touched; latitude/longitude may be
+// set to null (sent as null) to clear a pin.
+router.patch('/sites/:id', requireRole('client'), async (req, res) => {
+  const clientId = await getLinkedClientId(req.user!.id);
+  if (!clientId) { res.status(404).json({ error: 'Not found' }); return; }
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const { name, address, city, latitude, longitude } = req.body;
+  const updateData: Record<string, unknown> = {};
+  if (name !== undefined) {
+    if (typeof name !== 'string' || !name.trim()) { res.status(400).json({ error: 'Site name is required.' }); return; }
+    updateData.name = name.trim();
+  }
+  if (address !== undefined) updateData.address = typeof address === 'string' && address.trim() ? address.trim() : null;
+  if (city !== undefined) updateData.city = typeof city === 'string' && city.trim() ? city.trim() : null;
+  if (latitude !== undefined) updateData.latitude = latitude != null && latitude !== '' ? String(latitude) : null;
+  if (longitude !== undefined) updateData.longitude = longitude != null && longitude !== '' ? String(longitude) : null;
+
+  if (Object.keys(updateData).length === 0) { res.status(400).json({ error: 'No fields to update.' }); return; }
+
+  const [row] = await db.update(sites)
+    .set(updateData)
+    .where(and(eq(sites.id, id), eq(sites.clientId, clientId)))
+    .returning();
+  if (!row) { res.status(404).json({ error: 'Not found' }); return; }
+  res.json(row);
+});
+
 // ---- Recurring / scheduled orders -----------------------------------------
 
 // Validate the shared recurring-template fields. Returns a normalised payload or

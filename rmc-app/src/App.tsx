@@ -21,6 +21,7 @@ import ShiftReport from '@/pages/ShiftReport';
 import ChallanPrint from '@/pages/ChallanPrint';
 import MyOrders from '@/pages/MyOrders';
 import MyTrips from '@/pages/MyTrips';
+import RecurringAdmin from '@/pages/RecurringAdmin';
 import Users from '@/pages/Users';
 import ActivityLog from '@/pages/ActivityLog';
 import AuditLog from '@/pages/AuditLog';
@@ -94,6 +95,7 @@ function ProtectedRoutes() {
         <Route path="/mix-design"   component={() => <GuardedRoute path="/mix-design"   component={MixDesign}   />} />
         <Route path="/reports"      component={() => <GuardedRoute path="/reports"      component={Reports}     />} />
         <Route path="/shift-report" component={() => <GuardedRoute path="/shift-report" component={ShiftReport} />} />
+        <Route path="/recurring"    component={() => <GuardedRoute path="/recurring"    component={RecurringAdmin}  />} />
         <Route path="/users"        component={() => <GuardedRoute path="/users"        component={Users}           />} />
         <Route path="/activity-log" component={() => <GuardedRoute path="/activity-log" component={ActivityLog}      />} />
         <Route path="/audit-log"    component={() => <GuardedRoute path="/audit-log"    component={AuditLog}        />} />

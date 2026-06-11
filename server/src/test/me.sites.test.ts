@@ -102,3 +102,62 @@ test('sites are scoped per client', async () => {
   const list = await request(app).get('/api/me/sites').set('Authorization', `Bearer ${tokenFor(me)}`);
   assert.deepEqual(list.body, []);
 });
+
+test('a client creates a site with map coordinates', async () => {
+  const client = await createClient('Geo Co', '3330000000');
+  const user = await createUser('client', 'geo@test.com', client.id);
+  const res = await request(app).post('/api/me/sites').set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({ name: 'Pinned Site', latitude: 18.5204, longitude: 73.8567 });
+  assert.equal(res.status, 201);
+  assert.equal(Number(res.body.latitude), 18.5204);
+  assert.equal(Number(res.body.longitude), 73.8567);
+});
+
+test('a client updates a saved site pin via PATCH', async () => {
+  const client = await createClient('Patch Co', '3330000001');
+  const user = await createUser('client', 'patch@test.com', client.id);
+  const auth = `Bearer ${tokenFor(user)}`;
+  const [site] = await db.insert(sites).values({ clientId: client.id, name: 'Old Name' }).returning();
+
+  const res = await request(app).patch(`/api/me/sites/${site.id}`).set('Authorization', auth)
+    .send({ name: 'New Name', latitude: 19.07, longitude: 72.88 });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.name, 'New Name');
+  assert.equal(Number(res.body.latitude), 19.07);
+  assert.equal(Number(res.body.longitude), 72.88);
+});
+
+test('PATCH can clear a site pin with null coordinates', async () => {
+  const client = await createClient('Clear Co', '3330000002');
+  const user = await createUser('client', 'clear@test.com', client.id);
+  const auth = `Bearer ${tokenFor(user)}`;
+  const [site] = await db.insert(sites).values({
+    clientId: client.id, name: 'Pinned', latitude: '1.0', longitude: '2.0',
+  }).returning();
+
+  const res = await request(app).patch(`/api/me/sites/${site.id}`).set('Authorization', auth)
+    .send({ latitude: null, longitude: null });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.latitude, null);
+  assert.equal(res.body.longitude, null);
+});
+
+test('a client cannot PATCH another client\'s site', async () => {
+  const mine = await createClient('Mine2', '3330000003');
+  const other = await createClient('Other2', '3330000004');
+  const me = await createUser('client', 'me2@test.com', mine.id);
+  const [foreign] = await db.insert(sites).values({ clientId: other.id, name: 'Theirs' }).returning();
+
+  const res = await request(app).patch(`/api/me/sites/${foreign.id}`).set('Authorization', `Bearer ${tokenFor(me)}`)
+    .send({ name: 'Hijacked' });
+  assert.equal(res.status, 404);
+});
+
+test('PATCH with an empty body is rejected', async () => {
+  const client = await createClient('Empty Co', '3330000005');
+  const user = await createUser('client', 'empty@test.com', client.id);
+  const [site] = await db.insert(sites).values({ clientId: client.id, name: 'Site' }).returning();
+  const res = await request(app).patch(`/api/me/sites/${site.id}`).set('Authorization', `Bearer ${tokenFor(user)}`)
+    .send({});
+  assert.equal(res.status, 400);
+});

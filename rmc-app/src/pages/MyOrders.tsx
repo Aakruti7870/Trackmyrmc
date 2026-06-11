@@ -4,6 +4,7 @@ import { useSSE } from '@/lib/useSSE';
 import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
 import SitePicker from '@/components/SitePicker';
+import LiveDeliveryMap, { type DeliveryMarker } from '@/components/LiveDeliveryMap';
 
 const GRADES = ['M10', 'M15', 'M20', 'M25', 'M30', 'M35', 'M40', 'M45', 'M50', 'M55', 'M60'];
 
@@ -184,13 +185,30 @@ export default function MyOrders() {
       .finally(() => setLoading(false));
   }, []);
 
-  const createSite = useCallback(async (payload: { name: string; address?: string; city?: string }) => {
+  const createSite = useCallback(async (payload: { name: string; address?: string; city?: string; latitude?: string; longitude?: string }) => {
     const site = await api.post<Site>('/me/sites', payload);
     setSites(prev => [site, ...prev]);
     return site;
   }, []);
 
   useEffect(() => { reloadAll(); }, [reloadAll]);
+
+  // Seed the live map with positions already in flight, since SSE only delivers
+  // *future* movements. Scoped server-side to this client. Best-effort.
+  useEffect(() => {
+    let cancelled = false;
+    api.get<LivePosition[]>('/positions/mine')
+      .then(list => {
+        if (cancelled) return;
+        setLivePositions(prev => {
+          const next = { ...prev };
+          for (const p of list) if (p?.challanId) next[p.challanId] = p;
+          return next;
+        });
+      })
+      .catch(() => { /* tracking is non-critical; ignore */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Live tracking + freshness. The GPS feed and order/challan events are already
   // scoped server-side to this client, so we just reflect them in place.
@@ -559,6 +577,23 @@ export default function MyOrders() {
             <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--muted)' }}>
               Tracking your in-transit trucks in real time. Distance &amp; ETA are estimates.
             </p>
+            {(() => {
+              const markers: DeliveryMarker[] = challans
+                .filter(c => c.status === 'dispatched')
+                .map(c => {
+                  const live = livePositions[c.id];
+                  const siteLat = c.siteLat != null ? parseFloat(c.siteLat) : NaN;
+                  const siteLng = c.siteLng != null ? parseFloat(c.siteLng) : NaN;
+                  return {
+                    challanId: c.id,
+                    challanNo: c.challanNo,
+                    vehicleNo: c.vehicleNo,
+                    truck: live && Number.isFinite(live.lat) && Number.isFinite(live.lng) ? { lat: live.lat, lng: live.lng } : null,
+                    site: Number.isFinite(siteLat) && Number.isFinite(siteLng) ? { lat: siteLat, lng: siteLng, name: c.siteName } : null,
+                  };
+                });
+              return <LiveDeliveryMap markers={markers} />;
+            })()}
             <div style={{ display: 'grid', gap: 12 }}>
               {challans.filter(c => c.status === 'dispatched').map(c => {
                 const live = livePositions[c.id];

@@ -5,6 +5,7 @@ import { challans, challanProofPhotos, clients, sites, vehicles, drivers, orders
 import { requireAuth } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
+import { notifyChallanStatus } from '../lib/deliveryNotify.js';
 const WRITE_ROLES = ['admin', 'dispatcher'];
 const DRIVER_ALLOWED_STATUS = ['delivered'];
 const router = Router();
@@ -171,6 +172,9 @@ router.post('/', async (req, res) => {
         }
     }
     emitSSEEvent('challan.created', row, { clientId: row.clientId, driverId: row.driverId });
+    // A new challan is created already 'dispatched', so let the customer know
+    // their concrete is on the way. Fire-and-forget: never block the response.
+    void notifyChallanStatus(row.id, 'dispatched');
     res.status(201).json(row);
 });
 router.put('/:id', async (req, res) => {
@@ -273,6 +277,8 @@ router.put('/:id', async (req, res) => {
             ? storedPhotos.length > 0
             : await challanHasProofPhoto(challanId);
         emitSSEEvent('challan.updated', { ...row, hasProofPhoto }, { clientId: row.clientId, driverId: row.driverId });
+        // Driver-confirmed delivery — notify the customer (best-effort).
+        void notifyChallanStatus(challanId, 'delivered');
         res.json({ ...row, hasProofPhoto });
         return;
     }
@@ -313,6 +319,9 @@ router.put('/:id', async (req, res) => {
         .where(eq(challans.id, challanId)).returning();
     const hasProofPhoto = await challanHasProofPhoto(challanId);
     emitSSEEvent('challan.updated', { ...row, hasProofPhoto }, { clientId: row.clientId, driverId: row.driverId });
+    // Notify the customer when staff mark the delivery complete (best-effort).
+    if (updateData.status === 'delivered')
+        void notifyChallanStatus(challanId, 'delivered');
     res.json({ ...row, hasProofPhoto });
 });
 router.delete('/:id', async (req, res) => {

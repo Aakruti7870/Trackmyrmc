@@ -299,6 +299,130 @@ export async function sendWelcomeEmail(
   return true;
 }
 
+export interface DeliveryNotificationDetails {
+  challanNo: string;
+  grade: string;
+  quantity: string;
+  siteName: string | null;
+  status: 'dispatched' | 'delivered';
+}
+
+// Notify a customer that one of their concrete deliveries has been dispatched
+// from the plant or has arrived/been delivered. Best-effort: returns false (and
+// logs) when SMTP is unconfigured rather than throwing, so callers in the
+// request path never fail because email is unavailable.
+export async function sendDeliveryNotificationEmail(
+  toEmail: string,
+  toName: string,
+  details: DeliveryNotificationDetails,
+): Promise<boolean> {
+  const cfg = await getSmtpConfig();
+  const transporter = transporterFor(cfg);
+
+  if (!transporter) {
+    console.warn(
+      '[email] SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing). ' +
+      'Skipping delivery notification email.',
+    );
+    return false;
+  }
+
+  const from = cfg.from || cfg.user || undefined;
+  const dispatched = details.status === 'dispatched';
+  const heading = dispatched ? 'Your Concrete Is On The Way' : 'Your Concrete Has Been Delivered';
+  const subject = dispatched
+    ? `Dispatched: Challan ${details.challanNo} — Aakruti Infra RMC`
+    : `Delivered: Challan ${details.challanNo} — Aakruti Infra RMC`;
+  const lead = dispatched
+    ? 'A transit mixer carrying your order has just been dispatched from our plant and is on its way to your site.'
+    : 'Your concrete order has been delivered. Thank you for choosing Aakruti Infra RMC.';
+  const accent = dispatched ? '#2563eb' : '#15803d';
+  const banner = dispatched ? '#eff6ff' : '#f0fdf4';
+  const bannerBorder = dispatched ? '#bfdbfe' : '#bbf7d0';
+  const siteLine = details.siteName ? `  Site:    ${details.siteName}\n` : '';
+
+  await transporter.sendMail({
+    from,
+    to: toEmail,
+    subject,
+    text: [
+      `Hello ${toName},`,
+      '',
+      lead,
+      '',
+      `  Challan: ${details.challanNo}`,
+      `  Grade:   ${details.grade}`,
+      `  Qty:     ${details.quantity} m³`,
+      siteLine,
+      'You can track this delivery from your customer portal.',
+      '',
+      '— Aakruti Infra RMC Plant Management System',
+    ].join('\n'),
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+        <tr>
+          <td style="background:#08111f;padding:24px 32px">
+            <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
+              Aakruti Infra RMC Plant
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px">
+            <h2 style="margin:0 0 16px;color:#1a1a1a;font-size:18px">
+              ${heading}
+            </h2>
+            <p style="color:#444;line-height:1.6;margin:0 0 16px">
+              Hello <strong>${toName}</strong>,
+            </p>
+            <p style="color:#444;line-height:1.6;margin:0 0 16px">
+              ${lead}
+            </p>
+            <table cellpadding="0" cellspacing="0"
+                   style="background:${banner};border:1px solid ${bannerBorder};border-radius:8px;
+                          padding:16px 20px;margin:0 0 24px;width:100%">
+              <tr>
+                <td style="color:#555;font-size:14px;padding:4px 0;width:90px">Challan</td>
+                <td style="color:${accent};font-size:14px;font-weight:700;padding:4px 0">${details.challanNo}</td>
+              </tr>
+              <tr>
+                <td style="color:#555;font-size:14px;padding:4px 0">Grade</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${details.grade}</td>
+              </tr>
+              <tr>
+                <td style="color:#555;font-size:14px;padding:4px 0">Quantity</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${details.quantity} m³</td>
+              </tr>
+              ${details.siteName ? `<tr>
+                <td style="color:#555;font-size:14px;padding:4px 0">Site</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${details.siteName}</td>
+              </tr>` : ''}
+            </table>
+            <p style="color:#444;line-height:1.6;margin:0 0 24px">
+              You can track this delivery anytime from your customer portal.
+            </p>
+            <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
+            <p style="color:#888;font-size:13px;margin:0">
+              — Aakruti Infra RMC Plant Management System
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+  });
+  return true;
+}
+
 export async function sendPasswordResetNotification(
   toEmail: string,
   toName: string,

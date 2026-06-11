@@ -149,6 +149,7 @@ export interface DashboardKPIs {
 
 export interface LivePosition {
   challanId: number; challanNo: string | null;
+  clientId: number | null;
   driverId: number | null; driverName: string | null;
   vehicleId: number | null; vehicleNo: string | null;
   siteId: number | null; siteName: string | null;

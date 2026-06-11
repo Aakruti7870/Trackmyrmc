@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { challans, sites, vehicles, drivers } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
+import { notifyChallanStatus } from '../lib/deliveryNotify.js';
 const router = Router();
 router.use(requireAuth);
 // Geofence tuning. A delivery auto-completes only after the driver reports
@@ -97,10 +98,13 @@ router.post('/', requireRole('driver'), async (req, res) => {
         status = 'delivered';
         inRadiusCount = 0;
         emitSSEEvent('challan.updated', updated, { clientId: updated.clientId, driverId: updated.driverId });
+        // GPS geofence auto-completed the delivery — notify the customer (best-effort).
+        void notifyChallanStatus(cid, 'delivered');
     }
     const live = {
         challanId: cid,
         challanNo: row.challanNo,
+        clientId: row.clientId,
         driverId: row.driverId,
         driverName: row.driverName,
         vehicleId: row.vehicleId,
@@ -129,5 +133,18 @@ router.post('/', requireRole('driver'), async (req, res) => {
 // Dispatch / control-room view of the latest fix per active challan.
 router.get('/', requireRole('admin', 'dispatcher', 'authority'), (_req, res) => {
     res.json(Array.from(livePositions.values()));
+});
+// A customer's view of live positions for their own in-flight deliveries only.
+// Backs the initial paint of the tracking map before the SSE stream pushes the
+// next fix; live updates thereafter arrive via the client-scoped 'vehicle.position'
+// SSE event. Returns [] when the account isn't linked to a client.
+router.get('/mine', requireRole('client'), async (req, res) => {
+    const clientId = req.user.linkedClientId ?? null;
+    if (!clientId) {
+        res.json([]);
+        return;
+    }
+    const mine = Array.from(livePositions.values()).filter(p => p.clientId === clientId);
+    res.json(mine);
 });
 export default router;
