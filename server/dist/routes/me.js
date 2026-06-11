@@ -125,7 +125,7 @@ router.get('/challans/:id', requireRole('client'), async (req, res) => {
         return;
     }
     const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
+    if (!Number.isInteger(id) || id <= 0) {
         res.status(400).json({ error: 'Invalid challan id' });
         return;
     }
