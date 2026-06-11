@@ -35,3 +35,9 @@ id = "U7tBAmkF4RAfDdixUSwym"
 uri = "file://screenshots/theme-5-arctic-steel.jpg"
 type = "image"
 title = "5 — Arctic Steel (cool slate + ice cyan, Outfit)"
+
+[[outputs]]
+id = "yH5CbJxkxcVnt8InpIEdQ"
+uri = "file://exports/Aakruti_RMC_Plant_Management.pptx"
+type = "slides"
+title = "Aakruti RMC Plant — Management System (PPTX)"
