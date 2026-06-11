@@ -524,6 +524,52 @@ test('restore: POST /:id/restore reassigning to a still-taken client is blocked 
         .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, conflicted.id)));
     assert.equal(logs.length, 0, 'a blocked reassignment writes no restore audit entry');
 });
+test('restore: POST /:id/restore maps a racing DB link constraint (23505) to a friendly 409, not a 500', async (t) => {
+    // The route pre-checks with findLinkConflict, but a race can link the
+    // client/driver to an active account *after* that check passes and *before*
+    // the restore UPDATE commits. The partial unique index then raises a raw
+    // Postgres 23505, which the route must map back to the same friendly
+    // "already linked" 409 (via linkUniqueViolationMessage) rather than leaking a
+    // 500. We simulate the race by letting findLinkConflict see no conflict (no
+    // active holder exists) and making the restore UPDATE reject with a fake 23505.
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const client = await createClient('Acme Concrete');
+    const token = tokenFor(admin);
+    // A soft-deleted account linked to the client. At findLinkConflict time the
+    // link is free (no other live account holds it), so the pre-check passes.
+    const conflicted = await createUser({
+        name: 'Racer', email: 'racer@test.com', role: 'client',
+        isActive: false, deletedAt: new Date(),
+    });
+    await db.update(users).set({ linkedClientId: client.id }).where(eq(users.id, conflicted.id));
+    // The restore route runs exactly one db.update (set → where → returning).
+    // Make it reject with a fake 23505 on the client-link index, as if a racing
+    // write took the link between the pre-check and the commit.
+    const originalUpdate = db.update.bind(db);
+    t.mock.method(db, 'update', (() => ({
+        set() { return this; },
+        where() { return this; },
+        returning() {
+            return Promise.reject(Object.assign(new Error('duplicate key value'), {
+                code: '23505',
+                constraint: 'users_linked_client_unique',
+            }));
+        },
+    })));
+    const res = await request(app)
+        .post(`/api/users/${conflicted.id}/restore`)
+        .set('Authorization', `Bearer ${token}`);
+    assert.equal(res.status, 409, 'the racing constraint surfaces as a 409, not a 500');
+    assert.match(res.body.error, /already linked/i, 'the response carries the friendly link-conflict message');
+    // The account stays soft-deleted and no restore audit entry was written.
+    const [stillGone] = await db.select({ deletedAt: users.deletedAt, isActive: users.isActive })
+        .from(users).where(eq(users.id, conflicted.id));
+    assert.ok(stillGone.deletedAt instanceof Date, 'a constraint-blocked restore leaves the account deleted');
+    assert.equal(stillGone.isActive, false, 'the account stays inactive');
+    const logs = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, conflicted.id)));
+    assert.equal(logs.length, 0, 'a constraint-blocked restore writes no restore audit entry');
+});
 test('unlock: POST /:id/unlock writes a lockout_cleared audit entry naming the acting admin and target', async () => {
     const admin = await createUser({ name: 'Admin Unlock', email: 'unlock-admin@test.com', role: 'admin' });
     const target = await createUser({ name: 'Locked User', email: 'locked@test.com', role: 'dispatcher' });

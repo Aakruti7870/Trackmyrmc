@@ -113,3 +113,73 @@ test('driver delete succeeds when no user is linked', async () => {
         .set('Authorization', `Bearer ${signToken(admin)}`);
     assert.equal(res.status, 200);
 });
+test('GET /clients includes linkedUsers for active linked accounts and empty otherwise', async () => {
+    const admin = await createAdmin();
+    const linkedClient = await createClient('Linked Corp');
+    const plainClient = await createClient('Plain Corp');
+    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const [linked] = await db.insert(users).values({
+        name: 'Client Login', email: 'clogin@test.com', passwordHash, role: 'client',
+        isActive: true, linkedClientId: linkedClient.id,
+    }).returning();
+    const res = await request(app)
+        .get('/api/clients')
+        .set('Authorization', `Bearer ${signToken(admin)}`);
+    assert.equal(res.status, 200);
+    const linkedRow = res.body.find((c) => c.id === linkedClient.id);
+    const plainRow = res.body.find((c) => c.id === plainClient.id);
+    assert.deepEqual(linkedRow.linkedUsers, [
+        { id: linked.id, name: 'Client Login', email: 'clogin@test.com' },
+    ]);
+    assert.deepEqual(plainRow.linkedUsers, []);
+});
+test('GET /clients excludes soft-deleted users from linkedUsers', async () => {
+    const admin = await createAdmin();
+    const client = await createClient('Soft Corp');
+    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    await db.insert(users).values({
+        name: 'Old Login', email: 'oldc@test.com', passwordHash, role: 'client',
+        isActive: false, deletedAt: new Date(), linkedClientId: client.id,
+    });
+    const res = await request(app)
+        .get('/api/clients')
+        .set('Authorization', `Bearer ${signToken(admin)}`);
+    assert.equal(res.status, 200);
+    const row = res.body.find((c) => c.id === client.id);
+    assert.deepEqual(row.linkedUsers, []);
+});
+test('GET /drivers includes linkedUsers for active linked accounts and empty otherwise', async () => {
+    const admin = await createAdmin();
+    const linkedDriver = await createDriver('Linked Driver');
+    const plainDriver = await createDriver('Plain Driver');
+    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const [linked] = await db.insert(users).values({
+        name: 'Driver Login', email: 'dlogin@test.com', passwordHash, role: 'driver',
+        isActive: true, linkedDriverId: linkedDriver.id,
+    }).returning();
+    const res = await request(app)
+        .get('/api/drivers')
+        .set('Authorization', `Bearer ${signToken(admin)}`);
+    assert.equal(res.status, 200);
+    const linkedRow = res.body.find((d) => d.id === linkedDriver.id);
+    const plainRow = res.body.find((d) => d.id === plainDriver.id);
+    assert.deepEqual(linkedRow.linkedUsers, [
+        { id: linked.id, name: 'Driver Login', email: 'dlogin@test.com' },
+    ]);
+    assert.deepEqual(plainRow.linkedUsers, []);
+});
+test('GET /drivers excludes soft-deleted users from linkedUsers', async () => {
+    const admin = await createAdmin();
+    const driver = await createDriver('Soft Driver');
+    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    await db.insert(users).values({
+        name: 'Old Driver Login', email: 'oldd2@test.com', passwordHash, role: 'driver',
+        isActive: false, deletedAt: new Date(), linkedDriverId: driver.id,
+    });
+    const res = await request(app)
+        .get('/api/drivers')
+        .set('Authorization', `Bearer ${signToken(admin)}`);
+    assert.equal(res.status, 200);
+    const row = res.body.find((d) => d.id === driver.id);
+    assert.deepEqual(row.linkedUsers, []);
+});
