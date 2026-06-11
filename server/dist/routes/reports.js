@@ -1,9 +1,11 @@
 import { Router } from 'express';
-import { sql, gte, lte, and, desc } from 'drizzle-orm';
+import { sql, gte, lte, and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { challans, clients, batchRecords } from '../db/schema.js';
-import { requireAuth } from '../middleware/auth.js';
+import { challans, clients, batchRecords, orders, recurringOrders, vehicles } from '../db/schema.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { getVarianceTolerance } from '../lib/variance.js';
+import { computeForecast } from '../lib/forecast.js';
+import { computeRunDate, toDateStr } from '../lib/recurring.js';
 const router = Router();
 router.use(requireAuth);
 // Effective delivery variance tolerance, readable by any authenticated user so
@@ -142,5 +144,70 @@ router.get('/export', async (req, res) => {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=${report}-report.csv`);
     res.send(csv);
+});
+// How many days of order history to train the demand model on.
+const FORECAST_HISTORY_DAYS = 84;
+// Smart demand forecast for a single day. Blends recency-weighted same-weekday
+// order history with the overall daily average, floored by orders already placed
+// and recurring templates that fall due on the target date. Staff-only.
+router.get('/forecast', requireRole('admin', 'dispatcher', 'authority'), async (req, res) => {
+    const raw = typeof req.query.date === 'string' ? req.query.date : '';
+    // Default to tomorrow (UTC) when no valid date is supplied.
+    let target;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw) && !Number.isNaN(new Date(`${raw}T00:00:00Z`).getTime())) {
+        target = raw;
+    }
+    else {
+        const t = new Date();
+        t.setUTCDate(t.getUTCDate() + 1);
+        target = toDateStr(t);
+    }
+    // The effective order date is the scheduled delivery date when present, else
+    // the day the order was created.
+    const orderDate = sql `coalesce(${orders.deliveryDate}, date(${orders.createdAt}))`;
+    // History: every non-cancelled order strictly before the target day, within
+    // the training window, grouped by effective date + grade.
+    const windowStart = new Date(`${target}T00:00:00Z`);
+    windowStart.setUTCDate(windowStart.getUTCDate() - FORECAST_HISTORY_DAYS);
+    const historyRows = await db
+        .select({
+        date: sql `${orderDate}`,
+        grade: orders.grade,
+        qty: sql `coalesce(sum(${orders.quantity}::numeric), 0)`,
+    })
+        .from(orders)
+        .where(and(ne(orders.status, 'cancelled'), sql `${orderDate} >= ${toDateStr(windowStart)}`, sql `${orderDate} < ${target}`))
+        .groupBy(sql `${orderDate}`, orders.grade);
+    const history = historyRows.map(r => ({
+        date: String(r.date).slice(0, 10),
+        grade: r.grade,
+        qty: Number(r.qty) || 0,
+    }));
+    // Booked: non-cancelled orders already on the books for the target day.
+    const bookedRows = await db
+        .select({
+        grade: orders.grade,
+        qty: sql `coalesce(sum(${orders.quantity}::numeric), 0)`,
+    })
+        .from(orders)
+        .where(and(ne(orders.status, 'cancelled'), sql `${orderDate} = ${target}`))
+        .groupBy(orders.grade);
+    const booked = bookedRows.map(r => ({ grade: r.grade, qty: Number(r.qty) || 0 }));
+    // Recurring: active templates whose schedule lands exactly on the target day.
+    const templates = await db
+        .select({ grade: recurringOrders.grade, quantity: recurringOrders.quantity, frequency: recurringOrders.frequency, anchor: recurringOrders.anchor })
+        .from(recurringOrders)
+        .where(eq(recurringOrders.active, true));
+    const targetDateObj = new Date(`${target}T00:00:00Z`);
+    const recurring = templates
+        .filter(t => computeRunDate(t.frequency, t.anchor, targetDateObj, true) === target)
+        .map(t => ({ grade: t.grade, qty: Number(t.quantity) || 0 }));
+    // Average mixer capacity across the active fleet (drives truck-load advice).
+    const [cap] = await db
+        .select({ avg: sql `coalesce(avg(${vehicles.capacity}::numeric), 0)` })
+        .from(vehicles)
+        .where(eq(vehicles.status, 'active'));
+    const avgTruckCapacity = Number(cap?.avg) || 0;
+    res.json(computeForecast({ history, targetDate: target, booked, recurring, avgTruckCapacity }));
 });
 export default router;

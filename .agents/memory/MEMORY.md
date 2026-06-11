@@ -5,7 +5,7 @@
 - [RMC last-admin guard](rmc-soft-delete-guard.md) — last-admin delete branch is unreachable via real API (self-delete shadows it); test it with a deletedAt+active admin actor and signToken.
 - [RMC server tests](rmc-server-tests.md) — `pnpm test` in server/ provisions a UNIQUE per-run `<db>_test_<pid>_<ts>` DB (safe to run concurrently with validation), pushes schema, runs node:test+supertest serially.
 - [RMC frontend tests](rmc-frontend-tests.md) — vitest+jsdom+testing-library in rmc-app; `test` validation chains server then rmc-app; mock useSSE, use real ToastProvider to test Layout SSE→toast.
-- [RMC lint validation](rmc-lint-validation.md) — eslint-plugin-react-hooks@7 preset over-flags idiomatic code; purity/set-state-in-effect/only-export-components downgraded to warn so `lint` gate only blocks on real errors.
+- [RMC lint validation](rmc-lint-validation.md) — react-hooks@7 purity/set-state-in-effect + react-refresh/only-export-components enforced as ERROR; loaders must be non-async promise-chains (no sync setState in effects).
 - [Screenshot URL caching](screenshot-url-cache.md) — external_url screenshots are cached per-URL; add a `?cb=` query param to force a fresh capture of a changed page.
 - [RMC shift windows](rmc-shift-windows.md) — shifts (esp. night 22:00→06:00) cross midnight; use absolute Date start/end + date-anchored persistence keys, never hour-of-day or isToday.
 - [SSE event targeting](sse-event-targeting.md) — emitSSEEvent(event,data,audience?) scopes per-recipient; missing audience silently broadcasts to all.

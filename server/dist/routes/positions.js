@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { challans, sites, vehicles, drivers } from '../db/schema.js';
+import { challans, sites, vehicles, drivers, clients } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { notifyChallanStatus } from '../lib/deliveryNotify.js';
+import { getFreshnessConfig, computeFreshness } from '../lib/freshness.js';
 const router = Router();
 router.use(requireAuth);
 // Geofence tuning. A delivery auto-completes only after the driver reports
@@ -146,5 +147,74 @@ router.get('/mine', requireRole('client'), async (req, res) => {
     }
     const mine = Array.from(livePositions.values()).filter(p => p.clientId === clientId);
     res.json(mine);
+});
+// Shared by the freshness endpoint and the background alert ticker: pull every
+// currently-dispatched (in-transit) challan, fold in its latest live GPS fix if
+// one exists, and classify each load's pour urgency. Sorted most-urgent-first.
+export async function getFreshnessLoads(now = new Date()) {
+    const config = await getFreshnessConfig();
+    const rows = await db
+        .select({
+        id: challans.id,
+        challanNo: challans.challanNo,
+        clientId: challans.clientId,
+        clientName: clients.name,
+        siteId: challans.siteId,
+        siteName: sites.name,
+        vehicleNo: vehicles.vehicleNo,
+        driverName: drivers.name,
+        grade: challans.grade,
+        quantity: challans.quantity,
+        dispatchTime: challans.dispatchTime,
+    })
+        .from(challans)
+        .leftJoin(clients, eq(challans.clientId, clients.id))
+        .leftJoin(sites, eq(challans.siteId, sites.id))
+        .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
+        .leftJoin(drivers, eq(challans.driverId, drivers.id))
+        .where(eq(challans.status, 'dispatched'));
+    const loads = rows.map(row => {
+        const pos = livePositions.get(row.id);
+        const fresh = computeFreshness({
+            dispatchTime: row.dispatchTime ? new Date(row.dispatchTime).toISOString() : null,
+            config,
+            now,
+            distanceM: pos?.distanceM ?? null,
+            speed: pos?.speed ?? null,
+        });
+        return {
+            challanId: row.id,
+            challanNo: row.challanNo,
+            clientId: row.clientId,
+            clientName: row.clientName,
+            siteId: row.siteId,
+            siteName: row.siteName,
+            vehicleNo: row.vehicleNo,
+            driverName: row.driverName,
+            grade: row.grade,
+            quantity: row.quantity,
+            dispatchTime: row.dispatchTime ? new Date(row.dispatchTime).toISOString() : null,
+            hasLivePosition: pos != null,
+            lat: pos?.lat ?? null,
+            lng: pos?.lng ?? null,
+            distanceM: pos?.distanceM ?? null,
+            speed: pos?.speed ?? null,
+            positionUpdatedAt: pos?.updatedAt ?? null,
+            ...fresh,
+        };
+    });
+    // Order by urgency: most-overdue / least-remaining first so the dispatch board
+    // shows the loads that need pouring now at the top.
+    const rank = { expired: 0, critical: 1, warning: 2, fresh: 3 };
+    loads.sort((a, b) => {
+        if (rank[a.level] !== rank[b.level])
+            return rank[a.level] - rank[b.level];
+        return (a.remainingMin ?? Infinity) - (b.remainingMin ?? Infinity);
+    });
+    return { config, loads, generatedAt: now.toISOString() };
+}
+// Dispatch / plant view of concrete freshness for in-transit loads.
+router.get('/freshness', requireRole('admin', 'dispatcher', 'authority', 'plant_operator'), async (_req, res) => {
+    res.json(await getFreshnessLoads());
 });
 export default router;

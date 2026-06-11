@@ -21,6 +21,7 @@ import recurringRoutes from './routes/recurring.js';
 import eventsRoutes from './routes/events.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
+import { tickFreshnessAlerts } from './lib/freshnessAlerts.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
 const app = express();
@@ -73,11 +74,29 @@ async function tickRecurringOrders() {
         recurringRunning = false;
     }
 }
+// Re-evaluate concrete freshness for in-transit loads and push an SSE alert when
+// a load newly crosses into critical/expired. Guarded against overlapping runs.
+let freshnessRunning = false;
+async function tickFreshness() {
+    if (freshnessRunning)
+        return;
+    freshnessRunning = true;
+    try {
+        await tickFreshnessAlerts();
+    }
+    catch (e) {
+        console.error('Freshness alert tick failed', e);
+    }
+    finally {
+        freshnessRunning = false;
+    }
+}
 app.listen(PORT, () => {
     console.log(`TrackMyRMC API running on port ${PORT}`);
     cleanupOldAttempts().catch(() => { });
     setInterval(() => cleanupOldAttempts().catch(() => { }), 60 * 60 * 1000);
     tickRecurringOrders();
     setInterval(tickRecurringOrders, 60 * 60 * 1000);
+    setInterval(tickFreshness, 60 * 1000);
 });
 export default app;

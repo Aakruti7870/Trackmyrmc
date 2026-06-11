@@ -17,6 +17,8 @@ import Drivers from '@/pages/Drivers';
 import BatchReport from '@/pages/BatchReport';
 import MixDesign from '@/pages/MixDesign';
 import Reports from '@/pages/Reports';
+import FreshnessGuard from '@/pages/FreshnessGuard';
+import DemandForecast from '@/pages/DemandForecast';
 import ShiftReport from '@/pages/ShiftReport';
 import ChallanPrint from '@/pages/ChallanPrint';
 import MyOrders from '@/pages/MyOrders';
@@ -94,6 +96,8 @@ function ProtectedRoutes() {
         <Route path="/batch-report" component={() => <GuardedRoute path="/batch-report" component={BatchReport} />} />
         <Route path="/mix-design"   component={() => <GuardedRoute path="/mix-design"   component={MixDesign}   />} />
         <Route path="/reports"      component={() => <GuardedRoute path="/reports"      component={Reports}     />} />
+        <Route path="/freshness"    component={() => <GuardedRoute path="/freshness"    component={FreshnessGuard}  />} />
+        <Route path="/forecast"     component={() => <GuardedRoute path="/forecast"     component={DemandForecast}  />} />
         <Route path="/shift-report" component={() => <GuardedRoute path="/shift-report" component={ShiftReport} />} />
         <Route path="/recurring"    component={() => <GuardedRoute path="/recurring"    component={RecurringAdmin}  />} />
         <Route path="/users"        component={() => <GuardedRoute path="/users"        component={Users}           />} />

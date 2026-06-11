@@ -3,6 +3,7 @@ import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
+  Timer, TrendingUp,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -20,6 +21,8 @@ const ALL_NAV_ITEMS = [
   { path: '/my-trips',    label: 'My Trips',   icon: Route },
   { path: '/orders',      label: 'Orders',     icon: ClipboardList },
   { path: '/dispatch',    label: 'Dispatch',   icon: Truck },
+  { path: '/freshness',   label: 'Freshness Guard', icon: Timer },
+  { path: '/forecast',    label: 'Demand Forecast', icon: TrendingUp },
   { path: '/clients',     label: 'Clients',    icon: Users },
   { path: '/vehicles',    label: 'Fleet',      icon: CarFront },
   { path: '/drivers',     label: 'Drivers',    icon: UserCheck },
@@ -89,7 +92,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const unsubCreated = subscribe('challan.created', toastFor('challan.created'));
     const unsubUpdated = subscribe('challan.updated', toastFor('challan.updated'));
     const unsubOrder = subscribe('order.updated', toastFor('order.updated'));
-    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); };
+
+    // Plant-wide concrete freshness escalation (staff only). Surfaces as an
+    // error toast so dispatchers see at-risk loads from anywhere in the app.
+    const unsubFresh = subscribe('challan.freshness', (data: unknown) => {
+      const d = data as { challanNo?: string; grade?: string; siteName?: string | null; level?: string };
+      if (!d?.challanNo) return;
+      const where = d.siteName ? ` → ${d.siteName}` : '';
+      const verb = d.level === 'expired' ? 'has EXPIRED' : 'is running critically low';
+      showToast(`Load ${d.challanNo} (${d.grade})${where} ${verb} — pour now`, 'error');
+    });
+
+    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); };
   }, [subscribe, showToast, isClient]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';

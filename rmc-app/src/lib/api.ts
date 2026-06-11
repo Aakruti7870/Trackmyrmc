@@ -163,3 +163,62 @@ export interface PositionUpdateResult {
   ok: boolean; distanceM: number | null; delivered: boolean;
   withinRadius: boolean; inRadiusCount: number;
 }
+
+export type FreshnessLevel = 'fresh' | 'warning' | 'critical' | 'expired';
+
+export interface FreshnessConfig {
+  workingLifeMin: number;
+  warnMin: number;
+  avgSpeedKmh: number;
+}
+
+export interface FreshnessLoad {
+  challanId: number; challanNo: string;
+  clientId: number | null; clientName: string | null;
+  siteId: number | null; siteName: string | null;
+  vehicleNo: string | null; driverName: string | null;
+  grade: string; quantity: string;
+  dispatchTime: string | null;
+  hasLivePosition: boolean;
+  lat: number | null; lng: number | null;
+  distanceM: number | null; speed: number | null;
+  positionUpdatedAt: string | null;
+  elapsedMin: number | null; remainingMin: number | null;
+  pourByIso: string | null; etaMin: number | null;
+  willMakeIt: boolean | null; level: FreshnessLevel;
+}
+
+export interface FreshnessResponse {
+  config: FreshnessConfig;
+  loads: FreshnessLoad[];
+  generatedAt: string;
+}
+
+export interface FreshnessSettings extends FreshnessConfig {
+  defaults: FreshnessConfig;
+}
+
+export type Confidence = 'low' | 'medium' | 'high';
+
+export interface GradeForecast {
+  grade: string;
+  predictedQty: number;
+  bookedQty: number;
+  recurringQty: number;
+  modelQty: number;
+  confidence: Confidence;
+  sampleDays: number;
+}
+
+export interface ForecastResult {
+  date: string;
+  weekday: string;
+  grades: GradeForecast[];
+  totalPredicted: number;
+  totalBooked: number;
+  totalRecurring: number;
+  avgTruckCapacity: number;
+  recommendedTruckLoads: number;
+  recommendedBatches: number;
+  assumptions: string[];
+}

@@ -7,6 +7,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { sendTestEmail, getSmtpSettings, verifySmtpConnection, getSmtpConfig, SMTP_KEYS } from '../lib/email.js';
 import { setSetting } from '../lib/settings.js';
 import { getVarianceTolerance, VARIANCE_KEYS, DEFAULT_VARIANCE_ABS, DEFAULT_VARIANCE_PCT } from '../lib/variance.js';
+import { getFreshnessConfig, FRESHNESS_KEYS, DEFAULT_WORKING_LIFE_MIN, DEFAULT_WARN_MIN, DEFAULT_AVG_SPEED_KMH, } from '../lib/freshness.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 const router = Router();
 router.use(requireAuth, requireRole('admin', 'authority'));
@@ -212,6 +213,88 @@ router.post('/variance-tolerance', async (req, res) => {
         console.error('[admin] Failed to write variance tolerance audit log:', err);
     }
     res.json({ ...after, defaults: { abs: DEFAULT_VARIANCE_ABS, pct: DEFAULT_VARIANCE_PCT } });
+});
+router.get('/freshness-settings', async (_req, res) => {
+    res.json({
+        ...(await getFreshnessConfig()),
+        defaults: {
+            workingLifeMin: DEFAULT_WORKING_LIFE_MIN,
+            warnMin: DEFAULT_WARN_MIN,
+            avgSpeedKmh: DEFAULT_AVG_SPEED_KMH,
+        },
+    });
+});
+// All fields optional. An empty string clears the persisted value (reverting to
+// the built-in default). Each must be a positive number when supplied.
+const freshnessSettingsSchema = z.object({
+    workingLifeMin: z
+        .string()
+        .trim()
+        .optional()
+        .refine(v => v === undefined || v === '' || (Number.isFinite(Number(v)) && Number(v) > 0), 'Working life must be a positive number of minutes'),
+    warnMin: z
+        .string()
+        .trim()
+        .optional()
+        .refine(v => v === undefined || v === '' || (Number.isFinite(Number(v)) && Number(v) > 0), 'Warning threshold must be a positive number of minutes'),
+    avgSpeedKmh: z
+        .string()
+        .trim()
+        .optional()
+        .refine(v => v === undefined || v === '' || (Number.isFinite(Number(v)) && Number(v) > 0), 'Average speed must be a positive number'),
+});
+router.post('/freshness-settings', async (req, res) => {
+    const raw = {
+        workingLifeMin: req.body?.workingLifeMin == null ? undefined : String(req.body.workingLifeMin),
+        warnMin: req.body?.warnMin == null ? undefined : String(req.body.warnMin),
+        avgSpeedKmh: req.body?.avgSpeedKmh == null ? undefined : String(req.body.avgSpeedKmh),
+    };
+    const parse = freshnessSettingsSchema.safeParse(raw);
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.flatten().fieldErrors });
+        return;
+    }
+    const { workingLifeMin, warnMin, avgSpeedKmh } = parse.data;
+    const before = await getFreshnessConfig();
+    if (workingLifeMin !== undefined)
+        await setSetting(FRESHNESS_KEYS.workingLifeMin, workingLifeMin.trim() === '' ? null : String(Number(workingLifeMin)));
+    if (warnMin !== undefined)
+        await setSetting(FRESHNESS_KEYS.warnMin, warnMin.trim() === '' ? null : String(Number(warnMin)));
+    if (avgSpeedKmh !== undefined)
+        await setSetting(FRESHNESS_KEYS.avgSpeedKmh, avgSpeedKmh.trim() === '' ? null : String(Number(avgSpeedKmh)));
+    const after = await getFreshnessConfig();
+    const changed = [];
+    if (before.workingLifeMin !== after.workingLifeMin)
+        changed.push(`working life ${before.workingLifeMin} → ${after.workingLifeMin} min`);
+    if (before.warnMin !== after.warnMin)
+        changed.push(`warning threshold ${before.warnMin} → ${after.warnMin} min`);
+    if (before.avgSpeedKmh !== after.avgSpeedKmh)
+        changed.push(`avg speed ${before.avgSpeedKmh} → ${after.avgSpeedKmh} km/h`);
+    const detail = changed.length
+        ? `Concrete freshness settings updated. Changed: ${changed.join('; ')}.`
+        : 'Concrete freshness settings saved from the admin panel. No values were changed.';
+    const actor = req.user;
+    try {
+        await db.insert(auditLogs).values({
+            actorId: actor.id,
+            actorName: actor.name,
+            action: 'freshness_settings_updated',
+            status: 'success',
+            detail,
+            emailSent: null,
+        });
+    }
+    catch (err) {
+        console.error('[admin] Failed to write freshness settings audit log:', err);
+    }
+    res.json({
+        ...after,
+        defaults: {
+            workingLifeMin: DEFAULT_WORKING_LIFE_MIN,
+            warnMin: DEFAULT_WARN_MIN,
+            avgSpeedKmh: DEFAULT_AVG_SPEED_KMH,
+        },
+    });
 });
 router.get('/lockouts', async (_req, res) => {
     const lockouts = await getActiveLockouts();
