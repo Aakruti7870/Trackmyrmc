@@ -123,3 +123,4 @@ defaultBucketID = "replit-objstore-7b3ab1c0-032c-43db-81ec-852e30af83da"
 
 [userenv.shared]
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_ZGV2b3RlZC1raWQtMzcuY2xlcmsuYWNjb3VudHMuZGV2JA"
+JWT_SECRET = "Av-tREFwUcn-6lOG0ri-ZoCXSdwSWhVm5q3PEo6efwJ3qZ2JZWBjojaxraRRQE3C"

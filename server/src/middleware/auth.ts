@@ -4,7 +4,11 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'trackmyrmc-secret-2024';
+const JWT_SECRET: string = process.env.JWT_SECRET ?? (() => {
+  throw new Error(
+    'JWT_SECRET environment variable is required. Set it to a long random string before starting the server.',
+  );
+})();
 
 export interface AuthPayload {
   id: number;
