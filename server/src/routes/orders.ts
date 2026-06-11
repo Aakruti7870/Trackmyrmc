@@ -73,12 +73,18 @@ router.put('/:id', async (req, res) => {
   const { clientId, siteId, grade, quantity, pumpRequired, deliveryDate, deliveryTime, notes, status } = req.body;
   const [prev] = await db.select({ status: orders.status })
     .from(orders).where(eq(orders.id, +req.params.id));
+  // Ignore blank/whitespace-only notes so an accidental empty edit can't wipe
+  // an existing order note (mirrors the challan route's write-role guard). An
+  // explicit null still clears the note; undefined leaves it untouched.
+  const notesUpdate = notes !== undefined && (typeof notes !== 'string' || notes.trim())
+    ? notes
+    : undefined;
   const [row] = await db.update(orders).set({
     clientId: clientId ? +clientId : undefined,
     siteId: siteId ? +siteId : null,
     grade, quantity: quantity?.toString(),
     pumpRequired: pumpRequired !== undefined ? !!pumpRequired : undefined,
-    deliveryDate, deliveryTime, notes, status,
+    deliveryDate, deliveryTime, notes: notesUpdate, status,
   }).where(eq(orders.id, +req.params.id)).returning();
   if (row && status !== undefined && prev?.status !== row.status) {
     emitSSEEvent('order.updated', row, { clientId: row.clientId });
