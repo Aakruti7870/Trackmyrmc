@@ -160,4 +160,43 @@ describe('MyTrips proof-of-delivery photo capture', () => {
     const payload = vi.mocked(api.put).mock.calls[0][1] as Record<string, unknown>;
     expect(payload).not.toHaveProperty('proofPhotos');
   });
+
+  it('caps previews at 8 and warns that extra photos were skipped', async () => {
+    mockTrips([makeChallan({ id: 11, quantity: '8.00' })]);
+    const user = userEvent.setup();
+    render(<MyTrips />);
+
+    await openProofForm(user);
+    const tooMany = Array.from({ length: 10 }, (_, i) => makePhoto(`site-${i}.jpg`));
+    await user.upload(fileInput(), tooMany);
+
+    await waitFor(() => {
+      expect(screen.getByAltText(/Proof of delivery 8/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByAltText(/Proof of delivery 9/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Only 8 photos allowed — extra photos were skipped/i),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the add-photo button once the cap is reached', async () => {
+    mockTrips([makeChallan({ id: 12, quantity: '8.00' })]);
+    const user = userEvent.setup();
+    render(<MyTrips />);
+
+    await openProofForm(user);
+    expect(
+      screen.getByRole('button', { name: /Take \/ upload photos/i }),
+    ).toBeInTheDocument();
+
+    const eight = Array.from({ length: 8 }, (_, i) => makePhoto(`site-${i}.jpg`));
+    await user.upload(fileInput(), eight);
+
+    await waitFor(() => {
+      expect(screen.getByAltText(/Proof of delivery 8/i)).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole('button', { name: /Add another photo|Take \/ upload photos/i }),
+    ).not.toBeInTheDocument();
+  });
 });
