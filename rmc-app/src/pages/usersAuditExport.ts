@@ -56,7 +56,7 @@ export async function exportAuditXlsx(
   opts: { filename: string; title: string },
 ) {
   if (rows.length === 0) return;
-  const XLSX = await import('xlsx');
+  const XLSX = await import('@e965/xlsx');
   const aoa: (string | Date)[][] = [
     [...AUDIT_EXPORT_HEADERS],
     ...rows.map(r => [r.timestamp, r.action, r.detail, r.target, r.performedBy, r.emailSent]),
