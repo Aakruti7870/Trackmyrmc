@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
@@ -26,7 +26,7 @@ const driver = {
   id: 1, name: 'John Driver', phone: '9999999999', licenseNo: '', licenseExpiry: null, isActive: true,
 };
 
-let confirmSpy: ReturnType<typeof vi.spyOn>;
+let confirmSpy: MockInstance;
 
 beforeEach(() => {
   vi.clearAllMocks();

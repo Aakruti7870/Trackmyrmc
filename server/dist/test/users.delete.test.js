@@ -376,6 +376,72 @@ test('restore: POST /:id/restore with clearLink restores past a taken link by cl
     assert.equal(logs.length, 1, 'exactly one user.restored entry is written');
     assert.match(logs[0].detail ?? '', /cleared/i, 'the audit detail notes the link was cleared');
 });
+test('restore-all → unlink → restore: a batch surfaces the conflicting account in skippedDetails, unlinking it audits a client_link_change, and the follow-up restore then succeeds', async () => {
+    const admin = await createUser({ name: 'Admin Loop', email: 'admin-loop@test.com', role: 'admin' });
+    const client = await createClient('Gamma Concrete');
+    const token = tokenFor(admin);
+    // An active account already holds the client link — this is the conflict the
+    // skipped row will name.
+    const holder = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Active Holder Loop', email: 'holder-loop@test.com', password: PASSWORD, role: 'client', linkedClientId: client.id });
+    assert.equal(holder.status, 201);
+    // A soft-deleted account pointing at the same client (will be skipped)...
+    const conflicted = await createUser({
+        name: 'Conflicted Loop', email: 'conflict-loop@test.com', role: 'client',
+        isActive: false, deletedAt: new Date(),
+    });
+    await db.update(users).set({ linkedClientId: client.id }).where(eq(users.id, conflicted.id));
+    // ...and a second soft-deleted account with no link conflict (restores cleanly).
+    const clean = await createUser({
+        name: 'Clean Loop', email: 'clean-loop@test.com', role: 'dispatcher',
+        isActive: false, deletedAt: new Date(),
+    });
+    // Restore the batch: the clean account comes back, the conflicting one is
+    // skipped with conflict metadata naming the active holder.
+    const batch = await request(app)
+        .post('/api/users/restore-all')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ids: [conflicted.id, clean.id] });
+    assert.equal(batch.status, 200);
+    assert.equal(batch.body.restored, 1, 'the non-conflicting account is restored');
+    assert.equal(batch.body.skipped, 1, 'the conflicting account is skipped');
+    const skipped = batch.body.skippedDetails.find((d) => d.id === conflicted.id);
+    assert.ok(skipped, 'the conflicting account appears in skippedDetails');
+    assert.equal(skipped.conflictUserId, holder.body.id, 'the skip names the active holder as the conflict');
+    assert.equal(skipped.conflictUserName, 'Active Holder Loop', 'the skip carries the conflicting account name');
+    assert.equal(skipped.conflictLinkType, 'client', 'the skip identifies a client-link conflict');
+    assert.match(skipped.reason, /already linked/i);
+    // The clean account is genuinely restored; the conflicting one is still in the trash.
+    const [cleanRow] = await db.select({ deletedAt: users.deletedAt }).from(users).where(eq(users.id, clean.id));
+    assert.equal(cleanRow.deletedAt, null, 'the clean account is restored');
+    const [stillGone] = await db.select({ deletedAt: users.deletedAt }).from(users).where(eq(users.id, conflicted.id));
+    assert.ok(stillGone.deletedAt instanceof Date, 'the skipped account stays soft-deleted');
+    // One-click "Unlink <name> & restore": first unlink the conflicting active
+    // holder via PUT, which must write a client_link_change audit entry.
+    const unlink = await request(app)
+        .put(`/api/users/${skipped.conflictUserId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ linkedClientId: null });
+    assert.equal(unlink.status, 200);
+    assert.equal(unlink.body.linkedClientId, null, 'the holder is unlinked');
+    const linkLogs = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.action, 'client_link_change'), eq(auditLogs.targetUserId, holder.body.id)));
+    assert.equal(linkLogs.length, 1, 'unlinking writes exactly one client_link_change audit entry');
+    assert.equal(linkLogs[0].actorId, admin.id, 'the link-change audit records the acting admin');
+    assert.match(linkLogs[0].detail ?? '', /none/i, 'the audit detail records the link was cleared to none');
+    // The follow-up restore of the previously skipped account now succeeds.
+    const restore = await request(app)
+        .post(`/api/users/${conflicted.id}/restore`)
+        .set('Authorization', `Bearer ${token}`);
+    assert.equal(restore.status, 200, 'restore succeeds once the conflict is unlinked');
+    assert.equal(restore.body.deletedAt, null, 'the account is restored');
+    assert.equal(restore.body.linkedClientId, client.id, 'the restored account keeps its own client link');
+    const restoreLogs = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.action, 'user.restored'), eq(auditLogs.targetUserId, conflicted.id)));
+    assert.equal(restoreLogs.length, 1, 'exactly one user.restored entry is written on the follow-up restore');
+});
 test('unlock: POST /:id/unlock writes a lockout_cleared audit entry naming the acting admin and target', async () => {
     const admin = await createUser({ name: 'Admin Unlock', email: 'unlock-admin@test.com', role: 'admin' });
     const target = await createUser({ name: 'Locked User', email: 'locked@test.com', role: 'dispatcher' });

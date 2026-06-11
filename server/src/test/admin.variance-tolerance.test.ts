@@ -17,7 +17,7 @@ const PASSWORD = 'secret123';
 async function createUser(role: string, email: string) {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
   const [row] = await db.insert(users).values({
-    name: role, email, passwordHash, role, isActive: true,
+    name: role, email, passwordHash, role: role as typeof users.$inferInsert['role'], isActive: true,
   }).returning();
   return row;
 }

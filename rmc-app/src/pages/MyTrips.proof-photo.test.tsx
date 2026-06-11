@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
@@ -38,8 +38,8 @@ function mockTrips(rows: Challan[]) {
 // never resolves. Stub those primitives so handlePhotoPick produces a
 // deterministic data URL the way a real browser would.
 let OriginalImage: typeof Image;
-let getContextSpy: ReturnType<typeof vi.spyOn>;
-let toDataURLSpy: ReturnType<typeof vi.spyOn>;
+let getContextSpy: MockInstance;
+let toDataURLSpy: MockInstance;
 
 beforeEach(() => {
   vi.clearAllMocks();
