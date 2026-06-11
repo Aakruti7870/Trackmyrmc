@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, like } from 'drizzle-orm';
 import pg from 'pg';
@@ -20,10 +22,22 @@ import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 
 const { Pool } = pg;
 
+/** A photo row that could not be migrated and remains base64 in the database. */
+export interface FailedPhoto {
+  id: number;
+  challanId: number;
+  error: string;
+}
+
 export interface MigrationResult {
   migrated: number;
   skipped: number;
   failed: number;
+  /**
+   * Detail for every row whose upload threw — these still hold base64 in the
+   * database and need attention. Empty on a fully successful run.
+   */
+  failures: FailedPhoto[];
 }
 
 /**
@@ -49,14 +63,14 @@ export async function migrateProofPhotos(
 
   if (rows.length === 0) {
     log('✅ Nothing to migrate — no base64 proof photos found.');
-    return { migrated: 0, skipped: 0, failed: 0 };
+    return { migrated: 0, skipped: 0, failed: 0, failures: [] };
   }
 
   log(`Found ${rows.length} base64 proof photo(s) to migrate.`);
 
   let migrated = 0;
   let skipped = 0;
-  let failed = 0;
+  const failures: FailedPhoto[] = [];
 
   for (const row of rows) {
     // Defensive: the SQL filter already excludes these, but guard anyway so a
@@ -73,13 +87,45 @@ export async function migrateProofPhotos(
       migrated++;
       log(`  ✔ photo #${row.id} (challan ${row.challanId}) → ${entityPath}`);
     } catch (err) {
-      failed++;
-      log(`  ✘ photo #${row.id} (challan ${row.challanId}) failed: ${err instanceof Error ? err.message : String(err)}`);
+      const error = err instanceof Error ? err.message : String(err);
+      failures.push({ id: row.id, challanId: row.challanId, error });
+      log(`  ✘ photo #${row.id} (challan ${row.challanId}) failed: ${error}`);
     }
   }
 
-  log(`\n✅ Migration complete. Migrated: ${migrated}, skipped: ${skipped}, failed: ${failed}.`);
-  return { migrated, skipped, failed };
+  log(`\n✅ Migration complete. Migrated: ${migrated}, skipped: ${skipped}, failed: ${failures.length}.`);
+  return { migrated, skipped, failed: failures.length, failures };
+}
+
+/**
+ * Writes a durable record of the rows that failed to migrate so an admin knows
+ * exactly which photos remain stuck as base64 in the database after a partial
+ * run. Returns the path of the written report, or null when there were no
+ * failures (nothing to report).
+ *
+ * The report is JSON (machine- and human-readable) and named with a timestamp
+ * so consecutive partial runs do not clobber each other's records.
+ */
+export async function writeFailureReport(
+  result: MigrationResult,
+  dir: string = process.cwd(),
+): Promise<string | null> {
+  if (result.failures.length === 0) return null;
+
+  const generatedAt = new Date();
+  const stamp = generatedAt.toISOString().replace(/[:.]/g, '-');
+  const file = path.join(dir, `proof-photo-migration-failures-${stamp}.json`);
+
+  const report = {
+    generatedAt: generatedAt.toISOString(),
+    migrated: result.migrated,
+    skipped: result.skipped,
+    failed: result.failed,
+    failures: result.failures,
+  };
+
+  await writeFile(file, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  return file;
 }
 
 async function main() {
@@ -89,7 +135,16 @@ async function main() {
   console.log('📦 Migrating legacy base64 proof photos to object storage...');
   try {
     const result = await migrateProofPhotos(db, (msg) => console.log(msg));
-    if (result.failed > 0) process.exitCode = 1;
+    if (result.failed > 0) {
+      const reportPath = await writeFailureReport(result);
+      console.error(
+        `\n⚠️  ${result.failed} photo(s) failed to migrate and remain as base64 in the database.`,
+      );
+      if (reportPath) {
+        console.error(`   A durable failure report was written to: ${reportPath}`);
+      }
+      process.exitCode = 1;
+    }
   } finally {
     await pool.end();
   }

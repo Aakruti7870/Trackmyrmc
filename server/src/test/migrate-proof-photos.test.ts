@@ -1,11 +1,14 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile, readdir } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 
 import { db, pool } from '../db/index.js';
 import { clients, challans, challanProofPhotos } from '../db/schema.js';
 import { proofPhotoStore } from '../lib/proofPhoto.js';
-import { migrateProofPhotos } from '../db/migrate-proof-photos.js';
+import { migrateProofPhotos, writeFailureReport } from '../db/migrate-proof-photos.js';
 
 // A minimal but valid 1x1 transparent PNG as an image data URL.
 const BASE64_PHOTO =
@@ -72,7 +75,7 @@ test('migration uploads base64 photos to object storage and rewrites rows to ent
 
   const result = await migrateProofPhotos(db);
 
-  assert.deepEqual(result, { migrated: 2, skipped: 0, failed: 0 });
+  assert.deepEqual(result, { migrated: 2, skipped: 0, failed: 0, failures: [] });
   assert.equal(storeMock.mock.callCount(), 2, 'each base64 photo is uploaded once');
   assert.deepEqual(uploaded, [BASE64_PHOTO, BASE64_PHOTO_2], 'original data URLs are uploaded');
 
@@ -90,7 +93,7 @@ test('already-migrated /objects/ rows are left untouched and not re-uploaded', a
 
   const result = await migrateProofPhotos(db);
 
-  assert.deepEqual(result, { migrated: 1, skipped: 0, failed: 0 },
+  assert.deepEqual(result, { migrated: 1, skipped: 0, failed: 0, failures: [] },
     'only the base64 row is migrated; the object-path row is never selected');
   assert.equal(storeMock.mock.callCount(), 1, 'the already-migrated photo is not re-uploaded');
   assert.equal(await photoById(objectRow.id), ENTITY_PATH, 'the existing entity path is unchanged');
@@ -107,10 +110,10 @@ test('migration is idempotent: a second run is a no-op and no row holds base64 a
   const storeMock = t.mock.method(proofPhotoStore, 'store', async () => `/objects/uploads/run-${counter++}`);
 
   const first = await migrateProofPhotos(db);
-  assert.deepEqual(first, { migrated: 2, skipped: 0, failed: 0 }, 'first run migrates the two base64 rows');
+  assert.deepEqual(first, { migrated: 2, skipped: 0, failed: 0, failures: [] }, 'first run migrates the two base64 rows');
 
   const second = await migrateProofPhotos(db);
-  assert.deepEqual(second, { migrated: 0, skipped: 0, failed: 0 }, 'second run migrates nothing');
+  assert.deepEqual(second, { migrated: 0, skipped: 0, failed: 0, failures: [] }, 'second run migrates nothing');
   assert.equal(storeMock.mock.callCount(), 2, 'no extra uploads happen on the second run');
 
   // After migrating, no row anywhere holds a base64 data URL payload.
@@ -129,6 +132,57 @@ test('migration with no base64 rows reports nothing to migrate', async (t) => {
 
   const result = await migrateProofPhotos(db);
 
-  assert.deepEqual(result, { migrated: 0, skipped: 0, failed: 0 });
+  assert.deepEqual(result, { migrated: 0, skipped: 0, failed: 0, failures: [] });
   assert.equal(storeMock.mock.callCount(), 0, 'nothing is uploaded when there is no base64 data');
+});
+
+test('partial failure: failed uploads are reported and the rows stay base64 in the database', async (t) => {
+  const challan = await createChallanWithClient();
+  const okRow = await addPhoto(challan.id, BASE64_PHOTO);
+  const badRow = await addPhoto(challan.id, BASE64_PHOTO_2);
+
+  // The first upload succeeds; the second throws, simulating a storage outage
+  // mid-run so some photos remain stuck as base64.
+  let call = 0;
+  const storeMock = t.mock.method(proofPhotoStore, 'store', async () => {
+    call += 1;
+    if (call === 1) return '/objects/uploads/migrated-ok';
+    throw new Error('object storage unavailable');
+  });
+
+  const result = await migrateProofPhotos(db);
+
+  assert.equal(storeMock.mock.callCount(), 2, 'both base64 rows are attempted');
+  assert.equal(result.migrated, 1, 'the successful upload is counted');
+  assert.equal(result.failed, 1, 'the failed upload is counted');
+  assert.deepEqual(result.failures, [
+    { id: badRow.id, challanId: challan.id, error: 'object storage unavailable' },
+  ], 'the failing row is reported with its id, challan, and error');
+
+  // The good row is rewritten; the failed row is left as-is so it can be retried.
+  assert.equal(await photoById(okRow.id), '/objects/uploads/migrated-ok', 'the successful row is migrated');
+  assert.equal(await photoById(badRow.id), BASE64_PHOTO_2, 'the failed row still holds base64 in the database');
+
+  // The failure summary is written durably to a report file.
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'proof-photo-report-'));
+  const reportPath = await writeFailureReport(result, dir);
+  assert.ok(reportPath, 'a report path is returned when there are failures');
+  assert.ok(reportPath!.startsWith(dir), 'the report is written into the given directory');
+
+  const written = JSON.parse(await readFile(reportPath!, 'utf8'));
+  assert.equal(written.failed, 1);
+  assert.deepEqual(written.failures, [
+    { id: badRow.id, challanId: challan.id, error: 'object storage unavailable' },
+  ], 'the report records which photo rows remain stuck');
+  assert.equal(typeof written.generatedAt, 'string', 'the report is timestamped');
+});
+
+test('writeFailureReport writes nothing when there are no failures', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'proof-photo-report-'));
+  const reportPath = await writeFailureReport(
+    { migrated: 3, skipped: 1, failed: 0, failures: [] },
+    dir,
+  );
+  assert.equal(reportPath, null, 'no report path is returned on a clean run');
+  assert.deepEqual(await readdir(dir), [], 'no report file is created when nothing failed');
 });
