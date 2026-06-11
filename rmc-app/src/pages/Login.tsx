@@ -1,15 +1,10 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
-import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle, Crown } from 'lucide-react';
+import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
-import { defaultPath } from '@/lib/permissions';
-
-// TEMPORARY: until Clerk-based Authority & Staff login auth is enabled, the
-// "Authority & Staff Sign-In" button bypasses single sign-on and logs straight
-// into the app as the seeded admin account. Swap STAFF_BYPASS_ACCOUNT (or
-// re-enable the Clerk flow) when real login auth is turned on.
-const STAFF_BYPASS_ACCOUNT = { email: 'admin@aakruti.com', password: 'admin123' };
+import { clerkEnabled } from '@/lib/clerk';
+import ClerkStaffLogin from '@/components/ClerkStaffLogin';
 
 const DEMO = [
   { role: 'Admin', email: 'admin@aakruti.com', password: 'admin123', color: 'var(--gold)' },
@@ -46,21 +41,6 @@ export default function Login() {
     setEmail(d.email);
     setPassword(d.password);
     setError('');
-  }
-
-  // TEMPORARY bypass: log straight in as the seeded admin account, skipping the
-  // Clerk Authority & Staff sign-on until real login auth is enabled.
-  async function handleStaffBypass() {
-    setError('');
-    setLoading(true);
-    try {
-      const u = await login(STAFF_BYPASS_ACCOUNT.email, STAFF_BYPASS_ACCOUNT.password);
-      setLoc(defaultPath(u.role));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed');
-    } finally {
-      setLoading(false);
-    }
   }
 
   return (
