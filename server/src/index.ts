@@ -19,6 +19,7 @@ import adminRoutes from './routes/admin.js';
 import positionRoutes from './routes/positions.js';
 import eventsRoutes from './routes/events.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
+import { runDueRecurringOrders } from './lib/recurring.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
@@ -58,10 +59,28 @@ if (isProd) {
   });
 }
 
+// Materialise any due recurring orders, guarding against overlapping runs so a
+// slow check can't stack on top of the next interval tick.
+let recurringRunning = false;
+async function tickRecurringOrders() {
+  if (recurringRunning) return;
+  recurringRunning = true;
+  try {
+    const n = await runDueRecurringOrders();
+    if (n > 0) console.log(`Recurring scheduler created ${n} order(s)`);
+  } catch (e) {
+    console.error('Recurring scheduler failed', e);
+  } finally {
+    recurringRunning = false;
+  }
+}
+
 app.listen(PORT, () => {
   console.log(`TrackMyRMC API running on port ${PORT}`);
   cleanupOldAttempts().catch(() => {});
   setInterval(() => cleanupOldAttempts().catch(() => {}), 60 * 60 * 1000);
+  tickRecurringOrders();
+  setInterval(tickRecurringOrders, 60 * 60 * 1000);
 });
 
 export default app;

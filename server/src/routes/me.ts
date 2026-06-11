@@ -1,20 +1,26 @@
 import { Router } from 'express';
 import { eq, desc, gte, lte, and, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries } from '../db/schema.js';
+import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries, recurringOrders } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore } from '../lib/proofPhoto.js';
+import { nextOrderNo } from '../lib/orderNo.js';
+import { computeFirstRunDate } from '../lib/recurring.js';
 
 const router = Router();
 router.use(requireAuth);
 
-async function nextOrderNo(): Promise<string> {
-  const [last] = await db.select({ orderNo: orders.orderNo }).from(orders)
-    .orderBy(desc(orders.id)).limit(1);
-  if (!last) return 'ORD-001';
-  const n = parseInt(last.orderNo.split('-')[1] || '0', 10);
-  return `ORD-${String(n + 1).padStart(3, '0')}`;
+// Resolve a siteId from the request, ensuring it belongs to the caller's client.
+// Returns: { ok:true, siteId } on success/absence, or { ok:false } if the site
+// is present but not owned by this client.
+async function resolveOwnedSiteId(value: unknown, clientId: number): Promise<{ ok: true; siteId: number | null } | { ok: false }> {
+  if (value === undefined || value === null || value === '') return { ok: true, siteId: null };
+  const siteId = Number(value);
+  if (!Number.isInteger(siteId) || siteId <= 0) return { ok: false };
+  const [site] = await db.select({ id: sites.id })
+    .from(sites).where(and(eq(sites.id, siteId), eq(sites.clientId, clientId)));
+  return site ? { ok: true, siteId } : { ok: false };
 }
 
 const challanSelect = {
@@ -74,15 +80,19 @@ router.post('/orders', requireRole('client'), async (req, res) => {
   const clientId = await getLinkedClientId(req.user!.id);
   if (!clientId) { res.status(400).json({ error: 'Your account is not linked to a client.' }); return; }
 
-  const { grade, quantity, pumpRequired, deliveryDate, deliveryTime, notes } = req.body;
+  const { grade, quantity, pumpRequired, deliveryDate, deliveryTime, notes, siteId } = req.body;
   if (!grade || typeof grade !== 'string') { res.status(400).json({ error: 'Grade is required.' }); return; }
   const qty = Number(quantity);
   if (!Number.isFinite(qty) || qty <= 0) { res.status(400).json({ error: 'Quantity must be greater than zero.' }); return; }
+
+  const site = await resolveOwnedSiteId(siteId, clientId);
+  if (!site.ok) { res.status(400).json({ error: 'Invalid delivery site.' }); return; }
 
   const orderNo = await nextOrderNo();
   const [row] = await db.insert(orders).values({
     orderNo,
     clientId,
+    siteId: site.siteId,
     grade,
     quantity: qty.toString(),
     pumpRequired: !!pumpRequired,
@@ -227,6 +237,165 @@ router.get('/trips', requireRole('driver'), async (req, res) => {
     .where(and(...filters))
     .orderBy(desc(challans.dispatchTime));
   res.json(rows);
+});
+
+// ---- Saved delivery sites -------------------------------------------------
+
+router.get('/sites', requireRole('client'), async (req, res) => {
+  const clientId = await getLinkedClientId(req.user!.id);
+  if (!clientId) { res.json([]); return; }
+  const rows = await db.select().from(sites)
+    .where(eq(sites.clientId, clientId))
+    .orderBy(desc(sites.id));
+  res.json(rows);
+});
+
+router.post('/sites', requireRole('client'), async (req, res) => {
+  const clientId = await getLinkedClientId(req.user!.id);
+  if (!clientId) { res.status(400).json({ error: 'Your account is not linked to a client.' }); return; }
+
+  const { name, address, city, latitude, longitude } = req.body;
+  if (!name || typeof name !== 'string' || !name.trim()) { res.status(400).json({ error: 'Site name is required.' }); return; }
+
+  const [row] = await db.insert(sites).values({
+    clientId,
+    name: name.trim(),
+    address: typeof address === 'string' && address.trim() ? address.trim() : null,
+    city: typeof city === 'string' && city.trim() ? city.trim() : null,
+    latitude: latitude != null && latitude !== '' ? String(latitude) : null,
+    longitude: longitude != null && longitude !== '' ? String(longitude) : null,
+  }).returning();
+  res.status(201).json(row);
+});
+
+// ---- Recurring / scheduled orders -----------------------------------------
+
+// Validate the shared recurring-template fields. Returns a normalised payload or
+// an error message. `anchor` must match the chosen frequency's calendar range.
+function validateRecurring(body: Record<string, unknown>):
+  | { ok: true; grade: string; quantity: string; frequency: 'weekly' | 'monthly'; anchor: number; pumpRequired: boolean; deliveryTime: string | null; notes: string | null }
+  | { ok: false; error: string } {
+  const { grade, quantity, frequency, anchor, pumpRequired, deliveryTime, notes } = body;
+  if (!grade || typeof grade !== 'string') return { ok: false, error: 'Grade is required.' };
+  const qty = Number(quantity);
+  if (!Number.isFinite(qty) || qty <= 0) return { ok: false, error: 'Quantity must be greater than zero.' };
+  if (frequency !== 'weekly' && frequency !== 'monthly') return { ok: false, error: 'Frequency must be weekly or monthly.' };
+  const a = Number(anchor);
+  if (!Number.isInteger(a)) return { ok: false, error: 'Invalid schedule day.' };
+  if (frequency === 'weekly' && (a < 0 || a > 6)) return { ok: false, error: 'Weekly day must be 0–6.' };
+  if (frequency === 'monthly' && (a < 1 || a > 28)) return { ok: false, error: 'Monthly day must be 1–28.' };
+  return {
+    ok: true,
+    grade,
+    quantity: qty.toString(),
+    frequency,
+    anchor: a,
+    pumpRequired: !!pumpRequired,
+    deliveryTime: typeof deliveryTime === 'string' && deliveryTime ? deliveryTime : null,
+    notes: typeof notes === 'string' && notes.trim() ? notes.trim() : null,
+  };
+}
+
+router.get('/recurring', requireRole('client'), async (req, res) => {
+  const clientId = await getLinkedClientId(req.user!.id);
+  if (!clientId) { res.json([]); return; }
+  const rows = await db.select({
+    id: recurringOrders.id, clientId: recurringOrders.clientId,
+    siteId: recurringOrders.siteId, grade: recurringOrders.grade,
+    quantity: recurringOrders.quantity, pumpRequired: recurringOrders.pumpRequired,
+    deliveryTime: recurringOrders.deliveryTime, notes: recurringOrders.notes,
+    frequency: recurringOrders.frequency, anchor: recurringOrders.anchor,
+    nextRunDate: recurringOrders.nextRunDate, active: recurringOrders.active,
+    lastRunAt: recurringOrders.lastRunAt, createdAt: recurringOrders.createdAt,
+    siteName: sites.name,
+  }).from(recurringOrders)
+    .leftJoin(sites, eq(recurringOrders.siteId, sites.id))
+    .where(eq(recurringOrders.clientId, clientId))
+    .orderBy(desc(recurringOrders.id));
+  res.json(rows);
+});
+
+router.post('/recurring', requireRole('client'), async (req, res) => {
+  const clientId = await getLinkedClientId(req.user!.id);
+  if (!clientId) { res.status(400).json({ error: 'Your account is not linked to a client.' }); return; }
+
+  const v = validateRecurring(req.body);
+  if (!v.ok) { res.status(400).json({ error: v.error }); return; }
+  const site = await resolveOwnedSiteId(req.body.siteId, clientId);
+  if (!site.ok) { res.status(400).json({ error: 'Invalid delivery site.' }); return; }
+
+  const [row] = await db.insert(recurringOrders).values({
+    clientId,
+    siteId: site.siteId,
+    grade: v.grade,
+    quantity: v.quantity,
+    pumpRequired: v.pumpRequired,
+    deliveryTime: v.deliveryTime,
+    notes: v.notes,
+    frequency: v.frequency,
+    anchor: v.anchor,
+    nextRunDate: computeFirstRunDate(v.frequency, v.anchor),
+    active: true,
+  }).returning();
+  res.status(201).json(row);
+});
+
+// Update a template. Supports a lightweight pause/resume (active only) or a full
+// edit. Editing the frequency/anchor recomputes the next run date.
+router.patch('/recurring/:id', requireRole('client'), async (req, res) => {
+  const clientId = await getLinkedClientId(req.user!.id);
+  if (!clientId) { res.status(404).json({ error: 'Not found' }); return; }
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const [existing] = await db.select().from(recurringOrders)
+    .where(and(eq(recurringOrders.id, id), eq(recurringOrders.clientId, clientId)));
+  if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+
+  // Pause/resume only.
+  const keys = Object.keys(req.body);
+  if (keys.length === 1 && keys[0] === 'active') {
+    const [row] = await db.update(recurringOrders)
+      .set({ active: !!req.body.active })
+      .where(eq(recurringOrders.id, id)).returning();
+    res.json(row);
+    return;
+  }
+
+  const v = validateRecurring(req.body);
+  if (!v.ok) { res.status(400).json({ error: v.error }); return; }
+  const site = await resolveOwnedSiteId(req.body.siteId, clientId);
+  if (!site.ok) { res.status(400).json({ error: 'Invalid delivery site.' }); return; }
+
+  const scheduleChanged = v.frequency !== existing.frequency || v.anchor !== existing.anchor;
+  const [row] = await db.update(recurringOrders)
+    .set({
+      siteId: site.siteId,
+      grade: v.grade,
+      quantity: v.quantity,
+      pumpRequired: v.pumpRequired,
+      deliveryTime: v.deliveryTime,
+      notes: v.notes,
+      frequency: v.frequency,
+      anchor: v.anchor,
+      active: req.body.active === undefined ? existing.active : !!req.body.active,
+      ...(scheduleChanged ? { nextRunDate: computeFirstRunDate(v.frequency, v.anchor) } : {}),
+    })
+    .where(eq(recurringOrders.id, id)).returning();
+  res.json(row);
+});
+
+router.delete('/recurring/:id', requireRole('client'), async (req, res) => {
+  const clientId = await getLinkedClientId(req.user!.id);
+  if (!clientId) { res.status(404).json({ error: 'Not found' }); return; }
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const [row] = await db.delete(recurringOrders)
+    .where(and(eq(recurringOrders.id, id), eq(recurringOrders.clientId, clientId)))
+    .returning();
+  if (!row) { res.status(404).json({ error: 'Not found' }); return; }
+  res.status(204).end();
 });
 
 export default router;

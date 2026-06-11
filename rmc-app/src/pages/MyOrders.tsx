@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api, type Order, type Challan, type LedgerEntry, type LivePosition } from '@/lib/api';
+import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type Site, type RecurringOrder } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
-import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText } from 'lucide-react';
+import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
+import SitePicker from '@/components/SitePicker';
 
 const GRADES = ['M10', 'M15', 'M20', 'M25', 'M30', 'M35', 'M40', 'M45', 'M50', 'M55', 'M60'];
 
@@ -13,11 +14,36 @@ interface OrderForm {
   deliveryTime: string;
   pumpRequired: boolean;
   notes: string;
+  siteId: string;
 }
 
 const EMPTY_FORM: OrderForm = {
-  grade: '', quantity: '', deliveryDate: '', deliveryTime: '', pumpRequired: false, notes: '',
+  grade: '', quantity: '', deliveryDate: '', deliveryTime: '', pumpRequired: false, notes: '', siteId: '',
 };
+
+const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+interface RecurringForm {
+  grade: string;
+  quantity: string;
+  frequency: 'weekly' | 'monthly';
+  anchor: number;
+  deliveryTime: string;
+  pumpRequired: boolean;
+  notes: string;
+  siteId: string;
+}
+
+const EMPTY_RECURRING: RecurringForm = {
+  grade: '', quantity: '', frequency: 'weekly', anchor: 1, deliveryTime: '', pumpRequired: false, notes: '', siteId: '',
+};
+
+function describeSchedule(r: { frequency: string; anchor: number }): string {
+  if (r.frequency === 'weekly') return `Every ${DOW[r.anchor] ?? '—'}`;
+  const a = r.anchor;
+  const suffix = a % 10 === 1 && a !== 11 ? 'st' : a % 10 === 2 && a !== 12 ? 'nd' : a % 10 === 3 && a !== 13 ? 'rd' : 'th';
+  return `Monthly on the ${a}${suffix}`;
+}
 
 const STATUS_STYLES: Record<string, { color: string; bg: string; label: string }> = {
   pending:     { color: 'var(--gold)', bg: 'color-mix(in srgb, var(--gold) 13%, transparent)',  label: 'Pending' },
@@ -121,7 +147,15 @@ export default function MyOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [challans, setChallans] = useState<Challan[]>([]);
   const [ledger, setLedger] = useState<LedgerData>({ entries: [], outstanding: 0, creditLimit: 0 });
-  const [tab, setTab] = useState<'orders' | 'challans' | 'ledger'>('orders');
+  const [sites, setSites] = useState<Site[]>([]);
+  const [recurring, setRecurring] = useState<RecurringOrder[]>([]);
+  const [tab, setTab] = useState<'overview' | 'orders' | 'challans' | 'ledger' | 'recurring'>('overview');
+  const [recModalOpen, setRecModalOpen] = useState(false);
+  const [recEditing, setRecEditing] = useState<RecurringOrder | null>(null);
+  const [recForm, setRecForm] = useState<RecurringForm>(EMPTY_RECURRING);
+  const [recSaving, setRecSaving] = useState(false);
+  const [recError, setRecError] = useState('');
+  const [recBusyId, setRecBusyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -142,10 +176,18 @@ export default function MyOrders() {
       api.get<Order[]>('/me/orders'),
       api.get<Challan[]>('/me/challans'),
       api.get<LedgerData>('/me/ledger'),
+      api.get<Site[]>('/me/sites'),
+      api.get<RecurringOrder[]>('/me/recurring'),
     ])
-      .then(([o, c, l]) => { setOrders(o); setChallans(c); setLedger(l); })
+      .then(([o, c, l, s, r]) => { setOrders(o); setChallans(c); setLedger(l); setSites(s); setRecurring(r); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+  }, []);
+
+  const createSite = useCallback(async (payload: { name: string; address?: string; city?: string }) => {
+    const site = await api.post<Site>('/me/sites', payload);
+    setSites(prev => [site, ...prev]);
+    return site;
   }, []);
 
   useEffect(() => { reloadAll(); }, [reloadAll]);
@@ -197,6 +239,7 @@ export default function MyOrders() {
       deliveryTime: '',
       pumpRequired: !!o.pumpRequired,
       notes: o.notes ?? '',
+      siteId: o.siteId ? String(o.siteId) : '',
     });
     setFormError('');
     setModalOpen(true);
@@ -248,6 +291,7 @@ export default function MyOrders() {
         deliveryDate: form.deliveryDate || undefined,
         deliveryTime: form.deliveryTime || undefined,
         notes: form.notes || undefined,
+        siteId: form.siteId || undefined,
       });
       setOrders(prev => [created, ...prev]);
       setModalOpen(false);
@@ -256,6 +300,86 @@ export default function MyOrders() {
       setFormError(err instanceof Error ? err.message : 'Could not place the order.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  function openRecModal(r?: RecurringOrder) {
+    setRecError('');
+    if (r) {
+      setRecEditing(r);
+      setRecForm({
+        grade: r.grade,
+        quantity: parseFloat(r.quantity).toString(),
+        frequency: r.frequency,
+        anchor: r.anchor,
+        deliveryTime: r.deliveryTime ?? '',
+        pumpRequired: !!r.pumpRequired,
+        notes: r.notes ?? '',
+        siteId: r.siteId ? String(r.siteId) : '',
+      });
+    } else {
+      setRecEditing(null);
+      setRecForm(EMPTY_RECURRING);
+    }
+    setRecModalOpen(true);
+  }
+
+  async function submitRecurring(e: React.FormEvent) {
+    e.preventDefault();
+    setRecError('');
+    if (!recForm.grade) { setRecError('Please select a concrete grade.'); return; }
+    if (!(Number(recForm.quantity) > 0)) { setRecError('Please enter a quantity greater than zero.'); return; }
+    setRecSaving(true);
+    const payload = {
+      grade: recForm.grade,
+      quantity: recForm.quantity,
+      frequency: recForm.frequency,
+      anchor: recForm.anchor,
+      pumpRequired: recForm.pumpRequired,
+      deliveryTime: recForm.deliveryTime || undefined,
+      notes: recForm.notes || undefined,
+      siteId: recForm.siteId || undefined,
+    };
+    try {
+      if (recEditing) {
+        const updated = await api.patch<RecurringOrder>(`/me/recurring/${recEditing.id}`, payload);
+        setRecurring(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+      } else {
+        const created = await api.post<RecurringOrder>('/me/recurring', payload);
+        setRecurring(prev => [created, ...prev]);
+      }
+      setRecModalOpen(false);
+    } catch (err) {
+      setRecError(err instanceof Error ? err.message : 'Could not save the schedule.');
+    } finally {
+      setRecSaving(false);
+    }
+  }
+
+  async function toggleRecurring(r: RecurringOrder) {
+    setRecBusyId(r.id);
+    setActionError('');
+    try {
+      const updated = await api.patch<RecurringOrder>(`/me/recurring/${r.id}`, { active: !r.active });
+      setRecurring(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not update the schedule.');
+    } finally {
+      setRecBusyId(null);
+    }
+  }
+
+  async function deleteRecurring(r: RecurringOrder) {
+    if (!window.confirm(`Delete the recurring ${r.grade} schedule? Future orders will stop.`)) return;
+    setRecBusyId(r.id);
+    setActionError('');
+    try {
+      await api.delete(`/me/recurring/${r.id}`);
+      setRecurring(prev => prev.filter(x => x.id !== r.id));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not delete the schedule.');
+    } finally {
+      setRecBusyId(null);
     }
   }
 
@@ -269,10 +393,12 @@ export default function MyOrders() {
     { label: 'Volume Delivered', value: `${totalQty(challans.filter(c => c.status === 'delivered'))} m³`, icon: Package, color: '#a78bfa' },
   ];
 
-  const tabs: { key: 'orders' | 'challans' | 'ledger'; label: string; count: number | null }[] = [
-    { key: 'orders',   label: 'Orders',   count: orders.length },
-    { key: 'challans', label: 'Challans', count: challans.length },
-    { key: 'ledger',   label: 'Ledger',   count: ledger.entries.length },
+  const tabs: { key: typeof tab; label: string; count: number | null }[] = [
+    { key: 'overview',  label: 'Overview',  count: null },
+    { key: 'orders',    label: 'Orders',    count: orders.length },
+    { key: 'challans',  label: 'Challans',  count: challans.length },
+    { key: 'ledger',    label: 'Ledger',    count: ledger.entries.length },
+    { key: 'recurring', label: 'Recurring', count: recurring.length },
   ];
 
   const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -365,6 +491,8 @@ export default function MyOrders() {
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>Loading…</div>
       ) : error ? (
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--red)' }}>{error}</div>
+      ) : tab === 'overview' ? (
+        <OverviewTab orders={orders} challans={challans} ledger={ledger} recurring={recurring} fmt={fmt} totalQty={totalQty} />
       ) : tab === 'orders' ? (
         <Card>
           {orders.length === 0 ? (
@@ -536,6 +664,15 @@ export default function MyOrders() {
           )}
         </Card>
        </>
+      ) : tab === 'recurring' ? (
+        <RecurringTab
+          recurring={recurring}
+          busyId={recBusyId}
+          onNew={openRecModal}
+          onEdit={r => openRecModal(r)}
+          onToggle={toggleRecurring}
+          onDelete={deleteRecurring}
+        />
       ) : (
         /* Ledger tab */
         <Card>
@@ -637,6 +774,10 @@ export default function MyOrders() {
             </div>
 
             <div style={{ marginTop: 14 }}>
+              <SitePicker sites={sites} value={form.siteId} onChange={id => setForm(f => ({ ...f, siteId: id }))} onCreate={createSite} />
+            </div>
+
+            <div style={{ marginTop: 14 }}>
               <label style={labelStyle}>Notes / Site details (optional)</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Delivery site address, special instructions…" style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
@@ -724,8 +865,329 @@ export default function MyOrders() {
           </div>
         </div>
       )}
+
+      {/* Recurring schedule modal */}
+      {recModalOpen && (
+        <div
+          onClick={() => !recSaving && setRecModalOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100,
+          }}
+        >
+          <form
+            onClick={e => e.stopPropagation()}
+            onSubmit={submitRecurring}
+            style={{
+              width: '100%', maxWidth: 500,
+              background: 'linear-gradient(135deg,rgba(15,28,54,.98),rgba(8,17,31,.98))',
+              border: '1px solid rgba(255,255,255,.1)', borderRadius: 18, padding: 24,
+              boxShadow: '0 24px 60px rgba(0,0,0,.5)', maxHeight: '90vh', overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 9 }}>
+                <Repeat size={18} style={{ color: 'var(--gold)' }} />
+                {recEditing ? 'Edit Recurring Order' : 'New Recurring Order'}
+              </h3>
+              <button type="button" onClick={() => !recSaving && setRecModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--muted)' }}>
+              We'll automatically place this order for you on the schedule below. You can pause or cancel anytime.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Concrete Grade</label>
+                <select value={recForm.grade} onChange={e => setRecForm(f => ({ ...f, grade: e.target.value }))} style={inputStyle}>
+                  <option value="">Select grade…</option>
+                  {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Quantity (m³)</label>
+                <input type="number" min="0" step="0.5" value={recForm.quantity} onChange={e => setRecForm(f => ({ ...f, quantity: e.target.value }))} placeholder="e.g. 10" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Frequency</label>
+                <select value={recForm.frequency} onChange={e => {
+                  const frequency = e.target.value as 'weekly' | 'monthly';
+                  setRecForm(f => ({ ...f, frequency, anchor: frequency === 'weekly' ? Math.min(f.anchor, 6) : Math.max(1, Math.min(f.anchor, 28)) }));
+                }} style={inputStyle}>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>{recForm.frequency === 'weekly' ? 'Day of week' : 'Day of month'}</label>
+                {recForm.frequency === 'weekly' ? (
+                  <select value={recForm.anchor} onChange={e => setRecForm(f => ({ ...f, anchor: Number(e.target.value) }))} style={inputStyle}>
+                    {DOW.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                  </select>
+                ) : (
+                  <select value={recForm.anchor} onChange={e => setRecForm(f => ({ ...f, anchor: Number(e.target.value) }))} style={inputStyle}>
+                    {Array.from({ length: 28 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label style={labelStyle}>Preferred Time (optional)</label>
+                <input type="time" value={recForm.deliveryTime} onChange={e => setRecForm(f => ({ ...f, deliveryTime: e.target.value }))} style={inputStyle} />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <SitePicker sites={sites} value={recForm.siteId} onChange={id => setRecForm(f => ({ ...f, siteId: id }))} onCreate={createSite} />
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>Notes (optional)</label>
+              <textarea value={recForm.notes} onChange={e => setRecForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Special instructions…" style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, cursor: 'pointer', color: 'var(--text)', fontSize: 13 }}>
+              <input type="checkbox" checked={recForm.pumpRequired} onChange={e => setRecForm(f => ({ ...f, pumpRequired: e.target.checked }))} />
+              Concrete pump required
+            </label>
+
+            {recError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 10, padding: '10px 14px', marginTop: 16 }}>
+                <AlertCircle size={14} style={{ color: 'var(--red)' }} />
+                <span style={{ color: 'var(--red)', fontSize: 13 }}>{recError}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+              <button type="button" onClick={() => !recSaving && setRecModalOpen(false)} style={{
+                flex: 1, padding: '11px', borderRadius: 11, cursor: 'pointer', fontSize: 14, fontWeight: 700,
+                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', color: 'var(--text)',
+              }}>
+                Cancel
+              </button>
+              <button type="submit" disabled={recSaving} style={{
+                flex: 1, padding: '11px', borderRadius: 11, border: 'none',
+                cursor: recSaving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 800, color: '#111827',
+                background: recSaving ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+              }}>
+                {recSaving ? 'Saving…' : recEditing ? 'Save Changes' : 'Create Schedule'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
+}
+
+function OverviewTab({ orders, challans, ledger, recurring, fmt, totalQty }: {
+  orders: Order[];
+  challans: Challan[];
+  ledger: LedgerData;
+  recurring: RecurringOrder[];
+  fmt: (n: number) => string;
+  totalQty: (items: { quantity: string }[]) => string;
+}) {
+  const delivered = challans.filter(c => c.status === 'delivered');
+  const volumeDelivered = parseFloat(totalQty(delivered));
+  const activeOrders = orders.filter(o => o.status === 'pending' || o.status === 'in_progress').length;
+  const activeRecurring = recurring.filter(r => r.active).length;
+
+  const byGrade = new Map<string, number>();
+  for (const c of delivered) byGrade.set(c.grade, (byGrade.get(c.grade) ?? 0) + parseFloat(c.quantity || '0'));
+  const grades = [...byGrade.entries()].sort((a, b) => b[1] - a[1]);
+  const maxGrade = grades.length ? grades[0][1] : 0;
+
+  const creditUsed = ledger.creditLimit > 0 ? Math.min(100, (ledger.outstanding / ledger.creditLimit) * 100) : 0;
+
+  type Activity = { id: string; when: string; label: string; sub: string; color: string };
+  const activity: Activity[] = [
+    ...orders.map(o => ({ id: `o${o.id}`, when: o.createdAt, label: `Order ${o.orderNo}`, sub: `${o.grade} · ${parseFloat(o.quantity).toFixed(1)} m³`, color: 'var(--gold)' })),
+    ...challans.map(c => ({ id: `c${c.id}`, when: c.dispatchTime || c.createdAt, label: `Challan ${c.challanNo}`, sub: `${c.grade} · ${c.status}`, color: 'var(--green)' })),
+  ].sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime()).slice(0, 6);
+
+  const cards = [
+    { label: 'Volume Delivered', value: `${volumeDelivered.toFixed(1)} m³`, color: '#a78bfa', icon: Package },
+    { label: 'Total Orders', value: orders.length, color: 'var(--gold)', icon: ClipboardList },
+    { label: 'Active Orders', value: activeOrders, color: 'var(--blue)', icon: Truck },
+    { label: 'Recurring Active', value: activeRecurring, color: 'var(--green)', icon: Repeat },
+  ];
+
+  return (
+    <div style={{ display: 'grid', gap: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 14 }}>
+        {cards.map(c => (
+          <Card key={c.label} style={{ padding: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <c.icon size={15} style={{ color: c.color }} />
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px' }}>{c.label}</span>
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
+          </Card>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 18 }}>
+        <Card>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Receipt size={15} style={{ color: 'var(--gold)' }} />
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Account Balance</h3>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Outstanding</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: ledger.outstanding > 0 ? 'var(--red)' : 'var(--green)' }}>{fmt(ledger.outstanding)}</span>
+          </div>
+          <div style={{ height: 10, borderRadius: 6, background: 'rgba(255,255,255,.06)', overflow: 'hidden', marginBottom: 6 }}>
+            <div style={{ width: `${creditUsed}%`, height: '100%', borderRadius: 6, background: creditUsed > 85 ? 'var(--red)' : creditUsed > 60 ? 'var(--gold)' : 'var(--green)', transition: 'width .4s' }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--muted)' }}>
+            <span>{creditUsed.toFixed(0)}% of credit used</span>
+            <span>Limit {fmt(ledger.creditLimit)}</span>
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Package size={15} style={{ color: '#a78bfa' }} />
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Volume by Grade</h3>
+          </div>
+          {grades.length === 0 ? (
+            <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>No deliveries yet.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {grades.slice(0, 6).map(([g, q]) => (
+                <div key={g}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                    <span style={{ fontWeight: 700, color: 'var(--blue)' }}>{g}</span>
+                    <span style={{ color: 'var(--muted)' }}>{q.toFixed(1)} m³</span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 5, background: 'rgba(255,255,255,.06)', overflow: 'hidden' }}>
+                    <div style={{ width: `${maxGrade ? (q / maxGrade) * 100 : 0}%`, height: '100%', borderRadius: 5, background: 'linear-gradient(90deg,#a78bfa,var(--blue))' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <TrendingUp size={15} style={{ color: 'var(--green)' }} />
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Recent Activity</h3>
+        </div>
+        {activity.length === 0 ? (
+          <div style={{ color: 'var(--muted)', fontSize: 13 }}>Nothing yet — place your first order to get started.</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {activity.map(a => (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: a.color, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{a.label}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{a.sub}</div>
+                </div>
+                <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                  {a.when ? new Date(a.when).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function RecurringTab({ recurring, busyId, onNew, onEdit, onToggle, onDelete }: {
+  recurring: RecurringOrder[];
+  busyId: number | null;
+  onNew: () => void;
+  onEdit: (r: RecurringOrder) => void;
+  onToggle: (r: RecurringOrder) => void;
+  onDelete: (r: RecurringOrder) => void;
+}) {
+  return (
+    <Card>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: recurring.length ? 18 : 0, flexWrap: 'wrap' }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Repeat size={15} style={{ color: 'var(--gold)' }} /> Recurring Orders
+          </h3>
+          <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--muted)' }}>Set it once — we place these orders for you automatically.</p>
+        </div>
+        <button onClick={onNew} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 15px', borderRadius: 11, border: 'none', cursor: 'pointer',
+          fontSize: 13, fontWeight: 800, background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))', color: '#111827', whiteSpace: 'nowrap',
+        }}>
+          <Plus size={15} /> New Schedule
+        </button>
+      </div>
+
+      {recurring.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+          <CalendarClock size={32} style={{ opacity: .4, display: 'block', margin: '0 auto 12px' }} />
+          No recurring orders yet
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {recurring.map(r => {
+            const busy = busyId === r.id;
+            return (
+              <div key={r.id} style={{
+                border: '1px solid var(--line)', borderRadius: 13, padding: '14px 16px',
+                background: 'rgba(255,255,255,.02)', opacity: r.active ? 1 : 0.6,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ background: 'rgba(56,189,248,.12)', color: 'var(--blue)', padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 800 }}>{r.grade}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{parseFloat(r.quantity).toFixed(1)} m³</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--muted)' }}>
+                      <CalendarClock size={12} /> {describeSchedule(r)}
+                    </span>
+                    {r.siteName && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--muted)' }}><MapPin size={11} /> {r.siteName}</span>}
+                    {r.pumpRequired && <span style={{ fontSize: 11, color: 'var(--muted)' }}>· pump</span>}
+                  </div>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                    color: r.active ? 'var(--green)' : 'var(--muted)',
+                    background: r.active ? 'rgba(34,197,94,.13)' : 'rgba(159,176,199,.13)',
+                  }}>{r.active ? 'Active' : 'Paused'}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                    Next order: <strong style={{ color: 'var(--text)' }}>{new Date(r.nextRunDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong>
+                  </span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => onToggle(r)} disabled={busy} title={r.active ? 'Pause' : 'Resume'} style={btnStyle(r.active ? 'var(--gold)' : 'var(--green)', busy)}>
+                      {r.active ? <Pause size={13} /> : <Play size={13} />} {r.active ? 'Pause' : 'Resume'}
+                    </button>
+                    <button onClick={() => onEdit(r)} disabled={busy} title="Edit" style={btnStyle('var(--blue)', busy)}>
+                      <Pencil size={13} /> Edit
+                    </button>
+                    <button onClick={() => onDelete(r)} disabled={busy} title="Delete" style={btnStyle('var(--red)', busy)}>
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function btnStyle(color: string, busy: boolean): React.CSSProperties {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 5, cursor: busy ? 'wait' : 'pointer',
+    background: `color-mix(in srgb, ${color} 12%, transparent)`, color,
+    border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
+    padding: '5px 11px', borderRadius: 8, fontSize: 12, fontWeight: 700, opacity: busy ? 0.6 : 1,
+  };
 }
 
 const labelStyle: React.CSSProperties = {

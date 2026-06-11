@@ -92,6 +92,16 @@ export interface Order {
   clientName?: string; siteName?: string;
 }
 
+export interface RecurringOrder {
+  id: number; clientId: number; siteId?: number | null;
+  grade: string; quantity: string; pumpRequired: boolean;
+  deliveryTime?: string | null; notes?: string | null;
+  frequency: 'weekly' | 'monthly'; anchor: number;
+  nextRunDate: string; active: boolean;
+  lastRunAt?: string | null; createdAt: string;
+  siteName?: string | null;
+}
+
 export interface Challan {
   id: number; challanNo: string; orderId?: number;
   clientId: number; siteId?: number; vehicleId?: number; driverId?: number;

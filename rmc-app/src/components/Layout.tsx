@@ -10,8 +10,9 @@ import { useTheme } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
 import { ROLE_ALLOWED_PATHS, type Role } from '@/lib/permissions';
 import { useSSE, type SSEStatus } from '@/lib/useSSE';
-import type { Challan } from '@/lib/types';
+import { formatNotification } from '@/lib/notifications';
 import CommandPalette from '@/components/CommandPalette';
+import NotificationBell from '@/components/NotificationBell';
 
 const ALL_NAV_ITEMS = [
   { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },
@@ -80,30 +81,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isClient = user?.role === 'client';
 
   useEffect(() => {
-    const unsubCreated = subscribe('challan.created', (data: unknown) => {
-      const c = data as Partial<Challan>;
-      if (!c?.challanNo) return;
-      showToast(
-        isClient ? `Delivery ${c.challanNo} is on the way` : `New challan ${c.challanNo} created`,
-        'info',
-      );
-    });
-    const unsubUpdated = subscribe('challan.updated', (data: unknown) => {
-      const c = data as Partial<Challan>;
-      if (!c?.challanNo || c.status !== 'delivered') return;
-      showToast(
-        isClient ? `Delivery ${c.challanNo} has arrived` : `${c.challanNo} marked Delivered`,
-        'success',
-      );
-    });
-    const unsubOrder = subscribe('order.updated', (data: unknown) => {
-      const o = data as { orderNo?: string; status?: string };
-      if (!o?.orderNo || !o.status) return;
-      const label = o.status
-        .replace(/[_-]/g, ' ')
-        .replace(/\b\w/g, ch => ch.toUpperCase());
-      showToast(`Order ${o.orderNo} now ${label}`, o.status === 'completed' ? 'success' : 'info');
-    });
+    const toastFor = (event: 'challan.created' | 'challan.updated' | 'order.updated') => (data: unknown) => {
+      const n = formatNotification(event, data, isClient);
+      if (n) showToast(n.message, n.type);
+    };
+    const unsubCreated = subscribe('challan.created', toastFor('challan.created'));
+    const unsubUpdated = subscribe('challan.updated', toastFor('challan.updated'));
+    const unsubOrder = subscribe('order.updated', toastFor('order.updated'));
     return () => { unsubCreated(); unsubUpdated(); unsubOrder(); };
   }, [subscribe, showToast, isClient]);
 
@@ -136,7 +120,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Command Center</div>
           </div>
         </div>
-        <SSEDot status={sseStatus} onReconnect={reconnect} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <SSEDot status={sseStatus} onReconnect={reconnect} />
+          <NotificationBell />
+        </div>
       </div>
 
       {/* Quick search → opens the command palette (⌘K) */}
@@ -300,10 +287,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <span style={{ fontWeight: 700, fontSize: 14 }}>TrackMyRMC</span>
           <SSEDot status={sseStatus} onReconnect={reconnect} />
         </div>
-        <button onClick={() => setMobileOpen(o => !o)}
-          style={{ background: 'none', color: 'var(--text)', padding: 4, border: 'none' }}>
-          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <NotificationBell />
+          <button onClick={() => setMobileOpen(o => !o)}
+            style={{ background: 'none', color: 'var(--text)', padding: 4, border: 'none' }}>
+            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flex: 1 }}>

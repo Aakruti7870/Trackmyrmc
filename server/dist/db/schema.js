@@ -5,6 +5,7 @@ export const orderStatusEnum = pgEnum('order_status', ['pending', 'in_progress',
 export const challanStatusEnum = pgEnum('challan_status', ['pending', 'dispatched', 'delivered', 'cancelled']);
 export const vehicleStatusEnum = pgEnum('vehicle_status', ['active', 'maintenance', 'inactive']);
 export const ledgerTypeEnum = pgEnum('ledger_type', ['debit', 'credit']);
+export const recurringFrequencyEnum = pgEnum('recurring_frequency', ['weekly', 'monthly']);
 export const clients = pgTable('clients', {
     id: serial('id').primaryKey(),
     name: text('name').notNull(),
@@ -134,6 +135,26 @@ export const ledgerEntries = pgTable('ledger_entries', {
     referenceNo: text('reference_no'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+// Customer-defined recurring order templates. A background scheduler
+// materialises a real `orders` row whenever `nextRunDate` is due, then advances
+// the schedule. `anchor` is the day-of-week (0=Sun..6=Sat) for weekly templates
+// or the day-of-month (1..28) for monthly ones.
+export const recurringOrders = pgTable('recurring_orders', {
+    id: serial('id').primaryKey(),
+    clientId: integer('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+    siteId: integer('site_id').references(() => sites.id, { onDelete: 'set null' }),
+    grade: text('grade').notNull(),
+    quantity: decimal('quantity', { precision: 8, scale: 2 }).notNull(),
+    pumpRequired: boolean('pump_required').notNull().default(false),
+    deliveryTime: time('delivery_time'),
+    notes: text('notes'),
+    frequency: recurringFrequencyEnum('frequency').notNull(),
+    anchor: integer('anchor').notNull(),
+    nextRunDate: date('next_run_date').notNull(),
+    active: boolean('active').notNull().default(true),
+    lastRunAt: timestamp('last_run_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+});
 export const loginAttempts = pgTable('login_attempts', {
     key: text('key').primaryKey(),
     count: integer('count').notNull().default(0),
@@ -150,6 +171,11 @@ export const clientsRelations = relations(clients, ({ many }) => ({
     orders: many(orders),
     challans: many(challans),
     ledgerEntries: many(ledgerEntries),
+    recurringOrders: many(recurringOrders),
+}));
+export const recurringOrdersRelations = relations(recurringOrders, ({ one }) => ({
+    client: one(clients, { fields: [recurringOrders.clientId], references: [clients.id] }),
+    site: one(sites, { fields: [recurringOrders.siteId], references: [sites.id] }),
 }));
 export const driversRelations = relations(drivers, ({ many }) => ({
     vehicles: many(vehicles),
