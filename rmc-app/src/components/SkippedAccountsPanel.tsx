@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, Copy, X, Mail, RotateCcw, Unlink } from 'lucide-react';
+import { AlertTriangle, Copy, X, Mail, RotateCcw, Unlink, Trash2 } from 'lucide-react';
 
 export type SkippedAccountItem = {
   id: number;
@@ -18,6 +18,9 @@ export default function SkippedAccountsPanel({
   onClose,
   onRetry,
   retryingId,
+  retryLabel = 'Retry restore',
+  retryingLabel = 'Retrying…',
+  retryTone = 'positive',
   onResolve,
   resolvingId,
   onUnlink,
@@ -30,12 +33,19 @@ export default function SkippedAccountsPanel({
   onClose: () => void;
   onRetry?: (item: SkippedAccountItem) => void;
   retryingId?: number | null;
+  retryLabel?: string;
+  retryingLabel?: string;
+  retryTone?: 'positive' | 'danger';
   onResolve?: (item: SkippedAccountItem) => void;
   resolvingId?: number | null;
   onUnlink?: (item: SkippedAccountItem) => void;
   unlinkingId?: number | null;
 }) {
   const hasActions = Boolean(onRetry || onResolve || onUnlink);
+  const retryColors = retryTone === 'danger'
+    ? { bg: 'rgba(239,68,68,.12)', color: 'var(--red)', border: 'rgba(239,68,68,.3)' }
+    : { bg: 'rgba(34,197,94,.12)', color: 'var(--green)', border: 'rgba(34,197,94,.3)' };
+  const RetryIcon = retryTone === 'danger' ? Trash2 : RotateCcw;
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 120,
@@ -120,14 +130,14 @@ export default function SkippedAccountsPanel({
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
                             padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                            background: 'rgba(34,197,94,.12)', color: 'var(--green)',
-                            border: '1px solid rgba(34,197,94,.3)',
+                            background: retryColors.bg, color: retryColors.color,
+                            border: `1px solid ${retryColors.border}`,
                             cursor: retryingId === item.id || resolvingId === item.id ? 'default' : 'pointer',
                             opacity: retryingId === item.id || resolvingId === item.id ? 0.6 : 1,
                           }}
                         >
-                          <RotateCcw size={13} />
-                          {retryingId === item.id ? 'Retrying…' : 'Retry restore'}
+                          <RetryIcon size={13} />
+                          {retryingId === item.id ? retryingLabel : retryLabel}
                         </button>
                       )}
                     </div>

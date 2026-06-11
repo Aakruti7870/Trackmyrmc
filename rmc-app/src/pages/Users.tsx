@@ -17,6 +17,11 @@ type SkippedRestoreItem = {
   conflictLinkType?: 'client' | 'driver';
 };
 
+// Shown under each kept admin in the skipped-purge panel so the admin knows why
+// the delete was blocked and how the inline "Delete forever" retry will unblock.
+const PURGE_KEPT_ADMIN_REASON =
+  'Kept so the system always has at least one admin. Once another admin account is active, delete it forever here.';
+
 type UserRecord = {
   id: number;
   name: string;
@@ -220,7 +225,8 @@ export default function Users() {
   const [purgeSelectedOpen, setPurgeSelectedOpen] = useState(false);
   const [purgingSelected, setPurgingSelected] = useState(false);
   const [skippedRestore, setSkippedRestore] = useState<SkippedRestoreItem[] | null>(null);
-  const [skippedPurge, setSkippedPurge] = useState<{ id: number; email: string }[] | null>(null);
+  const [skippedPurge, setSkippedPurge] = useState<{ id: number; email: string; reason?: string }[] | null>(null);
+  const [retryingPurgeId, setRetryingPurgeId] = useState<number | null>(null);
   const [retryingRestoreId, setRetryingRestoreId] = useState<number | null>(null);
   const [resolvingRestoreId, setResolvingRestoreId] = useState<number | null>(null);
   const [unlinkingConflictId, setUnlinkingConflictId] = useState<number | null>(null);
@@ -607,6 +613,27 @@ export default function Users() {
     }
   }
 
+  // Retry a permanent delete that was skipped to preserve the last admin. Once
+  // another admin account exists, this succeeds and the row drops off the panel;
+  // if it's still the only admin, the server's guard surfaces as a clear toast.
+  async function retryPurge(item: SkippedAccountItem) {
+    setRetryingPurgeId(item.id);
+    try {
+      await api.delete(`/users/${item.id}/permanent`);
+      showToast(`${item.email} has been permanently deleted.`, 'success');
+      if (historyUser?.id === item.id) clearHistory();
+      setSkippedPurge(prev => {
+        const next = (prev ?? []).filter(p => p.id !== item.id);
+        return next.length > 0 ? next : null;
+      });
+      load();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to permanently delete account.', 'error');
+    } finally {
+      setRetryingPurgeId(null);
+    }
+  }
+
   async function confirmPurgeAll() {
     setPurgingAll(true);
     try {
@@ -620,7 +647,7 @@ export default function Users() {
             `${purgedMsg} ${result.skipped} admin ${result.skipped === 1 ? 'account was' : 'accounts were'} skipped — see details below.`,
             'info',
           );
-          setSkippedPurge(result.skippedAdmins);
+          setSkippedPurge(result.skippedAdmins.map(a => ({ ...a, reason: PURGE_KEPT_ADMIN_REASON })));
         } else {
           showToast(purgedMsg, 'success');
         }
@@ -682,7 +709,7 @@ export default function Users() {
             `${purgedMsg} ${result.skipped} admin ${result.skipped === 1 ? 'account was' : 'accounts were'} skipped — see details below.`,
             'info',
           );
-          setSkippedPurge(result.skippedAdmins);
+          setSkippedPurge(result.skippedAdmins.map(a => ({ ...a, reason: PURGE_KEPT_ADMIN_REASON })));
         } else {
           showToast(purgedMsg, 'success');
         }
@@ -1857,9 +1884,14 @@ export default function Users() {
         <SkippedAccountsPanel
           items={skippedPurge}
           heading={`${skippedPurge.length} Admin ${skippedPurge.length === 1 ? 'Account' : 'Accounts'} Skipped`}
-          description="These admin accounts were left in the trash to keep at least one admin alive. The remaining accounts were permanently deleted."
+          description="These admin accounts were left in the trash to keep at least one admin alive. Create or restore another admin, then delete each one forever right here."
           onCopyEmails={() => copyEmails(skippedPurge)}
           onClose={() => setSkippedPurge(null)}
+          onRetry={retryPurge}
+          retryingId={retryingPurgeId}
+          retryLabel="Delete forever"
+          retryingLabel="Deleting…"
+          retryTone="danger"
         />
       )}
 
