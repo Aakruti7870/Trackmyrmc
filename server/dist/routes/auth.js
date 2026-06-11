@@ -92,6 +92,12 @@ router.put('/me', requireAuth, async (req, res) => {
             res.status(409).json({ error: 'Email is already in use by another account' });
             return;
         }
+        // Preserve the AUTHORITY allow-list invariant: an authority account may not
+        // move itself to an email that isn't on the allow-list.
+        if (req.user.role === 'authority' && !isAuthorityEmail(email)) {
+            res.status(403).json({ error: 'AUTHORITY accounts must use an allow-listed email address.' });
+            return;
+        }
     }
     const updates = {};
     if (name !== undefined)
@@ -193,8 +199,12 @@ router.post('/clerk', async (req, res) => {
     try {
         const clerk = createClerkClient({ secretKey });
         const cu = await clerk.users.getUser(clerkUserId);
-        const primary = cu.emailAddresses.find((e) => e.id === cu.primaryEmailAddressId)
-            ?? cu.emailAddresses[0];
+        // Strictly require the *primary* email and that it is verified — never fall
+        // back to an arbitrary address, so an unverified or secondary email can't be
+        // used to impersonate a staff/authority account.
+        const primary = cu.primaryEmailAddressId
+            ? cu.emailAddresses.find((e) => e.id === cu.primaryEmailAddressId)
+            : undefined;
         if (primary && primary.verification?.status === 'verified') {
             email = primary.emailAddress;
         }

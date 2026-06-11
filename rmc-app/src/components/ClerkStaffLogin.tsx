@@ -8,8 +8,8 @@ import { defaultPath } from '@/lib/permissions';
 
 /**
  * Staff & Authority single sign-on entry. Rendered only when Clerk is
- * configured. The glowing crown opens Clerk's modal (Google / GitHub / etc.,
- * plus any providers enabled in the Clerk dashboard). Once a Clerk session
+ * configured. The glowing crown opens Clerk's modal (email/password, Google,
+ * Phone OTP, plus any providers enabled in the Clerk dashboard). Once a Clerk session
  * exists, we exchange its session token for the app's own JWT via
  * POST /api/auth/clerk. Non-staff identities are rejected by the server and the
  * Clerk session is dropped so the user isn't left half-authenticated.
@@ -64,7 +64,7 @@ export default function ClerkStaffLogin({ onError }: { onError: (msg: string) =>
       </SignInButton>
 
       <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
-        Sign in with Google, GitHub & more — for admins, dispatchers,
+        Sign in with email, Google or phone — for admins, dispatchers,
         plant operators &amp; authority. Clients &amp; drivers use the form above.
       </p>
     </div>
