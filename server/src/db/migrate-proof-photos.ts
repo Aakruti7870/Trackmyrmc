@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, like } from 'drizzle-orm';
 import pg from 'pg';
 import * as schema from './schema.js';
@@ -20,12 +20,23 @@ import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 
 const { Pool } = pg;
 
-async function migrate() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const db = drizzle(pool, { schema });
+export interface MigrationResult {
+  migrated: number;
+  skipped: number;
+  failed: number;
+}
 
-  console.log('📦 Migrating legacy base64 proof photos to object storage...');
-
+/**
+ * Runs the legacy-photo migration against the given database. Returns a tally of
+ * how many rows were migrated, skipped (already an object path), and failed.
+ *
+ * Exported (and parameterized over the db) so tests can drive it against the
+ * isolated test database with `proofPhotoStore.store` stubbed.
+ */
+export async function migrateProofPhotos(
+  db: NodePgDatabase<typeof schema>,
+  log: (msg: string) => void = () => {},
+): Promise<MigrationResult> {
   // Only base64 data URLs need migrating. Selecting on the prefix keeps the scan
   // narrow and makes re-runs no-ops once everything is an /objects/... path.
   const rows = await db.select({
@@ -37,12 +48,11 @@ async function migrate() {
     .where(like(schema.challanProofPhotos.photo, 'data:image/%'));
 
   if (rows.length === 0) {
-    console.log('✅ Nothing to migrate — no base64 proof photos found.');
-    await pool.end();
-    return;
+    log('✅ Nothing to migrate — no base64 proof photos found.');
+    return { migrated: 0, skipped: 0, failed: 0 };
   }
 
-  console.log(`Found ${rows.length} base64 proof photo(s) to migrate.`);
+  log(`Found ${rows.length} base64 proof photo(s) to migrate.`);
 
   let migrated = 0;
   let skipped = 0;
@@ -61,17 +71,36 @@ async function migrate() {
         .set({ photo: entityPath })
         .where(eq(schema.challanProofPhotos.id, row.id));
       migrated++;
-      console.log(`  ✔ photo #${row.id} (challan ${row.challanId}) → ${entityPath}`);
+      log(`  ✔ photo #${row.id} (challan ${row.challanId}) → ${entityPath}`);
     } catch (err) {
       failed++;
-      console.error(`  ✘ photo #${row.id} (challan ${row.challanId}) failed:`, err instanceof Error ? err.message : err);
+      log(`  ✘ photo #${row.id} (challan ${row.challanId}) failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
-  console.log(`\n✅ Migration complete. Migrated: ${migrated}, skipped: ${skipped}, failed: ${failed}.`);
-  await pool.end();
-
-  if (failed > 0) process.exit(1);
+  log(`\n✅ Migration complete. Migrated: ${migrated}, skipped: ${skipped}, failed: ${failed}.`);
+  return { migrated, skipped, failed };
 }
 
-migrate().catch(e => { console.error(e); process.exit(1); });
+async function main() {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const db = drizzle(pool, { schema });
+
+  console.log('📦 Migrating legacy base64 proof photos to object storage...');
+  try {
+    const result = await migrateProofPhotos(db, (msg) => console.log(msg));
+    if (result.failed > 0) process.exitCode = 1;
+  } finally {
+    await pool.end();
+  }
+}
+
+// Only run the migration when executed directly as a script, not when imported
+// (e.g. by tests). import.meta.url matches the invoked file path under tsx/node.
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  import.meta.url === `file://${process.argv[1]}`;
+
+if (invokedDirectly) {
+  main().catch(e => { console.error(e); process.exit(1); });
+}
