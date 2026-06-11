@@ -47,7 +47,8 @@ test('same-weekday history drives the model estimate', () => {
     assert.ok(m30);
     // Weekday blend should sit well above the low non-Monday days.
     assert.ok(m30.modelQty > 12, `expected model > 12, got ${m30.modelQty}`);
-    assert.equal(m30.confidence, 'high');
+    // 6 sample days → medium confidence (high requires ≥8).
+    assert.equal(m30.confidence, 'medium');
     assert.equal(m30.sampleDays, 6);
 });
 test('confidence scales with the number of sample days', () => {
