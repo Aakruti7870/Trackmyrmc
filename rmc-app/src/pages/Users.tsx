@@ -204,6 +204,8 @@ export default function Users() {
   const [historyUser, setHistoryUser] = useState<UserRecord | null>(null);
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [actorFilter, setActorFilter] = useState<string>('all');
+  const [searchInput, setSearchInput] = useState<string>('');
+  const [qFilter, setQFilter] = useState<string>('');
   const [actorOptions, setActorOptions] = useState<{ id: number; name: string | null }[]>([]);
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
@@ -242,6 +244,7 @@ export default function Users() {
     if (userId) params.set('targetUserId', String(userId));
     if (actionFilter !== 'all') params.set('action', actionFilter);
     if (actorFilter !== 'all') params.set('actorId', actorFilter);
+    if (qFilter) params.set('q', qFilter);
     if (fromDate) params.set('from', fromDate);
     if (toDate) params.set('to', toDate);
     const qs = params.toString();
@@ -266,9 +269,16 @@ export default function Users() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [showDeleted, historyUser?.id]);
 
+  // Debounce the free-text search box into the committed `qFilter` so the audit
+  // log isn't re-fetched on every keystroke — only ~300ms after typing stops.
+  useEffect(() => {
+    const t = setTimeout(() => setQFilter(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   // Re-fetch the audit log when any of the activity-log filters change.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadAudit(historyUser?.id ?? null); }, [actionFilter, actorFilter, fromDate, toDate]);
+  useEffect(() => { loadAudit(historyUser?.id ?? null); }, [actionFilter, actorFilter, qFilter, fromDate, toDate]);
 
   // While any account is locked, poll the lockout status so the locked badge
   // clears itself once the lockout window expires — no manual reload needed.
@@ -441,6 +451,7 @@ export default function Users() {
       const actor = actorOptions.find(a => String(a.id) === actorFilter);
       filterBits.push(`Performed By: ${actor?.name?.trim() || `User #${actorFilter}`}`);
     }
+    if (qFilter) filterBits.push(`Search: "${qFilter}"`);
     if (fromDate) filterBits.push(`From: ${fromDate}`);
     if (toDate) filterBits.push(`To: ${toDate}`);
     const generated = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
@@ -1408,6 +1419,20 @@ export default function Users() {
             </select>
           </div>
           <div>
+            <label style={labelStyle}>Search</label>
+            <div style={{ position: 'relative' }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                placeholder="Email, detail, action…"
+                aria-label="Search activity log"
+                style={{ ...inputStyle, width: 'auto', minWidth: 200, paddingLeft: 32 }}
+              />
+            </div>
+          </div>
+          <div>
             <label style={labelStyle}>From</label>
             <input
               type="date" value={fromDate} max={toDate || undefined}
@@ -1423,9 +1448,9 @@ export default function Users() {
               style={{ ...inputStyle, width: 'auto', colorScheme: 'dark' }}
             />
           </div>
-          {(actionFilter !== 'all' || actorFilter !== 'all' || fromDate || toDate) && (
+          {(actionFilter !== 'all' || actorFilter !== 'all' || searchInput || fromDate || toDate) && (
             <button
-              onClick={() => { setActionFilter('all'); setActorFilter('all'); setFromDate(''); setToDate(''); }}
+              onClick={() => { setActionFilter('all'); setActorFilter('all'); setSearchInput(''); setQFilter(''); setFromDate(''); setToDate(''); }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
                 borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
@@ -1493,7 +1518,7 @@ export default function Users() {
         }}>
           {auditLog.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: '#9fb0c7', fontSize: 13 }}>
-              {(actionFilter !== 'all' || actorFilter !== 'all' || fromDate || toDate)
+              {(actionFilter !== 'all' || actorFilter !== 'all' || qFilter || fromDate || toDate)
                 ? 'No activity matches the selected filters.'
                 : historyUser
                 ? `No activity recorded for ${historyUser.name} yet.`
