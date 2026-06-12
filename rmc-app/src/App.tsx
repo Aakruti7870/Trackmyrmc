@@ -24,6 +24,7 @@ import ChallanPrint from '@/pages/ChallanPrint';
 import MyOrders from '@/pages/MyOrders';
 import MyTrips from '@/pages/MyTrips';
 import RecurringAdmin from '@/pages/RecurringAdmin';
+import FuelLog from '@/pages/FuelLog';
 import Users from '@/pages/Users';
 import ActivityLog from '@/pages/ActivityLog';
 import AuditLog from '@/pages/AuditLog';
@@ -100,6 +101,7 @@ function ProtectedRoutes() {
         <Route path="/forecast"     component={() => <GuardedRoute path="/forecast"     component={DemandForecast}  />} />
         <Route path="/shift-report" component={() => <GuardedRoute path="/shift-report" component={ShiftReport} />} />
         <Route path="/recurring"    component={() => <GuardedRoute path="/recurring"    component={RecurringAdmin}  />} />
+        <Route path="/fuel-log"     component={() => <GuardedRoute path="/fuel-log"     component={FuelLog}         />} />
         <Route path="/users"        component={() => <GuardedRoute path="/users"        component={Users}           />} />
         <Route path="/activity-log" component={() => <GuardedRoute path="/activity-log" component={ActivityLog}      />} />
         <Route path="/audit-log"    component={() => <GuardedRoute path="/audit-log"    component={AuditLog}        />} />

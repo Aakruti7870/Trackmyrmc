@@ -113,6 +113,8 @@ export interface Challan {
   siteLat?: string | null; siteLng?: string | null;
   vehicleNo?: string; driverName?: string; driverPhone?: string;
   proofPhotos?: string[]; hasProofPhoto?: boolean;
+  // Staff/driver-only odometer readings (never returned to clients).
+  odometerStart?: number | null; odometerEnd?: number | null;
 }
 
 export interface IdleConfig {
@@ -129,6 +131,51 @@ export interface Vehicle {
   driverId?: number; insuranceExpiry?: string; lastService?: string;
   status: string; createdAt: string;
   driverName?: string; driverPhone?: string;
+  // Diesel-reconciliation baselines (staff/owner only).
+  mileageKmpl?: string | null; idleBurnLph?: string | null;
+}
+
+export interface FuelLog {
+  id: number; vehicleId: number; litres: string; amount?: string | null;
+  odometer?: number | null; filledAt: string; notes?: string | null;
+  recordedBy?: number | null; recordedByName?: string | null; createdAt: string;
+  vehicleNo?: string | null; hasBillPhoto?: boolean; billPhotoUrl?: string | null;
+}
+
+export interface FuelConfig {
+  reconVariancePct: number;
+  idleBurnLph: number;
+  unscheduledStopMin: number;
+  routeDeviationM: number;
+  plantLat: number | null;
+  plantLng: number | null;
+}
+
+export interface FuelSettings extends FuelConfig {
+  defaults: FuelConfig;
+}
+
+export interface FuelReconRow {
+  vehicleId: number; vehicleNo: string | null;
+  km: number; idleHours: number; trips: number; tripsWithOdometer: number;
+  mileageKmpl: number | null; idleBurnLph: number;
+  expectedDrivingLitres: number | null; expectedIdleLitres: number;
+  expectedLitres: number | null; actualLitres: number;
+  amount: number; fills: number;
+  variancePct: number | null; flagged: boolean;
+}
+
+export interface FuelReconResponse {
+  config: FuelConfig;
+  rows: FuelReconRow[];
+}
+
+export interface VehicleAlert {
+  id: number; type: 'unscheduled_stop' | 'route_deviation';
+  challanId: number | null; vehicleId: number | null; driverId: number | null;
+  lat: string | null; lng: string | null; distanceM: number | null;
+  detail: string | null; acknowledgedAt: string | null; createdAt: string;
+  challanNo?: string | null; vehicleNo?: string | null; driverName?: string | null;
 }
 
 export interface Driver {

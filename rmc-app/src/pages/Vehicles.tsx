@@ -136,6 +136,20 @@ export default function Vehicles() {
                 </div>
               ))}
               <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Mileage (km/L)</label>
+                <input type="number" step="0.01" min="0" placeholder="e.g. 3.5"
+                  value={form.mileageKmpl ?? ''}
+                  onChange={e => setForm(f => ({ ...f, mileageKmpl: e.target.value }))}
+                  style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Idle Burn (L/h)</label>
+                <input type="number" step="0.01" min="0" placeholder="plant default"
+                  value={form.idleBurnLph ?? ''}
+                  onChange={e => setForm(f => ({ ...f, idleBurnLph: e.target.value }))}
+                  style={inputStyle} />
+              </div>
+              <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Assign Driver</label>
                 <select value={form.driverId || ''} onChange={e => setForm(f => ({ ...f, driverId: e.target.value ? +e.target.value : undefined }))} style={inputStyle}>
                   <option value="">Unassigned</option>

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
-  Timer, TrendingUp,
+  Timer, TrendingUp, Fuel,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -31,6 +31,7 @@ const ALL_NAV_ITEMS = [
   { path: '/reports',     label: 'Reports',    icon: BarChart3 },
   { path: '/shift-report', label: 'Shift Report', icon: ClipboardCheck },
   { path: '/recurring',   label: 'Recurring',  icon: Repeat },
+  { path: '/fuel-log',    label: 'Fuel Log',   icon: Fuel },
   { path: '/users',       label: 'Users',      icon: ShieldCheck },
   { path: '/activity-log', label: 'Activity Log', icon: History },
   { path: '/audit-log',   label: 'Audit Log',  icon: ScrollText },

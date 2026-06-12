@@ -15,6 +15,14 @@ import {
   DEFAULT_AVG_SPEED_KMH,
 } from '../lib/freshness.js';
 import { getIdleConfig, IDLE_KEYS, DEFAULT_IDLE_FREE_MIN } from '../lib/idle.js';
+import {
+  getFuelConfig,
+  FUEL_KEYS,
+  DEFAULT_RECON_VARIANCE_PCT,
+  DEFAULT_IDLE_BURN_LPH,
+  DEFAULT_UNSCHEDULED_STOP_MIN,
+  DEFAULT_ROUTE_DEVIATION_M,
+} from '../lib/fuelConfig.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 
 const router = Router();
@@ -390,6 +398,100 @@ router.post('/idle-settings', async (req, res) => {
   }
 
   res.json({ ...after, defaults: { freeMin: DEFAULT_IDLE_FREE_MIN, ratePerHour: null } });
+});
+
+const FUEL_DEFAULTS = {
+  reconVariancePct: DEFAULT_RECON_VARIANCE_PCT,
+  idleBurnLph: DEFAULT_IDLE_BURN_LPH,
+  unscheduledStopMin: DEFAULT_UNSCHEDULED_STOP_MIN,
+  routeDeviationM: DEFAULT_ROUTE_DEVIATION_M,
+  plantLat: null,
+  plantLng: null,
+};
+
+router.get('/fuel-settings', async (_req, res) => {
+  res.json({ ...(await getFuelConfig()), defaults: FUEL_DEFAULTS });
+});
+
+// All fields optional; an empty string clears the persisted value (reverting to
+// the built-in default, or to "unset" for the plant coordinates). Numeric
+// thresholds must be non-negative; coordinates must be valid finite numbers in
+// their lat/lng ranges.
+const num0 = (v: unknown) => v === undefined || v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0);
+const fuelSettingsSchema = z.object({
+  reconVariancePct: z.string().trim().optional().refine(num0, 'Variance % must be a number of 0 or more'),
+  idleBurnLph: z.string().trim().optional().refine(num0, 'Idle burn must be a number of 0 or more'),
+  unscheduledStopMin: z.string().trim().optional().refine(num0, 'Stop minutes must be a number of 0 or more'),
+  routeDeviationM: z.string().trim().optional().refine(num0, 'Deviation distance must be a number of 0 or more'),
+  plantLat: z.string().trim().optional().refine(
+    v => v === undefined || v === '' || (Number.isFinite(Number(v)) && Math.abs(Number(v)) <= 90),
+    'Latitude must be between -90 and 90',
+  ),
+  plantLng: z.string().trim().optional().refine(
+    v => v === undefined || v === '' || (Number.isFinite(Number(v)) && Math.abs(Number(v)) <= 180),
+    'Longitude must be between -180 and 180',
+  ),
+});
+
+router.post('/fuel-settings', async (req, res) => {
+  const b = req.body ?? {};
+  const raw = {
+    reconVariancePct: b.reconVariancePct == null ? undefined : String(b.reconVariancePct),
+    idleBurnLph: b.idleBurnLph == null ? undefined : String(b.idleBurnLph),
+    unscheduledStopMin: b.unscheduledStopMin == null ? undefined : String(b.unscheduledStopMin),
+    routeDeviationM: b.routeDeviationM == null ? undefined : String(b.routeDeviationM),
+    plantLat: b.plantLat == null ? undefined : String(b.plantLat),
+    plantLng: b.plantLng == null ? undefined : String(b.plantLng),
+  };
+  const parse = fuelSettingsSchema.safeParse(raw);
+  if (!parse.success) {
+    res.status(400).json({ error: parse.error.flatten().fieldErrors });
+    return;
+  }
+
+  const data = parse.data;
+  const before = await getFuelConfig();
+
+  const numKeys = [
+    [FUEL_KEYS.reconVariancePct, data.reconVariancePct],
+    [FUEL_KEYS.idleBurnLph, data.idleBurnLph],
+    [FUEL_KEYS.unscheduledStopMin, data.unscheduledStopMin],
+    [FUEL_KEYS.routeDeviationM, data.routeDeviationM],
+    [FUEL_KEYS.plantLat, data.plantLat],
+    [FUEL_KEYS.plantLng, data.plantLng],
+  ] as const;
+  for (const [key, value] of numKeys) {
+    if (value === undefined) continue;
+    await setSetting(key, value.trim() === '' ? null : String(Number(value)));
+  }
+
+  const after = await getFuelConfig();
+  const changed: string[] = [];
+  if (before.reconVariancePct !== after.reconVariancePct) changed.push(`variance ${before.reconVariancePct} → ${after.reconVariancePct}%`);
+  if (before.idleBurnLph !== after.idleBurnLph) changed.push(`idle burn ${before.idleBurnLph} → ${after.idleBurnLph} L/h`);
+  if (before.unscheduledStopMin !== after.unscheduledStopMin) changed.push(`stop ${before.unscheduledStopMin} → ${after.unscheduledStopMin} min`);
+  if (before.routeDeviationM !== after.routeDeviationM) changed.push(`deviation ${before.routeDeviationM} → ${after.routeDeviationM} m`);
+  if (before.plantLat !== after.plantLat || before.plantLng !== after.plantLng) changed.push('plant location updated');
+
+  const detail = changed.length
+    ? `Fuel/theft settings updated. Changed: ${changed.join('; ')}.`
+    : 'Fuel/theft settings saved from the admin panel. No values were changed.';
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'fuel_settings_updated',
+      status: 'success',
+      detail,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write fuel settings audit log:', err);
+  }
+
+  res.json({ ...after, defaults: FUEL_DEFAULTS });
 });
 
 router.get('/lockouts', async (_req, res) => {

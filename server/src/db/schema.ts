@@ -78,6 +78,12 @@ export const vehicles = pgTable('vehicles', {
   driverId: integer('driver_id').references(() => drivers.id),
   insuranceExpiry: date('insurance_expiry'),
   lastService: date('last_service'),
+  // Diesel-reconciliation baselines. mileageKmpl is the expected running
+  // efficiency (km per litre); idleBurnLph is the optional litres burnt per hour
+  // of standing/idle time. Both are nullable — a vehicle without a baseline is
+  // simply excluded from expected-vs-actual reconciliation.
+  mileageKmpl: decimal('mileage_kmpl', { precision: 5, scale: 2 }),
+  idleBurnLph: decimal('idle_burn_lph', { precision: 5, scale: 2 }),
   status: vehicleStatusEnum('status').notNull().default('active'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -113,6 +119,11 @@ export const challans = pgTable('challans', {
   deliveryTime: timestamp('delivery_time'),
   siteArrivalTime: timestamp('site_arrival_time'),
   siteReleaseTime: timestamp('site_release_time'),
+  // Odometer readings captured by the driver: at dispatch and on return. Their
+  // difference gives reliable per-trip kilometres for diesel reconciliation,
+  // independent of the ephemeral in-memory GPS stream.
+  odometerStart: integer('odometer_start'),
+  odometerEnd: integer('odometer_end'),
   status: challanStatusEnum('status').notNull().default('pending'),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -125,6 +136,41 @@ export const challanProofPhotos = pgTable('challan_proof_photos', {
   id: serial('id').primaryKey(),
   challanId: integer('challan_id').notNull().references(() => challans.id, { onDelete: 'cascade' }),
   photo: text('photo').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Every refuel/diesel fill for a vehicle. Litres + optional cost and odometer
+// reading; an optional photo of the fuel bill or odometer is stored exactly
+// like proof-of-delivery photos (object-storage entity path, signed on read).
+export const fuelLogs = pgTable('fuel_logs', {
+  id: serial('id').primaryKey(),
+  vehicleId: integer('vehicle_id').notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
+  litres: decimal('litres', { precision: 8, scale: 2 }).notNull(),
+  amount: decimal('amount', { precision: 10, scale: 2 }),
+  odometer: integer('odometer'),
+  filledAt: timestamp('filled_at').notNull(),
+  billPhoto: text('bill_photo'),
+  notes: text('notes'),
+  recordedBy: integer('recorded_by').references(() => users.id, { onDelete: 'set null' }),
+  recordedByName: text('recorded_by_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Persisted theft/route alerts raised from the GPS ingest path. Live positions
+// are in-memory and ephemeral, so an alert must be stored when first detected —
+// it cannot be reconstructed later. Surfaced to staff/owner only.
+export const vehicleAlerts = pgTable('vehicle_alerts', {
+  id: serial('id').primaryKey(),
+  challanId: integer('challan_id').references(() => challans.id, { onDelete: 'set null' }),
+  vehicleId: integer('vehicle_id').references(() => vehicles.id, { onDelete: 'set null' }),
+  driverId: integer('driver_id').references(() => drivers.id, { onDelete: 'set null' }),
+  // 'unscheduled_stop' | 'route_deviation'
+  type: text('type').notNull(),
+  lat: decimal('lat', { precision: 10, scale: 7 }),
+  lng: decimal('lng', { precision: 10, scale: 7 }),
+  distanceM: integer('distance_m'),
+  detail: text('detail'),
+  acknowledgedAt: timestamp('acknowledged_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -229,6 +275,17 @@ export const challansRelations = relations(challans, ({ one, many }) => ({
 
 export const challanProofPhotosRelations = relations(challanProofPhotos, ({ one }) => ({
   challan: one(challans, { fields: [challanProofPhotos.challanId], references: [challans.id] }),
+}));
+
+export const fuelLogsRelations = relations(fuelLogs, ({ one }) => ({
+  vehicle: one(vehicles, { fields: [fuelLogs.vehicleId], references: [vehicles.id] }),
+  recorder: one(users, { fields: [fuelLogs.recordedBy], references: [users.id] }),
+}));
+
+export const vehicleAlertsRelations = relations(vehicleAlerts, ({ one }) => ({
+  challan: one(challans, { fields: [vehicleAlerts.challanId], references: [challans.id] }),
+  vehicle: one(vehicles, { fields: [vehicleAlerts.vehicleId], references: [vehicles.id] }),
+  driver: one(drivers, { fields: [vehicleAlerts.driverId], references: [drivers.id] }),
 }));
 
 export const auditLogs = pgTable('audit_logs', {

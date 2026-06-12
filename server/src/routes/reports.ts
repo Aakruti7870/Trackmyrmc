@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { sql, gte, lte, and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { challans, clients, batchRecords, orders, recurringOrders, vehicles } from '../db/schema.js';
+import { challans, clients, batchRecords, orders, recurringOrders, vehicles, fuelLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { getVarianceTolerance } from '../lib/variance.js';
 import { computeForecast, type DailyHistory, type GradeQty } from '../lib/forecast.js';
 import { computeRunDate, toDateStr } from '../lib/recurring.js';
 import { getIdleConfig, computeTripTiming } from '../lib/idle.js';
+import { getFuelConfig } from '../lib/fuelConfig.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -120,6 +121,129 @@ router.get('/trip-timing', async (req, res) => {
   res.json({ freeMin, ratePerHour, rows });
 });
 
+// --- Diesel reconciliation -------------------------------------------------
+// Per-vehicle comparison of expected vs actual diesel consumption over a date
+// range. Expected = km driven (odometer end−start) ÷ the vehicle's km/litre
+// baseline + idle hours (site arrival→release) × the vehicle's idle burn (or the
+// plant default). Actual = litres logged in fuel_logs. A vehicle is flagged when
+// actual exceeds expected by more than the configured variance %, surfacing
+// possible theft, leaks, or a drifting mileage baseline. Staff/owner only.
+export interface FuelReconRow {
+  vehicleId: number;
+  vehicleNo: string | null;
+  km: number;
+  idleHours: number;
+  trips: number;
+  tripsWithOdometer: number;
+  mileageKmpl: number | null;
+  idleBurnLph: number;
+  expectedDrivingLitres: number | null;
+  expectedIdleLitres: number;
+  expectedLitres: number | null;
+  actualLitres: number;
+  amount: number;
+  fills: number;
+  variancePct: number | null;
+  flagged: boolean;
+}
+
+async function computeFuelReconciliation(from?: Date, to?: Date) {
+  const config = await getFuelConfig();
+
+  const challanFilters = [];
+  if (from) challanFilters.push(gte(challans.createdAt, from));
+  if (to) challanFilters.push(lte(challans.createdAt, to));
+  const hasOdo = sql`${challans.odometerStart} is not null and ${challans.odometerEnd} is not null and ${challans.odometerEnd} >= ${challans.odometerStart}`;
+  const hasSite = sql`${challans.siteArrivalTime} is not null and ${challans.siteReleaseTime} is not null and ${challans.siteReleaseTime} >= ${challans.siteArrivalTime}`;
+  const challanRows = await db.select({
+    vehicleId: challans.vehicleId,
+    km: sql<number>`coalesce(sum(${challans.odometerEnd} - ${challans.odometerStart}) filter (where ${hasOdo}), 0)`,
+    idleHours: sql<number>`coalesce(sum(extract(epoch from (${challans.siteReleaseTime} - ${challans.siteArrivalTime})) / 3600.0) filter (where ${hasSite}), 0)`,
+    trips: sql<number>`count(*)::int`,
+    tripsWithOdometer: sql<number>`count(*) filter (where ${hasOdo})::int`,
+  }).from(challans)
+    .where(challanFilters.length ? and(...challanFilters) : undefined)
+    .groupBy(challans.vehicleId);
+
+  const fuelFilters = [];
+  if (from) fuelFilters.push(gte(fuelLogs.filledAt, from));
+  if (to) fuelFilters.push(lte(fuelLogs.filledAt, to));
+  const fuelRows = await db.select({
+    vehicleId: fuelLogs.vehicleId,
+    litres: sql<number>`coalesce(sum(${fuelLogs.litres}::numeric), 0)`,
+    amount: sql<number>`coalesce(sum(${fuelLogs.amount}::numeric), 0)`,
+    fills: sql<number>`count(*)::int`,
+  }).from(fuelLogs)
+    .where(fuelFilters.length ? and(...fuelFilters) : undefined)
+    .groupBy(fuelLogs.vehicleId);
+
+  const vehicleRows = await db.select({
+    id: vehicles.id,
+    vehicleNo: vehicles.vehicleNo,
+    mileageKmpl: vehicles.mileageKmpl,
+    idleBurnLph: vehicles.idleBurnLph,
+  }).from(vehicles);
+
+  const challanByVehicle = new Map(challanRows.filter(r => r.vehicleId != null).map(r => [r.vehicleId as number, r]));
+  const fuelByVehicle = new Map(fuelRows.map(r => [r.vehicleId, r]));
+
+  const rows: FuelReconRow[] = [];
+  for (const v of vehicleRows) {
+    const c = challanByVehicle.get(v.id);
+    const f = fuelByVehicle.get(v.id);
+    const km = Number(c?.km ?? 0);
+    const idleHours = Number(c?.idleHours ?? 0);
+    const actualLitres = Number(f?.litres ?? 0);
+    // Skip vehicles with no activity at all in the window.
+    if (km === 0 && idleHours === 0 && actualLitres === 0 && (c?.trips ?? 0) === 0) continue;
+
+    const mileage = v.mileageKmpl != null && Number(v.mileageKmpl) > 0 ? Number(v.mileageKmpl) : null;
+    const idleBurn = v.idleBurnLph != null ? Number(v.idleBurnLph) : config.idleBurnLph;
+    const expectedDrivingLitres = mileage != null ? km / mileage : null;
+    const expectedIdleLitres = idleHours * idleBurn;
+    const expectedLitres = expectedDrivingLitres != null ? expectedDrivingLitres + expectedIdleLitres : null;
+    const variancePct = expectedLitres != null && expectedLitres > 0
+      ? ((actualLitres - expectedLitres) / expectedLitres) * 100
+      : null;
+    const flagged = variancePct != null && variancePct > config.reconVariancePct;
+
+    rows.push({
+      vehicleId: v.id,
+      vehicleNo: v.vehicleNo,
+      km,
+      idleHours: Math.round(idleHours * 100) / 100,
+      trips: c?.trips ?? 0,
+      tripsWithOdometer: c?.tripsWithOdometer ?? 0,
+      mileageKmpl: mileage,
+      idleBurnLph: idleBurn,
+      expectedDrivingLitres: expectedDrivingLitres != null ? Math.round(expectedDrivingLitres * 100) / 100 : null,
+      expectedIdleLitres: Math.round(expectedIdleLitres * 100) / 100,
+      expectedLitres: expectedLitres != null ? Math.round(expectedLitres * 100) / 100 : null,
+      actualLitres: Math.round(actualLitres * 100) / 100,
+      amount: Math.round(Number(f?.amount ?? 0) * 100) / 100,
+      fills: f?.fills ?? 0,
+      variancePct: variancePct != null ? Math.round(variancePct * 10) / 10 : null,
+      flagged,
+    });
+  }
+
+  // Flagged vehicles first, then by most-overconsuming.
+  rows.sort((a, b) => {
+    if (a.flagged !== b.flagged) return a.flagged ? -1 : 1;
+    return (b.variancePct ?? -Infinity) - (a.variancePct ?? -Infinity);
+  });
+
+  return { config, rows };
+}
+
+router.get('/fuel-reconciliation', requireRole('admin', 'dispatcher', 'authority'), async (req, res) => {
+  const { from, to } = req.query;
+  res.json(await computeFuelReconciliation(
+    from ? new Date(from as string) : undefined,
+    to ? new Date(to as string) : undefined,
+  ));
+});
+
 router.get('/production', async (req, res) => {
   const { from, to } = req.query;
   const filters = [];
@@ -182,6 +306,16 @@ router.get('/export', async (req, res) => {
     csv = 'Batch No,Grade,Qty (m³),Cement Bags,Water (L),Sand (kg),Aggregate (kg),Operator,Date\n';
     csv += rows.map(r =>
       `${r.batchNo},${r.grade},${r.quantity},${r.cementBags || ''},${r.waterLiters || ''},${r.sandKg || ''},${r.aggregateKg || ''},"${r.operator || ''}",${r.createdAt.toISOString().slice(0, 10)}`
+    ).join('\n');
+  } else if (report === 'fuel-reconciliation') {
+    const { config, rows } = await computeFuelReconciliation(
+      from ? new Date(from as string) : undefined,
+      to ? new Date(to as string) : undefined,
+    );
+    csv = `Diesel reconciliation (over-consumption flagged above ${config.reconVariancePct}% variance)\n`;
+    csv += 'Vehicle,Km Driven,Idle Hours,Trips,Trips w/ Odometer,Mileage (km/L),Idle Burn (L/h),Expected Driving (L),Expected Idle (L),Expected Total (L),Actual (L),Amount,Fills,Variance %,Flagged\n';
+    csv += rows.map(r =>
+      `"${r.vehicleNo ?? ''}",${r.km},${r.idleHours},${r.trips},${r.tripsWithOdometer},${r.mileageKmpl ?? ''},${r.idleBurnLph},${r.expectedDrivingLitres ?? ''},${r.expectedIdleLitres},${r.expectedLitres ?? ''},${r.actualLitres},${r.amount},${r.fills},${r.variancePct ?? ''},${r.flagged ? 'YES' : ''}`
     ).join('\n');
   }
 

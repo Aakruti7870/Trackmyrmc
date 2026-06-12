@@ -100,7 +100,7 @@ function fmtDist(m: number): string {
 const MAX_PROOF_PHOTOS = 8;
 
 function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistanceM, freshnessConfig }: {
-  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[]) => void; onLeftSite: (id: number) => Promise<void>; tracking: boolean; liveDistanceM?: number | null; freshnessConfig: FreshnessConfig | null;
+  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[], odometerEnd?: string) => void; onLeftSite: (id: number, odometerEnd?: string) => Promise<void>; tracking: boolean; liveDistanceM?: number | null; freshnessConfig: FreshnessConfig | null;
 }) {
   const s = STATUS_STYLES[challan.status] || STATUS_STYLES.pending;
   const StatusIcon = s.icon;
@@ -114,6 +114,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
   const [recipient, setRecipient] = useState('');
   const [note, setNote] = useState('');
   const [deliveredQty, setDeliveredQty] = useState(() => parseFloat(challan.quantity || '0').toString());
+  const [odometerEnd, setOdometerEnd] = useState(() => challan.odometerEnd != null ? String(challan.odometerEnd) : '');
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoErr, setPhotoErr] = useState('');
@@ -162,7 +163,8 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
     try {
       // Upload any photos straight to storage first, then send only their paths.
       const proofPaths = photos.length ? await uploadProofPhotos(photos) : undefined;
-      await onMarkDelivered(challan.id, composeNotes(), qty === '' ? undefined : qty, proofPaths);
+      const odo = odometerEnd.trim();
+      await onMarkDelivered(challan.id, composeNotes(), qty === '' ? undefined : qty, proofPaths, odo === '' ? undefined : odo);
     } catch (err) {
       setPhotoErr(err instanceof Error ? err.message : 'Could not complete the delivery');
     } finally {
@@ -313,10 +315,26 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
 
       {onSite && (
         <div style={{ marginBottom: 0 }}>
+          <label style={{ display: 'block', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Return odometer (km, optional)</label>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={odometerEnd}
+            onChange={e => setOdometerEnd(e.target.value)}
+            placeholder="Vehicle odometer reading"
+            disabled={leaving}
+            style={{
+              width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 10,
+              background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+              color: 'var(--text)', fontSize: 13, boxSizing: 'border-box',
+            }}
+          />
           <button
             onClick={async () => {
               setLeaving(true); setLeaveErr('');
-              try { await onLeftSite(challan.id); }
+              const odo = odometerEnd.trim();
+              try { await onLeftSite(challan.id, odo === '' ? undefined : odo); }
               catch (err) { setLeaveErr(err instanceof Error ? err.message : 'Could not record site release'); }
               finally { setLeaving(false); }
             }}
@@ -379,6 +397,21 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
               value={deliveredQty}
               onChange={e => setDeliveredQty(e.target.value)}
               placeholder={`Planned: ${parseFloat(challan.quantity || '0').toFixed(1)} m³`}
+              disabled={marking}
+              style={{
+                width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 10,
+                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+                color: 'var(--text)', fontSize: 13, boxSizing: 'border-box',
+              }}
+            />
+            <label style={{ display: 'block', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Return odometer (km, optional)</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={odometerEnd}
+              onChange={e => setOdometerEnd(e.target.value)}
+              placeholder="Vehicle odometer reading"
               disabled={marking}
               style={{
                 width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 10,
@@ -625,18 +658,19 @@ export default function MyTrips() {
     return () => { cancelled = true; };
   }, []);
 
-  async function handleMarkDelivered(id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[]) {
+  async function handleMarkDelivered(id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[], odometerEnd?: string) {
     const updated = await api.put<Challan>(`/challans/${id}`, {
       status: 'delivered',
       ...(notes ? { notes } : {}),
       ...(deliveredQuantity !== undefined ? { deliveredQuantity } : {}),
       ...(proofPhotos && proofPhotos.length ? { proofPhotos } : {}),
+      ...(odometerEnd !== undefined ? { odometerEnd } : {}),
     });
     let challanNo = '';
     setChallans(prev => prev.map(c => {
       if (c.id === id) {
         challanNo = c.challanNo;
-        return { ...c, status: 'delivered', deliveryTime: updated.deliveryTime ?? new Date().toISOString(), notes: updated.notes, deliveredQuantity: updated.deliveredQuantity, hasProofPhoto: updated.hasProofPhoto ?? (proofPhotos != null && proofPhotos.length > 0) };
+        return { ...c, status: 'delivered', deliveryTime: updated.deliveryTime ?? new Date().toISOString(), notes: updated.notes, deliveredQuantity: updated.deliveredQuantity, odometerEnd: updated.odometerEnd ?? c.odometerEnd, hasProofPhoto: updated.hasProofPhoto ?? (proofPhotos != null && proofPhotos.length > 0) };
       }
       return c;
     }));
@@ -646,13 +680,15 @@ export default function MyTrips() {
 
   // Manual site release from the trip card — stamps the release time now even if
   // the GPS hasn't yet detected the truck leaving.
-  async function handleLeftSite(id: number) {
-    const updated = await api.post<Challan>(`/challans/${id}/left-site`, {});
+  async function handleLeftSite(id: number, odometerEnd?: string) {
+    const updated = await api.post<Challan>(`/challans/${id}/left-site`, {
+      ...(odometerEnd !== undefined ? { odometerEnd } : {}),
+    });
     let challanNo = '';
     setChallans(prev => prev.map(c => {
       if (c.id === id) {
         challanNo = c.challanNo;
-        return { ...c, siteReleaseTime: updated.siteReleaseTime ?? new Date().toISOString() };
+        return { ...c, siteReleaseTime: updated.siteReleaseTime ?? new Date().toISOString(), odometerEnd: updated.odometerEnd ?? c.odometerEnd };
       }
       return c;
     }));

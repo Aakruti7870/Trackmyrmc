@@ -43,6 +43,15 @@ const challanSelect = {
   hasProofPhoto: sql<boolean>`exists (select 1 from ${challanProofPhotos} where ${challanProofPhotos.challanId} = ${challans.id})`,
 };
 
+// Driver trip view also exposes the odometer readings so a driver can see and
+// re-confirm what they entered. Deliberately kept out of the client-facing
+// challanSelect above — odometer data is staff/driver-only.
+const driverChallanSelect = {
+  ...challanSelect,
+  odometerStart: challans.odometerStart,
+  odometerEnd: challans.odometerEnd,
+};
+
 async function getLinkedClientId(userId: number): Promise<number | null> {
   const [row] = await db.select({ linkedClientId: users.linkedClientId })
     .from(users).where(eq(users.id, userId));
@@ -230,7 +239,7 @@ router.get('/trips', requireRole('driver'), async (req, res) => {
     filters.push(lte(challans.dispatchTime, todayEnd));
   }
 
-  const rows = await db.select(challanSelect).from(challans)
+  const rows = await db.select(driverChallanSelect).from(challans)
     .leftJoin(clients, eq(challans.clientId, clients.id))
     .leftJoin(sites, eq(challans.siteId, sites.id))
     .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
