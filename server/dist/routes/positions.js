@@ -15,6 +15,11 @@ router.use(requireAuth);
 const GEOFENCE_RADIUS_M = 150;
 const MAX_ACCURACY_M = 100;
 const REQUIRED_FIXES = 3;
+// Site release uses an outward hysteresis ring: the truck must be clearly beyond
+// this (wider than the arrival geofence) for REQUIRED_FIXES consecutive fixes
+// before we record that it has left the site, so GPS jitter at the boundary
+// can't toggle a false departure.
+const RELEASE_RADIUS_M = 300;
 // Latest known position per challan. In-memory by design (single-process dev
 // + small deployment); positions are ephemeral and rebuilt as drivers report.
 const livePositions = new Map();
@@ -56,6 +61,8 @@ router.post('/', requireRole('driver'), async (req, res) => {
         driverId: challans.driverId,
         siteId: challans.siteId,
         vehicleId: challans.vehicleId,
+        siteArrivalTime: challans.siteArrivalTime,
+        siteReleaseTime: challans.siteReleaseTime,
         siteName: sites.name,
         siteLat: sites.latitude,
         siteLng: sites.longitude,
@@ -86,13 +93,23 @@ router.post('/', requireRole('driver'), async (req, res) => {
     const withinRadius = distanceM != null && distanceM <= GEOFENCE_RADIUS_M && (acc == null || acc <= MAX_ACCURACY_M);
     let inRadiusCount = withinRadius ? (prev?.inRadiusCount ?? 0) + 1 : 0;
     let delivered = false;
+    let released = false;
     let status = row.status;
+    // Both timestamps are persisted on the challan; in-memory state only debounces
+    // the GPS fixes that trigger them.
+    let arrivalTime = row.siteArrivalTime;
+    let releaseTime = row.siteReleaseTime;
+    // Arrival = the geofence confirmation that also auto-completes the delivery.
+    // Site arrival time is stamped once, the first time we confirm the truck on
+    // site, alongside the existing auto-delivery.
     if (row.status === 'dispatched' && inRadiusCount >= REQUIRED_FIXES) {
+        const now = new Date();
+        arrivalTime = row.siteArrivalTime ?? now;
         const autoNote = 'Auto-delivered by GPS geofence';
         const mergedNotes = [row.notes, autoNote].filter(Boolean).join(' · ');
         const [updated] = await db
             .update(challans)
-            .set({ status: 'delivered', deliveryTime: new Date(), notes: mergedNotes })
+            .set({ status: 'delivered', deliveryTime: now, siteArrivalTime: arrivalTime, notes: mergedNotes })
             .where(eq(challans.id, cid))
             .returning();
         delivered = true;
@@ -101,6 +118,29 @@ router.post('/', requireRole('driver'), async (req, res) => {
         emitSSEEvent('challan.updated', updated, { clientId: updated.clientId, driverId: updated.driverId });
         // GPS geofence auto-completed the delivery — notify the customer (best-effort).
         void notifyChallanStatus(cid, 'delivered');
+    }
+    // Release (auto) — once the truck has an arrival but no release yet, watch for
+    // it driving clearly beyond the outward hysteresis ring for REQUIRED_FIXES
+    // consecutive fixes, then stamp the site release time.
+    let outRadiusCount = prev?.outRadiusCount ?? 0;
+    if (arrivalTime != null && releaseTime == null) {
+        const outsideRelease = distanceM != null && distanceM > RELEASE_RADIUS_M && (acc == null || acc <= MAX_ACCURACY_M);
+        outRadiusCount = outsideRelease ? outRadiusCount + 1 : 0;
+        if (outRadiusCount >= REQUIRED_FIXES) {
+            const now = new Date();
+            releaseTime = now;
+            outRadiusCount = 0;
+            const [updated] = await db
+                .update(challans)
+                .set({ siteReleaseTime: now })
+                .where(eq(challans.id, cid))
+                .returning();
+            released = true;
+            emitSSEEvent('challan.updated', updated, { clientId: updated.clientId, driverId: updated.driverId });
+        }
+    }
+    else {
+        outRadiusCount = 0;
     }
     const live = {
         challanId: cid,
@@ -120,16 +160,31 @@ router.post('/', requireRole('driver'), async (req, res) => {
         distanceM,
         status,
         inRadiusCount,
+        outRadiusCount,
+        siteArrivalTime: arrivalTime ? new Date(arrivalTime).toISOString() : null,
+        siteReleaseTime: releaseTime ? new Date(releaseTime).toISOString() : null,
         updatedAt: new Date().toISOString(),
     };
     livePositions.set(cid, live);
     // Scope the live GPS stream so a client only sees positions for their own
     // deliveries and a driver only sees their own trips; staff still get all.
     emitSSEEvent('vehicle.position', live, { clientId: row.clientId, driverId: row.driverId });
-    // Once delivered there's nothing left to track for this challan.
-    if (delivered)
+    // Keep the live position alive after delivery so we can still detect the truck
+    // leaving site; only once site release is captured is there nothing left to
+    // track for this challan.
+    if (releaseTime != null)
         livePositions.delete(cid);
-    res.json({ ok: true, distanceM, delivered, withinRadius, inRadiusCount });
+    res.json({
+        ok: true,
+        distanceM,
+        delivered,
+        released,
+        arrived: arrivalTime != null,
+        withinRadius,
+        inRadiusCount,
+        siteArrivalTime: live.siteArrivalTime,
+        siteReleaseTime: live.siteReleaseTime,
+    });
 });
 // Dispatch / control-room view of the latest fix per active challan.
 router.get('/', requireRole('admin', 'dispatcher', 'authority'), (_req, res) => {

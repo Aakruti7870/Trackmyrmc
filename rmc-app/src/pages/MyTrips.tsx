@@ -1,7 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, type Challan, type PositionUpdateResult, type FreshnessConfig } from '@/lib/api';
-import { Truck, MapPin, CheckCircle, Clock, Package, AlertCircle, CalendarDays, Navigation, Satellite, AlertTriangle, Camera, X, Map as MapIcon } from 'lucide-react';
+import { Truck, MapPin, CheckCircle, Clock, Package, AlertCircle, CalendarDays, Navigation, Satellite, AlertTriangle, Camera, X, Map as MapIcon, Timer, LogOut } from 'lucide-react';
 import FreshnessCountdown from '@/components/FreshnessCountdown';
+import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
+
+// A challan is still being GPS-tracked while it is dispatched (heading to site)
+// or has arrived but not yet been released (waiting for the truck to leave).
+function needsTracking(c: Challan): boolean {
+  return c.status === 'dispatched' || (c.siteArrivalTime != null && c.siteReleaseTime == null);
+}
+
+function fmtTime(value?: string | null): string {
+  if (!value) return '—';
+  return new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
 
 // Resize/compress an image file to a small JPEG data URL so proof photos stay
 // well under the server's upload limit while remaining legible for billing.
@@ -87,12 +99,16 @@ function fmtDist(m: number): string {
 
 const MAX_PROOF_PHOTOS = 8;
 
-function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM, freshnessConfig }: {
-  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[]) => void; tracking: boolean; liveDistanceM?: number | null; freshnessConfig: FreshnessConfig | null;
+function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistanceM, freshnessConfig }: {
+  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[]) => void; onLeftSite: (id: number) => Promise<void>; tracking: boolean; liveDistanceM?: number | null; freshnessConfig: FreshnessConfig | null;
 }) {
   const s = STATUS_STYLES[challan.status] || STATUS_STYLES.pending;
   const StatusIcon = s.icon;
   const isActionable = challan.status === 'dispatched';
+  const onSite = challan.siteArrivalTime != null && challan.siteReleaseTime == null;
+  const timing = computeTripTiming(challan);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveErr, setLeaveErr] = useState('');
   const [marking, setMarking] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [recipient, setRecipient] = useState('');
@@ -242,24 +258,83 @@ function TripCard({ challan, onMarkDelivered, tracking, liveDistanceM, freshness
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 16, marginBottom: isActionable ? 14 : 0 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: isActionable || onSite ? 14 : 0 }}>
         {challan.dispatchTime && (
           <div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Dispatched</div>
-            <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>
-              {new Date(challan.dispatchTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-            </div>
+            <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>{fmtTime(challan.dispatchTime)}</div>
+          </div>
+        )}
+        {challan.siteArrivalTime && (
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Arrived</div>
+            <div style={{ fontSize: 12, color: 'var(--blue)', fontWeight: 600 }}>{fmtTime(challan.siteArrivalTime)}</div>
+          </div>
+        )}
+        {challan.siteReleaseTime && (
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Left site</div>
+            <div style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 600 }}>{fmtTime(challan.siteReleaseTime)}</div>
           </div>
         )}
         {challan.deliveryTime && (
           <div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Delivered</div>
-            <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>
-              {new Date(challan.deliveryTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-            </div>
+            <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>{fmtTime(challan.deliveryTime)}</div>
           </div>
         )}
       </div>
+
+      {(timing.travelMin != null || timing.siteMin != null) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: isActionable || onSite ? 14 : 0 }}>
+          {timing.travelMin != null && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Timer size={13} style={{ color: 'var(--muted)' }} />
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>Travel</span>
+              <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 700 }}>{formatDuration(timing.travelMin)}</span>
+            </div>
+          )}
+          {timing.siteMin != null && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Clock size={13} style={{ color: 'var(--muted)' }} />
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>At site</span>
+              <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 700 }}>{formatDuration(timing.siteMin)}</span>
+            </div>
+          )}
+          {timing.billableIdleMin != null && timing.billableIdleMin > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <AlertTriangle size={13} style={{ color: 'var(--gold)' }} />
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>Idle</span>
+              <span style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 700 }}>{formatDuration(timing.billableIdleMin)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {onSite && (
+        <div style={{ marginBottom: 0 }}>
+          <button
+            onClick={async () => {
+              setLeaving(true); setLeaveErr('');
+              try { await onLeftSite(challan.id); }
+              catch (err) { setLeaveErr(err instanceof Error ? err.message : 'Could not record site release'); }
+              finally { setLeaving(false); }
+            }}
+            disabled={leaving}
+            style={{
+              width: '100%', padding: '11px 0', borderRadius: 10, border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)',
+              cursor: leaving ? 'not-allowed' : 'pointer',
+              background: leaving ? 'rgba(247,201,72,.12)' : 'color-mix(in srgb, var(--gold) 14%, transparent)',
+              color: 'var(--gold)', fontSize: 13, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}
+          >
+            <LogOut size={15} />
+            {leaving ? 'Recording…' : 'Mark Left Site'}
+          </button>
+          {leaveErr && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{leaveErr}</div>}
+        </div>
+      )}
 
       {isActionable && (
         !showForm ? (
@@ -569,12 +644,30 @@ export default function MyTrips() {
     window.setTimeout(() => setConfirmation(''), 4000);
   }
 
-  // Push the latest fix to the server for each active (dispatched) trip. The
-  // server runs the authoritative geofence and may auto-complete a delivery.
+  // Manual site release from the trip card — stamps the release time now even if
+  // the GPS hasn't yet detected the truck leaving.
+  async function handleLeftSite(id: number) {
+    const updated = await api.post<Challan>(`/challans/${id}/left-site`, {});
+    let challanNo = '';
+    setChallans(prev => prev.map(c => {
+      if (c.id === id) {
+        challanNo = c.challanNo;
+        return { ...c, siteReleaseTime: updated.siteReleaseTime ?? new Date().toISOString() };
+      }
+      return c;
+    }));
+    setConfirmation(`${challanNo} — site release recorded`);
+    window.setTimeout(() => setConfirmation(''), 4000);
+  }
+
+  // Push the latest fix to the server for each tracked trip — dispatched trips
+  // heading to site, plus arrived-but-not-released trips waiting for departure.
+  // The server runs the authoritative geofence and may auto-complete a delivery
+  // (arrival) or stamp the site release (departure).
   const doPost = useCallback(async () => {
     const fix = lastFixRef.current;
     if (!fix || postingRef.current) return;
-    const active = challansRef.current.filter(c => c.status === 'dispatched');
+    const active = challansRef.current.filter(needsTracking);
     if (!active.length) return;
     postingRef.current = true;
     try {
@@ -584,18 +677,29 @@ export default function MyTrips() {
         }).then(r => ({ id: c.id, no: c.challanNo, r }))
       ));
       const dist: Record<number, number | null> = {};
+      const updates: Record<number, Partial<Challan>> = {};
       const deliveredNos: string[] = [];
+      const releasedNos: string[] = [];
       for (const res of results) {
-        if (res.status === 'fulfilled') {
-          dist[res.value.id] = res.value.r.distanceM;
-          if (res.value.r.delivered) deliveredNos.push(res.value.no);
-        }
+        if (res.status !== 'fulfilled') continue;
+        const { id, no, r } = res.value;
+        dist[id] = r.distanceM;
+        const u: Partial<Challan> = {};
+        if (r.delivered) { u.status = 'delivered'; u.deliveryTime = new Date().toISOString(); deliveredNos.push(no); }
+        if (r.siteArrivalTime) u.siteArrivalTime = r.siteArrivalTime;
+        if (r.siteReleaseTime) u.siteReleaseTime = r.siteReleaseTime;
+        if (r.released) releasedNos.push(no);
+        if (Object.keys(u).length) updates[id] = u;
       }
       setLiveDist(prev => ({ ...prev, ...dist }));
-      if (deliveredNos.length) {
-        const set = new Set(deliveredNos);
-        setChallans(prev => prev.map(c => set.has(c.challanNo) ? { ...c, status: 'delivered', deliveryTime: new Date().toISOString() } : c));
-        setConfirmation(`${deliveredNos.join(', ')} auto-delivered on arrival`);
+      if (Object.keys(updates).length) {
+        setChallans(prev => prev.map(c => updates[c.id] ? { ...c, ...updates[c.id] } : c));
+      }
+      const msgs: string[] = [];
+      if (deliveredNos.length) msgs.push(`${deliveredNos.join(', ')} auto-delivered on arrival`);
+      if (releasedNos.length) msgs.push(`${releasedNos.join(', ')} left site`);
+      if (msgs.length) {
+        setConfirmation(msgs.join(' · '));
         window.setTimeout(() => setConfirmation(''), 5000);
       }
     } finally {
@@ -644,9 +748,10 @@ export default function MyTrips() {
     };
   }, [tracking, doPost]);
 
-  // Auto-stop tracking once there are no active trips left to deliver. Adjusting
-  // state during render (React's documented pattern) avoids an extra effect pass.
-  if (tracking && !challans.some(c => c.status === 'dispatched')) {
+  // Auto-stop tracking once no trips need GPS any more — i.e. nothing is en
+  // route and nothing is on-site awaiting release. Adjusting state during render
+  // (React's documented pattern) avoids an extra effect pass.
+  if (tracking && !challans.some(needsTracking)) {
     setTracking(false);
     setGeoState('off');
     setLastFix(null);
@@ -654,6 +759,7 @@ export default function MyTrips() {
 
   const filtered = filter === 'all' ? challans : challans.filter(c => c.status === filter);
   const active = challans.filter(c => c.status === 'dispatched').length;
+  const trackable = challans.filter(needsTracking).length;
   const delivered = challans.filter(c => c.status === 'delivered').length;
   const totalVol = challans.filter(c => c.status === 'delivered').reduce((s, c) => s + parseFloat(c.quantity || '0'), 0);
 
@@ -714,7 +820,7 @@ export default function MyTrips() {
         geoMsg={geoMsg}
         lastFix={lastFix}
         nearestM={nearestM}
-        activeCount={active}
+        activeCount={trackable}
         onToggle={() => {
           if (tracking) { setTracking(false); setGeoState('off'); return; }
           if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
@@ -784,7 +890,7 @@ export default function MyTrips() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 16 }}>
           {filtered.map(c => (
-            <TripCard key={c.id} challan={c} onMarkDelivered={handleMarkDelivered} tracking={tracking && geoState === 'active'} liveDistanceM={liveDist[c.id]} freshnessConfig={freshnessConfig} />
+            <TripCard key={c.id} challan={c} onMarkDelivered={handleMarkDelivered} onLeftSite={handleLeftSite} tracking={tracking && geoState === 'active'} liveDistanceM={liveDist[c.id]} freshnessConfig={freshnessConfig} />
           ))}
         </div>
       )}

@@ -8,6 +8,7 @@ import { sendTestEmail, getSmtpSettings, verifySmtpConnection, getSmtpConfig, SM
 import { setSetting } from '../lib/settings.js';
 import { getVarianceTolerance, VARIANCE_KEYS, DEFAULT_VARIANCE_ABS, DEFAULT_VARIANCE_PCT } from '../lib/variance.js';
 import { getFreshnessConfig, FRESHNESS_KEYS, DEFAULT_WORKING_LIFE_MIN, DEFAULT_WARN_MIN, DEFAULT_AVG_SPEED_KMH, } from '../lib/freshness.js';
+import { getIdleConfig, IDLE_KEYS, DEFAULT_IDLE_FREE_MIN } from '../lib/idle.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 const router = Router();
 router.use(requireAuth, requireRole('admin', 'authority'));
@@ -295,6 +296,68 @@ router.post('/freshness-settings', async (req, res) => {
             avgSpeedKmh: DEFAULT_AVG_SPEED_KMH,
         },
     });
+});
+router.get('/idle-settings', async (_req, res) => {
+    res.json({
+        ...(await getIdleConfig()),
+        defaults: { freeMin: DEFAULT_IDLE_FREE_MIN, ratePerHour: null },
+    });
+});
+// Both fields optional. An empty string clears the persisted value: freeMin
+// reverts to the built-in default, ratePerHour reverts to "no rate". freeMin
+// must be a non-negative number when supplied; ratePerHour must be >= 0.
+const idleSettingsSchema = z.object({
+    freeMin: z
+        .string()
+        .trim()
+        .optional()
+        .refine(v => v === undefined || v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0), 'Free minutes must be a number of 0 or more'),
+    ratePerHour: z
+        .string()
+        .trim()
+        .optional()
+        .refine(v => v === undefined || v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0), 'Idle rate must be a number of 0 or more'),
+});
+router.post('/idle-settings', async (req, res) => {
+    const raw = {
+        freeMin: req.body?.freeMin == null ? undefined : String(req.body.freeMin),
+        ratePerHour: req.body?.ratePerHour == null ? undefined : String(req.body.ratePerHour),
+    };
+    const parse = idleSettingsSchema.safeParse(raw);
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.flatten().fieldErrors });
+        return;
+    }
+    const { freeMin, ratePerHour } = parse.data;
+    const before = await getIdleConfig();
+    if (freeMin !== undefined)
+        await setSetting(IDLE_KEYS.freeMin, freeMin.trim() === '' ? null : String(Number(freeMin)));
+    if (ratePerHour !== undefined)
+        await setSetting(IDLE_KEYS.ratePerHour, ratePerHour.trim() === '' ? null : String(Number(ratePerHour)));
+    const after = await getIdleConfig();
+    const changed = [];
+    if (before.freeMin !== after.freeMin)
+        changed.push(`free window ${before.freeMin} → ${after.freeMin} min`);
+    if (before.ratePerHour !== after.ratePerHour)
+        changed.push(`idle rate ${before.ratePerHour ?? 'none'} → ${after.ratePerHour ?? 'none'}/hr`);
+    const detail = changed.length
+        ? `Idle-charge settings updated. Changed: ${changed.join('; ')}.`
+        : 'Idle-charge settings saved from the admin panel. No values were changed.';
+    const actor = req.user;
+    try {
+        await db.insert(auditLogs).values({
+            actorId: actor.id,
+            actorName: actor.name,
+            action: 'idle_settings_updated',
+            status: 'success',
+            detail,
+            emailSent: null,
+        });
+    }
+    catch (err) {
+        console.error('[admin] Failed to write idle settings audit log:', err);
+    }
+    res.json({ ...after, defaults: { freeMin: DEFAULT_IDLE_FREE_MIN, ratePerHour: null } });
 });
 router.get('/lockouts', async (_req, res) => {
     const lockouts = await getActiveLockouts();

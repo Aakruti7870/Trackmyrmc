@@ -3,12 +3,14 @@ import { BarChart3, Download, Calendar } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useVarianceTolerance, isWithinTolerance } from '@/lib/variance';
 
-type ReportTab = 'client-wise' | 'grade-wise' | 'dispatch' | 'production';
+type ReportTab = 'client-wise' | 'grade-wise' | 'dispatch' | 'trip-timing' | 'production';
 
 interface ClientRow { clientName: string; totalQty: number; deliveredQty: number; plannedForDelivered: number; variance: number; totalChallans: number }
 interface GradeRow { grade: string; totalQty: number; deliveredQty: number; plannedForDelivered: number; variance: number; totalChallans: number }
 interface DispatchRow { date: string; totalQty: number; deliveredQty: number; plannedForDelivered: number; variance: number; count: number }
 interface ProductionRow { date: string; totalQty: number; count: number; grade: string }
+interface TripTimingRow { date: string; tripsWithTravel: number; tripsWithSite: number; avgTravelMin: number; avgSiteMin: number; totalBillableIdleMin: number; idleTrips: number; totalIdleCharge: number }
+interface TripTimingResponse { freeMin: number; ratePerHour: number | null; rows: TripTimingRow[] }
 
 const PRESETS = [
   { label: 'Today', days: 0 },
@@ -28,6 +30,7 @@ export default function Reports() {
   const [gradeData, setGradeData] = useState<GradeRow[]>([]);
   const [dispatchData, setDispatchData] = useState<DispatchRow[]>([]);
   const [productionData, setProductionData] = useState<ProductionRow[]>([]);
+  const [tripTiming, setTripTiming] = useState<TripTimingResponse>({ freeMin: 45, ratePerHour: null, rows: [] });
   const [loading, setLoading] = useState(false);
   const tolerance = useVarianceTolerance();
 
@@ -45,14 +48,15 @@ export default function Reports() {
     async function loadAll() {
       setLoading(true);
       const params = `?from=${from}T00:00:00&to=${to}T23:59:59`;
-      const [c, g, d, p] = await Promise.all([
+      const [c, g, d, p, tt] = await Promise.all([
         api.get<ClientRow[]>(`/reports/client-wise${params}`),
         api.get<GradeRow[]>(`/reports/grade-wise${params}`),
         api.get<DispatchRow[]>(`/reports/dispatch${params}`),
         api.get<ProductionRow[]>(`/reports/production${params}`),
+        api.get<TripTimingResponse>(`/reports/trip-timing${params}`),
       ]);
       if (cancelled) return;
-      setClientData(c); setGradeData(g); setDispatchData(d); setProductionData(p);
+      setClientData(c); setGradeData(g); setDispatchData(d); setProductionData(p); setTripTiming(tt);
       setLoading(false);
     }
     loadAll();
@@ -135,7 +139,7 @@ export default function Reports() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 18, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 12, padding: 4 }}>
-        {(['client-wise', 'grade-wise', 'dispatch', 'production'] as ReportTab[]).map(t => (
+        {(['client-wise', 'grade-wise', 'dispatch', 'trip-timing', 'production'] as ReportTab[]).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             flex: 1, padding: '9px', background: tab === t ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'transparent',
             border: tab === t ? '1px solid color-mix(in srgb, var(--gold) 25%, transparent)' : '1px solid transparent',
@@ -152,7 +156,7 @@ export default function Reports() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
             <BarChart3 size={16} style={{ color: 'var(--gold)' }} />
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
-              {tab === 'client-wise' ? 'Client-wise Dispatch' : tab === 'grade-wise' ? 'Grade-wise Production' : tab === 'dispatch' ? 'Daily Dispatch Trend' : 'Daily Production'}
+              {tab === 'client-wise' ? 'Client-wise Dispatch' : tab === 'grade-wise' ? 'Grade-wise Production' : tab === 'dispatch' ? 'Daily Dispatch Trend' : tab === 'trip-timing' ? 'Trip Timing & Idle Charges' : 'Daily Production'}
             </h3>
           </div>
 
@@ -231,6 +235,78 @@ export default function Reports() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {tab === 'trip-timing' && (
+            <div>
+              {(() => {
+                const rows = tripTiming.rows;
+                const totalBillableIdle = rows.reduce((s, r) => s + Number(r.totalBillableIdleMin || 0), 0);
+                const totalCharge = rows.reduce((s, r) => s + Number(r.totalIdleCharge || 0), 0);
+                const totalIdleTrips = rows.reduce((s, r) => s + Number(r.idleTrips || 0), 0);
+                const tripsWithSite = rows.reduce((s, r) => s + Number(r.tripsWithSite || 0), 0);
+                const tripsWithTravel = rows.reduce((s, r) => s + Number(r.tripsWithTravel || 0), 0);
+                const wTravelSum = rows.reduce((s, r) => s + Number(r.avgTravelMin || 0) * Number(r.tripsWithTravel || 0), 0);
+                const wSiteSum = rows.reduce((s, r) => s + Number(r.avgSiteMin || 0) * Number(r.tripsWithSite || 0), 0);
+                const avgTravel = tripsWithTravel ? wTravelSum / tripsWithTravel : 0;
+                const avgSite = tripsWithSite ? wSiteSum / tripsWithSite : 0;
+                const fmt = (m: number) => { const h = Math.floor(m / 60); const mm = Math.round(m % 60); return h ? `${h}h ${mm}m` : `${mm}m`; };
+                return (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
+                      <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>AVG TRAVEL</div>
+                        <div style={{ fontSize: 20, fontWeight: 800 }}>{fmt(avgTravel)}</div>
+                      </div>
+                      <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>AVG TIME AT SITE</div>
+                        <div style={{ fontSize: 20, fontWeight: 800 }}>{fmt(avgSite)}</div>
+                      </div>
+                      <div style={{ padding: '12px 14px', background: 'color-mix(in srgb, var(--gold) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 20%, transparent)', borderRadius: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>BILLABLE IDLE</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>{fmt(totalBillableIdle)}</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{totalIdleTrips} of {tripsWithSite} trips · free {tripTiming.freeMin}m</div>
+                      </div>
+                      {tripTiming.ratePerHour != null && (
+                        <div style={{ padding: '12px 14px', background: 'color-mix(in srgb, var(--gold) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 20%, transparent)', borderRadius: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>IDLE CHARGES</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>₹{totalCharge.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>@ ₹{tripTiming.ratePerHour}/hr</div>
+                        </div>
+                      )}
+                    </div>
+                    {rows.length === 0 && <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>No trip-timing data for this period</div>}
+                    {rows.length > 0 && (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                              {['Date', 'Avg Travel', 'Avg Site', 'Billable Idle', 'Idle Trips', ...(tripTiming.ratePerHour != null ? ['Idle Charge'] : [])].map(h => (
+                                <th key={h} style={{ padding: '8px 12px', color: 'var(--muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((r, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+                                <td style={{ padding: '8px 12px' }}>{new Date(r.date).toLocaleDateString('en-IN')}</td>
+                                <td style={{ padding: '8px 12px', fontWeight: 700 }}>{fmt(Number(r.avgTravelMin))}</td>
+                                <td style={{ padding: '8px 12px', fontWeight: 700 }}>{fmt(Number(r.avgSiteMin))}</td>
+                                <td style={{ padding: '8px 12px', fontWeight: 700, color: Number(r.totalBillableIdleMin) > 0 ? 'var(--gold)' : 'var(--muted)' }}>{fmt(Number(r.totalBillableIdleMin))}</td>
+                                <td style={{ padding: '8px 12px', color: 'var(--muted)' }}>{r.idleTrips} / {r.tripsWithSite}</td>
+                                {tripTiming.ratePerHour != null && (
+                                  <td style={{ padding: '8px 12px', fontWeight: 700, color: Number(r.totalIdleCharge) > 0 ? 'var(--gold)' : 'var(--muted)' }}>₹{Number(r.totalIdleCharge).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 

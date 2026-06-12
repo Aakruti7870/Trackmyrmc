@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { useRoute } from 'wouter';
 import { Printer, Share2, ArrowLeft } from 'lucide-react';
 import { Link } from 'wouter';
-import { api, type Challan } from '@/lib/api';
+import { api, type Challan, type IdleConfig } from '@/lib/api';
+import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 
 export default function ChallanPrint() {
   const [, params] = useRoute('/challans/:id/print');
   const [challan, setChallan] = useState<Challan | null>(null);
+  const [idleConfig, setIdleConfig] = useState<IdleConfig | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,6 +18,16 @@ export default function ChallanPrint() {
         .catch(() => setLoading(false));
     }
   }, [params?.id]);
+
+  // Idle config drives the billable-idle / idle-charge figures. Best-effort and
+  // admin-only; falls back to the default free window with no rate otherwise.
+  useEffect(() => {
+    let cancelled = false;
+    api.get<IdleConfig>('/admin/idle-settings')
+      .then(cfg => { if (!cancelled) setIdleConfig({ freeMin: cfg.freeMin, ratePerHour: cfg.ratePerHour }); })
+      .catch(() => { /* non-admin or unavailable — use defaults */ });
+    return () => { cancelled = true; };
+  }, []);
 
   function shareWhatsApp() {
     if (!challan) return;
@@ -132,18 +144,46 @@ export default function ChallanPrint() {
         </table>
 
         {/* Dispatch info */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 28 }}>
-          {[
-            ['Dispatch Time', challan.dispatchTime ? new Date(challan.dispatchTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'],
-            ['Delivery Time', challan.deliveryTime ? new Date(challan.deliveryTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'],
-            ['Status', challan.status.toUpperCase()],
-          ].map(([k, v]) => (
-            <div key={k} style={{ padding: 12, background: '#fafafa', border: '1px solid #eee', borderRadius: 6, textAlign: 'center' }}>
-              <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>{k}</div>
-              <div style={{ fontSize: 14, fontWeight: 800 }}>{v}</div>
+        {(() => {
+          const t = (v?: string | null) => v ? new Date(v).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
+              {[
+                ['Dispatch Time', t(challan.dispatchTime)],
+                ['Site Arrival', t(challan.siteArrivalTime)],
+                ['Site Release', t(challan.siteReleaseTime)],
+                ['Delivery Time', t(challan.deliveryTime)],
+                ['Status', challan.status.toUpperCase()],
+              ].map(([k, v]) => (
+                <div key={k} style={{ padding: 12, background: '#fafafa', border: '1px solid #eee', borderRadius: 6, textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800 }}>{v}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
+
+        {/* Trip timing & idle charge */}
+        {(() => {
+          const timing = computeTripTiming(challan, idleConfig);
+          const cells: [string, string][] = [];
+          if (timing.travelMin != null) cells.push(['Travel Time', formatDuration(timing.travelMin)]);
+          if (timing.siteMin != null) cells.push(['Time at Site', formatDuration(timing.siteMin)]);
+          if (timing.billableIdleMin != null) cells.push(['Billable Idle', formatDuration(timing.billableIdleMin)]);
+          if (timing.idleCharge != null) cells.push(['Idle Charge', `₹${timing.idleCharge.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+          if (!cells.length) return null;
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cells.length},1fr)`, gap: 12, marginBottom: 28 }}>
+              {cells.map(([k, v]) => (
+                <div key={k} style={{ padding: 12, background: '#fffbf0', border: '1px solid #f0e0a0', borderRadius: 6, textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: '#a8801f', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#7a5c00' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {challan.notes && (
           <div style={{ padding: 12, background: '#fffbf0', border: '1px solid #f0e0a0', borderRadius: 6, marginBottom: 24, fontSize: 12 }}>

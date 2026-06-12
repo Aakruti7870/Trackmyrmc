@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Search, X, Printer, Check, Truck, StickyNote, Camera, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 import { Link } from 'wouter';
-import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site } from '@/lib/api';
+import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site, type IdleConfig } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
 import { useVarianceTolerance, isWithinTolerance } from '@/lib/variance';
+import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 
 const GRADES = ['M10','M15','M20','M25','M30','M35','M40','M45','M50','M55','M60'];
 
@@ -30,8 +31,20 @@ export default function Dispatch() {
   const swipedRef = useRef(false);
   const lastTapRef = useRef(0);
 
+  const [idleConfig, setIdleConfig] = useState<IdleConfig | undefined>(undefined);
+
   const tolerance = useVarianceTolerance();
   const { subscribe } = useSSE();
+
+  // Idle config (admin-only, best-effort) drives the billable-idle figure shown
+  // in the trip-timing column; falls back to the default free window otherwise.
+  useEffect(() => {
+    let cancelled = false;
+    api.get<IdleConfig>('/admin/idle-settings')
+      .then(cfg => { if (!cancelled) setIdleConfig({ freeMin: cfg.freeMin, ratePerHour: cfg.ratePerHour }); })
+      .catch(() => { /* non-admin or unavailable — use defaults */ });
+    return () => { cancelled = true; };
+  }, []);
 
   async function viewProof(ch: Challan) {
     setPhotoIdx(0);
@@ -194,7 +207,7 @@ export default function Dispatch() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--line)' }}>
-                {['Challan', 'Client', 'Vehicle', 'Driver', 'Grade', 'Planned', 'Delivered', 'Dispatch Time', 'Status', 'Actions'].map(h => (
+                {['Challan', 'Client', 'Vehicle', 'Driver', 'Grade', 'Planned', 'Delivered', 'Dispatch Time', 'Trip Timing', 'Status', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '12px 14px', color: 'var(--muted)', fontWeight: 600, textAlign: 'left', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -245,6 +258,23 @@ export default function Dispatch() {
                   <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>
                     {ch.dispatchTime ? new Date(ch.dispatchTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
                   </td>
+                  <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                    {(() => {
+                      const t = computeTripTiming(ch, idleConfig);
+                      if (t.travelMin == null && t.siteMin == null) return '—';
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          {t.travelMin != null && <div>Travel <span style={{ color: 'var(--text)', fontWeight: 700 }}>{formatDuration(t.travelMin)}</span></div>}
+                          {t.siteMin != null && <div>Site <span style={{ color: 'var(--text)', fontWeight: 700 }}>{formatDuration(t.siteMin)}</span></div>}
+                          {t.billableIdleMin != null && t.billableIdleMin > 0 && (
+                            <div style={{ color: 'var(--gold)', fontWeight: 700 }}>
+                              Idle {formatDuration(t.billableIdleMin)}{t.idleCharge != null ? ` · ₹${t.idleCharge.toLocaleString('en-IN')}` : ''}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td style={{ padding: '11px 14px' }}>
                     <span style={{ padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700, color: statusColor(ch.status), background: statusBg(ch.status) }}>
                       {ch.status.charAt(0).toUpperCase() + ch.status.slice(1)}
@@ -278,7 +308,7 @@ export default function Dispatch() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ padding: '30px', textAlign: 'center', color: 'var(--muted)' }}>No challans found</td></tr>
+                <tr><td colSpan={11} style={{ padding: '30px', textAlign: 'center', color: 'var(--muted)' }}>No challans found</td></tr>
               )}
             </tbody>
           </table>

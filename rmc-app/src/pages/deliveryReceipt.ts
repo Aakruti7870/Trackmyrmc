@@ -1,10 +1,11 @@
-import type { Challan } from '@/lib/api';
+import type { Challan, IdleConfig } from '@/lib/api';
+import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 
 // Builds a one-page delivery receipt for a single challan, client-side, with
 // jsPDF + autoTable and downloads it directly (no print dialog) — mirroring the
 // lazy-import export pattern in usersAuditExport.ts so the heavy pdf deps stay
 // out of the main bundle.
-export async function downloadDeliveryReceipt(c: Challan): Promise<void> {
+export async function downloadDeliveryReceipt(c: Challan, idleConfig?: IdleConfig): Promise<void> {
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -43,6 +44,7 @@ export async function downloadDeliveryReceipt(c: Challan): Promise<void> {
     v ? new Date(v).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
   const qty = (v?: string | null) => (v != null && v !== '' ? `${parseFloat(v).toFixed(2)} m³` : '—');
 
+  const timing = computeTripTiming(c, idleConfig);
   const rows: [string, string][] = [
     ['Challan No', c.challanNo],
     ['Status', c.status.charAt(0).toUpperCase() + c.status.slice(1)],
@@ -55,8 +57,14 @@ export async function downloadDeliveryReceipt(c: Challan): Promise<void> {
     ['Vehicle', c.vehicleNo || '—'],
     ['Driver', c.driverName || '—'],
     ['Dispatch Time', fmtTime(c.dispatchTime)],
+    ['Site Arrival Time', fmtTime(c.siteArrivalTime ?? undefined)],
+    ['Site Release Time', fmtTime(c.siteReleaseTime ?? undefined)],
     ['Delivery Time', fmtTime(c.deliveryTime)],
   ];
+  if (timing.travelMin != null) rows.push(['Travel Time', formatDuration(timing.travelMin)]);
+  if (timing.siteMin != null) rows.push(['Time at Site', formatDuration(timing.siteMin)]);
+  if (timing.billableIdleMin != null) rows.push(['Billable Idle', formatDuration(timing.billableIdleMin)]);
+  if (timing.idleCharge != null) rows.push(['Idle Charge', `₹${timing.idleCharge.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
 
   autoTable(doc, {
     startY: 132,

@@ -27,6 +27,7 @@ const challanSelect = {
   deliveredQuantity: challans.deliveredQuantity,
   pumpRequired: challans.pumpRequired,
   dispatchTime: challans.dispatchTime, deliveryTime: challans.deliveryTime,
+  siteArrivalTime: challans.siteArrivalTime, siteReleaseTime: challans.siteReleaseTime,
   status: challans.status, notes: challans.notes, createdAt: challans.createdAt,
   orderId: challans.orderId, clientId: challans.clientId,
   siteId: challans.siteId, vehicleId: challans.vehicleId, driverId: challans.driverId,
@@ -312,6 +313,23 @@ router.put('/:id', async (req, res) => {
   }
   if (status === 'delivered') updateData.deliveryTime = deliveryTime ? new Date(deliveryTime) : new Date();
 
+  // Staff may correct the trip timestamps. Each accepts an ISO string to set or
+  // null to clear; an invalid date is rejected rather than silently dropped.
+  for (const field of ['siteArrivalTime', 'siteReleaseTime'] as const) {
+    if (req.body[field] === undefined) continue;
+    const raw = req.body[field];
+    if (raw === null || raw === '') {
+      updateData[field] = null;
+      continue;
+    }
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) {
+      res.status(400).json({ error: `${field} must be a valid date or null` });
+      return;
+    }
+    updateData[field] = d;
+  }
+
   const [row] = await db.update(challans).set(updateData)
     .where(eq(challans.id, challanId)).returning();
   const hasProofPhoto = await challanHasProofPhoto(challanId);
@@ -319,6 +337,58 @@ router.put('/:id', async (req, res) => {
   // Notify the customer when staff mark the delivery complete (best-effort).
   if (updateData.status === 'delivered') void notifyChallanStatus(challanId, 'delivered');
   res.json({ ...row, hasProofPhoto });
+});
+
+// Manual "left site" — the driver (or staff) stamps the site release time when
+// the truck leaves, without waiting for the GPS hysteresis to detect departure.
+// Requires an arrival first and is idempotent: a second call returns the
+// already-recorded release rather than overwriting it.
+router.post('/:id/left-site', async (req, res) => {
+  const role = req.user!.role;
+  const challanId = +req.params.id;
+
+  const [challan] = await db.select({
+    driverId: challans.driverId,
+    siteArrivalTime: challans.siteArrivalTime,
+    siteReleaseTime: challans.siteReleaseTime,
+  }).from(challans).where(eq(challans.id, challanId)).limit(1);
+  if (!challan) {
+    res.status(404).json({ error: 'Challan not found' });
+    return;
+  }
+
+  if (role === 'driver') {
+    const driver = await db.select({ id: drivers.id })
+      .from(drivers).where(eq(drivers.name, req.user!.name)).limit(1);
+    if (!driver.length || challan.driverId !== driver[0].id) {
+      res.status(403).json({ error: 'Not assigned to this challan' });
+      return;
+    }
+  } else if (!WRITE_ROLES.includes(role)) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  if (challan.siteArrivalTime == null) {
+    res.status(409).json({ error: 'Site arrival has not been recorded yet' });
+    return;
+  }
+  if (challan.siteReleaseTime != null) {
+    const [row] = await db.select(challanSelect).from(challans)
+      .leftJoin(clients, eq(challans.clientId, clients.id))
+      .leftJoin(sites, eq(challans.siteId, sites.id))
+      .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
+      .leftJoin(drivers, eq(challans.driverId, drivers.id))
+      .where(eq(challans.id, challanId)).limit(1);
+    res.json(row);
+    return;
+  }
+
+  const [row] = await db.update(challans)
+    .set({ siteReleaseTime: new Date() })
+    .where(eq(challans.id, challanId)).returning();
+  emitSSEEvent('challan.updated', row, { clientId: row.clientId, driverId: row.driverId });
+  res.json(row);
 });
 
 router.delete('/:id', async (req, res) => {

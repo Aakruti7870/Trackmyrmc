@@ -111,6 +111,8 @@ export const challans = pgTable('challans', {
   pumpRequired: boolean('pump_required').notNull().default(false),
   dispatchTime: timestamp('dispatch_time'),
   deliveryTime: timestamp('delivery_time'),
+  siteArrivalTime: timestamp('site_arrival_time'),
+  siteReleaseTime: timestamp('site_release_time'),
   status: challanStatusEnum('status').notNull().default('pending'),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

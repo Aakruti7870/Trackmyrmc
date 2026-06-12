@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -157,6 +157,11 @@ export default function ProfileSettings() {
   const [varianceLoading, setVarianceLoading] = useState(false);
   const [varianceSaving, setVarianceSaving] = useState(false);
 
+  const [idleForm, setIdleForm] = useState({ freeMin: '', ratePerHour: '' });
+  const [idleDefaults, setIdleDefaults] = useState<{ freeMin: number; ratePerHour: number | null }>({ freeMin: 45, ratePerHour: null });
+  const [idleLoading, setIdleLoading] = useState(false);
+  const [idleSaving, setIdleSaving] = useState(false);
+
   const [lockouts, setLockouts] = useState<Lockout[]>([]);
   const [lockoutsLoading, setLockoutsLoading] = useState(false);
   const [clearingKey, setClearingKey] = useState<string | null>(null);
@@ -235,6 +240,26 @@ export default function ProfileSettings() {
       }
     }
     loadVariance();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function loadIdle() {
+      setIdleLoading(true);
+      try {
+        const v = await api.get<{ freeMin: number; ratePerHour: number | null; defaults: { freeMin: number; ratePerHour: number | null } }>('/admin/idle-settings');
+        if (cancelled) return;
+        setIdleForm({ freeMin: String(v.freeMin), ratePerHour: v.ratePerHour == null ? '' : String(v.ratePerHour) });
+        if (v.defaults) setIdleDefaults(v.defaults);
+      } catch {
+        /* non-fatal — keep defaults */
+      } finally {
+        if (!cancelled) setIdleLoading(false);
+      }
+    }
+    loadIdle();
     return () => { cancelled = true; };
   }, [isAdmin]);
 
@@ -410,6 +435,36 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setVarianceSaving(false);
+    }
+  }
+
+  async function handleIdleSave(e: React.FormEvent) {
+    e.preventDefault();
+    const freeMin = idleForm.freeMin.trim();
+    const ratePerHour = idleForm.ratePerHour.trim();
+    if (freeMin && (!Number.isFinite(Number(freeMin)) || Number(freeMin) < 0)) {
+      showToast('Free minutes must be a number of 0 or more.', 'error');
+      return;
+    }
+    if (ratePerHour && (!Number.isFinite(Number(ratePerHour)) || Number(ratePerHour) < 0)) {
+      showToast('Idle rate must be a number of 0 or more.', 'error');
+      return;
+    }
+    setIdleSaving(true);
+    try {
+      // Empty string clears the value: freeMin reverts to the default, rate to none.
+      const updated = await api.post<{ freeMin: number; ratePerHour: number | null; defaults: { freeMin: number; ratePerHour: number | null } }>(
+        '/admin/idle-settings',
+        { freeMin, ratePerHour },
+      );
+      setIdleForm({ freeMin: String(updated.freeMin), ratePerHour: updated.ratePerHour == null ? '' : String(updated.ratePerHour) });
+      if (updated.defaults) setIdleDefaults(updated.defaults);
+      showToast('Idle charge settings saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save idle settings';
+      showToast(msg, 'error');
+    } finally {
+      setIdleSaving(false);
     }
   }
 
@@ -854,6 +909,70 @@ export default function ProfileSettings() {
                 }}
               >
                 {varianceSaving ? 'Saving…' : 'Save tolerance'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Trip idle-charge settings card — admins only */}
+      {isAdmin && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Timer size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Trip Idle Charges</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Free waiting time after a truck arrives at site, and the optional charge for idle time beyond it</div>
+            </div>
+          </div>
+
+          {idleLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
+          ) : (
+            <form onSubmit={handleIdleSave}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <SmtpTextField
+                  label="Free window (minutes)"
+                  type="number"
+                  value={idleForm.freeMin}
+                  onChange={v => setIdleForm(f => ({ ...f, freeMin: v }))}
+                  placeholder={String(idleDefaults.freeMin)}
+                />
+                <SmtpTextField
+                  label="Idle rate (₹ / hour)"
+                  type="number"
+                  value={idleForm.ratePerHour}
+                  onChange={v => setIdleForm(f => ({ ...f, ratePerHour: v }))}
+                  placeholder="No charge"
+                />
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+                A truck's time at site is measured from <strong style={{ color: 'var(--text)' }}>site arrival</strong> to
+                <strong style={{ color: 'var(--text)' }}> site release</strong>. The first {idleForm.freeMin || idleDefaults.freeMin} minutes
+                are free; anything beyond is billable idle. Set an idle rate to also compute a charge
+                (billable idle ÷ 60 × rate). Clear the free window to fall back to the default
+                ({idleDefaults.freeMin} min). Leave the rate blank to track idle time without a money figure.
+              </div>
+
+              <button
+                type="submit"
+                disabled={idleSaving}
+                style={{
+                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
+                  background: idleSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: idleSaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14,
+                  transition: 'opacity .15s',
+                }}
+              >
+                {idleSaving ? 'Saving…' : 'Save idle settings'}
               </button>
             </form>
           )}

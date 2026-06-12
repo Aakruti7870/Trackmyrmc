@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { getVarianceTolerance } from '../lib/variance.js';
 import { computeForecast, type DailyHistory, type GradeQty } from '../lib/forecast.js';
 import { computeRunDate, toDateStr } from '../lib/recurring.js';
+import { getIdleConfig, computeTripTiming } from '../lib/idle.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -85,6 +86,40 @@ router.get('/dispatch', async (req, res) => {
   res.json(rows);
 });
 
+// Daily trip-timing & idle-charge aggregation. Travel = arrival − dispatch,
+// time at site = release − arrival, billable idle = max(0, site − freeMin), and
+// the idle charge applies the configured per-hour rate (omitted when unset).
+// Negative/out-of-order intervals are excluded so a bad manual edit can't skew
+// the numbers. Mirrors the pure computeTripTiming logic in SQL.
+router.get('/trip-timing', async (req, res) => {
+  const filters = dateRange(req as never);
+  const { freeMin, ratePerHour } = await getIdleConfig();
+
+  const travelMin = sql<number>`extract(epoch from (${challans.siteArrivalTime} - ${challans.dispatchTime})) / 60`;
+  const siteMin = sql<number>`extract(epoch from (${challans.siteReleaseTime} - ${challans.siteArrivalTime})) / 60`;
+  const hasTravel = sql`${challans.dispatchTime} is not null and ${challans.siteArrivalTime} is not null and ${challans.siteArrivalTime} >= ${challans.dispatchTime}`;
+  const hasSite = sql`${challans.siteArrivalTime} is not null and ${challans.siteReleaseTime} is not null and ${challans.siteReleaseTime} >= ${challans.siteArrivalTime}`;
+  const billableIdleMin = sql<number>`greatest(0, ${siteMin} - ${freeMin})`;
+
+  const rows = await db.select({
+    date: sql<string>`date(${challans.createdAt})`,
+    tripsWithTravel: sql<number>`count(*) filter (where ${hasTravel})::int`,
+    tripsWithSite: sql<number>`count(*) filter (where ${hasSite})::int`,
+    avgTravelMin: sql<number>`coalesce(round(avg(${travelMin}) filter (where ${hasTravel})::numeric, 1), 0)`,
+    avgSiteMin: sql<number>`coalesce(round(avg(${siteMin}) filter (where ${hasSite})::numeric, 1), 0)`,
+    totalBillableIdleMin: sql<number>`coalesce(round(sum(${billableIdleMin}) filter (where ${hasSite})::numeric, 1), 0)`,
+    idleTrips: sql<number>`count(*) filter (where ${hasSite} and ${siteMin} > ${freeMin})::int`,
+    totalIdleCharge: ratePerHour != null
+      ? sql<number>`coalesce(round((sum(${billableIdleMin}) filter (where ${hasSite}) / 60.0 * ${ratePerHour})::numeric, 2), 0)`
+      : sql<number>`0`,
+  }).from(challans)
+    .where(filters.length ? and(...filters) : undefined)
+    .groupBy(sql`date(${challans.createdAt})`)
+    .orderBy(sql`date(${challans.createdAt})`);
+
+  res.json({ freeMin, ratePerHour, rows });
+});
+
 router.get('/production', async (req, res) => {
   const { from, to } = req.query;
   const filters = [];
@@ -118,17 +153,24 @@ router.get('/export', async (req, res) => {
       deliveredQuantity: challans.deliveredQuantity,
       status: challans.status,
       dispatchTime: challans.dispatchTime,
+      siteArrivalTime: challans.siteArrivalTime,
+      siteReleaseTime: challans.siteReleaseTime,
       deliveryTime: challans.deliveryTime,
     }).from(challans)
       .leftJoin(clients, sql`${challans.clientId} = ${clients.id}`)
       .where(filters.length ? and(...filters) : undefined)
       .orderBy(desc(challans.createdAt));
-    csv = 'Challan No,Client,Grade,Planned Qty (m³),Delivered Qty (m³),Variance (m³),Status,Dispatch Time,Delivery Time\n';
+    const cfg = await getIdleConfig();
+    csv = 'Challan No,Client,Grade,Planned Qty (m³),Delivered Qty (m³),Variance (m³),Status,Dispatch Time,Site Arrival,Site Release,Delivery Time,Travel (min),Time at Site (min),Billable Idle (min),Idle Charge\n';
     csv += rows.map(r => {
       const variance = r.deliveredQuantity != null
         ? (Number(r.deliveredQuantity) - Number(r.quantity)).toFixed(2)
         : '';
-      return `${r.challanNo},"${r.clientName}",${r.grade},${r.quantity},${r.deliveredQuantity ?? ''},${variance},${r.status},${r.dispatchTime || ''},${r.deliveryTime || ''}`;
+      const t = computeTripTiming({
+        dispatchTime: r.dispatchTime, siteArrivalTime: r.siteArrivalTime,
+        siteReleaseTime: r.siteReleaseTime, config: cfg,
+      });
+      return `${r.challanNo},"${r.clientName}",${r.grade},${r.quantity},${r.deliveredQuantity ?? ''},${variance},${r.status},${r.dispatchTime || ''},${r.siteArrivalTime || ''},${r.siteReleaseTime || ''},${r.deliveryTime || ''},${t.travelMin ?? ''},${t.siteMin ?? ''},${t.billableIdleMin ?? ''},${t.idleCharge ?? ''}`;
     }).join('\n');
   } else if (report === 'production') {
     const bfilters = [];

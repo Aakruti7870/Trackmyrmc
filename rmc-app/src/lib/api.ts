@@ -107,11 +107,21 @@ export interface Challan {
   clientId: number; siteId?: number; vehicleId?: number; driverId?: number;
   grade: string; quantity: string; deliveredQuantity?: string | null; pumpRequired: boolean;
   dispatchTime?: string; deliveryTime?: string;
+  siteArrivalTime?: string | null; siteReleaseTime?: string | null;
   status: string; notes?: string; createdAt: string;
   clientName?: string; siteName?: string;
   siteLat?: string | null; siteLng?: string | null;
   vehicleNo?: string; driverName?: string; driverPhone?: string;
   proofPhotos?: string[]; hasProofPhoto?: boolean;
+}
+
+export interface IdleConfig {
+  freeMin: number;
+  ratePerHour: number | null;
+}
+
+export interface IdleSettings extends IdleConfig {
+  defaults: { freeMin: number; ratePerHour: number | null };
 }
 
 export interface Vehicle {
@@ -162,6 +172,8 @@ export interface LivePosition {
 export interface PositionUpdateResult {
   ok: boolean; distanceM: number | null; delivered: boolean;
   withinRadius: boolean; inRadiusCount: number;
+  released?: boolean; arrived?: boolean;
+  siteArrivalTime?: string | null; siteReleaseTime?: string | null;
 }
 
 export type FreshnessLevel = 'fresh' | 'warning' | 'critical' | 'expired';

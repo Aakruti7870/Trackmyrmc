@@ -21,3 +21,4 @@
 - [Leaflet markers under Vite](leaflet-vite-markers.md) — Leaflet default marker PNGs break when bundled; every map/marker must supply its own L.icon with absolute/CDN URLs (free OSM+Nominatim stack, no API key).
 - [RMC recurring scheduler](rmc-recurring-scheduler.md) — periodic "read due rows then write" loops must claim each row in its own tx with FOR UPDATE SKIP LOCKED + advance schedule in same tx, or boot/interval overlap & crashes double-fire.
 - [RMC MyOrders error surfaces](rmc-myorders-error-banner.md) — page-level `error` state is a full-page replacement; per-action failures must use a local dismissible banner, not setError.
+- [RMC test baseline failures](rmc-test-baseline-failures.md) — `pnpm test` has 7 pre-existing server + 6 frontend (MyOrders place-order/quick-actions `/positions/mine` not-iterable) failures; verify before blaming your change.

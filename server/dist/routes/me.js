@@ -28,6 +28,7 @@ const challanSelect = {
     deliveredQuantity: challans.deliveredQuantity,
     pumpRequired: challans.pumpRequired,
     dispatchTime: challans.dispatchTime, deliveryTime: challans.deliveryTime,
+    siteArrivalTime: challans.siteArrivalTime, siteReleaseTime: challans.siteReleaseTime,
     status: challans.status, notes: challans.notes, createdAt: challans.createdAt,
     orderId: challans.orderId, clientId: challans.clientId,
     siteId: challans.siteId, vehicleId: challans.vehicleId, driverId: challans.driverId,
