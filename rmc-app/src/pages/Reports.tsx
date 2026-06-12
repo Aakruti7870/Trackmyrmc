@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, Download, Calendar } from 'lucide-react';
-import { api } from '@/lib/api';
+import { BarChart3, Download, Calendar, Fuel, AlertTriangle, MapPin, Check } from 'lucide-react';
+import { api, type FuelReconResponse, type VehicleAlert } from '@/lib/api';
 import { useVarianceTolerance, isWithinTolerance } from '@/lib/variance';
 
-type ReportTab = 'client-wise' | 'grade-wise' | 'dispatch' | 'trip-timing' | 'production';
+type ReportTab = 'client-wise' | 'grade-wise' | 'dispatch' | 'trip-timing' | 'production' | 'fuel';
 
 interface ClientRow { clientName: string; totalQty: number; deliveredQty: number; plannedForDelivered: number; variance: number; totalChallans: number }
 interface GradeRow { grade: string; totalQty: number; deliveredQty: number; plannedForDelivered: number; variance: number; totalChallans: number }
@@ -31,6 +31,8 @@ export default function Reports() {
   const [dispatchData, setDispatchData] = useState<DispatchRow[]>([]);
   const [productionData, setProductionData] = useState<ProductionRow[]>([]);
   const [tripTiming, setTripTiming] = useState<TripTimingResponse>({ freeMin: 45, ratePerHour: null, rows: [] });
+  const [fuelRecon, setFuelRecon] = useState<FuelReconResponse | null>(null);
+  const [alerts, setAlerts] = useState<VehicleAlert[]>([]);
   const [loading, setLoading] = useState(false);
   const tolerance = useVarianceTolerance();
 
@@ -48,15 +50,18 @@ export default function Reports() {
     async function loadAll() {
       setLoading(true);
       const params = `?from=${from}T00:00:00&to=${to}T23:59:59`;
-      const [c, g, d, p, tt] = await Promise.all([
+      const [c, g, d, p, tt, fr, al] = await Promise.all([
         api.get<ClientRow[]>(`/reports/client-wise${params}`),
         api.get<GradeRow[]>(`/reports/grade-wise${params}`),
         api.get<DispatchRow[]>(`/reports/dispatch${params}`),
         api.get<ProductionRow[]>(`/reports/production${params}`),
         api.get<TripTimingResponse>(`/reports/trip-timing${params}`),
+        api.get<FuelReconResponse>(`/reports/fuel-reconciliation${params}`),
+        api.get<VehicleAlert[]>(`/positions/alerts?open=1`),
       ]);
       if (cancelled) return;
       setClientData(c); setGradeData(g); setDispatchData(d); setProductionData(p); setTripTiming(tt);
+      setFuelRecon(fr); setAlerts(al);
       setLoading(false);
     }
     loadAll();
@@ -88,7 +93,7 @@ export default function Reports() {
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Reports</h2>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>Analytics &amp; exports</p>
         </div>
-        <button onClick={() => downloadCSV(tab === 'production' ? 'production' : 'dispatch')} style={{
+        <button onClick={() => downloadCSV(tab === 'production' ? 'production' : tab === 'fuel' ? 'fuel-reconciliation' : 'dispatch')} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
           background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.2)',
           color: 'var(--green)', fontWeight: 700, fontSize: 13, borderRadius: 10, cursor: 'pointer',
@@ -139,7 +144,7 @@ export default function Reports() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 18, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 12, padding: 4 }}>
-        {(['client-wise', 'grade-wise', 'dispatch', 'trip-timing', 'production'] as ReportTab[]).map(t => (
+        {(['client-wise', 'grade-wise', 'dispatch', 'trip-timing', 'production', 'fuel'] as ReportTab[]).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             flex: 1, padding: '9px', background: tab === t ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'transparent',
             border: tab === t ? '1px solid color-mix(in srgb, var(--gold) 25%, transparent)' : '1px solid transparent',
@@ -156,7 +161,7 @@ export default function Reports() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
             <BarChart3 size={16} style={{ color: 'var(--gold)' }} />
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
-              {tab === 'client-wise' ? 'Client-wise Dispatch' : tab === 'grade-wise' ? 'Grade-wise Production' : tab === 'dispatch' ? 'Daily Dispatch Trend' : tab === 'trip-timing' ? 'Trip Timing & Idle Charges' : 'Daily Production'}
+              {tab === 'client-wise' ? 'Client-wise Dispatch' : tab === 'grade-wise' ? 'Grade-wise Production' : tab === 'dispatch' ? 'Daily Dispatch Trend' : tab === 'trip-timing' ? 'Trip Timing & Idle Charges' : tab === 'fuel' ? 'Fuel Reconciliation & Theft Alerts' : 'Daily Production'}
             </h3>
           </div>
 
@@ -334,6 +339,85 @@ export default function Reports() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {tab === 'fuel' && (
+            <div>
+              {/* Theft / unscheduled-stop & route-deviation alerts */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <AlertTriangle size={15} style={{ color: alerts.length ? 'var(--red)' : 'var(--muted)' }} />
+                  <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Open Theft / Movement Alerts {alerts.length > 0 && <span style={{ color: 'var(--red)' }}>({alerts.length})</span>}</h4>
+                </div>
+                {alerts.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12, padding: '8px 0' }}>No open alerts. Unscheduled stops & route deviations show up here.</div>}
+                {alerts.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {alerts.map(a => (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'rgba(239,68,68,.07)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 10 }}>
+                        <MapPin size={15} style={{ color: 'var(--red)', flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>
+                            {a.type === 'unscheduled_stop' ? 'Unscheduled stop' : 'Route deviation'}
+                            {a.vehicleNo && <span style={{ color: 'var(--muted)', fontWeight: 500 }}> · {a.vehicleNo}</span>}
+                            {a.driverName && <span style={{ color: 'var(--muted)', fontWeight: 500 }}> · {a.driverName}</span>}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                            {a.detail || (a.distanceM != null ? `${a.distanceM} m` : '')}
+                            {a.challanNo && ` · ${a.challanNo}`} · {new Date(a.createdAt).toLocaleString('en-IN')}
+                          </div>
+                        </div>
+                        <button
+                          onClick={async () => { await api.post(`/positions/alerts/${a.id}/ack`, {}); setAlerts(prev => prev.filter(x => x.id !== a.id)); }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'var(--text)', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}
+                        ><Check size={13} /> Acknowledge</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Per-vehicle fuel reconciliation */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <Fuel size={15} style={{ color: 'var(--gold)' }} />
+                <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Per-vehicle Reconciliation</h4>
+                {fuelRecon && <span style={{ fontSize: 11, color: 'var(--muted)' }}>variance threshold {fuelRecon.config.reconVariancePct}%</span>}
+              </div>
+              {(!fuelRecon || fuelRecon.rows.length === 0) && <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>No fuel data for this period. Log diesel fills and set vehicle mileage to enable reconciliation.</div>}
+              {fuelRecon && fuelRecon.rows.length > 0 && (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                        {['Vehicle', 'Distance (km)', 'Idle (h)', 'Expected (L)', 'Actual (L)', 'Variance', 'Fills'].map(h => (
+                          <th key={h} style={{ padding: '8px 12px', color: 'var(--muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fuelRecon.rows.map(r => (
+                        <tr key={r.vehicleId} style={{ borderBottom: '1px solid rgba(38,52,73,.4)', background: r.flagged ? 'rgba(239,68,68,.06)' : 'transparent' }}>
+                          <td style={{ padding: '8px 12px', fontWeight: 700 }}>
+                            {r.flagged && <AlertTriangle size={12} style={{ color: 'var(--red)', marginRight: 5, verticalAlign: 'middle' }} />}
+                            {r.vehicleNo || `#${r.vehicleId}`}
+                          </td>
+                          <td style={{ padding: '8px 12px' }}>{r.km.toFixed(0)} <span style={{ color: 'var(--muted)', fontSize: 11 }}>({r.tripsWithOdometer}/{r.trips})</span></td>
+                          <td style={{ padding: '8px 12px' }}>{r.idleHours.toFixed(1)}</td>
+                          <td style={{ padding: '8px 12px' }}>{r.expectedLitres != null ? r.expectedLitres.toFixed(1) : <span style={{ color: 'var(--muted)' }} title="Set vehicle mileage to compute">n/a</span>}</td>
+                          <td style={{ padding: '8px 12px', fontWeight: 700 }}>{r.actualLitres.toFixed(1)}</td>
+                          <td style={{ padding: '8px 12px', fontWeight: 700, color: r.variancePct == null ? 'var(--muted)' : r.flagged ? 'var(--red)' : 'var(--green)' }}>
+                            {r.variancePct != null ? `${r.variancePct > 0 ? '+' : ''}${r.variancePct.toFixed(1)}%` : '—'}
+                          </td>
+                          <td style={{ padding: '8px 12px', color: 'var(--muted)' }}>{r.fills}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10 }}>
+                    Expected = distance ÷ mileage (km/L) + idle hours × idle burn (L/h). Rows over the variance threshold are flagged as possible theft/leakage.
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

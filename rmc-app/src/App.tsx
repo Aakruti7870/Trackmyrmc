@@ -7,6 +7,7 @@ import { ToastProvider } from '@/lib/toast-provider';
 import { ThemeProvider } from '@/lib/theme-providers';
 import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
+import Register from '@/pages/Register';
 import Landing from '@/pages/Landing';
 import Dashboard from '@/pages/Dashboard';
 import Orders from '@/pages/Orders';
@@ -121,6 +122,12 @@ function LoginRoute() {
   return <Login />;
 }
 
+function RegisterRoute() {
+  const { user } = useAuth();
+  if (user) return <Redirect to={defaultPath(user.role)} />;
+  return <Register />;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
@@ -128,6 +135,7 @@ export default function App() {
         <ToastProvider>
           <Switch>
             <Route path="/login" component={LoginRoute} />
+            <Route path="/register" component={RegisterRoute} />
             <Route component={ProtectedRoutes} />
           </Switch>
         </ToastProvider>

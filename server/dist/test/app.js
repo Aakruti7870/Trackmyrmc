@@ -12,6 +12,7 @@ import orderRoutes from '../routes/orders.js';
 import positionRoutes from '../routes/positions.js';
 import recurringRoutes from '../routes/recurring.js';
 import reportRoutes from '../routes/reports.js';
+import fuelRoutes from '../routes/fuel.js';
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
 // app.listen and registers background intervals).
@@ -33,5 +34,6 @@ export function buildTestApp() {
     app.use('/api/positions', positionRoutes);
     app.use('/api/recurring', recurringRoutes);
     app.use('/api/reports', reportRoutes);
+    app.use('/api/fuel', fuelRoutes);
     return app;
 }

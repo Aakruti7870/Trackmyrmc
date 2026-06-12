@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { eq } from 'drizzle-orm';
+import { eq, desc, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { challans, sites, vehicles, drivers, clients } from '../db/schema.js';
+import { challans, sites, vehicles, drivers, clients, vehicleAlerts } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { notifyChallanStatus } from '../lib/deliveryNotify.js';
 import { getFreshnessConfig, computeFreshness } from '../lib/freshness.js';
+import { getFuelConfig } from '../lib/fuelConfig.js';
 const router = Router();
 router.use(requireAuth);
 // Geofence tuning. A delivery auto-completes only after the driver reports
@@ -35,6 +36,64 @@ function haversineM(lat1, lon1, lat2, lon2) {
 function numOrNull(v) {
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
+}
+// --- Theft / route-deviation alert tuning ----------------------------------
+// A truck that moves more than this from its "stopped" anchor is considered to
+// be on the move again, resetting the stationary timer (debounces GPS jitter so
+// a parked truck isn't repeatedly re-anchored, and a moving truck never trips
+// the stop alert).
+const STOP_MOVE_RADIUS_M = 80;
+// Within this distance of the plant counts as "at the plant" — idling at base is
+// not an unscheduled stop.
+const PLANT_RADIUS_M = 200;
+// Settings rarely change but the GPS path is hit every few seconds per truck, so
+// cache the fuel/theft config briefly to avoid a DB read on every fix.
+let fuelCfgCache = null;
+const FUEL_CFG_TTL_MS = 60_000;
+async function getFuelConfigCached() {
+    const now = Date.now();
+    if (fuelCfgCache && now - fuelCfgCache.at < FUEL_CFG_TTL_MS)
+        return fuelCfgCache.cfg;
+    const cfg = await getFuelConfig();
+    fuelCfgCache = { cfg, at: now };
+    return cfg;
+}
+// Shortest distance (metres) from point P to the plant→site segment A→B, using a
+// local equirectangular projection anchored at the plant. Accurate enough at the
+// city scale these trips run at, and cheap to compute per fix.
+function pointToSegmentM(plat, plng, alat, alng, blat, blng) {
+    const R = 6371000;
+    const toRad = (d) => (d * Math.PI) / 180;
+    const lat0 = toRad(alat);
+    const proj = (lat, lng) => ({
+        x: R * toRad(lng - alng) * Math.cos(lat0),
+        y: R * toRad(lat - alat),
+    });
+    const p = proj(plat, plng);
+    const b = proj(blat, blng);
+    const abx = b.x, aby = b.y; // A is the projection origin (0,0)
+    const ab2 = abx * abx + aby * aby;
+    let t = ab2 === 0 ? 0 : (p.x * abx + p.y * aby) / ab2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = t * abx, cy = t * aby;
+    const dx = p.x - cx, dy = p.y - cy;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+// Persists a detected alert (positions are ephemeral, so the alert must be
+// stored when first seen) and fans it out to staff over SSE. The empty audience
+// reaches staff connections only — clients and drivers never receive it.
+async function persistVehicleAlert(a) {
+    const [alert] = await db.insert(vehicleAlerts).values({
+        challanId: a.challanId,
+        vehicleId: a.vehicleId,
+        driverId: a.driverId,
+        type: a.type,
+        lat: a.lat.toString(),
+        lng: a.lng.toString(),
+        distanceM: a.distanceM,
+        detail: a.detail,
+    }).returning();
+    emitSSEEvent('vehicle.alert', alert, {});
 }
 // Driver streams a live GPS fix for one of their assigned challans.
 router.post('/', requireRole('driver'), async (req, res) => {
@@ -142,6 +201,75 @@ router.post('/', requireRole('driver'), async (req, res) => {
     else {
         outRadiusCount = 0;
     }
+    // --- Unscheduled-stop & route-deviation detection ------------------------
+    // Carry the stationary anchor + dedupe flags forward from the previous fix.
+    let anchorLat = prev?.anchorLat ?? null;
+    let anchorLng = prev?.anchorLng ?? null;
+    let anchorSince = prev?.anchorSince ?? null;
+    let stopAlerted = prev?.stopAlerted ?? false;
+    let deviationAlerted = prev?.deviationAlerted ?? false;
+    const cfg = await getFuelConfigCached();
+    const goodAccuracy = acc == null || acc <= MAX_ACCURACY_M;
+    const hasPlant = cfg.plantLat != null && cfg.plantLng != null;
+    // Detection only runs on good fixes and only when plant coordinates are
+    // configured (needed to exclude "idling at base" and to anchor the corridor).
+    if (goodAccuracy && hasPlant) {
+        const plantLat = Number(cfg.plantLat);
+        const plantLng = Number(cfg.plantLng);
+        // Re-anchor when the truck has clearly moved; this also debounces jitter.
+        const movedFromAnchor = anchorLat == null || anchorLng == null
+            ? Infinity
+            : haversineM(latitude, longitude, anchorLat, anchorLng);
+        if (movedFromAnchor > STOP_MOVE_RADIUS_M) {
+            anchorLat = latitude;
+            anchorLng = longitude;
+            anchorSince = new Date().toISOString();
+            stopAlerted = false;
+        }
+        const plantDistM = haversineM(latitude, longitude, plantLat, plantLng);
+        const atPlant = plantDistM <= PLANT_RADIUS_M;
+        const atSite = distanceM != null && distanceM <= GEOFENCE_RADIUS_M;
+        // Unscheduled stop: stationary past the threshold, away from plant and site.
+        if (!stopAlerted && !atPlant && !atSite && anchorSince) {
+            const stoppedMin = (Date.now() - new Date(anchorSince).getTime()) / 60000;
+            if (stoppedMin >= cfg.unscheduledStopMin) {
+                stopAlerted = true;
+                await persistVehicleAlert({
+                    challanId: cid,
+                    vehicleId: row.vehicleId,
+                    driverId: row.driverId,
+                    type: 'unscheduled_stop',
+                    lat: latitude,
+                    lng: longitude,
+                    distanceM: Math.round(plantDistM),
+                    detail: `Stopped ~${Math.round(stoppedMin)} min away from plant and site${row.siteName ? ` (en route to ${row.siteName})` : ''}`,
+                });
+            }
+        }
+        // Route deviation: too far off the straight plant→site corridor while still
+        // heading to site. Requires site coordinates; re-arms once back on corridor.
+        if (status === 'dispatched' && row.siteLat != null && row.siteLng != null) {
+            const offCorridorM = pointToSegmentM(latitude, longitude, plantLat, plantLng, Number(row.siteLat), Number(row.siteLng));
+            if (offCorridorM > cfg.routeDeviationM) {
+                if (!deviationAlerted) {
+                    deviationAlerted = true;
+                    await persistVehicleAlert({
+                        challanId: cid,
+                        vehicleId: row.vehicleId,
+                        driverId: row.driverId,
+                        type: 'route_deviation',
+                        lat: latitude,
+                        lng: longitude,
+                        distanceM: Math.round(offCorridorM),
+                        detail: `~${Math.round(offCorridorM)} m off the expected route to ${row.siteName ?? 'site'}`,
+                    });
+                }
+            }
+            else {
+                deviationAlerted = false;
+            }
+        }
+    }
     const live = {
         challanId: cid,
         challanNo: row.challanNo,
@@ -164,6 +292,11 @@ router.post('/', requireRole('driver'), async (req, res) => {
         siteArrivalTime: arrivalTime ? new Date(arrivalTime).toISOString() : null,
         siteReleaseTime: releaseTime ? new Date(releaseTime).toISOString() : null,
         updatedAt: new Date().toISOString(),
+        anchorLat,
+        anchorLng,
+        anchorSince,
+        stopAlerted,
+        deviationAlerted,
     };
     livePositions.set(cid, live);
     // Scope the live GPS stream so a client only sees positions for their own
@@ -202,6 +335,55 @@ router.get('/mine', requireRole('client'), async (req, res) => {
     }
     const mine = Array.from(livePositions.values()).filter(p => p.clientId === clientId);
     res.json(mine);
+});
+// Staff theft/route-deviation alert feed. Persisted (positions are ephemeral),
+// most-recent-first. `?open=1` returns only unacknowledged alerts.
+router.get('/alerts', requireRole('admin', 'dispatcher', 'authority'), async (req, res) => {
+    const onlyOpen = req.query.open === '1' || req.query.unacknowledged === '1';
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const rows = await db
+        .select({
+        id: vehicleAlerts.id,
+        type: vehicleAlerts.type,
+        challanId: vehicleAlerts.challanId,
+        vehicleId: vehicleAlerts.vehicleId,
+        driverId: vehicleAlerts.driverId,
+        lat: vehicleAlerts.lat,
+        lng: vehicleAlerts.lng,
+        distanceM: vehicleAlerts.distanceM,
+        detail: vehicleAlerts.detail,
+        acknowledgedAt: vehicleAlerts.acknowledgedAt,
+        createdAt: vehicleAlerts.createdAt,
+        challanNo: challans.challanNo,
+        vehicleNo: vehicles.vehicleNo,
+        driverName: drivers.name,
+    })
+        .from(vehicleAlerts)
+        .leftJoin(challans, eq(vehicleAlerts.challanId, challans.id))
+        .leftJoin(vehicles, eq(vehicleAlerts.vehicleId, vehicles.id))
+        .leftJoin(drivers, eq(vehicleAlerts.driverId, drivers.id))
+        .where(onlyOpen ? isNull(vehicleAlerts.acknowledgedAt) : undefined)
+        .orderBy(desc(vehicleAlerts.createdAt))
+        .limit(limit);
+    res.json(rows);
+});
+// Acknowledge (dismiss) a single alert.
+router.post('/alerts/:id/ack', requireRole('admin', 'dispatcher', 'authority'), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid alert id' });
+        return;
+    }
+    const [row] = await db
+        .update(vehicleAlerts)
+        .set({ acknowledgedAt: new Date() })
+        .where(eq(vehicleAlerts.id, id))
+        .returning();
+    if (!row) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
+    res.json(row);
 });
 // Shared by the freshness endpoint and the background alert ticker: pull every
 // currently-dispatched (in-transit) challan, fold in its latest live GPS fix if

@@ -18,6 +18,7 @@ import auditRoutes from './routes/audit.js';
 import adminRoutes from './routes/admin.js';
 import positionRoutes from './routes/positions.js';
 import recurringRoutes from './routes/recurring.js';
+import fuelRoutes from './routes/fuel.js';
 import eventsRoutes from './routes/events.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
@@ -44,6 +45,7 @@ app.use('/api/audit-logs', auditRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/positions', positionRoutes);
 app.use('/api/recurring', recurringRoutes);
+app.use('/api/fuel', fuelRoutes);
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

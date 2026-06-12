@@ -182,6 +182,16 @@ export default function Login() {
             </button>
           </form>
 
+          <div style={{ marginTop: 18, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
+            New customer?{' '}
+            <button type="button" onClick={() => setLoc('/register')} style={{
+              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+              color: 'var(--gold)', fontWeight: 700, fontSize: 13, textDecoration: 'underline',
+            }}>
+              Create an account
+            </button>
+          </div>
+
           <div style={{ marginTop: 24, padding: '14px', background: 'color-mix(in srgb, var(--gold) 6%, transparent)', borderRadius: 10, border: '1px solid color-mix(in srgb, var(--gold) 12%, transparent)' }}>
             <div style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 700, marginBottom: 4 }}>💡 Quick Start</div>
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>Click any demo account above to auto-fill credentials</div>

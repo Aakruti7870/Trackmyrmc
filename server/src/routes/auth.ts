@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
 import { db } from '../db/index.js';
-import { users } from '../db/schema.js';
+import { users, clients, auditLogs } from '../db/schema.js';
 import { verifyToken as clerkVerifyToken, createClerkClient } from '@clerk/backend';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { isAuthorityEmail } from '../lib/authority.js';
@@ -249,6 +250,94 @@ router.post('/clerk', async (req, res) => {
       linkedClientId: user.linkedClientId,
       linkedDriverId: user.linkedDriverId,
     },
+  });
+});
+
+// --- Self-service customer registration ------------------------------------
+// Public endpoint: a prospective customer creates their own company + login.
+// Accounts are created INACTIVE (isActive=false) and stay locked out of login
+// until an administrator approves them from the Users screen. This prevents
+// anonymous strangers from instantly transacting while still letting genuine
+// clients sign themselves up.
+const registerSchema = z.object({
+  name: z.string().trim().min(2, 'Your name is required').max(120),
+  companyName: z.string().trim().min(2, 'Company name is required').max(160),
+  email: z.string().trim().toLowerCase().email('A valid email is required').max(160),
+  phone: z.string().trim().min(6, 'A valid phone number is required').max(30),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(200),
+  gstNo: z.string().trim().max(30).optional().or(z.literal('')),
+  city: z.string().trim().max(120).optional().or(z.literal('')),
+  address: z.string().trim().max(400).optional().or(z.literal('')),
+});
+
+router.post('/register', async (req, res) => {
+  // Throttle by client IP so the public endpoint cannot be used to mass-create
+  // accounts. Reuses the same lockout store as failed logins.
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+    || req.socket.remoteAddress || 'unknown';
+  const rateKey = `register:${ip}`;
+  const { locked, retryAfterMs } = await isLockedOut(rateKey);
+  if (locked) {
+    const minutes = Math.ceil(retryAfterMs! / 60000);
+    res.status(429).json({ error: `Too many registration attempts. Please try again in ${minutes} minute${minutes !== 1 ? 's' : ''}.` });
+    return;
+  }
+  await recordFailure(rateKey);
+
+  const parse = registerSchema.safeParse(req.body ?? {});
+  if (!parse.success) {
+    res.status(400).json({ error: parse.error.issues[0]?.message ?? 'Invalid registration details' });
+    return;
+  }
+  const data = parse.data;
+
+  // Reject duplicates against any existing account (including soft-deleted) so a
+  // self-registration can never collide with or resurrect a managed account.
+  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, data.email));
+  if (existing) {
+    res.status(409).json({ error: 'An account with this email already exists. Please sign in instead.' });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(data.password, 10);
+  const newUser = await db.transaction(async (tx) => {
+    const [client] = await tx.insert(clients).values({
+      name: data.companyName,
+      contactPerson: data.name,
+      phone: data.phone,
+      email: data.email,
+      gstNo: data.gstNo || null,
+      city: data.city || null,
+      address: data.address || null,
+    }).returning();
+
+    const [user] = await tx.insert(users).values({
+      name: data.name,
+      email: data.email,
+      passwordHash,
+      role: 'client',
+      isActive: false,
+      linkedClientId: client.id,
+    }).returning();
+
+    await tx.insert(auditLogs).values({
+      actorId: null,
+      actorName: data.name,
+      action: 'account_registered',
+      targetUserId: user.id,
+      targetUserEmail: user.email,
+      status: 'pending',
+      detail: `Self-registered customer "${data.companyName}" — awaiting admin approval`,
+    });
+
+    return user;
+  });
+
+  res.status(201).json({
+    ok: true,
+    pendingApproval: true,
+    message: 'Registration received. An administrator will review and activate your account, then you can sign in.',
+    userId: newUser.id,
   });
 });
 

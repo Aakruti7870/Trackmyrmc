@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer } from 'lucide-react';
-import { api } from '@/lib/api';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel } from 'lucide-react';
+import { api, type FuelSettings } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { ThemeSwitcher } from '@/lib/theme-providers';
@@ -162,6 +162,11 @@ export default function ProfileSettings() {
   const [idleLoading, setIdleLoading] = useState(false);
   const [idleSaving, setIdleSaving] = useState(false);
 
+  const [fuelForm, setFuelForm] = useState({ reconVariancePct: '', idleBurnLph: '', unscheduledStopMin: '', routeDeviationM: '', plantLat: '', plantLng: '' });
+  const [fuelDefaults, setFuelDefaults] = useState<FuelSettings['defaults'] | null>(null);
+  const [fuelLoading, setFuelLoading] = useState(false);
+  const [fuelSaving, setFuelSaving] = useState(false);
+
   const [lockouts, setLockouts] = useState<Lockout[]>([]);
   const [lockoutsLoading, setLockoutsLoading] = useState(false);
   const [clearingKey, setClearingKey] = useState<string | null>(null);
@@ -260,6 +265,33 @@ export default function ProfileSettings() {
       }
     }
     loadIdle();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function loadFuel() {
+      setFuelLoading(true);
+      try {
+        const v = await api.get<FuelSettings>('/admin/fuel-settings');
+        if (cancelled) return;
+        setFuelForm({
+          reconVariancePct: String(v.reconVariancePct),
+          idleBurnLph: String(v.idleBurnLph),
+          unscheduledStopMin: String(v.unscheduledStopMin),
+          routeDeviationM: String(v.routeDeviationM),
+          plantLat: v.plantLat == null ? '' : String(v.plantLat),
+          plantLng: v.plantLng == null ? '' : String(v.plantLng),
+        });
+        if (v.defaults) setFuelDefaults(v.defaults);
+      } catch {
+        /* non-fatal — keep defaults */
+      } finally {
+        if (!cancelled) setFuelLoading(false);
+      }
+    }
+    loadFuel();
     return () => { cancelled = true; };
   }, [isAdmin]);
 
@@ -465,6 +497,63 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setIdleSaving(false);
+    }
+  }
+
+  async function handleFuelSave(e: React.FormEvent) {
+    e.preventDefault();
+    const nums: Array<[string, string]> = [
+      ['Variance threshold', fuelForm.reconVariancePct],
+      ['Idle burn rate', fuelForm.idleBurnLph],
+      ['Unscheduled stop minutes', fuelForm.unscheduledStopMin],
+      ['Route deviation metres', fuelForm.routeDeviationM],
+    ];
+    for (const [label, val] of nums) {
+      const t = val.trim();
+      if (t && (!Number.isFinite(Number(t)) || Number(t) < 0)) {
+        showToast(`${label} must be a number of 0 or more.`, 'error');
+        return;
+      }
+    }
+    const lat = fuelForm.plantLat.trim();
+    const lng = fuelForm.plantLng.trim();
+    if ((lat === '') !== (lng === '')) {
+      showToast('Set both plant latitude and longitude, or leave both blank.', 'error');
+      return;
+    }
+    if (lat && (!Number.isFinite(Number(lat)) || Number(lat) < -90 || Number(lat) > 90)) {
+      showToast('Plant latitude must be between -90 and 90.', 'error');
+      return;
+    }
+    if (lng && (!Number.isFinite(Number(lng)) || Number(lng) < -180 || Number(lng) > 180)) {
+      showToast('Plant longitude must be between -180 and 180.', 'error');
+      return;
+    }
+    setFuelSaving(true);
+    try {
+      const updated = await api.post<FuelSettings>('/admin/fuel-settings', {
+        reconVariancePct: fuelForm.reconVariancePct.trim(),
+        idleBurnLph: fuelForm.idleBurnLph.trim(),
+        unscheduledStopMin: fuelForm.unscheduledStopMin.trim(),
+        routeDeviationM: fuelForm.routeDeviationM.trim(),
+        plantLat: lat,
+        plantLng: lng,
+      });
+      setFuelForm({
+        reconVariancePct: String(updated.reconVariancePct),
+        idleBurnLph: String(updated.idleBurnLph),
+        unscheduledStopMin: String(updated.unscheduledStopMin),
+        routeDeviationM: String(updated.routeDeviationM),
+        plantLat: updated.plantLat == null ? '' : String(updated.plantLat),
+        plantLng: updated.plantLng == null ? '' : String(updated.plantLng),
+      });
+      if (updated.defaults) setFuelDefaults(updated.defaults);
+      showToast('Fuel & alert settings saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save fuel settings';
+      showToast(msg, 'error');
+    } finally {
+      setFuelSaving(false);
     }
   }
 
@@ -973,6 +1062,97 @@ export default function ProfileSettings() {
                 }}
               >
                 {idleSaving ? 'Saving…' : 'Save idle settings'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Diesel cost-control & theft-alert settings card — admins only */}
+      {isAdmin && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Fuel size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Diesel & Theft Alerts</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Fuel reconciliation tolerance, idle burn rate, and the plant location used to detect unscheduled stops & route deviations</div>
+            </div>
+          </div>
+
+          {fuelLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
+          ) : (
+            <form onSubmit={handleFuelSave}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <SmtpTextField
+                  label="Reconciliation variance (%)"
+                  type="number"
+                  value={fuelForm.reconVariancePct}
+                  onChange={v => setFuelForm(f => ({ ...f, reconVariancePct: v }))}
+                  placeholder={fuelDefaults ? String(fuelDefaults.reconVariancePct) : '15'}
+                />
+                <SmtpTextField
+                  label="Default idle burn (L / hour)"
+                  type="number"
+                  value={fuelForm.idleBurnLph}
+                  onChange={v => setFuelForm(f => ({ ...f, idleBurnLph: v }))}
+                  placeholder={fuelDefaults ? String(fuelDefaults.idleBurnLph) : '2'}
+                />
+                <SmtpTextField
+                  label="Unscheduled stop (minutes)"
+                  type="number"
+                  value={fuelForm.unscheduledStopMin}
+                  onChange={v => setFuelForm(f => ({ ...f, unscheduledStopMin: v }))}
+                  placeholder={fuelDefaults ? String(fuelDefaults.unscheduledStopMin) : '10'}
+                />
+                <SmtpTextField
+                  label="Route deviation (metres)"
+                  type="number"
+                  value={fuelForm.routeDeviationM}
+                  onChange={v => setFuelForm(f => ({ ...f, routeDeviationM: v }))}
+                  placeholder={fuelDefaults ? String(fuelDefaults.routeDeviationM) : '500'}
+                />
+                <SmtpTextField
+                  label="Plant latitude"
+                  type="number"
+                  value={fuelForm.plantLat}
+                  onChange={v => setFuelForm(f => ({ ...f, plantLat: v }))}
+                  placeholder="e.g. 23.0225"
+                />
+                <SmtpTextField
+                  label="Plant longitude"
+                  type="number"
+                  value={fuelForm.plantLng}
+                  onChange={v => setFuelForm(f => ({ ...f, plantLng: v }))}
+                  placeholder="e.g. 72.5714"
+                />
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+                Reconciliation compares logged diesel against expected use (distance ÷ each vehicle's mileage + idle hours × idle burn);
+                vehicles over the variance threshold are flagged as possible theft or leakage. The plant location anchors stop &
+                deviation detection — a truck idling away from the plant/site beyond the unscheduled-stop window, or drifting past the
+                route-deviation distance, raises an alert. Per-vehicle mileage and idle burn live on each <strong style={{ color: 'var(--text)' }}>Fleet</strong> record; the idle burn here is the fallback when a vehicle has none.
+              </div>
+
+              <button
+                type="submit"
+                disabled={fuelSaving}
+                style={{
+                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
+                  background: fuelSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: fuelSaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14,
+                  transition: 'opacity .15s',
+                }}
+              >
+                {fuelSaving ? 'Saving…' : 'Save fuel settings'}
               </button>
             </form>
           )}

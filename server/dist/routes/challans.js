@@ -25,6 +25,7 @@ const challanSelect = {
     pumpRequired: challans.pumpRequired,
     dispatchTime: challans.dispatchTime, deliveryTime: challans.deliveryTime,
     siteArrivalTime: challans.siteArrivalTime, siteReleaseTime: challans.siteReleaseTime,
+    odometerStart: challans.odometerStart, odometerEnd: challans.odometerEnd,
     status: challans.status, notes: challans.notes, createdAt: challans.createdAt,
     orderId: challans.orderId, clientId: challans.clientId,
     siteId: challans.siteId, vehicleId: challans.vehicleId, driverId: challans.driverId,
@@ -147,8 +148,28 @@ router.post('/proof-upload-url', async (req, res) => {
         res.status(500).json({ error: 'Failed to create upload URL' });
     }
 });
+// Parses an optional odometer reading: undefined leaves it untouched, ''/null
+// clears it, otherwise it must be a non-negative whole number of kilometres.
+function parseOdometer(value) {
+    if (value === undefined)
+        return undefined;
+    if (value === null || value === '')
+        return null;
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 0)
+        throw new Error('Odometer must be a non-negative whole number');
+    return n;
+}
 router.post('/', async (req, res) => {
     const { orderId, clientId, siteId, vehicleId, driverId, grade, quantity, pumpRequired, notes } = req.body;
+    let odometerStart;
+    try {
+        odometerStart = parseOdometer(req.body.odometerStart);
+    }
+    catch (e) {
+        res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid odometer' });
+        return;
+    }
     const challanNo = await nextChallanNo();
     const [row] = await db.insert(challans).values({
         challanNo,
@@ -160,6 +181,7 @@ router.post('/', async (req, res) => {
         grade, quantity: quantity.toString(),
         pumpRequired: !!pumpRequired,
         dispatchTime: new Date(),
+        odometerStart: odometerStart ?? null,
         status: 'dispatched',
         notes,
     }).returning();
@@ -188,8 +210,10 @@ router.put('/:id', async (req, res) => {
             return;
         }
         let validatedPhotos;
+        let odometerEnd;
         try {
             validatedPhotos = validateProofPhotos(proofPhotos, proofPhoto);
+            odometerEnd = parseOdometer(req.body.odometerEnd);
         }
         catch (e) {
             res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid proof photo' });
@@ -224,6 +248,9 @@ router.put('/:id', async (req, res) => {
             const existing = challan.notes?.trim();
             updateData.notes = existing ? `${existing}\n${deliveryNote}` : deliveryNote;
         }
+        // Driver enters the return odometer reading when confirming delivery.
+        if (odometerEnd !== undefined)
+            updateData.odometerEnd = odometerEnd;
         let storedPhotos;
         if (validatedPhotos !== undefined) {
             // Persist only the entity paths, keeping image bytes out of the database.
@@ -333,6 +360,18 @@ router.put('/:id', async (req, res) => {
         }
         updateData[field] = d;
     }
+    // Staff may correct either odometer reading.
+    try {
+        for (const field of ['odometerStart', 'odometerEnd']) {
+            const parsed = parseOdometer(req.body[field]);
+            if (parsed !== undefined)
+                updateData[field] = parsed;
+        }
+    }
+    catch (e) {
+        res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid odometer' });
+        return;
+    }
     const [row] = await db.update(challans).set(updateData)
         .where(eq(challans.id, challanId)).returning();
     const hasProofPhoto = await challanHasProofPhoto(challanId);
@@ -384,8 +423,22 @@ router.post('/:id/left-site', async (req, res) => {
         res.json(row);
         return;
     }
+    // The driver may also record the return odometer reading here — handy when a
+    // trip was auto-delivered by the GPS geofence and the delivery form was never
+    // opened. Only overwrites when a value is supplied.
+    let odometerEnd;
+    try {
+        odometerEnd = parseOdometer(req.body?.odometerEnd);
+    }
+    catch (e) {
+        res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid odometer' });
+        return;
+    }
+    const releaseUpdate = { siteReleaseTime: new Date() };
+    if (odometerEnd !== undefined)
+        releaseUpdate.odometerEnd = odometerEnd;
     const [row] = await db.update(challans)
-        .set({ siteReleaseTime: new Date() })
+        .set(releaseUpdate)
         .where(eq(challans.id, challanId)).returning();
     emitSSEEvent('challan.updated', row, { clientId: row.clientId, driverId: row.driverId });
     res.json(row);
