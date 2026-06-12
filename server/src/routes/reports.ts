@@ -308,6 +308,12 @@ router.get('/export', async (req, res) => {
       `${r.batchNo},${r.grade},${r.quantity},${r.cementBags || ''},${r.waterLiters || ''},${r.sandKg || ''},${r.aggregateKg || ''},"${r.operator || ''}",${r.createdAt.toISOString().slice(0, 10)}`
     ).join('\n');
   } else if (report === 'fuel-reconciliation') {
+    // Diesel reconciliation is owner/staff-only — mirror the gating on the
+    // /fuel-reconciliation endpoint so clients can't pull it via the CSV export.
+    if (!['admin', 'dispatcher', 'authority'].includes(req.user!.role)) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
     const { config, rows } = await computeFuelReconciliation(
       from ? new Date(from as string) : undefined,
       to ? new Date(to as string) : undefined,

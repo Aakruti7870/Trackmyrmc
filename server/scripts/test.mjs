@@ -78,9 +78,14 @@ try {
       // Run test files serially (--test-concurrency=1): every suite TRUNCATEs
       // the shared tables in its beforeEach, so concurrent files within a run
       // would clobber each other's data on this run's database.
+      // --test-force-exit: some suites exercise SSE/streaming endpoints that can
+      // leave a socket or timer holding the event loop open after every test has
+      // already passed, which would otherwise hang the run indefinitely on exit.
+      // The flag makes node exit as soon as the tests finish, preserving the
+      // pass/fail exit code.
       const run = spawnSync(
         'node',
-        ['--import', 'tsx', '--experimental-test-module-mocks', '--test', '--test-concurrency=1', '--test-reporter', 'spec', ...testFiles],
+        ['--import', 'tsx', '--experimental-test-module-mocks', '--test', '--test-concurrency=1', '--test-force-exit', '--test-reporter', 'spec', ...testFiles],
         { stdio: 'inherit', env, cwd: serverDir },
       );
       exitCode = run.status ?? 1;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Trash2, X, Fuel, Image as ImageIcon, Upload } from 'lucide-react';
 import { api, type FuelLog as FuelLogEntry, type Vehicle } from '@/lib/api';
 
@@ -48,14 +48,11 @@ export default function FuelLog() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [viewPhoto, setViewPhoto] = useState<string | null>(null);
 
-  function load() {
+  const load = useCallback(() => {
     const qs = vehicleFilter ? `?vehicleId=${vehicleFilter}` : '';
     api.get<FuelLogEntry[]>(`/fuel${qs}`).then(setLogs);
-  }
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleFilter]);
+  useEffect(() => { load(); }, [load]);
   useEffect(() => { api.get<Vehicle[]>('/vehicles').then(setVehicles); }, []);
 
   function openCreate() {

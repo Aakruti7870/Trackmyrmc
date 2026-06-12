@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { challans, challanProofPhotos, clients, sites, vehicles, drivers, orders } from '../db/schema.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 import { notifyChallanStatus } from '../lib/deliveryNotify.js';
@@ -21,14 +21,17 @@ async function nextChallanNo() {
   return `CH-${String(n + 1).padStart(4, '0')}`;
 }
 
-const challanSelect = {
+// Odometer readings feed diesel reconciliation and are owner/staff-only — they
+// must never be returned to clients or drivers.
+const DIESEL_VIEW_ROLES = ['admin', 'dispatcher', 'authority', 'plant_operator'];
+
+const baseChallanSelect = {
   id: challans.id, challanNo: challans.challanNo,
   grade: challans.grade, quantity: challans.quantity,
   deliveredQuantity: challans.deliveredQuantity,
   pumpRequired: challans.pumpRequired,
   dispatchTime: challans.dispatchTime, deliveryTime: challans.deliveryTime,
   siteArrivalTime: challans.siteArrivalTime, siteReleaseTime: challans.siteReleaseTime,
-  odometerStart: challans.odometerStart, odometerEnd: challans.odometerEnd,
   status: challans.status, notes: challans.notes, createdAt: challans.createdAt,
   orderId: challans.orderId, clientId: challans.clientId,
   siteId: challans.siteId, vehicleId: challans.vehicleId, driverId: challans.driverId,
@@ -39,6 +42,16 @@ const challanSelect = {
   driverPhone: drivers.phone,
   hasProofPhoto: sql<boolean>`exists (select 1 from ${challanProofPhotos} where ${challanProofPhotos.challanId} = ${challans.id})`,
 };
+
+const challanSelect = {
+  ...baseChallanSelect,
+  odometerStart: challans.odometerStart, odometerEnd: challans.odometerEnd,
+};
+
+// Staff see odometer readings; everyone else gets the same row without them.
+function challanSelectFor(role: string) {
+  return DIESEL_VIEW_ROLES.includes(role) ? challanSelect : baseChallanSelect;
+}
 
 const MAX_PROOF_PHOTO_BYTES = 8 * 1024 * 1024;
 const MAX_PROOF_PHOTOS = 8;
@@ -93,7 +106,7 @@ async function challanHasProofPhoto(challanId: number): Promise<boolean> {
 
 router.get('/', async (req, res) => {
   const { status, from, to, clientId } = req.query;
-  let query = db.select(challanSelect).from(challans)
+  let query = db.select(challanSelectFor(req.user!.role)).from(challans)
     .leftJoin(clients, eq(challans.clientId, clients.id))
     .leftJoin(sites, eq(challans.siteId, sites.id))
     .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
@@ -112,7 +125,7 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  const [row] = await db.select(challanSelect).from(challans)
+  const [row] = await db.select(challanSelectFor(req.user!.role)).from(challans)
     .leftJoin(clients, eq(challans.clientId, clients.id))
     .leftJoin(sites, eq(challans.siteId, sites.id))
     .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
@@ -157,7 +170,7 @@ function parseOdometer(value: unknown): number | null | undefined {
   return n;
 }
 
-router.post('/', async (req, res) => {
+router.post('/', requireRole(...WRITE_ROLES), async (req, res) => {
   const { orderId, clientId, siteId, vehicleId, driverId, grade, quantity, pumpRequired, notes } = req.body;
   let odometerStart: number | null | undefined;
   try {
@@ -408,7 +421,7 @@ router.post('/:id/left-site', async (req, res) => {
     return;
   }
   if (challan.siteReleaseTime != null) {
-    const [row] = await db.select(challanSelect).from(challans)
+    const [row] = await db.select(challanSelectFor(role)).from(challans)
       .leftJoin(clients, eq(challans.clientId, clients.id))
       .leftJoin(sites, eq(challans.siteId, sites.id))
       .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
@@ -438,7 +451,7 @@ router.post('/:id/left-site', async (req, res) => {
   res.json(row);
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireRole(...WRITE_ROLES), async (req, res) => {
   const challanId = +req.params.id;
   // Collect the proof-photo entity paths before deleting the row. The child
   // rows go away via FK cascade, but the backing object-storage files would

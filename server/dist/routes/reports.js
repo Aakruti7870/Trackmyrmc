@@ -270,6 +270,12 @@ router.get('/export', async (req, res) => {
         csv += rows.map(r => `${r.batchNo},${r.grade},${r.quantity},${r.cementBags || ''},${r.waterLiters || ''},${r.sandKg || ''},${r.aggregateKg || ''},"${r.operator || ''}",${r.createdAt.toISOString().slice(0, 10)}`).join('\n');
     }
     else if (report === 'fuel-reconciliation') {
+        // Diesel reconciliation is owner/staff-only — mirror the gating on the
+        // /fuel-reconciliation endpoint so clients can't pull it via the CSV export.
+        if (!['admin', 'dispatcher', 'authority'].includes(req.user.role)) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+        }
         const { config, rows } = await computeFuelReconciliation(from ? new Date(from) : undefined, to ? new Date(to) : undefined);
         csv = `Diesel reconciliation (over-consumption flagged above ${config.reconVariancePct}% variance)\n`;
         csv += 'Vehicle,Km Driven,Idle Hours,Trips,Trips w/ Odometer,Mileage (km/L),Idle Burn (L/h),Expected Driving (L),Expected Idle (L),Expected Total (L),Actual (L),Amount,Fills,Variance %,Flagged\n';

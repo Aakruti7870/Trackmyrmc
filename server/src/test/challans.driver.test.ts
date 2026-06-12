@@ -28,6 +28,16 @@ async function createDriverUser(name: string, email: string) {
   return { user, driver };
 }
 
+// Challan deletion is a write-role action (admin/dispatcher), so the proof-photo
+// cleanup tests below act as an admin while still assigning a driver to the row.
+async function createWriteRoleUser(email: string) {
+  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const [user] = await db.insert(users).values({
+    name: 'Dispatch Admin', email, passwordHash, role: 'admin', isActive: true,
+  }).returning();
+  return user;
+}
+
 function tokenFor(u: { id: number; email: string; role: string; name: string }) {
   return signToken({ id: u.id, email: u.email, role: u.role, name: u.name });
 }
@@ -819,7 +829,8 @@ test('a driver user with no matching driver profile gets 403', async () => {
 
 test('deleting a challan removes its object-storage proof photos from storage', async (t) => {
   const client = await createClient();
-  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const { driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const admin = await createWriteRoleUser('admin@test.com');
   const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'delivered' });
 
   // Seed two object-storage proof photos directly (entity paths, the new format).
@@ -835,7 +846,7 @@ test('deleting a challan removes its object-storage proof photos from storage', 
 
   const res = await request(app)
     .delete(`/api/challans/${challan.id}`)
-    .set('Authorization', `Bearer ${tokenFor(user)}`);
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(res.status, 200);
   assert.deepEqual(res.body, { ok: true });
 
@@ -850,7 +861,8 @@ test('deleting a challan removes its object-storage proof photos from storage', 
 
 test('deleting a challan with a legacy base64 proof photo deletes no object', async (t) => {
   const client = await createClient();
-  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const { driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const admin = await createWriteRoleUser('admin@test.com');
   const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'delivered' });
 
   // A legacy base64 data URL has no separate object to clean up.
@@ -860,7 +872,7 @@ test('deleting a challan with a legacy base64 proof photo deletes no object', as
   // It must not throw and must not touch the object-storage service.
   const res = await request(app)
     .delete(`/api/challans/${challan.id}`)
-    .set('Authorization', `Bearer ${tokenFor(user)}`);
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(res.status, 200);
   assert.deepEqual(res.body, { ok: true });
 
@@ -871,7 +883,8 @@ test('deleting a challan with a legacy base64 proof photo deletes no object', as
 
 test('deleting a challan still succeeds when removing a proof object fails', async (t) => {
   const client = await createClient();
-  const { user, driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const { driver } = await createDriverUser('Dave Driver', 'dave@test.com');
+  const admin = await createWriteRoleUser('admin@test.com');
   const challan = await createChallan({ driverId: driver.id, clientId: client.id, status: 'delivered' });
 
   await db.insert(challanProofPhotos).values({ challanId: challan.id, photo: '/objects/uploads/proof-missing' });
@@ -883,7 +896,7 @@ test('deleting a challan still succeeds when removing a proof object fails', asy
 
   const res = await request(app)
     .delete(`/api/challans/${challan.id}`)
-    .set('Authorization', `Bearer ${tokenFor(user)}`);
+    .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(res.status, 200, 'deletion succeeds despite the storage failure');
   assert.deepEqual(res.body, { ok: true });
 
