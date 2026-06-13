@@ -6,6 +6,7 @@ export const challanStatusEnum = pgEnum('challan_status', ['pending', 'dispatche
 export const vehicleStatusEnum = pgEnum('vehicle_status', ['active', 'maintenance', 'inactive']);
 export const ledgerTypeEnum = pgEnum('ledger_type', ['debit', 'credit']);
 export const recurringFrequencyEnum = pgEnum('recurring_frequency', ['weekly', 'monthly']);
+export const plantStatusEnum = pgEnum('plant_status', ['pending', 'approved', 'rejected']);
 export const clients = pgTable('clients', {
     id: serial('id').primaryKey(),
     name: text('name').notNull(),
@@ -212,6 +213,28 @@ export const appSettings = pgTable('app_settings', {
     value: text('value'),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+// Marketplace directory of RMC plants. A customer only ever sees rows that are
+// approved + active + location-verified, filtered by Haversine distance.
+export const plants = pgTable('plants', {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    address: text('address'),
+    city: text('city'),
+    contactNumber: text('contact_number'),
+    latitude: decimal('latitude', { precision: 10, scale: 7 }).notNull(),
+    longitude: decimal('longitude', { precision: 10, scale: 7 }).notNull(),
+    plantStatus: plantStatusEnum('plant_status').notNull().default('pending'),
+    isActive: boolean('is_active').notNull().default(true),
+    locationVerified: boolean('location_verified').notNull().default(false),
+    deliveryRadiusKm: integer('delivery_radius_km').notNull().default(25),
+    grades: text('grades').array().notNull().default(sql `ARRAY[]::text[]`),
+    openTime: text('open_time'), // 'HH:MM' 24h local
+    closeTime: text('close_time'), // 'HH:MM' 24h local
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+    nameUnique: uniqueIndex('plants_name_unique').on(table.name),
+}));
 export const clientsRelations = relations(clients, ({ many }) => ({
     sites: many(sites),
     orders: many(orders),

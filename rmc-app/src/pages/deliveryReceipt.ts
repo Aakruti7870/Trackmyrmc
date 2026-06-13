@@ -18,7 +18,7 @@ export async function downloadDeliveryReceipt(c: Challan, idleConfig?: IdleConfi
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(27, 36, 51); // #1b2433
-  doc.text('Aakruti Infra RMC Plant', marginX, 48);
+  doc.text('CONCRETE KING RMC Plant', marginX, 48);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);

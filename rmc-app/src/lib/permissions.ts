@@ -1,14 +1,14 @@
 export type Role = 'authority' | 'admin' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
 
 // AUTHORITY is a super-admin: it can reach everything an admin can.
-const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/users', '/activity-log', '/audit-log', '/profile', '/kiosk'];
+const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/plants', '/users', '/activity-log', '/audit-log', '/profile', '/kiosk'];
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   authority:      ADMIN_PATHS,
   admin:          ADMIN_PATHS,
   dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile', '/kiosk'],
   plant_operator: ['/', '/freshness', '/batch-report', '/mix-design', '/shift-report', '/profile'],
-  client:         ['/my-orders', '/challans', '/profile'],
+  client:         ['/my-orders', '/nearby-plants', '/challans', '/profile'],
   driver:         ['/my-trips', '/challans', '/profile'],
 };
 

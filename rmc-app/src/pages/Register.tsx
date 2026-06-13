@@ -87,7 +87,7 @@ export default function Register() {
             <Building2 size={22} color="#111" />
           </div>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>Aakruti Infra</div>
+            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>CONCRETE KING</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>RMC Plant · Panvel</div>
           </div>
         </div>

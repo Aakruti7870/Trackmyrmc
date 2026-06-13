@@ -81,7 +81,7 @@ export default function Kiosk() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(145deg,var(--gold-hi),var(--gold-mid) 42%,var(--gold-dark))', display: 'grid', placeItems: 'center', fontWeight: 900, color: '#111827', fontSize: 13 }}>RMC</div>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '.5px' }}>AAKRUTI INFRA</div>
+            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '.5px' }}>CONCRETE KING</div>
             <div style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 700, letterSpacing: '2px' }}>CONTROL ROOM</div>
           </div>
         </div>

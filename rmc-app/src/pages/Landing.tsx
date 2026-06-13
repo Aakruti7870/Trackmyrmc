@@ -8,9 +8,9 @@ import bg from '@/assets/rmc-aerial-bg.png';
 
 const WA = 'https://wa.me/919850612834';
 const TEL = 'tel:+919850612834';
-const MAIL = 'mailto:aakruti.infrarmc@gmail.com';
+const MAIL = 'mailto:concreteking.rmc@gmail.com';
 const PHONE = '+91 98506 12834';
-const EMAIL = 'aakruti.infrarmc@gmail.com';
+const EMAIL = 'concreteking.rmc@gmail.com';
 const ADDRESS = 'Karanjade, Panvel, Maharashtra 410206';
 const GRADES = ['M20', 'M25', 'M30', 'M35', 'M40', 'M50'];
 
@@ -96,7 +96,7 @@ export default function Landing() {
               boxShadow: '0 10px 24px color-mix(in srgb, var(--gold) 26%, transparent)',
             }}>A</div>
             <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '.3px', color: 'var(--text)', lineHeight: 1 }}>AAKRUTI INFRA</div>
+              <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '.3px', color: 'var(--text)', lineHeight: 1 }}>CONCRETE KING</div>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginTop: 3 }}>RMC PLANT · PANVEL</div>
             </div>
           </button>
@@ -163,7 +163,7 @@ export default function Landing() {
             </h1>
 
             <p style={{ marginTop: 24, marginBottom: 0, fontSize: isMobile ? 16 : 18, lineHeight: 1.65, color: 'var(--muted)', maxWidth: 560 }}>
-              Plant-precision ready-mix from Aakruti Infra — delivered on time with live GPS tracking, digital challans, and lab-grade quality control, from our batching plant to your pour.
+              Plant-precision ready-mix from CONCRETE KING — delivered on time with live GPS tracking, digital challans, and lab-grade quality control, from our batching plant to your pour.
             </p>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 34 }}>
@@ -321,7 +321,7 @@ export default function Landing() {
               </div>
 
               <a
-                href={`${WA}?text=${encodeURIComponent(`Hi Aakruti Infra, I'd like to order approximately ${total.toFixed(2)} m³ of ${grade} concrete.`)}`}
+                href={`${WA}?text=${encodeURIComponent(`Hi CONCRETE KING, I'd like to order approximately ${total.toFixed(2)} m³ of ${grade} concrete.`)}`}
                 target="_blank" rel="noreferrer"
                 style={{
                   marginTop: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -353,7 +353,7 @@ export default function Landing() {
               Serving Panvel & Navi Mumbai
             </h2>
             <p style={{ margin: '0 0 26px', color: 'var(--muted)', fontSize: 16, lineHeight: 1.7 }}>
-              Aakruti Infra Pvt. Ltd. operates a fully automated Ready-Mix Concrete batching plant in Karanjade, Panvel.
+              CONCRETE KING Pvt. Ltd. operates a fully automated Ready-Mix Concrete batching plant in Karanjade, Panvel.
               We supply consistent, high-grade concrete — M20 through M50 — to construction projects across Panvel,
               Navi Mumbai, and the JNPT Corridor. Every batch is plant-tested; every delivery is GPS-tracked from our yard to your site.
             </p>
@@ -441,7 +441,7 @@ export default function Landing() {
         </div>
 
         <div style={{ borderTop: '1px solid var(--line)', padding: '22px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
-          © {new Date().getFullYear()} Aakruti Infra Pvt. Ltd. · Ready-Mix Concrete · Karanjade, Panvel, Navi Mumbai
+          © {new Date().getFullYear()} CONCRETE KING Pvt. Ltd. · Ready-Mix Concrete · Karanjade, Panvel, Navi Mumbai
         </div>
       </section>
     </div>

@@ -80,6 +80,19 @@ async function seed() {
         { clientId: clientRows[4].id, type: 'debit', amount: '280000', description: 'Invoice #INV-2025-005 - M35 Concrete Supply', referenceNo: 'INV-2025-005' },
         { clientId: clientRows[4].id, type: 'credit', amount: '70000', description: 'Payment received - Cheque', referenceNo: 'CHQ-20250418' },
     ]).onConflictDoNothing();
+    // Marketplace plants. Most are approved + active + verified (visible to
+    // customers); a few are deliberately pending / unverified / inactive / far away
+    // to prove the nearby filter excludes them.
+    await db.insert(schema.plants).values([
+        { name: 'CONCRETE KING — Panvel Hub', address: 'Plot 8, MIDC Karanjade', city: 'Panvel', contactNumber: '9820011001', latitude: '18.9894000', longitude: '73.1175000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-15', 'M-20', 'M-25', 'M-30', 'M-35', 'M-40'], openTime: '06:00', closeTime: '21:00' },
+        { name: 'CONCRETE KING — Kharghar Plant', address: 'Sector 12, Kharghar', city: 'Navi Mumbai', contactNumber: '9820011002', latitude: '19.0470000', longitude: '73.0699000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 30, grades: ['M-20', 'M-25', 'M-30', 'M-35'], openTime: '07:00', closeTime: '20:00' },
+        { name: 'ShreeMix RMC — Vashi', address: 'Plot 21, Sector 19', city: 'Navi Mumbai', contactNumber: '9820011003', latitude: '19.0760000', longitude: '72.9986000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 25, grades: ['M-15', 'M-20', 'M-25', 'M-30'], openTime: '06:30', closeTime: '19:30' },
+        { name: 'UltraReady Concrete — Taloja', address: 'MIDC Taloja Phase 1', city: 'Panvel', contactNumber: '9820011004', latitude: '19.0800000', longitude: '73.1000000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 35, grades: ['M-25', 'M-30', 'M-35', 'M-40', 'M-45'], openTime: '05:00', closeTime: '23:00' },
+        { name: 'Thane Premix — Ghodbunder', address: 'Ghodbunder Road', city: 'Thane', contactNumber: '9820011005', latitude: '19.2183000', longitude: '72.9781000', plantStatus: 'approved', isActive: true, locationVerified: false, deliveryRadiusKm: 30, grades: ['M-20', 'M-25', 'M-30'], openTime: '07:00', closeTime: '19:00' },
+        { name: 'Belapur RMC (Pending Approval)', address: 'Sector 11, CBD Belapur', city: 'Navi Mumbai', contactNumber: '9820011006', latitude: '19.0235000', longitude: '73.0400000', plantStatus: 'pending', isActive: true, locationVerified: false, deliveryRadiusKm: 25, grades: ['M-20', 'M-25'], openTime: '08:00', closeTime: '18:00' },
+        { name: 'Airoli ReadyMix (Inactive)', address: 'Sector 4, Airoli', city: 'Navi Mumbai', contactNumber: '9820011007', latitude: '19.1500000', longitude: '72.9990000', plantStatus: 'approved', isActive: false, locationVerified: true, deliveryRadiusKm: 25, grades: ['M-20', 'M-25', 'M-30'], openTime: '07:00', closeTime: '20:00' },
+        { name: 'Deccan RMC — Pune (Far)', address: 'Hadapsar Industrial Estate', city: 'Pune', contactNumber: '9820011008', latitude: '18.5089000', longitude: '73.9260000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-25', 'M-30', 'M-35', 'M-40'], openTime: '06:00', closeTime: '21:00' },
+    ]).onConflictDoNothing();
     const { eq } = await import('drizzle-orm');
     await db.update(schema.users)
         .set({ linkedClientId: clientRows[0].id })

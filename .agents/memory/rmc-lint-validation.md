@@ -35,6 +35,11 @@ prevents regressions.
   promise callback (mirror `Dashboard.tsx`/`ShiftReport.tsx`/`AuditLog.tsx`
   `load`). Drive the loading spinner from the user handlers (refresh/filter/
   pagination) + initial `useState(true)`, not a synchronous `setLoading(true)`.
+  Mount-time IMPERATIVE work (geolocation, `sessionStorage` reads, other
+  callback APIs) also trips the rule if it setStates synchronously: wrap a
+  callback API (e.g. `navigator.geolocation.getCurrentPosition`) in a `new
+  Promise` and put all setState in `.then/.catch`; for a synchronous read that
+  must then setState, defer with `Promise.resolve().then(() => setX(...))`.
 - *purity:* no `Date.now()`/impurity during render. Use lazy `useState(() => …)`
   or a mount-captured `const [now] = useState(() => Date.now())`. NOTE: the rule
   special-cases `Date.now()` even in component-body event handlers but does NOT

@@ -1,0 +1,268 @@
+import { useEffect, useState } from 'react';
+import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power } from 'lucide-react';
+import { api } from '@/lib/api';
+import LocationPicker, { type LatLng } from '@/components/LocationPicker';
+
+type PlantStatus = 'pending' | 'approved' | 'rejected';
+
+interface Plant {
+  id: number;
+  name: string;
+  address: string | null;
+  city: string | null;
+  contactNumber: string | null;
+  latitude: string;
+  longitude: string;
+  plantStatus: PlantStatus;
+  isActive: boolean;
+  locationVerified: boolean;
+  deliveryRadiusKm: number;
+  grades: string[];
+  openTime: string | null;
+  closeTime: string | null;
+}
+
+const ALL_GRADES = ['M-15', 'M-20', 'M-25', 'M-30', 'M-35', 'M-40', 'M-45', 'M-50', 'M-55', 'M-60'];
+
+interface FormState {
+  name: string; address: string; city: string; contactNumber: string;
+  latitude: string; longitude: string; plantStatus: PlantStatus;
+  isActive: boolean; locationVerified: boolean; deliveryRadiusKm: number;
+  grades: string[]; openTime: string; closeTime: string;
+}
+
+const emptyForm: FormState = {
+  name: '', address: '', city: '', contactNumber: '', latitude: '', longitude: '',
+  plantStatus: 'pending', isActive: true, locationVerified: false, deliveryRadiusKm: 25,
+  grades: [], openTime: '06:00', closeTime: '20:00',
+};
+
+export default function Plants() {
+  const [plants, setPlants] = useState<Plant[] | null>(null);
+  const [error, setError] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [saving, setSaving] = useState(false);
+
+  function load() {
+    api.get<Plant[]>('/plants')
+      .then(p => { setPlants(p); setError(''); })
+      .catch(e => { setError((e as Error).message); setPlants([]); });
+  }
+  useEffect(load, []);
+
+  function openCreate() { setForm(emptyForm); setEditId(null); setShowForm(true); }
+  function openEdit(p: Plant) {
+    setForm({
+      name: p.name, address: p.address ?? '', city: p.city ?? '', contactNumber: p.contactNumber ?? '',
+      latitude: p.latitude, longitude: p.longitude, plantStatus: p.plantStatus,
+      isActive: p.isActive, locationVerified: p.locationVerified, deliveryRadiusKm: p.deliveryRadiusKm,
+      grades: p.grades, openTime: p.openTime ?? '', closeTime: p.closeTime ?? '',
+    });
+    setEditId(p.id);
+    setShowForm(true);
+  }
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim() || !form.latitude || !form.longitude) {
+      setError('Name and map location are required.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    const payload = { ...form, deliveryRadiusKm: Number(form.deliveryRadiusKm) || 0 };
+    try {
+      if (editId != null) await api.put(`/plants/${editId}`, payload);
+      else await api.post('/plants', payload);
+      setShowForm(false);
+      load();
+    } catch (err) {
+      setError((err as Error).message || 'Could not save plant.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function patch(p: Plant, changes: Partial<Plant>) {
+    setError('');
+    try {
+      await api.put(`/plants/${p.id}`, changes);
+      load();
+    } catch (err) { setError((err as Error).message); }
+  }
+
+  async function remove(p: Plant) {
+    if (!confirm(`Delete plant "${p.name}"? This cannot be undone.`)) return;
+    try { await api.delete(`/plants/${p.id}`); load(); }
+    catch (err) { setError((err as Error).message); }
+  }
+
+  const pin: LatLng | null = form.latitude && form.longitude
+    ? { lat: parseFloat(form.latitude), lng: parseFloat(form.longitude) } : null;
+
+  return (
+    <div style={{ padding: '22px clamp(14px, 4vw, 34px)', maxWidth: 1180, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 'clamp(22px, 4vw, 30px)', fontWeight: 900, letterSpacing: '-0.6px', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Factory size={26} style={{ color: 'var(--gold)' }} /> Plants
+          </h1>
+          <p style={{ margin: '6px 0 0', color: 'var(--muted)', fontSize: 14 }}>
+            Onboard marketplace plants. Customers see only approved + active + location-verified plants.
+          </p>
+        </div>
+        <button onClick={openCreate} style={primaryBtn}><Plus size={16} /> Add Plant</button>
+      </div>
+
+      {error && <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--red) 45%, transparent)', color: 'var(--red)', marginBottom: 14, fontSize: 13.5 }}>{error}</div>}
+
+      {plants == null ? (
+        <div style={{ color: 'var(--muted)', padding: 30 }}>Loading…</div>
+      ) : plants.length === 0 ? (
+        <div style={{ ...softCard, textAlign: 'center', color: 'var(--muted)' }}>No plants yet. Add your first plant.</div>
+      ) : (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {plants.map(p => {
+            const live = p.plantStatus === 'approved' && p.isActive && p.locationVerified;
+            return (
+              <div key={p.id} style={{ ...softCard, display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ minWidth: 220, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)' }}>{p.name}</span>
+                    {live && <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', background: 'color-mix(in srgb, var(--green) 16%, transparent)', borderRadius: 20, padding: '2px 9px' }}>LIVE</span>}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
+                    {[p.address, p.city].filter(Boolean).join(', ') || '—'} · {p.contactNumber || 'no contact'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+                    {p.grades.join(', ') || 'no grades'} · delivers {p.deliveryRadiusKm} km · {p.openTime && p.closeTime ? `${p.openTime}–${p.closeTime}` : 'hours n/a'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <select value={p.plantStatus} onChange={e => patch(p, { plantStatus: e.target.value as PlantStatus })} style={pill(p.plantStatus === 'approved' ? 'var(--green)' : p.plantStatus === 'rejected' ? 'var(--red)' : 'var(--muted)')}>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                  <button onClick={() => patch(p, { isActive: !p.isActive })} title="Toggle active" style={chip(p.isActive, 'var(--blue)')}>
+                    <Power size={13} /> {p.isActive ? 'Active' : 'Inactive'}
+                  </button>
+                  <button onClick={() => patch(p, { locationVerified: !p.locationVerified })} title="Toggle location verified" style={chip(p.locationVerified, 'var(--gold)')}>
+                    {p.locationVerified ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />} {p.locationVerified ? 'Verified' : 'Unverified'}
+                  </button>
+                  <button onClick={() => openEdit(p)} style={iconBtn}><Pencil size={15} /></button>
+                  <button onClick={() => remove(p)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={15} /></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showForm && (
+        <div onClick={() => setShowForm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 14px', zIndex: 1000, overflowY: 'auto' }}>
+          <form onClick={e => e.stopPropagation()} onSubmit={save} style={{ width: 'min(620px, 100%)', background: 'var(--card, #0d1828)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--text)' }}>{editId != null ? 'Edit Plant' : 'Add Plant'}</h2>
+              <button type="button" onClick={() => setShowForm(false)} style={iconBtn}><X size={18} /></button>
+            </div>
+
+            <div style={{ display: 'grid', gap: 12 }}>
+              <Field label="Plant name *"><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={input} /></Field>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <Field label="City"><input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} style={input} /></Field>
+                <Field label="Contact number"><input value={form.contactNumber} onChange={e => setForm(f => ({ ...f, contactNumber: e.target.value }))} style={input} /></Field>
+              </div>
+              <Field label="Address"><input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} style={input} /></Field>
+
+              <Field label="Location (search, drop or drag a pin) *">
+                <LocationPicker value={pin} onChange={p => setForm(f => ({ ...f, latitude: p.lat.toFixed(7), longitude: p.lng.toFixed(7) }))} />
+              </Field>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <Field label="Delivery radius (km)"><input type="number" min={1} value={form.deliveryRadiusKm} onChange={e => setForm(f => ({ ...f, deliveryRadiusKm: Number(e.target.value) }))} style={input} /></Field>
+                <Field label="Opens"><input type="time" value={form.openTime} onChange={e => setForm(f => ({ ...f, openTime: e.target.value }))} style={input} /></Field>
+                <Field label="Closes"><input type="time" value={form.closeTime} onChange={e => setForm(f => ({ ...f, closeTime: e.target.value }))} style={input} /></Field>
+              </div>
+
+              <Field label="Available grades">
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {ALL_GRADES.map(g => {
+                    const on = form.grades.includes(g);
+                    return (
+                      <button type="button" key={g} onClick={() => setForm(f => ({ ...f, grades: on ? f.grades.filter(x => x !== g) : [...f.grades, g] }))} style={chip(on, 'var(--blue)')}>
+                        {on && <Check size={12} />} {g}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 2 }}>
+                <Field label="Status">
+                  <select value={form.plantStatus} onChange={e => setForm(f => ({ ...f, plantStatus: e.target.value as PlantStatus }))} style={input}>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </Field>
+                <label style={checkRow}><input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} /> Active</label>
+                <label style={checkRow}><input type="checkbox" checked={form.locationVerified} onChange={e => setForm(f => ({ ...f, locationVerified: e.target.checked }))} /> Location verified</label>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button type="button" onClick={() => setShowForm(false)} style={ghostBtn}>Cancel</button>
+              <button type="submit" disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
+                <MapPin size={15} /> {saving ? 'Saving…' : editId != null ? 'Save changes' : 'Add plant'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: 'block' }}>
+      <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+const input: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box', padding: '9px 11px', borderRadius: 9,
+  background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13.5,
+};
+const primaryBtn: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 15px', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, fontWeight: 800,
+  background: 'var(--gold)', color: '#1a1a1a', border: 'none',
+};
+const ghostBtn: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 15px', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, fontWeight: 700,
+  background: 'rgba(255,255,255,.05)', color: 'var(--text)', border: '1px solid var(--line)',
+};
+const iconBtn: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 8, borderRadius: 9, cursor: 'pointer',
+  background: 'rgba(255,255,255,.05)', color: 'var(--text)', border: '1px solid var(--line)',
+};
+const softCard: React.CSSProperties = { padding: 16, borderRadius: 13, border: '1px solid var(--line)', background: 'rgba(255,255,255,.02)' };
+const checkRow: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' };
+
+function pill(color: string): React.CSSProperties {
+  return { padding: '6px 10px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, background: `color-mix(in srgb, ${color} 14%, transparent)`, color, border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`, cursor: 'pointer' };
+}
+function chip(on: boolean, color: string): React.CSSProperties {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+    background: on ? `color-mix(in srgb, ${color} 16%, transparent)` : 'rgba(255,255,255,.04)',
+    color: on ? color : 'var(--muted)',
+    border: `1px solid ${on ? `color-mix(in srgb, ${color} 38%, transparent)` : 'var(--line)'}`,
+  };
+}

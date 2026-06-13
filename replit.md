@@ -1,6 +1,6 @@
-# Aakruti Infra RMC Plant — Management System
+# CONCRETE KING — RMC Marketplace & Plant Management
 
-A full-stack RMC (Ready-Mix Concrete) plant management web application for Aakruti Infra RMC Plant.
+A full-stack RMC (Ready-Mix Concrete) marketplace and plant management web application (CONCRETE KING). Customers can discover nearby approved RMC plants and place orders; staff manage plant operations, dispatch, and onboarding.
 
 ## Tech Stack
 

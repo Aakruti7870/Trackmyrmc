@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Aakruti Infra RMC — Plant & Driver',
-        short_name: 'Aakruti RMC',
+        name: 'CONCRETE KING RMC — Plant & Driver',
+        short_name: 'CONCRETE KING',
         description: 'Ready-mix concrete plant operations, dispatch and live driver delivery tracking.',
         theme_color: '#08111f',
         background_color: '#08111f',

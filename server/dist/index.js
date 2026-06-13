@@ -19,6 +19,7 @@ import adminRoutes from './routes/admin.js';
 import positionRoutes from './routes/positions.js';
 import recurringRoutes from './routes/recurring.js';
 import fuelRoutes from './routes/fuel.js';
+import plantRoutes from './routes/plants.js';
 import eventsRoutes from './routes/events.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
@@ -46,6 +47,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/positions', positionRoutes);
 app.use('/api/recurring', recurringRoutes);
 app.use('/api/fuel', fuelRoutes);
+app.use('/api/plants', plantRoutes);
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

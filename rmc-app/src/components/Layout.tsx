@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
-  Timer, TrendingUp, Fuel,
+  Timer, TrendingUp, Fuel, MapPin, Factory,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -18,6 +18,7 @@ import NotificationBell from '@/components/NotificationBell';
 const ALL_NAV_ITEMS = [
   { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },
   { path: '/my-orders',   label: 'My Orders',  icon: PackageSearch },
+  { path: '/nearby-plants', label: 'Find Plants', icon: MapPin },
   { path: '/my-trips',    label: 'My Trips',   icon: Route },
   { path: '/orders',      label: 'Orders',     icon: ClipboardList },
   { path: '/dispatch',    label: 'Dispatch',   icon: Truck },
@@ -32,6 +33,7 @@ const ALL_NAV_ITEMS = [
   { path: '/shift-report', label: 'Shift Report', icon: ClipboardCheck },
   { path: '/recurring',   label: 'Recurring',  icon: Repeat },
   { path: '/fuel-log',    label: 'Fuel Log',   icon: Fuel },
+  { path: '/plants',      label: 'Plants',     icon: Factory },
   { path: '/users',       label: 'Users',      icon: ShieldCheck },
   { path: '/activity-log', label: 'Activity Log', icon: History },
   { path: '/audit-log',   label: 'Audit Log',  icon: ScrollText },
@@ -132,7 +134,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               fontSize: 11, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase',
               background: 'linear-gradient(90deg,var(--gold-hi),var(--gold),var(--text))',
               WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
-            }}>Aakruti Infra</div>
+            }}>CONCRETE KING</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Command Center</div>
           </div>
         </div>

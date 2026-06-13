@@ -164,6 +164,7 @@ export default function MyOrders() {
   const [form, setForm] = useState<OrderForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
   const [livePositions, setLivePositions] = useState<Record<number, LivePosition>>({});
   const [freshnessConfig, setFreshnessConfig] = useState<FreshnessConfig | null>(null);
   const [cancelingId, setCancelingId] = useState<number | null>(null);
@@ -302,10 +303,34 @@ export default function MyOrders() {
   }
 
   function openModal() {
+    setSelectedPlant(null);
     setForm(EMPTY_FORM);
     setFormError('');
     setModalOpen(true);
   }
+
+  // Handoff from the "Find Plants" marketplace: if the customer tapped Place
+  // Order on a plant card, open the order modal pre-noting the chosen plant.
+  useEffect(() => {
+    const raw = sessionStorage.getItem('rmc_selected_plant');
+    if (!raw) return;
+    sessionStorage.removeItem('rmc_selected_plant');
+    let name: string | undefined;
+    try {
+      name = (JSON.parse(raw) as { name?: string })?.name;
+    } catch {
+      return; // ignore malformed handoff
+    }
+    if (!name) return;
+    const plantName = name;
+    // Defer setState out of the effect body to avoid cascading renders.
+    Promise.resolve().then(() => {
+      setSelectedPlant(plantName);
+      setForm({ ...EMPTY_FORM, notes: `Preferred plant: ${plantName}` });
+      setFormError('');
+      setModalOpen(true);
+    });
+  }, []);
 
   async function submitOrder(e: React.FormEvent) {
     e.preventDefault();
@@ -793,7 +818,12 @@ export default function MyOrders() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Place New Order</h3>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Place New Order</h3>
+                {selectedPlant && (
+                  <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--gold)', fontWeight: 600 }}>From {selectedPlant}</div>
+                )}
+              </div>
               <button type="button" onClick={() => !saving && setModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>
                 <X size={18} />
               </button>

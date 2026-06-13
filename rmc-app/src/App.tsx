@@ -24,6 +24,8 @@ import ShiftReport from '@/pages/ShiftReport';
 import ChallanPrint from '@/pages/ChallanPrint';
 import MyOrders from '@/pages/MyOrders';
 import MyTrips from '@/pages/MyTrips';
+import NearbyPlants from '@/pages/NearbyPlants';
+import Plants from '@/pages/Plants';
 import RecurringAdmin from '@/pages/RecurringAdmin';
 import FuelLog from '@/pages/FuelLog';
 import Users from '@/pages/Users';
@@ -89,6 +91,8 @@ function ProtectedRoutes() {
           <Switch>
         <Route path="/"             component={() => <GuardedRoute path="/"             component={Dashboard}   />} />
         <Route path="/my-orders"    component={() => <GuardedRoute path="/my-orders"    component={MyOrders}    />} />
+        <Route path="/nearby-plants" component={() => <GuardedRoute path="/nearby-plants" component={NearbyPlants} />} />
+        <Route path="/plants"       component={() => <GuardedRoute path="/plants"       component={Plants}      />} />
         <Route path="/my-trips"     component={() => <GuardedRoute path="/my-trips"     component={MyTrips}     />} />
         <Route path="/orders"       component={() => <GuardedRoute path="/orders"       component={Orders}      />} />
         <Route path="/dispatch"     component={() => <GuardedRoute path="/dispatch"     component={Dispatch}    />} />

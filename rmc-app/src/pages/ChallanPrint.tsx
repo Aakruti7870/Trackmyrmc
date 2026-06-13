@@ -32,7 +32,7 @@ export default function ChallanPrint() {
   function shareWhatsApp() {
     if (!challan) return;
     const msg = encodeURIComponent(
-      `🏗️ *Aakruti Infra RMC Plant*\n` +
+      `🏗️ *CONCRETE KING RMC Plant*\n` +
       `Challan No: #${challan.challanNo}\n` +
       `Client: ${challan.clientName}\n` +
       `Site: ${challan.siteName || '—'}\n` +
@@ -92,7 +92,7 @@ export default function ChallanPrint() {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #d97706', paddingBottom: 16, marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a1a' }}>AAKRUTI INFRA RMC PLANT</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a1a' }}>CONCRETE KING RMC PLANT</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>Ready Mix Concrete Manufacturer</div>
             <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>MIDC Industrial Area, Navi Mumbai — Maharashtra</div>
             <div style={{ fontSize: 11, color: '#888' }}>GST: 27AAACA1234B1Z5 | Ph: +91 98506 12834</div>
@@ -217,7 +217,7 @@ export default function ChallanPrint() {
         </div>
 
         <div style={{ marginTop: 30, borderTop: '1px solid #eee', paddingTop: 12, textAlign: 'center', fontSize: 10, color: '#aaa' }}>
-          This is a computer generated challan. For queries contact: aakruti.infrarmc@gmail.com | This document is valid only with company stamp.
+          This is a computer generated challan. For queries contact: concreteking.rmc@gmail.com | This document is valid only with company stamp.
         </div>
       </div>
 

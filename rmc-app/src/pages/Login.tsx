@@ -66,7 +66,7 @@ export default function Login() {
             </div>
             <div>
               <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>
-                Aakruti Infra
+                CONCRETE KING
               </div>
               <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>
                 RMC Plant · Panvel
