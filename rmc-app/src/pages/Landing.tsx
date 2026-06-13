@@ -111,11 +111,16 @@ export default function Landing() {
               </nav>
             )}
             <button onClick={() => setLoc('/login')} style={{
+              padding: isMobile ? '9px 14px' : '10px 20px', borderRadius: 999, cursor: 'pointer',
+              background: 'transparent', border: '1px solid var(--line)',
+              color: 'var(--text)', fontWeight: 700, fontSize: 14, fontFamily: 'inherit',
+            }}>Login</button>
+            <button onClick={() => setLoc('/register')} style={{
               padding: isMobile ? '9px 16px' : '10px 22px', borderRadius: 999, border: 'none', cursor: 'pointer',
               background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
               color: '#111827', fontWeight: 800, fontSize: 14, fontFamily: 'inherit',
               boxShadow: '0 10px 24px color-mix(in srgb, var(--gold) 24%, transparent)',
-            }}>Login</button>
+            }}>{isMobile ? 'Sign up' : 'Register'}</button>
           </div>
         </div>
       </header>
@@ -162,17 +167,17 @@ export default function Landing() {
             </p>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 34 }}>
-              <a href={WA} target="_blank" rel="noreferrer" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 9, padding: '14px 26px', borderRadius: 999,
+              <button onClick={() => setLoc('/register')} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 9, padding: '14px 26px', borderRadius: 999, cursor: 'pointer',
                 background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
-                color: '#111827', fontWeight: 800, fontSize: 15, textDecoration: 'none',
+                border: 'none', color: '#111827', fontWeight: 800, fontSize: 15, fontFamily: 'inherit',
                 boxShadow: '0 14px 32px color-mix(in srgb, var(--gold) 26%, transparent)',
-              }}>Get a Quote <ArrowRight size={17} /></a>
-              <button onClick={() => scrollTo('services')} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8, padding: '14px 26px', borderRadius: 999, cursor: 'pointer',
+              }}>Register &amp; Order Online <ArrowRight size={17} /></button>
+              <a href={WA} target="_blank" rel="noreferrer" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, padding: '14px 26px', borderRadius: 999,
                 background: 'color-mix(in srgb, var(--text) 6%, transparent)', border: '1px solid var(--line)',
-                color: 'var(--text)', fontWeight: 700, fontSize: 15, fontFamily: 'inherit',
-              }}>Our Services</button>
+                color: 'var(--text)', fontWeight: 700, fontSize: 15, textDecoration: 'none',
+              }}>Get a Quote</a>
             </div>
 
             <button onClick={() => setLoc('/login')} style={{
@@ -327,6 +332,10 @@ export default function Landing() {
                 }}>
                 <MessageCircle size={17} /> Request this quantity
               </a>
+              <button onClick={() => setLoc('/register')} style={{
+                marginTop: 12, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                color: 'var(--gold)', fontWeight: 700, fontSize: 13, textAlign: 'center',
+              }}>Or register to order &amp; track it online →</button>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12, textAlign: 'center' }}>
                 Estimate only. Final quantity is confirmed at the plant before dispatch.
               </div>
