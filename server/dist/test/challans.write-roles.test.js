@@ -1,7 +1,7 @@
 import { test, before, beforeEach, afterEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { eq, sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
@@ -13,7 +13,7 @@ const PASSWORD = 'secret123';
 // Creates a user of an arbitrary role. The write-role branch of PUT /:id keys
 // off req.user.role only (no profile lookup), so a plain user row is enough.
 async function createUser(role, email) {
-    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const passwordHash = await hashPassword(PASSWORD);
     const [user] = await db.insert(users).values({
         name: `${role} user`, email, passwordHash, role: role, isActive: true,
     }).returning();

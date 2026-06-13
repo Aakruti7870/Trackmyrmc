@@ -1,6 +1,6 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { eq, sql } from 'drizzle-orm';
 
 import { db, pool } from '../db/index.js';
@@ -35,7 +35,7 @@ async function insertUser(opts: {
   deletedAt?: Date | null;
   isActive?: boolean;
 }) {
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [row] = await db.insert(users).values({
     name: opts.name,
     email: opts.email,

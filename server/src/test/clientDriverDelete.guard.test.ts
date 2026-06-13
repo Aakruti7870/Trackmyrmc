@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { eq, sql } from 'drizzle-orm';
 import type { Express } from 'express';
 
@@ -14,7 +14,7 @@ let app: Express;
 const PASSWORD = 'secret123';
 
 async function createAdmin() {
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [row] = await db.insert(users).values({
     name: 'Admin', email: 'admin@test.com', passwordHash, role: 'admin', isActive: true,
   }).returning();
@@ -44,7 +44,7 @@ after(async () => { await pool.end(); });
 test('client delete is blocked when an active user is linked', async () => {
   const admin = await createAdmin();
   const client = await createClient();
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [linked] = await db.insert(users).values({
     name: 'Client Login', email: 'client@test.com', passwordHash, role: 'client',
     isActive: true, linkedClientId: client.id,
@@ -66,7 +66,7 @@ test('client delete is blocked when an active user is linked', async () => {
 test('client delete succeeds when the only linked user is soft-deleted', async () => {
   const admin = await createAdmin();
   const client = await createClient();
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   await db.insert(users).values({
     name: 'Old Login', email: 'old@test.com', passwordHash, role: 'client',
     isActive: false, deletedAt: new Date(), linkedClientId: client.id,
@@ -93,7 +93,7 @@ test('client delete succeeds when no user is linked', async () => {
 test('driver delete is blocked when an active user is linked', async () => {
   const admin = await createAdmin();
   const driver = await createDriver();
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [linked] = await db.insert(users).values({
     name: 'Driver Login', email: 'driver@test.com', passwordHash, role: 'driver',
     isActive: true, linkedDriverId: driver.id,
@@ -115,7 +115,7 @@ test('driver delete is blocked when an active user is linked', async () => {
 test('driver delete succeeds when the only linked user is soft-deleted', async () => {
   const admin = await createAdmin();
   const driver = await createDriver();
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   await db.insert(users).values({
     name: 'Old Driver Login', email: 'oldd@test.com', passwordHash, role: 'driver',
     isActive: false, deletedAt: new Date(), linkedDriverId: driver.id,
@@ -143,7 +143,7 @@ test('GET /clients includes linkedUsers for active linked accounts and empty oth
   const admin = await createAdmin();
   const linkedClient = await createClient('Linked Corp');
   const plainClient = await createClient('Plain Corp');
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [linked] = await db.insert(users).values({
     name: 'Client Login', email: 'clogin@test.com', passwordHash, role: 'client',
     isActive: true, linkedClientId: linkedClient.id,
@@ -165,7 +165,7 @@ test('GET /clients includes linkedUsers for active linked accounts and empty oth
 test('GET /clients excludes soft-deleted users from linkedUsers', async () => {
   const admin = await createAdmin();
   const client = await createClient('Soft Corp');
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   await db.insert(users).values({
     name: 'Old Login', email: 'oldc@test.com', passwordHash, role: 'client',
     isActive: false, deletedAt: new Date(), linkedClientId: client.id,
@@ -184,7 +184,7 @@ test('GET /drivers includes linkedUsers for active linked accounts and empty oth
   const admin = await createAdmin();
   const linkedDriver = await createDriver('Linked Driver');
   const plainDriver = await createDriver('Plain Driver');
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [linked] = await db.insert(users).values({
     name: 'Driver Login', email: 'dlogin@test.com', passwordHash, role: 'driver',
     isActive: true, linkedDriverId: linkedDriver.id,
@@ -206,7 +206,7 @@ test('GET /drivers includes linkedUsers for active linked accounts and empty oth
 test('GET /drivers excludes soft-deleted users from linkedUsers', async () => {
   const admin = await createAdmin();
   const driver = await createDriver('Soft Driver');
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   await db.insert(users).values({
     name: 'Old Driver Login', email: 'oldd2@test.com', passwordHash, role: 'driver',
     isActive: false, deletedAt: new Date(), linkedDriverId: driver.id,

@@ -1,6 +1,6 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { eq, sql } from 'drizzle-orm';
 import { db, pool } from '../db/index.js';
 import { users, clients, drivers } from '../db/schema.js';
@@ -21,7 +21,7 @@ async function createDriver(name = 'John Driver') {
     return row;
 }
 async function insertUser(opts) {
-    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const passwordHash = await hashPassword(PASSWORD);
     const [row] = await db.insert(users).values({
         name: opts.name,
         email: opts.email,

@@ -1,7 +1,7 @@
 import { test, before, beforeEach, afterEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { sql } from 'drizzle-orm';
 import type { Express, Response } from 'express';
 
@@ -24,7 +24,7 @@ const PASSWORD = 'secret123';
 // linkedDriverId (the route reads req.user.linkedDriverId and 403s without it),
 // and the challan it reports on must reference that same drivers.id.
 async function createDriverUser(name: string, email: string) {
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [driver] = await db.insert(drivers).values({ name, phone: '0000000000' }).returning();
   const [user] = await db.insert(users).values({
     name, email, passwordHash, role: 'driver', isActive: true, linkedDriverId: driver.id,

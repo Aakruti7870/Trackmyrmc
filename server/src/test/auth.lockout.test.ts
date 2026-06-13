@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { sql, eq } from 'drizzle-orm';
 import type { Express } from 'express';
 
@@ -20,7 +20,7 @@ const WRONG_PASSWORD = 'wrongpass';
 async function createUser(opts: {
   name: string; email: string; role?: Role; isActive?: boolean;
 }) {
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [row] = await db.insert(users).values({
     name: opts.name,
     email: opts.email,

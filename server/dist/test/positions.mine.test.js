@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
@@ -14,14 +14,14 @@ async function createClient(name, phone) {
     return row;
 }
 async function createClientUser(email, clientId) {
-    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const passwordHash = await hashPassword(PASSWORD);
     const [user] = await db.insert(users).values({
         name: 'client user', email, passwordHash, role: 'client', isActive: true, linkedClientId: clientId,
     }).returning();
     return user;
 }
 async function createDriverUser(email) {
-    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const passwordHash = await hashPassword(PASSWORD);
     const [driver] = await db.insert(drivers).values({ name: 'Driver', phone: '0000000000' }).returning();
     const [user] = await db.insert(users).values({
         name: 'driver user', email, passwordHash, role: 'driver', isActive: true, linkedDriverId: driver.id,

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { eq, ne, asc, desc, sql, isNull, isNotNull, and, inArray, type SQL } from 'drizzle-orm';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { users, clients, drivers, auditLogs } from '../db/schema.js';
@@ -235,7 +235,7 @@ router.post('/', async (req, res) => {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await hashPassword(password);
   let user;
   try {
     [user] = await db.insert(users).values({
@@ -311,7 +311,7 @@ router.put('/:id', async (req, res) => {
   const { password, ...rest } = parse.data;
   const updateData: Record<string, unknown> = { ...rest };
   if (password) {
-    updateData.passwordHash = await bcrypt.hash(password, 10);
+    updateData.passwordHash = await hashPassword(password);
   }
 
   const [before] = await db.select({

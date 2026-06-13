@@ -1,7 +1,7 @@
 import { test, before, beforeEach, afterEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { eq, sql } from 'drizzle-orm';
 import type { Express, Response } from 'express';
 
@@ -20,7 +20,7 @@ const PASSWORD = 'secret123';
 // (see the driver branch in routes/challans.ts), so the user.name and the
 // drivers.name must be identical for the profile lookup to succeed.
 async function createDriverUser(name: string, email: string) {
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [driver] = await db.insert(drivers).values({ name, phone: '0000000000' }).returning();
   const [user] = await db.insert(users).values({
     name, email, passwordHash, role: 'driver', isActive: true, linkedDriverId: driver.id,
@@ -810,7 +810,7 @@ test('a driver can mint a presigned proof-photo upload URL', async (t) => {
 test('a driver user with no matching driver profile gets 403', async () => {
   const client = await createClient();
   // A driver-role user whose name matches NO drivers row (the profile lookup fails).
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [user] = await db.insert(users).values({
     name: 'Ghost Driver', email: 'ghost@test.com', passwordHash, role: 'driver', isActive: true,
   }).returning();

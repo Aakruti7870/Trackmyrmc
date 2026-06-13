@@ -1,7 +1,7 @@
 import { test, before, beforeEach, afterEach, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { and, eq, sql } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
 import { buildTestApp } from './app.js';
@@ -13,7 +13,7 @@ const PASSWORD = 'secret123';
 const SMTP_KEYS = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_PORT', 'SMTP_FROM'];
 const savedEnv = {};
 async function createUser(opts) {
-    const passwordHash = await bcrypt.hash(opts.password ?? PASSWORD, 10);
+    const passwordHash = await hashPassword(opts.password ?? PASSWORD);
     const [row] = await db.insert(users).values({
         name: opts.name,
         email: opts.email,

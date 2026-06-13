@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { sql } from 'drizzle-orm';
 import type { Express } from 'express';
 
@@ -17,7 +17,7 @@ let app: Express;
 const PASSWORD = 'secret123';
 
 async function createAdmin() {
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [row] = await db.insert(users).values({
     name: 'Owner', email: 'owner@test.com', passwordHash,
     role: 'admin', isActive: true,

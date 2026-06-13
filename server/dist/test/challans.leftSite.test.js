@@ -1,7 +1,7 @@
 import { test, before, beforeEach, afterEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { eq, sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
@@ -11,7 +11,7 @@ import { addSSEClient, removeSSEClient } from '../lib/sseEmitter.js';
 let app;
 const PASSWORD = 'secret123';
 async function createDriverUser(name, email) {
-    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const passwordHash = await hashPassword(PASSWORD);
     const [driver] = await db.insert(drivers).values({ name, phone: '0000000000' }).returning();
     const [user] = await db.insert(users).values({
         name, email, passwordHash, role: 'driver', isActive: true, linkedDriverId: driver.id,
@@ -19,7 +19,7 @@ async function createDriverUser(name, email) {
     return { user, driver };
 }
 async function createAdmin() {
-    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const passwordHash = await hashPassword(PASSWORD);
     const [row] = await db.insert(users).values({
         name: 'Owner', email: 'owner@test.com', passwordHash, role: 'admin', isActive: true,
     }).returning();

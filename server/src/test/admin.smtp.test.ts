@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { eq, sql } from 'drizzle-orm';
 import type { Express } from 'express';
 
@@ -15,7 +15,7 @@ let app: Express;
 const PASSWORD = 'secret123';
 
 async function createAdmin(email = 'admin@test.com') {
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [row] = await db.insert(users).values({
     name: 'Admin', email, passwordHash, role: 'admin', isActive: true,
   }).returning();
@@ -232,7 +232,7 @@ test('validation: rejects a non-numeric port and an invalid from address', async
 });
 
 test('non-admins cannot read or write SMTP settings', async () => {
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [dispatcher] = await db.insert(users).values({
     name: 'Dispatch', email: 'd@test.com', passwordHash, role: 'dispatcher', isActive: true,
   }).returning();

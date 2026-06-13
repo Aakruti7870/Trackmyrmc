@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { sql } from 'drizzle-orm';
 import type { Express } from 'express';
 
@@ -85,7 +85,7 @@ after(async () => { await pool.end(); });
 type AppRole = 'authority' | 'admin' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
 
 async function makeUser(role: AppRole, email: string, linkedClientId?: number) {
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [u] = await db.insert(users).values({
     name: `${role} user`, email, passwordHash, role, isActive: true,
     linkedClientId: linkedClientId ?? null,

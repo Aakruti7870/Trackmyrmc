@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
@@ -170,7 +171,7 @@ router.put('/change-password', requireAuth, async (req, res) => {
   }
 
   await resetAttempts(lockoutKey);
-  const newHash = await bcrypt.hash(newPassword, 10);
+  const newHash = await hashPassword(newPassword);
   await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
   res.json({ message: 'Password updated successfully' });
 });

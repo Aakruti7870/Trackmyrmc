@@ -1,7 +1,7 @@
 import { test, before, beforeEach, afterEach, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { sql } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
 import { buildTestApp } from './app.js';
@@ -14,7 +14,7 @@ import { setSetting } from '../lib/settings.js';
 let app;
 const PASSWORD = 'secret123';
 async function createUser(role, email) {
-    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const passwordHash = await hashPassword(PASSWORD);
     const [row] = await db.insert(users).values({
         name: role === 'admin' ? 'Admin' : 'Staff', email, passwordHash, role, isActive: true,
     }).returning();

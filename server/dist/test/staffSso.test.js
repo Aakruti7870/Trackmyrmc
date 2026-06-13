@@ -1,7 +1,7 @@
 import { test, before, beforeEach, afterEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password.js';
 import { sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
@@ -15,7 +15,7 @@ const PASSWORD = 'secret123';
 const ORIGINAL_AUTHORITY_EMAILS = process.env.AUTHORITY_EMAILS;
 const ORIGINAL_CLERK_SECRET = process.env.CLERK_SECRET_KEY;
 async function createUser(role, email, opts = {}) {
-    const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    const passwordHash = await hashPassword(PASSWORD);
     const [user] = await db.insert(users).values({
         name: `${role} user`, email, passwordHash, role: role,
         isActive: opts.isActive ?? true,
