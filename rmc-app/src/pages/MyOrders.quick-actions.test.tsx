@@ -48,7 +48,9 @@ function mockLists(orders: Order[], challans: Challan[]) {
   vi.mocked(api.get).mockImplementation((path: string) => {
     if (path === '/me/orders') return Promise.resolve(orders as never);
     if (path === '/me/challans') return Promise.resolve(challans as never);
-    return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
+    if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
+    if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
+    return Promise.resolve([] as never);
   });
 }
 
@@ -62,10 +64,11 @@ describe('MyOrders quick actions', () => {
     const user = userEvent.setup();
     render(<MyOrders />);
 
+    await user.click(await screen.findByRole('button', { name: /^orders \(/i }));
     await user.click(await screen.findByRole('button', { name: /reorder/i }));
 
     await screen.findByRole('heading', { name: /place new order/i });
-    expect(screen.getByRole('combobox')).toHaveValue('M30');
+    expect(screen.getAllByRole('combobox')[0]).toHaveValue('M30');
     expect(screen.getByPlaceholderText(/e\.g\. 10/i)).toHaveValue(8);
   });
 
@@ -79,6 +82,7 @@ describe('MyOrders quick actions', () => {
     const user = userEvent.setup();
     render(<MyOrders />);
 
+    await user.click(await screen.findByRole('button', { name: /^orders \(/i }));
     await user.click(await screen.findByRole('button', { name: /^cancel$/i }));
 
     await waitFor(() => {
@@ -95,6 +99,7 @@ describe('MyOrders quick actions', () => {
     const user = userEvent.setup();
     render(<MyOrders />);
 
+    await user.click(await screen.findByRole('button', { name: /^orders \(/i }));
     await user.click(await screen.findByRole('button', { name: /^cancel$/i }));
     expect(api.patch).not.toHaveBeenCalled();
     confirmSpy.mockRestore();

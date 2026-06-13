@@ -27,9 +27,9 @@ function makeOrder(over: Partial<Order> = {}): Order {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.get).mockImplementation((path: string) => {
-    if (path === '/me/orders') return Promise.resolve([] as never);
-    if (path === '/me/challans') return Promise.resolve([] as never);
-    return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
+    if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
+    if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
+    return Promise.resolve([] as never);
   });
 });
 
@@ -46,7 +46,7 @@ describe('MyOrders place order', () => {
     const dialog = await screen.findByRole('heading', { name: /place new order/i });
     expect(dialog).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByRole('combobox'), 'M30');
+    await user.selectOptions(screen.getAllByRole('combobox')[0], 'M30');
     await user.type(screen.getByPlaceholderText(/e\.g\. 10/i), '8');
 
     const submitBtns = screen.getAllByRole("button", { name: /place order/i });
