@@ -3,8 +3,9 @@ import { useLocation } from 'wouter';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, List, Map as MapIcon, Phone, Clock, Navigation, PackagePlus, Loader2, LocateFixed, RefreshCw } from 'lucide-react';
+import { MapPin, List, Map as MapIcon, Phone, Clock, Navigation, PackagePlus, Loader2, LocateFixed, RefreshCw, Headphones } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 
 export interface NearbyPlant {
@@ -24,6 +25,9 @@ export interface NearbyPlant {
 }
 
 const RADIUS_KM = 40;
+// Single network-wide help line shown when a customer taps a plant.
+const HELP_CONTACT = '+91 74982 86760';
+const HELP_TEL = '+917498286760';
 
 function dot(color: string, glyph: string) {
   return L.divIcon({
@@ -47,6 +51,7 @@ function FitAll({ points }: { points: [number, number][] }) {
 
 export default function NearbyPlants() {
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   const [coords, setCoords] = useState<LatLng | null>(null);
   const [plants, setPlants] = useState<NearbyPlant[] | null>(null);
   const [phase, setPhase] = useState<'locating' | 'loading' | 'ready' | 'geoerror'>('locating');
@@ -99,7 +104,9 @@ export default function NearbyPlants() {
 
   function placeOrder(p: NearbyPlant) {
     sessionStorage.setItem('rmc_selected_plant', JSON.stringify({ id: p.id, name: p.name }));
-    navigate('/my-orders');
+    // Logged-in customers go straight to ordering; logged-out landing visitors
+    // are funneled to register first (the booking flow lives behind login).
+    navigate(user ? '/my-orders' : '/register');
   }
 
   function viewOnMap(p: NearbyPlant) {
@@ -191,10 +198,13 @@ export default function NearbyPlants() {
                 {plants.map(p => (
                   <Marker key={p.id} position={[p.latitude, p.longitude]} icon={plantIcon}>
                     <Popup>
-                      <div style={{ minWidth: 170 }}>
+                      <div style={{ minWidth: 180 }}>
                         <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 2 }}>{p.name}</div>
                         <div style={{ fontSize: 12, color: '#555', marginBottom: 6 }}>{p.distanceKm} km · {p.openNow ? 'Open now' : 'Closed'}</div>
                         <button onClick={() => placeOrder(p)} style={{ background: '#f7c948', color: '#1a1a1a', border: 'none', borderRadius: 8, padding: '6px 10px', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Place Order</button>
+                        <div style={{ fontSize: 12, color: '#333', marginTop: 8, paddingTop: 6, borderTop: '1px solid #eee' }}>
+                          Need help? <a href={`tel:${HELP_TEL}`} style={{ color: '#0a66c2', fontWeight: 700, textDecoration: 'none' }}>{HELP_CONTACT}</a>
+                        </div>
                       </div>
                     </Popup>
                   </Marker>
@@ -252,6 +262,11 @@ function PlantCard({ p, onOrder, onMap }: { p: NearbyPlant; onOrder: () => void;
           ))}
         </div>
       )}
+
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5, fontWeight: 700, color: 'var(--gold)' }}>
+        <Headphones size={13} /> Help:&nbsp;
+        <a href={`tel:${HELP_TEL}`} style={{ color: 'var(--gold)', textDecoration: 'none' }}>{HELP_CONTACT}</a>
+      </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 4 }}>
         <button onClick={onMap} style={{ ...ghostBtn, flex: 1 }}><MapIcon size={15} /> View on map</button>

@@ -5,7 +5,6 @@ import { plants } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
-router.use(requireAuth);
 
 // Great-circle distance in km between two lat/lng points.
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -46,7 +45,10 @@ router.get('/nearby', async (req, res) => {
     res.status(400).json({ error: 'lat and lng are required' });
     return;
   }
-  const effRadius = Number.isFinite(radius) && radius > 0 ? radius : 40;
+  // Public endpoint: clamp the client-supplied radius to the 40 km service
+  // policy so it can't be abused to enumerate the whole plant directory.
+  const MAX_RADIUS_KM = 40;
+  const effRadius = Number.isFinite(radius) && radius > 0 ? Math.min(radius, MAX_RADIUS_KM) : MAX_RADIUS_KM;
 
   const rows = await db.select().from(plants);
   const nearby = rows
@@ -77,6 +79,10 @@ router.get('/nearby', async (req, res) => {
 });
 
 // ---- Admin onboarding / management ----
+// The public /nearby route above is intentionally reachable by logged-out
+// marketplace visitors (the landing-page "Find Nearby Plants" flow). Everything
+// below this guard requires authentication.
+router.use(requireAuth);
 
 router.get('/', ADMIN, async (_req, res) => {
   const rows = await db.select().from(plants).orderBy(plants.createdAt);
