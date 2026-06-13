@@ -320,7 +320,7 @@ export default function MyOrders() {
     setActionError('');
     setReceiptId(c.id);
     try {
-      await downloadDeliveryReceipt(c);
+      await downloadDeliveryReceipt(c, idleConfig);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Could not generate the receipt.');
     } finally {
