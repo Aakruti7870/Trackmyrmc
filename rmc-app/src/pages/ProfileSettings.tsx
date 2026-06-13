@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel } from 'lucide-react';
-import { api, type FuelSettings } from '@/lib/api';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp } from 'lucide-react';
+import { api, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { ThemeSwitcher } from '@/lib/theme-providers';
@@ -170,6 +170,11 @@ export default function ProfileSettings() {
   const [lockouts, setLockouts] = useState<Lockout[]>([]);
   const [lockoutsLoading, setLockoutsLoading] = useState(false);
   const [clearingKey, setClearingKey] = useState<string | null>(null);
+
+  const [stuckPhotos, setStuckPhotos] = useState<number | null>(null);
+  const [stuckLoading, setStuckLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryResult, setRetryResult] = useState<ProofPhotoRetryResult | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [syncedUserId, setSyncedUserId] = useState(user?.id);
 
@@ -331,6 +336,49 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setClearingKey(null);
+    }
+  }
+
+  // Bumped by the "Refresh"/"Retry" buttons to re-run the stuck-photo count load.
+  const [stuckReload, setStuckReload] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function loadStuck() {
+      setStuckLoading(true);
+      try {
+        const res = await api.get<StuckProofPhotosResponse>('/admin/proof-photos/stuck');
+        if (!cancelled) setStuckPhotos(res.count);
+      } catch {
+        /* non-fatal */
+      } finally {
+        if (!cancelled) setStuckLoading(false);
+      }
+    }
+    loadStuck();
+    return () => { cancelled = true; };
+  }, [isAdmin, stuckReload]);
+
+  async function handleRetryProofPhotos() {
+    setRetrying(true);
+    setRetryResult(null);
+    try {
+      const result = await api.post<ProofPhotoRetryResult>('/admin/proof-photos/retry', {});
+      setRetryResult(result);
+      setStuckReload(n => n + 1);
+      if (result.failed > 0) {
+        showToast(`${result.migrated} recovered, ${result.failed} still failed.`, 'error');
+      } else if (result.migrated > 0) {
+        showToast(`All ${result.migrated} stuck photo(s) recovered.`, 'success');
+      } else {
+        showToast('No stuck photos to recover.', 'success');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to retry stuck photos';
+      showToast(msg, 'error');
+    } finally {
+      setRetrying(false);
     }
   }
 
@@ -1246,6 +1294,122 @@ export default function ProfileSettings() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Stuck proof-photo recovery card — admins only */}
+      {isAdmin && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.25)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <ImageUp size={15} style={{ color: 'var(--blue)' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Delivery Photo Recovery</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Re-upload proof photos that failed to move to storage</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStuckReload(n => n + 1)}
+              disabled={stuckLoading || retrying}
+              title="Refresh"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 12px', borderRadius: 9,
+                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+                cursor: (stuckLoading || retrying) ? 'not-allowed' : 'pointer',
+                color: 'var(--muted)', fontWeight: 700, fontSize: 12,
+              }}
+            >
+              <RefreshCw size={13} style={{ animation: stuckLoading ? 'spin 1s linear infinite' : undefined }} />
+              Refresh
+            </button>
+          </div>
+
+          {stuckPhotos === 0 ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '14px 16px', borderRadius: 10,
+              background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.2)',
+              color: 'var(--muted)', fontSize: 13, fontWeight: 600,
+            }}>
+              <CheckCircle size={15} style={{ color: 'var(--green)', flexShrink: 0 }} />
+              {stuckLoading ? 'Checking for stuck photos…' : 'All delivery photos are stored safely. Nothing to recover.'}
+            </div>
+          ) : (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '12px 14px', borderRadius: 12,
+              background: 'rgba(56,189,248,.07)', border: '1px solid rgba(56,189,248,.18)',
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                  {stuckPhotos === null
+                    ? (stuckLoading ? 'Checking for stuck photos…' : 'Stuck photo status unavailable')
+                    : `${stuckPhotos} delivery photo${stuckPhotos !== 1 ? 's' : ''} stuck`}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
+                  These never reached storage. Retry once the storage issue is resolved.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleRetryProofPhotos}
+                disabled={retrying || stuckLoading || !stuckPhotos}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                  padding: '8px 14px', borderRadius: 9,
+                  background: retrying ? 'rgba(56,189,248,.35)' : 'linear-gradient(135deg,var(--blue),#0ea5e9)',
+                  border: 'none', cursor: (retrying || stuckLoading || !stuckPhotos) ? 'not-allowed' : 'pointer',
+                  color: '#fff', fontWeight: 700, fontSize: 12.5,
+                }}
+              >
+                <RefreshCw size={13} style={{ animation: retrying ? 'spin 1s linear infinite' : undefined }} />
+                {retrying ? 'Retrying…' : 'Retry now'}
+              </button>
+            </div>
+          )}
+
+          {retryResult && (
+            <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', borderRadius: 10,
+                background: retryResult.failed > 0 ? 'rgba(239,68,68,.08)' : 'rgba(34,197,94,.08)',
+                border: `1px solid ${retryResult.failed > 0 ? 'rgba(239,68,68,.2)' : 'rgba(34,197,94,.2)'}`,
+                color: 'var(--text)', fontSize: 12.5, fontWeight: 600,
+              }}>
+                {retryResult.failed > 0
+                  ? <XCircle size={15} style={{ color: 'var(--red)', flexShrink: 0 }} />
+                  : <CheckCircle size={15} style={{ color: 'var(--green)', flexShrink: 0 }} />}
+                <span>
+                  {retryResult.migrated} recovered · {retryResult.skipped} skipped · {retryResult.failed} still failed
+                </span>
+              </div>
+              {retryResult.failures.length > 0 && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: 10,
+                  background: 'rgba(239,68,68,.06)', border: '1px solid rgba(239,68,68,.15)',
+                  fontSize: 11.5, color: 'var(--muted)',
+                }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
+                    Still failing — retry again once resolved:
+                  </div>
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    {retryResult.failures.map(f => (
+                      <div key={f.id} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Photo #{f.id} (challan {f.challanId}): {f.error}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

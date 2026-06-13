@@ -11,6 +11,7 @@ import { getFreshnessConfig, FRESHNESS_KEYS, DEFAULT_WORKING_LIFE_MIN, DEFAULT_W
 import { getIdleConfig, IDLE_KEYS, DEFAULT_IDLE_FREE_MIN } from '../lib/idle.js';
 import { getFuelConfig, FUEL_KEYS, DEFAULT_RECON_VARIANCE_PCT, DEFAULT_IDLE_BURN_LPH, DEFAULT_UNSCHEDULED_STOP_MIN, DEFAULT_ROUTE_DEVIATION_M, } from '../lib/fuelConfig.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
+import { findStuckPhotos, retryFailedPhotos } from '../db/migrate-proof-photos.js';
 const router = Router();
 router.use(requireAuth, requireRole('admin', 'authority'));
 router.get('/smtp-settings', async (_req, res) => {
@@ -475,5 +476,59 @@ router.post('/lockouts/clear', async (req, res) => {
         emailSent: null,
     });
     res.json({ ok: true });
+});
+// ---------------------------------------------------------------------------
+// Proof-photo migration recovery
+//
+// Some legacy proof-of-delivery photos may still be stored as base64 in the
+// database because their upload to object storage failed (e.g. a storage
+// outage during the migration). These endpoints let an admin see what is still
+// stuck and re-attempt the upload from the admin panel, instead of running the
+// `migrate-proof-photos --retry` CLI from a shell.
+// ---------------------------------------------------------------------------
+router.get('/proof-photos/stuck', async (_req, res) => {
+    const stuck = await findStuckPhotos(db);
+    res.json({ count: stuck.length, photos: stuck });
+});
+// Optional `ids`: retry only those photo rows. Omitted/empty retries every row
+// still stuck as base64. Ids must be positive integers.
+const retryProofPhotosSchema = z.object({
+    ids: z.array(z.number().int().positive()).optional(),
+});
+router.post('/proof-photos/retry', async (req, res) => {
+    const parse = retryProofPhotosSchema.safeParse(req.body ?? {});
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.flatten().fieldErrors });
+        return;
+    }
+    // With no ids supplied, target everything still stuck as base64 so the admin
+    // can recover the whole backlog with one click after a storage outage clears.
+    const explicitIds = parse.data.ids;
+    const ids = explicitIds && explicitIds.length > 0
+        ? explicitIds
+        : (await findStuckPhotos(db)).map(p => p.id);
+    const result = await retryFailedPhotos(db, ids);
+    const actor = req.user;
+    try {
+        await db.insert(auditLogs).values({
+            actorId: actor.id,
+            actorName: actor.name,
+            action: 'proof_photos_retried',
+            status: result.failed > 0 ? 'failure' : 'success',
+            detail: `Proof-photo retry from the admin panel: ${result.migrated} recovered, ${result.skipped} skipped, ${result.failed} still failed.`,
+            emailSent: null,
+        });
+    }
+    catch (err) {
+        console.error('[admin] Failed to write proof-photo retry audit log:', err);
+    }
+    // The returned `failures` is a fresh, actionable report: the admin can retry
+    // exactly those still-stuck rows again once the underlying issue is resolved.
+    res.json({
+        migrated: result.migrated,
+        skipped: result.skipped,
+        failed: result.failed,
+        failures: result.failures,
+    });
 });
 export default router;

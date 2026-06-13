@@ -126,6 +126,29 @@ export interface IdleSettings extends IdleConfig {
   defaults: { freeMin: number; ratePerHour: number | null };
 }
 
+export interface StuckProofPhoto {
+  id: number;
+  challanId: number;
+}
+
+export interface StuckProofPhotosResponse {
+  count: number;
+  photos: StuckProofPhoto[];
+}
+
+export interface ProofPhotoRetryFailure {
+  id: number;
+  challanId: number;
+  error: string;
+}
+
+export interface ProofPhotoRetryResult {
+  migrated: number;
+  skipped: number;
+  failed: number;
+  failures: ProofPhotoRetryFailure[];
+}
+
 export interface Vehicle {
   id: number; vehicleNo: string; type: string; capacity: string;
   driverId?: number; insuranceExpiry?: string; lastService?: string;

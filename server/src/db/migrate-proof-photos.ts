@@ -29,6 +29,30 @@ export interface FailedPhoto {
   error: string;
 }
 
+/** A photo row still stored as base64 in the database (i.e. stuck/unmigrated). */
+export interface StuckPhoto {
+  id: number;
+  challanId: number;
+}
+
+/**
+ * Returns the proof-photo rows still stored as base64 data URLs — the ones that
+ * never made it into object storage and remain "stuck". This is the same set the
+ * full migration would target, exposed so the admin UI can show what is stuck
+ * and offer a targeted retry without running the whole scan from a shell.
+ */
+export async function findStuckPhotos(
+  db: NodePgDatabase<typeof schema>,
+): Promise<StuckPhoto[]> {
+  return db.select({
+    id: schema.challanProofPhotos.id,
+    challanId: schema.challanProofPhotos.challanId,
+  })
+    .from(schema.challanProofPhotos)
+    .where(like(schema.challanProofPhotos.photo, 'data:image/%'))
+    .orderBy(schema.challanProofPhotos.id);
+}
+
 export interface MigrationResult {
   migrated: number;
   skipped: number;

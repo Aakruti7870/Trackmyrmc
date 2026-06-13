@@ -20,6 +20,21 @@ import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 // safe.
 const { Pool } = pg;
 /**
+ * Returns the proof-photo rows still stored as base64 data URLs — the ones that
+ * never made it into object storage and remain "stuck". This is the same set the
+ * full migration would target, exposed so the admin UI can show what is stuck
+ * and offer a targeted retry without running the whole scan from a shell.
+ */
+export async function findStuckPhotos(db) {
+    return db.select({
+        id: schema.challanProofPhotos.id,
+        challanId: schema.challanProofPhotos.challanId,
+    })
+        .from(schema.challanProofPhotos)
+        .where(like(schema.challanProofPhotos.photo, 'data:image/%'))
+        .orderBy(schema.challanProofPhotos.id);
+}
+/**
  * Runs the legacy-photo migration against the given database. Returns a tally of
  * how many rows were migrated, skipped (already an object path), and failed.
  *
