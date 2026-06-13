@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import {
   Crown, Navigation, ShoppingCart, Eye, Truck, ShieldCheck,
-  FileText, Bell, Headphones, Phone, Mail, ArrowRight, X,
+  FileText, Bell, Headphones, Phone, Mail, ArrowRight, X, Menu,
   MapPin, Factory, Radio, ChevronRight,
 } from 'lucide-react';
 import './Landing.css';
@@ -159,6 +159,7 @@ export default function Landing() {
   const [, setLoc] = useLocation();
   const [openFeature, setOpenFeature] = useState<number | null>(null);
   const [openFeed, setOpenFeed] = useState<number | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -179,6 +180,10 @@ export default function Landing() {
     borderRadius: 12, fontWeight: 600, fontSize: 15, cursor: 'pointer',
     background: 'rgba(255,255,255,.04)', color: 'var(--text)', border: '1px solid var(--line)', fontFamily: 'inherit',
   };
+  const navLink: React.CSSProperties = {
+    background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)',
+    fontWeight: 600, fontSize: 14.5, fontFamily: 'inherit',
+  };
   const section: React.CSSProperties = { maxWidth: 1180, margin: '0 auto', padding: '0 24px' };
   const kicker: React.CSSProperties = { color: 'var(--gold)', fontWeight: 700, letterSpacing: 3, fontSize: 12.5, textTransform: 'uppercase' };
   const h2: React.CSSProperties = { fontSize: 34, fontWeight: 800, margin: '10px 0 0', letterSpacing: -0.5 };
@@ -193,19 +198,44 @@ export default function Landing() {
       <header style={{ position: 'sticky', top: 0, zIndex: 30,
         background: 'rgba(8,17,31,.72)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--line)' }}>
         <div style={{ ...section, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 74 }}>
-          <button onClick={() => scrollTo('top')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          <button onClick={() => { setMenuOpen(false); scrollTo('top'); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
             <Logo />
           </button>
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
-            <span className="ck-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
-              <button onClick={() => scrollTo('why')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 600, fontSize: 14.5, fontFamily: 'inherit' }}>Why Us</button>
-              <button onClick={() => scrollTo('feed')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 600, fontSize: 14.5, fontFamily: 'inherit' }}>Live Feed</button>
-              <button onClick={() => scrollTo('contact')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 600, fontSize: 14.5, fontFamily: 'inherit' }}>Contact</button>
-            </span>
+
+          {/* Desktop nav */}
+          <nav className="ck-nav-desktop" style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+            <button onClick={() => scrollTo('why')} style={navLink}>Why Us</button>
+            <button onClick={() => scrollTo('feed')} style={navLink}>Live Feed</button>
+            <button onClick={() => scrollTo('contact')} style={navLink}>Contact</button>
             <button onClick={() => setLoc('/login')} style={{ ...btnGhost, padding: '10px 18px', fontSize: 14 }}>Login</button>
             <button onClick={() => setLoc('/register')} style={{ ...btnGold, padding: '11px 20px', fontSize: 14 }}>Get Started <ArrowRight size={16} /></button>
           </nav>
+
+          {/* Mobile hamburger */}
+          <button
+            className="ck-nav-toggle"
+            onClick={() => setMenuOpen(o => !o)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            style={{
+              width: 44, height: 44, borderRadius: 12, placeItems: 'center', cursor: 'pointer',
+              background: 'rgba(255,255,255,.05)', border: '1px solid var(--line)', color: 'var(--text)',
+            }}
+          >
+            {menuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
         </div>
+
+        {/* Mobile dropdown menu */}
+        {menuOpen && (
+          <nav className="ck-mobile-menu" style={{ ...section, paddingTop: 6, paddingBottom: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <button onClick={() => { setMenuOpen(false); scrollTo('why'); }} style={{ ...navLink, textAlign: 'left', padding: '13px 4px', fontSize: 16, borderBottom: '1px solid var(--line)' }}>Why Us</button>
+            <button onClick={() => { setMenuOpen(false); scrollTo('feed'); }} style={{ ...navLink, textAlign: 'left', padding: '13px 4px', fontSize: 16, borderBottom: '1px solid var(--line)' }}>Live Feed</button>
+            <button onClick={() => { setMenuOpen(false); scrollTo('contact'); }} style={{ ...navLink, textAlign: 'left', padding: '13px 4px', fontSize: 16, borderBottom: '1px solid var(--line)' }}>Contact</button>
+            <button onClick={() => { setMenuOpen(false); setLoc('/login'); }} style={{ ...btnGhost, justifyContent: 'center', marginTop: 10 }}>Login</button>
+            <button onClick={() => { setMenuOpen(false); setLoc('/register'); }} style={{ ...btnGold, justifyContent: 'center' }}>Get Started <ArrowRight size={16} /></button>
+          </nav>
+        )}
       </header>
 
       {/* HERO */}
@@ -233,7 +263,7 @@ export default function Landing() {
               Track every cubic metre — from plant to pour, in real time. Find approved RMC plants
               near you, order the right grade, and watch it arrive live.
             </p>
-            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 28 }}>
+            <div className="ck-hero-cta" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 28 }}>
               <button onClick={() => setLoc('/nearby-plants')} style={btnGold}>Find Nearby Plants <ArrowRight size={16} /></button>
               <button onClick={() => scrollTo('why')} style={btnGhost}>See How It Works</button>
             </div>

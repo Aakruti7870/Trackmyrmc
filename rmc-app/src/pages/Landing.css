@@ -67,9 +67,19 @@
   .ck-feed-grid { grid-template-columns: repeat(2, 1fr) !important; }
   .ck-contact-grid { grid-template-columns: 1fr !important; }
 }
+/* Mobile navigation: collapse the inline nav into a hamburger menu so every
+   tab (Why Us / Live Feed / Contact / Login / Get Started) stays reachable. */
+.ck-nav-toggle { display: none; }
+@media (max-width: 720px) {
+  .ck-nav-desktop { display: none !important; }
+  .ck-nav-toggle { display: grid !important; }
+}
+
 @media (max-width: 560px) {
   .ck-h1 { font-size: 42px !important; }
   .ck-feat-grid { grid-template-columns: 1fr !important; }
   .ck-feed-grid { grid-template-columns: 1fr !important; }
-  .ck-nav-links { display: none !important; }
+  /* Hero CTAs stack full-width and stay easily tappable on phones */
+  .ck-hero-cta { flex-direction: column; align-items: stretch; }
+  .ck-hero-cta > button { width: 100%; justify-content: center; }
 }
