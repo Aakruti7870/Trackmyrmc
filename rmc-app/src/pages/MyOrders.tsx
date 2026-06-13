@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
-import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type Site, type RecurringOrder, type FreshnessConfig } from '@/lib/api';
+import { useState, useEffect, useCallback, Fragment } from 'react';
+import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type Site, type RecurringOrder, type FreshnessConfig, type IdleConfig } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
+import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 import FreshnessCountdown from '@/components/FreshnessCountdown';
-import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock } from 'lucide-react';
+import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
 import SitePicker from '@/components/SitePicker';
 import LiveDeliveryMap, { type DeliveryMarker } from '@/components/LiveDeliveryMap';
@@ -167,6 +168,7 @@ export default function MyOrders() {
   const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
   const [livePositions, setLivePositions] = useState<Record<number, LivePosition>>({});
   const [freshnessConfig, setFreshnessConfig] = useState<FreshnessConfig | null>(null);
+  const [idleConfig, setIdleConfig] = useState<IdleConfig | undefined>(undefined);
   const [cancelingId, setCancelingId] = useState<number | null>(null);
   const [receiptId, setReceiptId] = useState<number | null>(null);
   const [actionError, setActionError] = useState('');
@@ -203,6 +205,17 @@ export default function MyOrders() {
     api.get<FreshnessConfig>('/positions/freshness-config')
       .then(cfg => { if (!cancelled) setFreshnessConfig(cfg); })
       .catch(() => { /* countdown is non-critical */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Idle config (free window + per-hour rate) so the time-at-site / idle-charge
+  // figures match the plant's settings. Best-effort: if it never loads the
+  // helper falls back to the built-in free window with no money charge.
+  useEffect(() => {
+    let cancelled = false;
+    api.get<IdleConfig>('/me/idle-config')
+      .then(cfg => { if (!cancelled) setIdleConfig({ freeMin: cfg.freeMin, ratePerHour: cfg.ratePerHour }); })
+      .catch(() => { /* idle figures are non-critical */ });
     return () => { cancelled = true; };
   }, []);
 
@@ -689,8 +702,12 @@ export default function MyOrders() {
                 </tr>
               </thead>
               <tbody>
-                {challans.map(c => (
-                  <tr key={c.id} style={{ borderBottom: '1px solid rgba(38,52,73,.5)' }}>
+                {challans.map(c => {
+                  const timing = computeTripTiming(c, idleConfig);
+                  const hasTiming = !!(c.siteArrivalTime || c.siteReleaseTime);
+                  return (
+                  <Fragment key={c.id}>
+                  <tr style={{ borderBottom: hasTiming ? 'none' : '1px solid rgba(38,52,73,.5)' }}>
                     <td style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)', fontSize: 13 }}>{c.challanNo}</td>
                     <td style={{ padding: '12px 14px' }}>
                       <span style={{ background: 'rgba(56,189,248,.12)', color: 'var(--blue)', padding: '2px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>{c.grade}</span>
@@ -731,7 +748,41 @@ export default function MyOrders() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  {hasTiming && (
+                    <tr style={{ borderBottom: '1px solid rgba(38,52,73,.5)' }}>
+                      <td colSpan={9} style={{ padding: '0 14px 12px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
+                          {c.siteArrivalTime && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--muted)' }}>
+                              <MapPin size={12} style={{ color: 'var(--blue)' }} /> Arrived
+                              <strong style={{ color: 'var(--blue)', fontWeight: 700 }}>{new Date(c.siteArrivalTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</strong>
+                            </span>
+                          )}
+                          {c.siteReleaseTime && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--muted)' }}>
+                              <Navigation size={12} style={{ color: 'var(--gold)' }} /> Left site
+                              <strong style={{ color: 'var(--gold)', fontWeight: 700 }}>{new Date(c.siteReleaseTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</strong>
+                            </span>
+                          )}
+                          {timing.siteMin != null && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--muted)' }}>
+                              <Clock size={12} style={{ color: 'var(--muted)' }} /> Time at site
+                              <strong style={{ color: 'var(--text)', fontWeight: 700 }}>{formatDuration(timing.siteMin)}</strong>
+                            </span>
+                          )}
+                          {timing.billableIdleMin != null && timing.billableIdleMin > 0 && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--gold)', background: 'color-mix(in srgb, var(--gold) 10%, transparent)', padding: '3px 10px', borderRadius: 8, fontWeight: 700 }}>
+                              <AlertTriangle size={12} /> Idle {formatDuration(timing.billableIdleMin)}
+                              {timing.idleCharge != null && <span>· ₹{timing.idleCharge.toLocaleString('en-IN')}</span>}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           )}
