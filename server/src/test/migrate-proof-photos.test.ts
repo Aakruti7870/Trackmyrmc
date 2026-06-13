@@ -8,7 +8,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db, pool } from '../db/index.js';
 import { clients, challans, challanProofPhotos } from '../db/schema.js';
 import { proofPhotoStore } from '../lib/proofPhoto.js';
-import { migrateProofPhotos, writeFailureReport } from '../db/migrate-proof-photos.js';
+import { migrateProofPhotos, writeFailureReport, retryFailedPhotos, readFailedIds } from '../db/migrate-proof-photos.js';
 
 // A minimal but valid 1x1 transparent PNG as an image data URL.
 const BASE64_PHOTO =
@@ -175,6 +175,82 @@ test('partial failure: failed uploads are reported and the rows stay base64 in t
     { id: badRow.id, challanId: challan.id, error: 'object storage unavailable' },
   ], 'the report records which photo rows remain stuck');
   assert.equal(typeof written.generatedAt, 'string', 'the report is timestamped');
+});
+
+test('retry: some failed rows now succeed and the rest are written to a fresh report', async (t) => {
+  const challan = await createChallanWithClient();
+  const rowA = await addPhoto(challan.id, BASE64_PHOTO);
+  const rowB = await addPhoto(challan.id, BASE64_PHOTO_2);
+
+  // First pass: both uploads fail (storage outage), leaving both rows as base64.
+  const downMock = t.mock.method(proofPhotoStore, 'store', async () => {
+    throw new Error('object storage unavailable');
+  });
+  const first = await migrateProofPhotos(db);
+  assert.equal(first.failed, 2, 'both rows fail on the first pass');
+  downMock.mock.restore();
+
+  // Persist the failure report, then read the failed ids back out of it — the
+  // recovery path an admin would take.
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'proof-photo-retry-'));
+  const firstReport = await writeFailureReport(first, dir);
+  assert.ok(firstReport, 'a report is written for the first failed pass');
+  const failedIds = await readFailedIds(firstReport!);
+  assert.deepEqual([...failedIds].sort((x, y) => x - y), [rowA.id, rowB.id].sort((x, y) => x - y),
+    'the report lists exactly the failed row ids');
+
+  // Retry: storage is back for rowA but rowB still fails.
+  const retryMock = t.mock.method(proofPhotoStore, 'store', async (dataUrl: string) => {
+    if (dataUrl === BASE64_PHOTO) return '/objects/uploads/retried-ok';
+    throw new Error('still down');
+  });
+
+  const retry = await retryFailedPhotos(db, failedIds);
+
+  assert.equal(retryMock.mock.callCount(), 2, 'only the two reported rows are retried');
+  assert.equal(retry.migrated, 1, 'the now-available row is migrated');
+  assert.equal(retry.failed, 1, 'the still-down row is counted as failed');
+  assert.deepEqual(retry.failures, [
+    { id: rowB.id, challanId: challan.id, error: 'still down' },
+  ], 'only the still-failing row is reported');
+
+  // rowA is rewritten to an object path; rowB stays base64 for the next retry.
+  assert.equal(await photoById(rowA.id), '/objects/uploads/retried-ok', 'recovered row holds an entity path');
+  assert.equal(await photoById(rowB.id), BASE64_PHOTO_2, 'still-failing row keeps its base64 payload');
+
+  // A fresh report records only what still failed.
+  const secondReport = await writeFailureReport(retry, dir);
+  assert.ok(secondReport, 'a fresh report is written for the rows that still failed');
+  const second = JSON.parse(await readFile(secondReport!, 'utf8'));
+  assert.deepEqual(second.failures, [
+    { id: rowB.id, challanId: challan.id, error: 'still down' },
+  ], 'the fresh report lists only the still-stuck row');
+});
+
+test('retry: already-migrated and missing ids are skipped, not re-uploaded', async (t) => {
+  const challan = await createChallanWithClient();
+  // rowA was migrated out-of-band between the failed run and the retry.
+  const rowA = await addPhoto(challan.id, '/objects/uploads/done-elsewhere');
+  const rowB = await addPhoto(challan.id, BASE64_PHOTO);
+  const missingId = rowB.id + 9999; // an id that no longer has a row
+
+  const storeMock = t.mock.method(proofPhotoStore, 'store', async () => '/objects/uploads/retried');
+
+  const retry = await retryFailedPhotos(db, [rowA.id, rowB.id, missingId]);
+
+  assert.equal(storeMock.mock.callCount(), 1, 'only the still-base64 row is uploaded');
+  assert.equal(retry.migrated, 1, 'the base64 row is migrated');
+  assert.equal(retry.skipped, 2, 'the already-migrated row and the missing id are both skipped');
+  assert.equal(retry.failed, 0, 'nothing fails');
+  assert.equal(await photoById(rowA.id), '/objects/uploads/done-elsewhere', 'the already-migrated row is untouched');
+  assert.equal(await photoById(rowB.id), '/objects/uploads/retried', 'the base64 row is rewritten');
+});
+
+test('retry: an empty id list is a no-op', async (t) => {
+  const storeMock = t.mock.method(proofPhotoStore, 'store', async () => '/objects/uploads/nope');
+  const retry = await retryFailedPhotos(db, []);
+  assert.deepEqual(retry, { migrated: 0, skipped: 0, failed: 0, failures: [] });
+  assert.equal(storeMock.mock.callCount(), 0, 'nothing is uploaded for an empty retry');
 });
 
 test('writeFailureReport writes nothing when there are no failures', async () => {

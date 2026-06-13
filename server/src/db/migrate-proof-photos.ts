@@ -1,8 +1,8 @@
 import 'dotenv/config';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, like } from 'drizzle-orm';
+import { eq, inArray, like } from 'drizzle-orm';
 import pg from 'pg';
 import * as schema from './schema.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
@@ -68,13 +68,40 @@ export async function migrateProofPhotos(
 
   log(`Found ${rows.length} base64 proof photo(s) to migrate.`);
 
+  const result = await uploadRows(db, rows, log);
+
+  log(`\n✅ Migration complete. Migrated: ${result.migrated}, skipped: ${result.skipped}, failed: ${result.failed}.`);
+  return result;
+}
+
+/** A photo row as selected for (re)upload. */
+interface PhotoRow {
+  id: number;
+  challanId: number;
+  photo: string;
+}
+
+/**
+ * Uploads each still-base64 row to object storage and rewrites the row to the
+ * returned /objects/... entity path. Rows already holding an object path are
+ * counted as skipped (never re-uploaded), and any upload that throws is recorded
+ * as a failure with the row left as-is so it can be retried.
+ *
+ * Shared by the full migration and the targeted retry so both behave identically.
+ */
+async function uploadRows(
+  db: NodePgDatabase<typeof schema>,
+  rows: PhotoRow[],
+  log: (msg: string) => void,
+): Promise<MigrationResult> {
   let migrated = 0;
   let skipped = 0;
   const failures: FailedPhoto[] = [];
 
   for (const row of rows) {
-    // Defensive: the SQL filter already excludes these, but guard anyway so a
-    // value that slipped through is never re-uploaded.
+    // A row may already be an /objects/... path: the full migration's SQL filter
+    // excludes these, and a retry may target a row that succeeded out-of-band.
+    // Either way, never re-upload it.
     if (isObjectStoragePath(row.photo)) {
       skipped++;
       continue;
@@ -93,8 +120,75 @@ export async function migrateProofPhotos(
     }
   }
 
-  log(`\n✅ Migration complete. Migrated: ${migrated}, skipped: ${skipped}, failed: ${failures.length}.`);
   return { migrated, skipped, failed: failures.length, failures };
+}
+
+/**
+ * Re-attempts the upload for only the given photo row ids — the targeted
+ * recovery path for a partial migration. Unlike {@link migrateProofPhotos}, it
+ * does not rescan every base64 row in the table; it touches just the rows that
+ * previously failed, so recovery from a storage outage is fast.
+ *
+ * Behaviour per row:
+ * - still base64 → re-uploaded and rewritten to an /objects/... path on success
+ * - already an /objects/... path (succeeded out-of-band) → counted as skipped
+ * - id no longer in the table → counted as skipped (nothing to retry)
+ * - upload throws again → recorded in the returned result's `failures`
+ *
+ * The returned result can be passed to {@link writeFailureReport} to write a
+ * fresh report of whatever still failed.
+ */
+export async function retryFailedPhotos(
+  db: NodePgDatabase<typeof schema>,
+  ids: number[],
+  log: (msg: string) => void = () => {},
+): Promise<MigrationResult> {
+  // De-duplicate while preserving order so a report listing a row twice does not
+  // retry it twice.
+  const uniqueIds = [...new Set(ids)];
+
+  if (uniqueIds.length === 0) {
+    log('✅ Nothing to retry — no failed photo ids given.');
+    return { migrated: 0, skipped: 0, failed: 0, failures: [] };
+  }
+
+  log(`Retrying ${uniqueIds.length} previously-failed proof photo(s).`);
+
+  const rows = await db.select({
+    id: schema.challanProofPhotos.id,
+    challanId: schema.challanProofPhotos.challanId,
+    photo: schema.challanProofPhotos.photo,
+  })
+    .from(schema.challanProofPhotos)
+    .where(inArray(schema.challanProofPhotos.id, uniqueIds));
+
+  // Ids in the report that no longer have a row (e.g. the challan was deleted)
+  // are nothing to retry — count them as skipped so the tally stays accurate.
+  const found = new Set(rows.map(r => r.id));
+  const missing = uniqueIds.filter(id => !found.has(id));
+  for (const id of missing) {
+    log(`  – photo #${id} no longer exists; skipping.`);
+  }
+
+  const result = await uploadRows(db, rows, log);
+  result.skipped += missing.length;
+
+  log(`\n✅ Retry complete. Migrated: ${result.migrated}, skipped: ${result.skipped}, failed: ${result.failed}.`);
+  return result;
+}
+
+/**
+ * Reads a failure report previously written by {@link writeFailureReport} and
+ * returns the photo row ids it recorded as failed. Used by the retry CLI so an
+ * admin can point it straight at the JSON report from a partial run.
+ */
+export async function readFailedIds(reportPath: string): Promise<number[]> {
+  const raw = await readFile(reportPath, 'utf8');
+  const parsed = JSON.parse(raw) as { failures?: Array<{ id: number }> };
+  if (!Array.isArray(parsed.failures)) {
+    throw new Error(`Report ${reportPath} has no "failures" array`);
+  }
+  return parsed.failures.map(f => f.id);
 }
 
 /**
@@ -132,13 +226,31 @@ async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const db = drizzle(pool, { schema });
 
-  console.log('📦 Migrating legacy base64 proof photos to object storage...');
+  // `--retry <report.json>` re-attempts only the rows from a previous failure
+  // report; with no flag it runs the full base64 scan-and-migrate.
+  const retryFlag = process.argv.indexOf('--retry');
+  const retryReportPath = retryFlag !== -1 ? process.argv[retryFlag + 1] : undefined;
+
   try {
-    const result = await migrateProofPhotos(db, (msg) => console.log(msg));
+    let result: MigrationResult;
+    if (retryFlag !== -1) {
+      if (!retryReportPath) {
+        console.error('Usage: migrate-proof-photos --retry <failure-report.json>');
+        process.exitCode = 1;
+        return;
+      }
+      console.log(`♻️  Retrying failed proof photos from ${retryReportPath}...`);
+      const ids = await readFailedIds(retryReportPath);
+      result = await retryFailedPhotos(db, ids, (msg) => console.log(msg));
+    } else {
+      console.log('📦 Migrating legacy base64 proof photos to object storage...');
+      result = await migrateProofPhotos(db, (msg) => console.log(msg));
+    }
+
     if (result.failed > 0) {
       const reportPath = await writeFailureReport(result);
       console.error(
-        `\n⚠️  ${result.failed} photo(s) failed to migrate and remain as base64 in the database.`,
+        `\n⚠️  ${result.failed} photo(s) failed and remain as base64 in the database.`,
       );
       if (reportPath) {
         console.error(`   A durable failure report was written to: ${reportPath}`);
