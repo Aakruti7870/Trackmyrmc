@@ -118,13 +118,19 @@ router.get('/trip-timing', async (req, res) => {
         .orderBy(sql `date(${challans.createdAt})`);
     res.json({ freeMin, ratePerHour, rows });
 });
-async function computeFuelReconciliation(from, to) {
+async function computeFuelReconciliation(from, to, actorPlantId) {
     const config = await getFuelConfig();
     const challanFilters = [];
     if (from)
         challanFilters.push(gte(challans.createdAt, from));
     if (to)
         challanFilters.push(lte(challans.createdAt, to));
+    // Hard-scope challan-derived KM/idle aggregates to the actor's plant so a
+    // plant-bound owner can't infer another plant's fleet activity (a null-plant
+    // legacy admin stays global — plantScope returns undefined there).
+    const challanScope = plantScope(actorPlantId, challans.plantId);
+    if (challanScope)
+        challanFilters.push(challanScope);
     const hasOdo = sql `${challans.odometerStart} is not null and ${challans.odometerEnd} is not null and ${challans.odometerEnd} >= ${challans.odometerStart}`;
     const hasSite = sql `${challans.siteArrivalTime} is not null and ${challans.siteReleaseTime} is not null and ${challans.siteReleaseTime} >= ${challans.siteArrivalTime}`;
     const challanRows = await db.select({
@@ -205,7 +211,7 @@ async function computeFuelReconciliation(from, to) {
 }
 router.get('/fuel-reconciliation', requireRole('admin', 'dispatcher', 'authority'), async (req, res) => {
     const { from, to } = req.query;
-    res.json(await computeFuelReconciliation(from ? new Date(from) : undefined, to ? new Date(to) : undefined));
+    res.json(await computeFuelReconciliation(from ? new Date(from) : undefined, to ? new Date(to) : undefined, req.user?.plantId));
 });
 router.get('/production', async (req, res) => {
     const { from, to } = req.query;
@@ -277,7 +283,7 @@ router.get('/export', async (req, res) => {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
-        const { config, rows } = await computeFuelReconciliation(from ? new Date(from) : undefined, to ? new Date(to) : undefined);
+        const { config, rows } = await computeFuelReconciliation(from ? new Date(from) : undefined, to ? new Date(to) : undefined, req.user?.plantId);
         csv = `Diesel reconciliation (over-consumption flagged above ${config.reconVariancePct}% variance)\n`;
         csv += 'Vehicle,Km Driven,Idle Hours,Trips,Trips w/ Odometer,Mileage (km/L),Idle Burn (L/h),Expected Driving (L),Expected Idle (L),Expected Total (L),Actual (L),Amount,Fills,Variance %,Flagged\n';
         csv += rows.map(r => `"${r.vehicleNo ?? ''}",${r.km},${r.idleHours},${r.trips},${r.tripsWithOdometer},${r.mileageKmpl ?? ''},${r.idleBurnLph},${r.expectedDrivingLitres ?? ''},${r.expectedIdleLitres},${r.expectedLitres ?? ''},${r.actualLitres},${r.amount},${r.fills},${r.variancePct ?? ''},${r.flagged ? 'YES' : ''}`).join('\n');

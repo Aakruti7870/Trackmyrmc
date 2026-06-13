@@ -5,7 +5,7 @@ import { hashPassword } from '../lib/password.js';
 import { sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, clients, orders, challans, challanProofPhotos, plants } from '../db/schema.js';
+import { users, clients, orders, challans, challanProofPhotos, plants, vehicles } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
 let app;
 const PASSWORD = 'secret123';
@@ -45,7 +45,7 @@ before(() => {
     app = buildTestApp();
 });
 beforeEach(async () => {
-    await db.execute(sql `TRUNCATE TABLE plant_customers, challans, orders, clients, audit_logs, users, login_attempts, plants RESTART IDENTITY CASCADE`);
+    await db.execute(sql `TRUNCATE TABLE plant_customers, challans, orders, clients, audit_logs, users, login_attempts, vehicles, plants RESTART IDENTITY CASCADE`);
     plantSeq = 0;
 });
 after(async () => {
@@ -417,4 +417,48 @@ test('demand forecast is plant-scoped: plant A staff cannot see plant B\'s booke
         .set('Authorization', `Bearer ${tokenFor(globalAdmin)}`);
     assert.equal(fcG.status, 200);
     assert.equal(Number(fcG.body.totalBooked), 40, 'a legacy global admin still sees all plants');
+});
+test('fuel reconciliation is plant-scoped: challan-derived KM does not leak across plants', async () => {
+    const plantA = await createPlant();
+    const plantB = await createPlant();
+    // A shared vehicle (vehicles carry no plantId — documented drift) records trips
+    // for both plants; the per-plant aggregate must only reflect the actor's plant.
+    const [vehicle] = await db.insert(vehicles).values({
+        vehicleNo: 'FR-SHARED-1', capacity: '6.00', mileageKmpl: '4.00',
+    }).returning();
+    const seedTrip = async (plantId, plantCode, km) => {
+        const [client] = await db.insert(clients).values({
+            plantId, customerCode: `${plantCode}-C0001`, name: `${plantCode}-C0001`,
+            contactPerson: 'C', phone: '9990001111',
+        }).returning();
+        await db.insert(challans).values({
+            plantId, clientId: client.id, vehicleId: vehicle.id, challanNo: `${plantCode}-FR1`,
+            grade: 'M25', quantity: '10', status: 'delivered',
+            odometerStart: 0, odometerEnd: km,
+        });
+    };
+    await seedTrip(plantA.id, plantA.plantCode, 100);
+    await seedTrip(plantB.id, plantB.plantCode, 500);
+    const kmFor = (body) => Number(body.rows.find(r => r.vehicleId === vehicle.id)?.km ?? 0);
+    const staffA = await createUser('admin', 'frA@test.com', { plantId: plantA.id });
+    const frA = await request(app).get('/api/reports/fuel-reconciliation')
+        .set('Authorization', `Bearer ${tokenFor(staffA)}`);
+    assert.equal(frA.status, 200);
+    assert.equal(kmFor(frA.body), 100, 'plant A sees only its own challan KM, not plant B\'s');
+    const staffB = await createUser('admin', 'frB@test.com', { plantId: plantB.id });
+    const frB = await request(app).get('/api/reports/fuel-reconciliation')
+        .set('Authorization', `Bearer ${tokenFor(staffB)}`);
+    assert.equal(frB.status, 200);
+    assert.equal(kmFor(frB.body), 500, 'plant B sees only its own challan KM');
+    const globalAdmin = await createUser('admin', 'frglobal@test.com', { plantId: null });
+    const frG = await request(app).get('/api/reports/fuel-reconciliation')
+        .set('Authorization', `Bearer ${tokenFor(globalAdmin)}`);
+    assert.equal(frG.status, 200);
+    assert.equal(kmFor(frG.body), 600, 'a legacy global admin sees both plants combined');
+    // The CSV export path must enforce the same scoping.
+    const csvA = await request(app).get('/api/reports/export?report=fuel-reconciliation')
+        .set('Authorization', `Bearer ${tokenFor(staffA)}`);
+    assert.equal(csvA.status, 200);
+    assert.match(csvA.text, /FR-SHARED-1",100,/, 'plant A CSV reflects only its own KM');
+    assert.doesNotMatch(csvA.text, /FR-SHARED-1",600,/, 'plant A CSV never shows the combined KM');
 });

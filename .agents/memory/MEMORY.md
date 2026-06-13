@@ -24,3 +24,4 @@
 - [RMC test baseline failures](rmc-test-baseline-failures.md) — `pnpm test` has 7 pre-existing server + 6 frontend (MyOrders place-order/quick-actions `/positions/mine` not-iterable) failures; verify before blaming your change.
 - [RMC test bcrypt cost](rmc-test-bcrypt-cost.md) — hashing goes through hashPassword()/BCRYPT_ROUNDS in lib/password.ts; cost 4 under NODE_ENV=test (vs 10 prod) saves ~35–50s; never hardcode cost or assert hash prefix.
 - [Integration files break prod ESM](integration-esm-extensions.md) — replit_integrations/* use extensionless relative imports; fine under tsx dev but crash prod node ESM (ERR_MODULE_NOT_FOUND). Add .js after (re)installing an integration.
+- [RMC reports/dashboard tenant scoping](rmc-reports-tenant-scoping.md) — EVERY aggregate over challans/orders/clients (incl. forecast history+booked and fuel-reconciliation JSON+CSV) must append plantScope; helper funcs need an explicit actorPlantId param.
