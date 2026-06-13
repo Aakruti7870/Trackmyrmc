@@ -87,6 +87,49 @@ async function dropDatabase(name) {
   }
 }
 
+// A run normally drops its own databases in the `finally` below, but a hard
+// kill (SIGKILL, OOM, CI cancellation) skips that cleanup and leaves orphaned
+// databases behind. Left unchecked they accumulate until the Postgres server
+// hits its database/connection limits and new runs start failing. So before
+// each run we sweep away leftovers from PREVIOUS runs.
+//
+// Every test database name ends with `_test_<tag>_<pid>_<ms-timestamp>`, where
+// the timestamp is the `Date.now()` from when its run started. We parse that
+// timestamp out of the name and only drop databases older than a safe
+// threshold, so a concurrently-running sibling run's fresh databases (and the
+// real dev database, which never matches the pattern) are left untouched.
+const STALE_DB_AGE_MS = 60 * 60 * 1000; // 1 hour
+const TEST_DB_RE = /_test_(?:tmpl|w\d+)_\d+_(\d+)$/;
+
+async function sweepStaleDatabases() {
+  const admin = new pg.Pool({ connectionString: baseUrl, ssl });
+  let candidates = [];
+  try {
+    const { rows } = await admin.query('SELECT datname FROM pg_database');
+    candidates = rows.map((r) => r.datname);
+  } catch (err) {
+    console.error('[test] Warning: stale-database sweep failed to list databases:', err.message);
+    return;
+  } finally {
+    await admin.end();
+  }
+
+  const now = Date.now();
+  const stale = [];
+  for (const datname of candidates) {
+    if (datname === baseName) continue; // never the real dev database
+    const m = TEST_DB_RE.exec(datname);
+    if (!m) continue;
+    const ts = Number(m[1]);
+    if (!Number.isFinite(ts)) continue;
+    if (now - ts > STALE_DB_AGE_MS) stale.push(datname);
+  }
+
+  if (stale.length === 0) return;
+  console.log(`[test] Sweeping ${stale.length} stale test database(s) from interrupted runs: ${stale.join(', ')}`);
+  await Promise.all(stale.map((name) => dropDatabase(name)));
+}
+
 function findTests(dir) {
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -136,6 +179,9 @@ function runWorker(index, files, dbName) {
 const createdDbs = [];
 let exitCode = 1;
 try {
+  // 0. Sweep away orphaned databases left behind by previously-killed runs.
+  await sweepStaleDatabases();
+
   // 1. Create + schema-push a template database once.
   {
     const admin = new pg.Pool({ connectionString: baseUrl, ssl });
