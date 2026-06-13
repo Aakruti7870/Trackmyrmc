@@ -85,6 +85,45 @@ test('keepalive cadence stays well under the common proxy idle timeout', () => {
     // stay at or below 15s. Bumping it back up would silently kill live updates.
     assert.ok(KEEPALIVE_MS * 2 <= 30_000, `KEEPALIVE_MS (${KEEPALIVE_MS}) must allow two pings inside a 30s proxy window`);
 });
+test('keepalive: an idle connection keeps receiving pings across several intervals', () => {
+    // The whole point of the keepalive is that a stream which never emits an
+    // application event still gets periodic ':ping' writes so proxies don't drop
+    // it. Drive the clock across many KEEPALIVE_MS intervals with NO events
+    // emitted and confirm one ping lands per interval.
+    const res = new MockResponse(1);
+    const id = add(res);
+    created.push(id);
+    // The opening ':ok' is written immediately; ignore it and count only pings.
+    res.writes.length = 0;
+    const intervals = 5;
+    for (let i = 0; i < intervals; i++) {
+        mock.timers.tick(KEEPALIVE_MS);
+    }
+    const pings = res.writes.filter((w) => w === ':ping\n\n').length;
+    assert.equal(pings, intervals, `an idle connection must receive exactly one keepalive ping per interval (expected ${intervals})`);
+});
+test('keepalive: a flushing idle connection refreshes lastActive and is never swept past the stale threshold', () => {
+    // Each flushed ping advances the connection's lastActive. If that refresh
+    // ever stopped, the first sweep after STALE_THRESHOLD_MS would reclaim the
+    // (still perfectly healthy) idle connection. Run the keepalive for several
+    // multiples of STALE_THRESHOLD_MS and assert the connection both survives
+    // every sweep and keeps accruing one fresh ping per interval.
+    const res = new MockResponse(1);
+    const id = add(res);
+    created.push(id);
+    // Drop the opening ':ok'; from here the stream is fully idle.
+    res.writes.length = 0;
+    const cycles = Math.ceil((STALE_THRESHOLD_MS * 3) / KEEPALIVE_MS);
+    let lastPingCount = 0;
+    for (let i = 0; i < cycles; i++) {
+        mock.timers.tick(KEEPALIVE_MS);
+        assert.equal(getSSEClientCount(), 1, 'a flushing idle connection must never be swept while its pings keep flushing');
+        const pings = res.writes.filter((w) => w === ':ping\n\n').length;
+        assert.ok(pings > lastPingCount, 'each elapsed interval must add a fresh keepalive ping (proof lastActive is refreshing)');
+        lastPingCount = pings;
+    }
+    assert.ok(lastPingCount >= cycles, 'the idle connection should have received a ping for every elapsed interval');
+});
 test('sweep: a closed connection is removed from the client map', () => {
     const res = new MockResponse(1);
     const id = add(res);
