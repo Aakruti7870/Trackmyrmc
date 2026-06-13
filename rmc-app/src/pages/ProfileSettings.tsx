@@ -14,6 +14,22 @@ interface SmtpSettings {
   configured: boolean;
 }
 
+// The acting owner's own plant. Only the identity/contact fields printed on
+// challans & receipts are editable here (status/verification stay marketplace
+// admin controlled). A null plantId account (legacy global admin) 404s and the
+// whole card stays hidden.
+interface PlantProfile {
+  id: number;
+  plantCode: string | null;
+  name: string;
+  legalName: string | null;
+  gstNo: string | null;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  contactNumber: string | null;
+}
+
 const card: React.CSSProperties = {
   background: 'linear-gradient(135deg,rgba(17,30,55,.85),rgba(10,20,40,.9))',
   border: '1px solid rgba(255,255,255,.07)',
@@ -133,6 +149,10 @@ export default function ProfileSettings() {
   const [profileEmail, setProfileEmail] = useState(user?.email || '');
   const [profileSaving, setProfileSaving] = useState(false);
 
+  const [plantProfile, setPlantProfile] = useState<PlantProfile | null>(null);
+  const [plantForm, setPlantForm] = useState({ name: '', legalName: '', gstNo: '', email: '', address: '', city: '', contactNumber: '' });
+  const [plantSaving, setPlantSaving] = useState(false);
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -194,6 +214,29 @@ export default function ProfileSettings() {
   // from inside an effect.
   const [historyReload, setHistoryReload] = useState(0);
   const [lockoutsReload, setLockoutsReload] = useState(0);
+
+  // Probe the acting account's own plant. A 404 (legacy global admin / authority
+  // with no plantId, or a non-owner) simply leaves the card hidden.
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function loadPlant() {
+      try {
+        const p = await api.get<PlantProfile>('/plants/mine');
+        if (cancelled) return;
+        setPlantProfile(p);
+        setPlantForm({
+          name: p.name ?? '', legalName: p.legalName ?? '', gstNo: p.gstNo ?? '',
+          email: p.email ?? '', address: p.address ?? '', city: p.city ?? '',
+          contactNumber: p.contactNumber ?? '',
+        });
+      } catch {
+        if (!cancelled) setPlantProfile(null); // not a plant owner — hide the card
+      }
+    }
+    loadPlant();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -410,6 +453,38 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setProfileSaving(false);
+    }
+  }
+
+  async function handlePlantSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!plantForm.name.trim()) {
+      showToast('Plant name cannot be empty.', 'error');
+      return;
+    }
+    if (plantForm.email.trim() && !plantForm.email.includes('@')) {
+      showToast('Please enter a valid plant email address.', 'error');
+      return;
+    }
+    setPlantSaving(true);
+    try {
+      // Empty string clears an optional field; name is required so it is always sent.
+      const updated = await api.put<PlantProfile>('/plants/mine', {
+        name: plantForm.name.trim(),
+        legalName: plantForm.legalName.trim() || null,
+        gstNo: plantForm.gstNo.trim() || null,
+        email: plantForm.email.trim() || null,
+        address: plantForm.address.trim() || null,
+        city: plantForm.city.trim() || null,
+        contactNumber: plantForm.contactNumber.trim() || null,
+      });
+      setPlantProfile(updated);
+      showToast('Plant details saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save plant details';
+      showToast(msg, 'error');
+    } finally {
+      setPlantSaving(false);
     }
   }
 
@@ -760,6 +835,74 @@ export default function ProfileSettings() {
           </button>
         </form>
       </div>
+
+      {/* Plant identity card — only for an account bound to a plant (owner) */}
+      {plantProfile && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <UserIcon size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Plant Identity</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                Branding printed on your challans &amp; delivery receipts
+                {plantProfile.plantCode ? ` · ${plantProfile.plantCode}` : ''}
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handlePlantSave} style={{ display: 'grid', gap: 16 }}>
+            <div>
+              <label style={label}>Plant Name</label>
+              <input type="text" value={plantForm.name} onChange={e => setPlantForm(f => ({ ...f, name: e.target.value }))} placeholder="Display name" style={{ ...inputStyle, padding: '10px 12px' }} />
+            </div>
+            <div>
+              <label style={label}>Legal / Billing Name</label>
+              <input type="text" value={plantForm.legalName} onChange={e => setPlantForm(f => ({ ...f, legalName: e.target.value }))} placeholder="Registered company name" style={{ ...inputStyle, padding: '10px 12px' }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={label}>GST Number</label>
+                <input type="text" value={plantForm.gstNo} onChange={e => setPlantForm(f => ({ ...f, gstNo: e.target.value }))} placeholder="e.g. 27AAACA1234B1Z5" style={{ ...inputStyle, padding: '10px 12px' }} />
+              </div>
+              <div>
+                <label style={label}>Contact Number</label>
+                <input type="text" value={plantForm.contactNumber} onChange={e => setPlantForm(f => ({ ...f, contactNumber: e.target.value }))} placeholder="Phone" style={{ ...inputStyle, padding: '10px 12px' }} />
+              </div>
+            </div>
+            <div>
+              <label style={label}>Email</label>
+              <input type="email" value={plantForm.email} onChange={e => setPlantForm(f => ({ ...f, email: e.target.value }))} placeholder="billing@plant.com" style={{ ...inputStyle, padding: '10px 12px' }} />
+            </div>
+            <div>
+              <label style={label}>Address</label>
+              <input type="text" value={plantForm.address} onChange={e => setPlantForm(f => ({ ...f, address: e.target.value }))} placeholder="Street / area" style={{ ...inputStyle, padding: '10px 12px' }} />
+            </div>
+            <div>
+              <label style={label}>City</label>
+              <input type="text" value={plantForm.city} onChange={e => setPlantForm(f => ({ ...f, city: e.target.value }))} placeholder="City" style={{ ...inputStyle, padding: '10px 12px' }} />
+            </div>
+
+            <button
+              type="submit"
+              disabled={plantSaving}
+              style={{
+                marginTop: 4, padding: '11px 22px', borderRadius: 10,
+                background: plantSaving ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+                border: 'none', cursor: plantSaving ? 'not-allowed' : 'pointer',
+                color: '#111827', fontWeight: 800, fontSize: 14,
+              }}
+            >
+              {plantSaving ? 'Saving…' : 'Save Plant Details'}
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* SMTP test card — admins only */}
       {isAdmin && (

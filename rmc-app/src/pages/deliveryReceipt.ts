@@ -1,5 +1,6 @@
 import type { Challan, IdleConfig } from '@/lib/api';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
+import { plantIdentity } from '@/lib/brand';
 
 // Builds a one-page delivery receipt for a single challan, client-side, with
 // jsPDF + autoTable and downloads it directly (no print dialog) — mirroring the
@@ -14,16 +15,19 @@ export async function downloadDeliveryReceipt(c: Challan, idleConfig?: IdleConfi
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const marginX = 40;
 
-  // Header band — plant identity.
+  // Header band — the issuing plant's identity (never hardcoded branding).
+  const plant = plantIdentity(c);
+  const subtitle = [plant.address, plant.city].filter(Boolean).join(' · ')
+    || (plant.code ? `Plant ${plant.code}` : 'Ready-Mix Concrete');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(27, 36, 51); // #1b2433
-  doc.text('CONCRETE KING RMC Plant', marginX, 48);
+  doc.text(plant.legalName, marginX, 48);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(120, 120, 120);
-  doc.text('Karanjade, Panvel · Navi Mumbai · JNPT Corridor', marginX, 64);
+  doc.text(subtitle, marginX, 64);
 
   doc.setDrawColor(208, 213, 221); // #d0d5dd
   doc.setLineWidth(1);

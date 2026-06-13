@@ -9,6 +9,13 @@ export const recurringFrequencyEnum = pgEnum('recurring_frequency', ['weekly', '
 export const plantStatusEnum = pgEnum('plant_status', ['pending', 'approved', 'rejected']);
 export const clients = pgTable('clients', {
     id: serial('id').primaryKey(),
+    // The plant that owns this customer record. NULL only for legacy rows before
+    // the multi-tenant backfill; every new client is owned by exactly one plant so
+    // one plant can never see (or join to) another plant's customers.
+    plantId: integer('plant_id').references(() => plants.id, { onDelete: 'cascade' }),
+    // Per-plant human customer code (e.g. NMH-C0001). Unique within a plant, never
+    // global — the same marketplace user gets a different code at each plant.
+    customerCode: text('customer_code'),
     name: text('name').notNull(),
     contactPerson: text('contact_person').notNull(),
     phone: text('phone').notNull(),
@@ -19,7 +26,11 @@ export const clients = pgTable('clients', {
     creditLimit: decimal('credit_limit', { precision: 12, scale: 2 }).default('0'),
     outstandingAmount: decimal('outstanding_amount', { precision: 12, scale: 2 }).default('0'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+    uniqueIndex('clients_plant_customer_code_unique')
+        .on(t.plantId, t.customerCode)
+        .where(sql `${t.plantId} IS NOT NULL AND ${t.customerCode} IS NOT NULL`),
+]);
 export const drivers = pgTable('drivers', {
     id: serial('id').primaryKey(),
     name: text('name').notNull(),
@@ -36,6 +47,10 @@ export const users = pgTable('users', {
     passwordHash: text('password_hash').notNull(),
     role: userRoleEnum('role').notNull().default('dispatcher'),
     isActive: boolean('is_active').notNull().default(true),
+    // For plant-scoped staff/owner accounts: the single plant this user may see and
+    // manage. NULL means a legacy global/superuser or marketplace authority (not
+    // bound to one plant). Plant owners provisioned at onboarding always have it.
+    plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
     linkedClientId: integer('linked_client_id').references(() => clients.id, { onDelete: 'set null' }),
     linkedDriverId: integer('linked_driver_id').references(() => drivers.id, { onDelete: 'set null' }),
     deletedAt: timestamp('deleted_at'),
@@ -82,6 +97,9 @@ export const vehicles = pgTable('vehicles', {
 export const orders = pgTable('orders', {
     id: serial('id').primaryKey(),
     orderNo: text('order_no').notNull().unique(),
+    // The plant this order is placed with. Every plant-facing read is scoped by it
+    // so no plant can see another plant's orders. NULL only for legacy pre-backfill.
+    plantId: integer('plant_id').references(() => plants.id),
     clientId: integer('client_id').notNull().references(() => clients.id),
     siteId: integer('site_id').references(() => sites.id),
     grade: text('grade').notNull(),
@@ -96,6 +114,9 @@ export const orders = pgTable('orders', {
 export const challans = pgTable('challans', {
     id: serial('id').primaryKey(),
     challanNo: text('challan_no').notNull().unique(),
+    // The issuing plant. Drives both plant-scoping of reads and the company
+    // identity printed on the challan/receipt. NULL only for legacy pre-backfill.
+    plantId: integer('plant_id').references(() => plants.id),
     orderId: integer('order_id').references(() => orders.id),
     clientId: integer('client_id').notNull().references(() => clients.id),
     siteId: integer('site_id').references(() => sites.id),
@@ -217,7 +238,15 @@ export const appSettings = pgTable('app_settings', {
 // approved + active + location-verified, filtered by Haversine distance.
 export const plants = pgTable('plants', {
     id: serial('id').primaryKey(),
+    // Unique human plant code (e.g. PLT-001). Customer codes are namespaced under
+    // it. NULL only for legacy rows before the multi-tenant backfill assigns one.
+    plantCode: text('plant_code'),
     name: text('name').notNull(),
+    // Company identity printed on this plant's challans/receipts — replaces all
+    // previously hardcoded branding. legalName falls back to name when unset.
+    legalName: text('legal_name'),
+    gstNo: text('gst_no'),
+    email: text('email'),
     address: text('address'),
     city: text('city'),
     contactNumber: text('contact_number'),
@@ -234,8 +263,35 @@ export const plants = pgTable('plants', {
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
     nameUnique: uniqueIndex('plants_name_unique').on(table.name),
+    plantCodeUnique: uniqueIndex('plants_code_unique').on(table.plantCode),
 }));
-export const clientsRelations = relations(clients, ({ many }) => ({
+// Maps a global user to a single plant's customer record. The same user ordering
+// at two plants gets two rows pointing at two different per-plant clients (and so
+// two different customer codes). uniqueIndex(plantId,userId) makes the per-plant
+// customer identity exactly one. This is the ONLY table that links a global user
+// to a plant's customer — plants never see it, only the customer's own /me view.
+export const plantCustomers = pgTable('plant_customers', {
+    id: serial('id').primaryKey(),
+    plantId: integer('plant_id').notNull().references(() => plants.id, { onDelete: 'cascade' }),
+    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    clientId: integer('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+    uniqueIndex('plant_customers_plant_user_unique').on(t.plantId, t.userId),
+]);
+export const plantsRelations = relations(plants, ({ many }) => ({
+    clients: many(clients),
+    orders: many(orders),
+    challans: many(challans),
+    plantCustomers: many(plantCustomers),
+}));
+export const plantCustomersRelations = relations(plantCustomers, ({ one }) => ({
+    plant: one(plants, { fields: [plantCustomers.plantId], references: [plants.id] }),
+    user: one(users, { fields: [plantCustomers.userId], references: [users.id] }),
+    client: one(clients, { fields: [plantCustomers.clientId], references: [clients.id] }),
+}));
+export const clientsRelations = relations(clients, ({ one, many }) => ({
+    plant: one(plants, { fields: [clients.plantId], references: [plants.id] }),
     sites: many(sites),
     orders: many(orders),
     challans: many(challans),

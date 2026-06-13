@@ -27,7 +27,7 @@ export async function requireAuth(req, res, next) {
     }
     const [user] = await db.select({
         id: users.id, email: users.email, role: users.role, name: users.name,
-        isActive: users.isActive,
+        isActive: users.isActive, plantId: users.plantId,
         linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
     }).from(users).where(eq(users.id, payload.id));
     if (!user || !user.isActive) {
@@ -39,6 +39,7 @@ export async function requireAuth(req, res, next) {
         email: user.email,
         role: user.role,
         name: user.name,
+        plantId: user.plantId,
         linkedClientId: user.linkedClientId,
         linkedDriverId: user.linkedDriverId,
     };

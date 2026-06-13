@@ -15,6 +15,10 @@ export interface AuthPayload {
   email: string;
   role: string;
   name: string;
+  // The plant a staff/owner account is scoped to. NULL/undefined = legacy global
+  // or marketplace authority (not bound to a single plant). Always reloaded from
+  // the DB in requireAuth, so it can't be forged by editing the token.
+  plantId?: number | null;
   linkedClientId?: number | null;
   linkedDriverId?: number | null;
 }
@@ -51,7 +55,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   const [user] = await db.select({
     id: users.id, email: users.email, role: users.role, name: users.name,
-    isActive: users.isActive,
+    isActive: users.isActive, plantId: users.plantId,
     linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
   }).from(users).where(eq(users.id, payload.id));
 
@@ -65,6 +69,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     email: user.email,
     role: user.role,
     name: user.name,
+    plantId: user.plantId,
     linkedClientId: user.linkedClientId,
     linkedDriverId: user.linkedDriverId,
   };

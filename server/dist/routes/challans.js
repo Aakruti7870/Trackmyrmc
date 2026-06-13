@@ -1,12 +1,19 @@
 import { Router } from 'express';
 import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { challans, challanProofPhotos, clients, sites, vehicles, drivers, orders } from '../db/schema.js';
+import { challans, challanProofPhotos, clients, sites, vehicles, drivers, orders, plants } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 import { notifyChallanStatus } from '../lib/deliveryNotify.js';
+import { plantScope, clientInScope } from '../lib/tenancy.js';
 const WRITE_ROLES = ['admin', 'dispatcher'];
+// Roles allowed to read the staff challan surface. Customers are deliberately
+// excluded — they have null plantId (so plantScope would not isolate them) and
+// must read their own deliveries through the plant-scoped /api/me/challans
+// instead. Drivers legitimately list/inspect their assigned challans; authority
+// and plant_operator keep their existing global/owner visibility.
+const READ_ROLES = ['admin', 'dispatcher', 'driver', 'authority', 'plant_operator'];
 const DRIVER_ALLOWED_STATUS = ['delivered'];
 const router = Router();
 router.use(requireAuth);
@@ -99,7 +106,7 @@ async function challanHasProofPhoto(challanId) {
         .limit(1);
     return !!row;
 }
-router.get('/', async (req, res) => {
+router.get('/', requireRole(...READ_ROLES), async (req, res) => {
     const { status, from, to, clientId } = req.query;
     let query = db.select(challanSelectFor(req.user.role)).from(challans)
         .leftJoin(clients, eq(challans.clientId, clients.id))
@@ -108,6 +115,11 @@ router.get('/', async (req, res) => {
         .leftJoin(drivers, eq(challans.driverId, drivers.id))
         .$dynamic();
     const filters = [];
+    // Hard-scope a plant-bound staff/owner to their own plant's challans. A null
+    // plantId (legacy global admin) sees everything.
+    const scope = plantScope(req.user.plantId, challans.plantId);
+    if (scope)
+        filters.push(scope);
     if (status)
         filters.push(eq(challans.status, status));
     if (clientId)
@@ -121,13 +133,30 @@ router.get('/', async (req, res) => {
     const rows = await query.orderBy(desc(challans.createdAt));
     res.json(rows);
 });
-router.get('/:id', async (req, res) => {
-    const [row] = await db.select(challanSelectFor(req.user.role)).from(challans)
+router.get('/:id', requireRole(...READ_ROLES), async (req, res) => {
+    // The detail carries the issuing plant's identity (used to brand the printed
+    // challan / delivery receipt) and the per-plant customer code. There is no
+    // hardcoded company on a challan — branding always comes from its plant.
+    const detailSelect = {
+        ...challanSelectFor(req.user.role),
+        customerCode: clients.customerCode,
+        plantId: challans.plantId,
+        plantCode: plants.plantCode,
+        plantName: plants.name,
+        plantLegalName: plants.legalName,
+        plantAddress: plants.address,
+        plantCity: plants.city,
+        plantContact: plants.contactNumber,
+        plantGstNo: plants.gstNo,
+        plantEmail: plants.email,
+    };
+    const [row] = await db.select(detailSelect).from(challans)
         .leftJoin(clients, eq(challans.clientId, clients.id))
         .leftJoin(sites, eq(challans.siteId, sites.id))
         .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
         .leftJoin(drivers, eq(challans.driverId, drivers.id))
-        .where(eq(challans.id, +req.params.id));
+        .leftJoin(plants, eq(challans.plantId, plants.id))
+        .where(and(eq(challans.id, +req.params.id), plantScope(req.user.plantId, challans.plantId)));
     if (!row) {
         res.status(404).json({ error: 'Not found' });
         return;
@@ -180,11 +209,41 @@ router.post('/', requireRole(...WRITE_ROLES), async (req, res) => {
         res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid odometer' });
         return;
     }
+    // Bind the challan to a plant so it is tenant-isolated and carries the issuing
+    // plant's branding. Prefer the order's plant, then the acting staff's plant,
+    // then the client's plant — whichever resolves first.
+    let plantId = req.user.plantId ?? null;
+    if (orderId) {
+        // Scope the order lookup to the acting staff's plant. A plant-bound staff can
+        // only ever attach an order from their OWN plant — otherwise they could bind a
+        // challan to (and mutate the status of) another plant's order. A null-plant
+        // global admin is unscoped and inherits the order's plant as before.
+        const [o] = await db.select({ plantId: orders.plantId }).from(orders)
+            .where(and(eq(orders.id, +orderId), plantScope(req.user.plantId, orders.plantId)));
+        if (!o) {
+            res.status(404).json({ error: 'Order not found' });
+            return;
+        }
+        if (o.plantId != null)
+            plantId = o.plantId;
+    }
+    // The challan's customer must belong to the acting staff's plant — a plant can
+    // never issue a challan against another plant's client row. (404 hides whether
+    // a foreign client id exists at all.)
+    if (!(await clientInScope(req.user.plantId, +clientId))) {
+        res.status(404).json({ error: 'Client not found' });
+        return;
+    }
+    if (plantId == null) {
+        const [c] = await db.select({ plantId: clients.plantId }).from(clients).where(eq(clients.id, +clientId));
+        plantId = c?.plantId ?? null;
+    }
     const challanNo = await nextChallanNo();
     const [row] = await db.insert(challans).values({
         challanNo,
         orderId: orderId ? +orderId : null,
         clientId: +clientId,
+        plantId,
         siteId: siteId ? +siteId : null,
         vehicleId: vehicleId ? +vehicleId : null,
         driverId: driverId ? +driverId : null,
@@ -197,9 +256,9 @@ router.post('/', requireRole(...WRITE_ROLES), async (req, res) => {
     }).returning();
     if (orderId) {
         const [prevOrder] = await db.select({ status: orders.status })
-            .from(orders).where(eq(orders.id, +orderId));
+            .from(orders).where(and(eq(orders.id, +orderId), plantScope(req.user.plantId, orders.plantId)));
         const [updatedOrder] = await db.update(orders).set({ status: 'in_progress' })
-            .where(eq(orders.id, +orderId)).returning();
+            .where(and(eq(orders.id, +orderId), plantScope(req.user.plantId, orders.plantId))).returning();
         if (updatedOrder && prevOrder?.status !== 'in_progress') {
             emitSSEEvent('order.updated', updatedOrder, { clientId: updatedOrder.clientId });
         }
@@ -383,7 +442,11 @@ router.put('/:id', async (req, res) => {
         return;
     }
     const [row] = await db.update(challans).set(updateData)
-        .where(eq(challans.id, challanId)).returning();
+        .where(and(eq(challans.id, challanId), plantScope(req.user.plantId, challans.plantId))).returning();
+    if (!row) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
     const hasProofPhoto = await challanHasProofPhoto(challanId);
     emitSSEEvent('challan.updated', { ...row, hasProofPhoto }, { clientId: row.clientId, driverId: row.driverId });
     // Notify the customer when staff mark the delivery complete (best-effort).
@@ -395,14 +458,17 @@ router.put('/:id', async (req, res) => {
 // the truck leaves, without waiting for the GPS hysteresis to detect departure.
 // Requires an arrival first and is idempotent: a second call returns the
 // already-recorded release rather than overwriting it.
-router.post('/:id/left-site', async (req, res) => {
+// Gate the role BEFORE any DB lookup. Otherwise a customer (null plantId, hence
+// unscoped by plantScope) could distinguish an existing foreign challan (403)
+// from a missing one (404) — an existence oracle across plants.
+router.post('/:id/left-site', requireRole('driver', ...WRITE_ROLES), async (req, res) => {
     const role = req.user.role;
     const challanId = +req.params.id;
     const [challan] = await db.select({
         driverId: challans.driverId,
         siteArrivalTime: challans.siteArrivalTime,
         siteReleaseTime: challans.siteReleaseTime,
-    }).from(challans).where(eq(challans.id, challanId)).limit(1);
+    }).from(challans).where(and(eq(challans.id, challanId), plantScope(req.user.plantId, challans.plantId))).limit(1);
     if (!challan) {
         res.status(404).json({ error: 'Challan not found' });
         return;
@@ -459,10 +525,17 @@ router.delete('/:id', requireRole(...WRITE_ROLES), async (req, res) => {
     // rows go away via FK cascade, but the backing object-storage files would
     // otherwise be orphaned, so remove them explicitly afterwards.
     const storedPhotos = await getProofPhotos(challanId);
-    await db.delete(challans).where(eq(challans.id, challanId));
-    // Best-effort cleanup: remove() is idempotent and skips legacy base64 photos
-    // (which have no separate object). A storage failure must not fail the delete.
-    await Promise.allSettled(storedPhotos.map(photo => proofPhotoStore.remove(photo)));
-    res.json({ ok: true });
+    const deleted = await db.delete(challans)
+        .where(and(eq(challans.id, challanId), plantScope(req.user.plantId, challans.plantId)))
+        .returning({ id: challans.id });
+    // Only clean up the backing object-storage files when the scoped delete actually
+    // removed the row. Otherwise a plant-scoped staff probing another plant's challan
+    // id would destroy that plant's proof photos even though the row (correctly)
+    // stays put. Best-effort: remove() is idempotent, skips legacy base64 photos, and
+    // a storage failure must not fail the delete.
+    if (deleted.length) {
+        await Promise.allSettled(storedPhotos.map(photo => proofPhotoStore.remove(photo)));
+    }
+    res.json({ ok: deleted.length > 0 });
 });
 export default router;

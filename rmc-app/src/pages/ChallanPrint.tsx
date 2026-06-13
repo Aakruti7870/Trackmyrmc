@@ -4,6 +4,7 @@ import { Printer, Share2, ArrowLeft } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Challan, type IdleConfig } from '@/lib/api';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
+import { plantIdentity } from '@/lib/brand';
 
 export default function ChallanPrint() {
   const [, params] = useRoute('/challans/:id/print');
@@ -31,8 +32,9 @@ export default function ChallanPrint() {
 
   function shareWhatsApp() {
     if (!challan) return;
+    const plant = plantIdentity(challan);
     const msg = encodeURIComponent(
-      `🏗️ *CONCRETE KING RMC Plant*\n` +
+      `🏗️ *${plant.name}*\n` +
       `Challan No: #${challan.challanNo}\n` +
       `Client: ${challan.clientName}\n` +
       `Site: ${challan.siteName || '—'}\n` +
@@ -89,13 +91,19 @@ export default function ChallanPrint() {
         maxWidth: 794, margin: '24px auto', padding: '40px', boxShadow: '0 4px 24px rgba(0,0,0,.15)',
         minHeight: 1123,
       }}>
-        {/* Header */}
+        {/* Header — issuing plant's identity (never hardcoded branding) */}
+        {(() => {
+          const plant = plantIdentity(challan);
+          const location = [plant.address, plant.city].filter(Boolean).join(', ');
+          const meta = [plant.gstNo ? `GST: ${plant.gstNo}` : null, plant.contact ? `Ph: ${plant.contact}` : null]
+            .filter(Boolean).join(' | ');
+          return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #d97706', paddingBottom: 16, marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a1a' }}>CONCRETE KING RMC PLANT</div>
-            <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>Ready Mix Concrete Manufacturer</div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>MIDC Industrial Area, Navi Mumbai — Maharashtra</div>
-            <div style={{ fontSize: 11, color: '#888' }}>GST: 27AAACA1234B1Z5 | Ph: +91 98506 12834</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a1a' }}>{plant.legalName}</div>
+            <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>Ready Mix Concrete{plant.code ? ` · Plant ${plant.code}` : ''}</div>
+            {location && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{location}</div>}
+            {meta && <div style={{ fontSize: 11, color: '#888' }}>{meta}</div>}
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 28, fontWeight: 900, color: '#d97706', letterSpacing: '-1px' }}>CHALLAN</div>
@@ -105,6 +113,8 @@ export default function ChallanPrint() {
             </div>
           </div>
         </div>
+          );
+        })()}
 
         {/* Client + Site */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
@@ -217,7 +227,7 @@ export default function ChallanPrint() {
         </div>
 
         <div style={{ marginTop: 30, borderTop: '1px solid #eee', paddingTop: 12, textAlign: 'center', fontSize: 10, color: '#aaa' }}>
-          This is a computer generated challan. For queries contact: concreteking.rmc@gmail.com | This document is valid only with company stamp.
+          This is a computer generated challan.{plantIdentity(challan).email ? ` For queries contact: ${plantIdentity(challan).email}` : ''} | This document is valid only with plant stamp.
         </div>
       </div>
 

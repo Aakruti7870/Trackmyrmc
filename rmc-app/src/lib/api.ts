@@ -90,6 +90,13 @@ export interface Order {
   deliveryDate?: string; deliveryTime?: string; notes?: string;
   status: string; createdAt: string;
   clientName?: string; siteName?: string;
+  // The plant fulfilling this order (a customer can have orders across plants).
+  plantId?: number | null; plantName?: string | null; plantCode?: string | null;
+}
+
+export interface PlantDirectoryEntry {
+  id: number; plantCode: string | null; name: string; city?: string | null;
+  grades?: string[] | null; openTime?: string | null; closeTime?: string | null;
 }
 
 export interface RecurringOrder {
@@ -115,6 +122,14 @@ export interface Challan {
   proofPhotos?: string[]; hasProofPhoto?: boolean;
   // Staff/driver-only odometer readings (never returned to clients).
   odometerStart?: number | null; odometerEnd?: number | null;
+  // Issuing-plant identity. Challan documents are branded by the plant that
+  // fulfilled the order, never a hardcoded company. List rows carry only
+  // plantName/plantCode; the detail endpoint adds the full identity block.
+  plantCode?: string | null; plantName?: string | null; plantLegalName?: string | null;
+  plantAddress?: string | null; plantCity?: string | null; plantContact?: string | null;
+  plantGstNo?: string | null; plantEmail?: string | null;
+  // Per-plant anonymous customer code (the only customer identifier a plant knows).
+  customerCode?: string | null;
 }
 
 export interface IdleConfig {

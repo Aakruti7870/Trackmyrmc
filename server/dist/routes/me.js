@@ -1,13 +1,14 @@
 import { Router } from 'express';
-import { eq, desc, gte, lte, and, sql } from 'drizzle-orm';
+import { eq, desc, gte, lte, and, sql, inArray } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries, recurringOrders } from '../db/schema.js';
+import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries, recurringOrders, plants, plantCustomers } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore } from '../lib/proofPhoto.js';
 import { nextOrderNo } from '../lib/orderNo.js';
 import { computeFirstRunDate } from '../lib/recurring.js';
 import { getIdleConfig } from '../lib/idle.js';
+import { resolvePlantCustomer } from '../lib/tenancy.js';
 const router = Router();
 router.use(requireAuth);
 // Resolve a siteId from the request, ensuring it belongs to the caller's client.
@@ -22,6 +23,37 @@ async function resolveOwnedSiteId(value, clientId) {
     const [site] = await db.select({ id: sites.id })
         .from(sites).where(and(eq(sites.id, siteId), eq(sites.clientId, clientId)));
     return site ? { ok: true, siteId } : { ok: false };
+}
+// Resolve the delivery site for an order placed at a specific plant. The address
+// book lives under the customer's own client rows; a site chosen there is cloned
+// (find-or-create by name) under the per-plant client so each plant only ever
+// sees a site row it owns — never a row belonging to the customer's other plants.
+// Throws Error('INVALID_SITE') if the chosen site isn't one of the customer's.
+async function resolvePerPlantOrderSite(tx, perPlantClientId, userClientIds, value) {
+    if (value === undefined || value === null || value === '')
+        return null;
+    const siteId = Number(value);
+    if (!Number.isInteger(siteId) || siteId <= 0)
+        throw new Error('INVALID_SITE');
+    const ownerIds = userClientIds.includes(perPlantClientId) ? userClientIds : [...userClientIds, perPlantClientId];
+    const [source] = await tx.select({
+        name: sites.name, address: sites.address, city: sites.city,
+        latitude: sites.latitude, longitude: sites.longitude, clientId: sites.clientId,
+    }).from(sites).where(and(eq(sites.id, siteId), inArray(sites.clientId, ownerIds)));
+    if (!source)
+        throw new Error('INVALID_SITE');
+    if (source.clientId === perPlantClientId)
+        return siteId;
+    const [twin] = await tx.select({ id: sites.id })
+        .from(sites).where(and(eq(sites.clientId, perPlantClientId), eq(sites.name, source.name)));
+    if (twin)
+        return twin.id;
+    const [clone] = await tx.insert(sites).values({
+        clientId: perPlantClientId,
+        name: source.name, address: source.address, city: source.city,
+        latitude: source.latitude, longitude: source.longitude,
+    }).returning({ id: sites.id });
+    return clone.id;
 }
 const challanSelect = {
     id: challans.id, challanNo: challans.challanNo,
@@ -60,23 +92,67 @@ async function getLinkedDriverId(userId) {
         .from(users).where(eq(users.id, userId));
     return row?.linkedDriverId ?? null;
 }
+// Every client row this user owns: their legacy primary client plus one per-plant
+// client for each plant they've ordered at. Used to aggregate a customer's orders
+// and challans across all the plants they deal with, while still scoping reads to
+// only their own rows.
+async function getUserClientIds(userId) {
+    const ids = new Set();
+    const [u] = await db.select({ linkedClientId: users.linkedClientId })
+        .from(users).where(eq(users.id, userId));
+    if (u?.linkedClientId != null)
+        ids.add(u.linkedClientId);
+    const pcs = await db.select({ clientId: plantCustomers.clientId })
+        .from(plantCustomers).where(eq(plantCustomers.userId, userId));
+    for (const pc of pcs)
+        ids.add(pc.clientId);
+    return [...ids];
+}
+// The customer's contact details, used when a plant first mints a per-plant
+// client for them. Sourced from their primary client (if any) so the plant has
+// real delivery-coordination contacts, falling back to the user account.
+async function buildCustomerProfile(userId) {
+    const [u] = await db.select({ name: users.name, email: users.email, linkedClientId: users.linkedClientId })
+        .from(users).where(eq(users.id, userId));
+    let primary;
+    if (u?.linkedClientId != null) {
+        [primary] = await db.select({
+            contactPerson: clients.contactPerson, phone: clients.phone, email: clients.email,
+            gstNo: clients.gstNo, address: clients.address, city: clients.city,
+        }).from(clients).where(eq(clients.id, u.linkedClientId));
+    }
+    return {
+        name: u?.name ?? 'Customer',
+        contactPerson: primary?.contactPerson ?? u?.name ?? null,
+        phone: primary?.phone ?? null,
+        email: primary?.email ?? u?.email ?? null,
+        gstNo: primary?.gstNo ?? null,
+        address: primary?.address ?? null,
+        city: primary?.city ?? null,
+    };
+}
 router.get('/orders', requireRole('client'), async (req, res) => {
-    const clientId = await getLinkedClientId(req.user.id);
-    if (!clientId) {
+    const clientIds = await getUserClientIds(req.user.id);
+    if (clientIds.length === 0) {
         res.json([]);
         return;
     }
+    // Aggregate the customer's orders across every plant they've ordered at, each
+    // tagged with the issuing plant's public name/code so the customer can tell
+    // their plants apart.
     const rows = await db.select({
         id: orders.id, orderNo: orders.orderNo, grade: orders.grade,
         quantity: orders.quantity, pumpRequired: orders.pumpRequired,
         deliveryDate: orders.deliveryDate, deliveryTime: orders.deliveryTime,
         status: orders.status, notes: orders.notes, createdAt: orders.createdAt,
-        clientId: orders.clientId, siteId: orders.siteId,
+        clientId: orders.clientId, siteId: orders.siteId, plantId: orders.plantId,
         clientName: clients.name, siteName: sites.name,
+        plantName: plants.name, plantCode: plants.plantCode,
     }).from(orders)
         .leftJoin(clients, eq(orders.clientId, clients.id))
         .leftJoin(sites, eq(orders.siteId, sites.id))
-        .where(eq(orders.clientId, clientId))
+        .leftJoin(plants, eq(orders.plantId, plants.id))
+        .where(inArray(orders.clientId, clientIds))
         .orderBy(desc(orders.createdAt));
     res.json(rows);
 });
@@ -84,12 +160,7 @@ router.get('/orders', requireRole('client'), async (req, res) => {
 // caller's linked client and starts as 'pending' for staff to process — the
 // client can never set the client, status, or order number.
 router.post('/orders', requireRole('client'), async (req, res) => {
-    const clientId = await getLinkedClientId(req.user.id);
-    if (!clientId) {
-        res.status(400).json({ error: 'Your account is not linked to a client.' });
-        return;
-    }
-    const { grade, quantity, pumpRequired, deliveryDate, deliveryTime, notes, siteId } = req.body;
+    const { plantId: bodyPlantId, grade, quantity, pumpRequired, deliveryDate, deliveryTime, notes, siteId } = req.body;
     if (!grade || typeof grade !== 'string') {
         res.status(400).json({ error: 'Grade is required.' });
         return;
@@ -99,16 +170,7 @@ router.post('/orders', requireRole('client'), async (req, res) => {
         res.status(400).json({ error: 'Quantity must be greater than zero.' });
         return;
     }
-    const site = await resolveOwnedSiteId(siteId, clientId);
-    if (!site.ok) {
-        res.status(400).json({ error: 'Invalid delivery site.' });
-        return;
-    }
-    const orderNo = await nextOrderNo();
-    const [row] = await db.insert(orders).values({
-        orderNo,
-        clientId,
-        siteId: site.siteId,
+    const orderValues = {
         grade,
         quantity: qty.toString(),
         pumpRequired: !!pumpRequired,
@@ -116,9 +178,69 @@ router.post('/orders', requireRole('client'), async (req, res) => {
         deliveryTime: deliveryTime || null,
         notes: typeof notes === 'string' && notes.trim() ? notes : null,
         status: 'pending',
+    };
+    // Marketplace path: the customer chose a specific plant to order from. The
+    // per-plant client (and customer code) is created lazily on the first order at
+    // that plant, and the order is tenant-bound to it.
+    if (bodyPlantId !== undefined && bodyPlantId !== null && bodyPlantId !== '') {
+        const plantId = Number(bodyPlantId);
+        if (!Number.isInteger(plantId) || plantId <= 0) {
+            res.status(400).json({ error: 'Invalid plant.' });
+            return;
+        }
+        const [plant] = await db.select({
+            id: plants.id, plantStatus: plants.plantStatus, isActive: plants.isActive, locationVerified: plants.locationVerified,
+        }).from(plants).where(eq(plants.id, plantId));
+        if (!plant || plant.plantStatus !== 'approved' || !plant.isActive || !plant.locationVerified) {
+            res.status(400).json({ error: 'This plant is not available for orders.' });
+            return;
+        }
+        const profile = await buildCustomerProfile(req.user.id);
+        const userClientIds = await getUserClientIds(req.user.id);
+        let row;
+        try {
+            row = await db.transaction(async (tx) => {
+                const resolved = await resolvePlantCustomer(tx, plantId, req.user.id, profile);
+                const orderNo = await nextOrderNo();
+                const orderSiteId = await resolvePerPlantOrderSite(tx, resolved.clientId, userClientIds, siteId);
+                const [inserted] = await tx.insert(orders).values({
+                    orderNo, clientId: resolved.clientId, plantId, siteId: orderSiteId, ...orderValues,
+                }).returning();
+                return inserted;
+            });
+        }
+        catch (e) {
+            if (e instanceof Error && e.message === 'INVALID_SITE') {
+                res.status(400).json({ error: 'Invalid delivery site.' });
+                return;
+            }
+            throw e;
+        }
+        emitSSEEvent('order.created', row, { clientId: row.clientId });
+        res.status(201).json(row);
+        return;
+    }
+    // Legacy path: no plant chosen — order against the caller's primary client and
+    // inherit that client's plant so the row is still tenanted.
+    const clientId = await getLinkedClientId(req.user.id);
+    if (!clientId) {
+        res.status(400).json({ error: 'Your account is not linked to a client.' });
+        return;
+    }
+    const site = await resolveOwnedSiteId(siteId, clientId);
+    if (!site.ok) {
+        res.status(400).json({ error: 'Invalid delivery site.' });
+        return;
+    }
+    const [client] = await db.select({ plantId: clients.plantId }).from(clients).where(eq(clients.id, clientId));
+    const orderNo = await nextOrderNo();
+    const [row] = await db.insert(orders).values({
+        orderNo,
+        clientId,
+        plantId: client?.plantId ?? null,
+        siteId: site.siteId,
+        ...orderValues,
     }).returning();
-    // Notify staff and the client's own sessions — scope to this client so other
-    // clients/drivers don't receive someone else's order.
     emitSSEEvent('order.created', row, { clientId: row.clientId });
     res.status(201).json(row);
 });
@@ -126,8 +248,8 @@ router.post('/orders', requireRole('client'), async (req, res) => {
 // 'pending' (i.e. the plant has not started/dispatched it). Scoped to the
 // caller's linked client so a customer can never touch another client's order.
 router.patch('/orders/:id/cancel', requireRole('client'), async (req, res) => {
-    const clientId = await getLinkedClientId(req.user.id);
-    if (!clientId) {
+    const clientIds = await getUserClientIds(req.user.id);
+    if (clientIds.length === 0) {
         res.status(404).json({ error: 'Not found' });
         return;
     }
@@ -140,15 +262,16 @@ router.patch('/orders/:id/cancel', requireRole('client'), async (req, res) => {
     // concurrent staff transition (pending -> in_progress) between a read and a
     // write can never be clobbered. No row updated means either the order isn't
     // ours/doesn't exist (404) or it is no longer pending (409); a follow-up
-    // existence check disambiguates the two.
+    // existence check disambiguates the two. Scoped to all the customer's clients
+    // so they can cancel an order placed at any of their plants.
     const [row] = await db.update(orders)
         .set({ status: 'cancelled' })
-        .where(and(eq(orders.id, id), eq(orders.clientId, clientId), eq(orders.status, 'pending')))
+        .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds), eq(orders.status, 'pending')))
         .returning();
     if (!row) {
         const [existing] = await db.select({ id: orders.id })
             .from(orders)
-            .where(and(eq(orders.id, id), eq(orders.clientId, clientId)));
+            .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds)));
         if (!existing) {
             res.status(404).json({ error: 'Not found' });
             return;
@@ -160,17 +283,21 @@ router.patch('/orders/:id/cancel', requireRole('client'), async (req, res) => {
     res.json(row);
 });
 router.get('/challans', requireRole('client'), async (req, res) => {
-    const clientId = await getLinkedClientId(req.user.id);
-    if (!clientId) {
+    const clientIds = await getUserClientIds(req.user.id);
+    if (clientIds.length === 0) {
         res.json([]);
         return;
     }
-    const rows = await db.select(challanSelect).from(challans)
+    // Aggregate the customer's challans across all the plants they deal with, each
+    // tagged with the issuing plant's name/code.
+    const rows = await db.select({ ...challanSelect, plantName: plants.name, plantCode: plants.plantCode })
+        .from(challans)
         .leftJoin(clients, eq(challans.clientId, clients.id))
         .leftJoin(sites, eq(challans.siteId, sites.id))
         .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
         .leftJoin(drivers, eq(challans.driverId, drivers.id))
-        .where(eq(challans.clientId, clientId))
+        .leftJoin(plants, eq(challans.plantId, plants.id))
+        .where(inArray(challans.clientId, clientIds))
         .orderBy(desc(challans.createdAt));
     res.json(rows);
 });
@@ -179,8 +306,8 @@ router.get('/challans', requireRole('client'), async (req, res) => {
 // client so a customer can never read another client's challan or photos —
 // the shared /api/challans/:id endpoint is staff-oriented and not client-scoped.
 router.get('/challans/:id', requireRole('client'), async (req, res) => {
-    const clientId = await getLinkedClientId(req.user.id);
-    if (!clientId) {
+    const clientIds = await getUserClientIds(req.user.id);
+    if (clientIds.length === 0) {
         res.status(404).json({ error: 'Not found' });
         return;
     }
@@ -189,12 +316,21 @@ router.get('/challans/:id', requireRole('client'), async (req, res) => {
         res.status(400).json({ error: 'Invalid challan id' });
         return;
     }
-    const [row] = await db.select(challanSelect).from(challans)
+    // The detail carries the issuing plant's identity so the customer's printed
+    // delivery receipt is branded by the plant that fulfilled the order — never a
+    // hardcoded company.
+    const [row] = await db.select({
+        ...challanSelect,
+        plantCode: plants.plantCode, plantName: plants.name, plantLegalName: plants.legalName,
+        plantAddress: plants.address, plantCity: plants.city, plantContact: plants.contactNumber,
+        plantGstNo: plants.gstNo, plantEmail: plants.email,
+    }).from(challans)
         .leftJoin(clients, eq(challans.clientId, clients.id))
         .leftJoin(sites, eq(challans.siteId, sites.id))
         .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
         .leftJoin(drivers, eq(challans.driverId, drivers.id))
-        .where(and(eq(challans.id, id), eq(challans.clientId, clientId)));
+        .leftJoin(plants, eq(challans.plantId, plants.id))
+        .where(and(eq(challans.id, id), inArray(challans.clientId, clientIds)));
     if (!row) {
         res.status(404).json({ error: 'Not found' });
         return;

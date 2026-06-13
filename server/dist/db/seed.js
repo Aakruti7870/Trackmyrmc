@@ -16,12 +16,37 @@ async function seed() {
         { name: 'Arvind Builders', email: 'client@aakruti.com', passwordHash: await hash('client123'), role: 'client' },
         { name: 'Ganesh More', email: 'driver@aakruti.com', passwordHash: await hash('driver123'), role: 'driver' },
     ]).onConflictDoNothing();
+    // Marketplace plants — seeded ONLY for CONCRETE KING's live service areas:
+    // Navi Mumbai, Thane, Vashi, Belapur, Pune, Pimpri Chinchwad, Lonavla, Karjat,
+    // Uran. Coordinates are real (Google-map) locations for each area. Most are
+    // approved + active + verified (visible to customers); two demo rows are
+    // pending / inactive to prove the nearby filter and admin onboarding flow.
+    // Each plant carries a unique plantCode (PLT-NNN) — the tenant identifier the
+    // per-plant customer codes hang off.
+    const plantRows = await db.insert(schema.plants).values([
+        { plantCode: 'PLT-001', name: 'CONCRETE KING — Navi Mumbai Hub', legalName: 'Concrete King Navi Mumbai Pvt Ltd', gstNo: '27AAKCK0001A1Z5', email: 'navimumbai@concreteking.example', address: 'Sector 19, Nerul', city: 'Navi Mumbai', contactNumber: '9820011001', latitude: '19.0330000', longitude: '73.0297000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-15', 'M-20', 'M-25', 'M-30', 'M-35', 'M-40'], openTime: '06:00', closeTime: '21:00' },
+        { plantCode: 'PLT-002', name: 'ShreeMix RMC — Vashi', address: 'Plot 21, Sector 19, Vashi', city: 'Vashi', contactNumber: '9820011002', latitude: '19.0760000', longitude: '72.9986000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 30, grades: ['M-15', 'M-20', 'M-25', 'M-30'], openTime: '06:30', closeTime: '19:30' },
+        { plantCode: 'PLT-003', name: 'Belapur ReadyMix — CBD', address: 'Sector 11, CBD Belapur', city: 'Belapur', contactNumber: '9820011003', latitude: '19.0152000', longitude: '73.0359000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 30, grades: ['M-20', 'M-25', 'M-30', 'M-35'], openTime: '07:00', closeTime: '20:00' },
+        { plantCode: 'PLT-004', name: 'Thane Premix — Ghodbunder', address: 'Ghodbunder Road', city: 'Thane', contactNumber: '9820011004', latitude: '19.2183000', longitude: '72.9781000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 35, grades: ['M-20', 'M-25', 'M-30', 'M-35'], openTime: '07:00', closeTime: '19:00' },
+        { plantCode: 'PLT-005', name: 'Uran Coastal RMC', address: 'JNPT Road, Uran', city: 'Uran', contactNumber: '9820011005', latitude: '18.8833000', longitude: '72.9447000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-20', 'M-25', 'M-30', 'M-35', 'M-40'], openTime: '06:00', closeTime: '21:00' },
+        { plantCode: 'PLT-006', name: 'Karjat Hills Concrete', address: 'Karjat–Murbad Road', city: 'Karjat', contactNumber: '9820011006', latitude: '18.9107000', longitude: '73.3239000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-15', 'M-20', 'M-25', 'M-30'], openTime: '06:30', closeTime: '20:00' },
+        { plantCode: 'PLT-007', name: 'Lonavla Ghat RMC', address: 'Mumbai–Pune Highway, Lonavla', city: 'Lonavla', contactNumber: '9820011007', latitude: '18.7546000', longitude: '73.4062000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-20', 'M-25', 'M-30', 'M-35'], openTime: '06:00', closeTime: '20:00' },
+        { plantCode: 'PLT-008', name: 'Deccan RMC — Pune', address: 'Hadapsar Industrial Estate', city: 'Pune', contactNumber: '9820011008', latitude: '18.5204000', longitude: '73.8567000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-25', 'M-30', 'M-35', 'M-40', 'M-45'], openTime: '05:30', closeTime: '22:00' },
+        { plantCode: 'PLT-009', name: 'PCMC UltraReady Concrete', address: 'MIDC Bhosari, Pimpri Chinchwad', city: 'Pimpri Chinchwad', contactNumber: '9820011009', latitude: '18.6298000', longitude: '73.7997000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-25', 'M-30', 'M-35', 'M-40'], openTime: '05:00', closeTime: '23:00' },
+        { plantCode: 'PLT-010', name: 'Thane Skyline RMC (Pending Approval)', address: 'Wagle Estate, Thane', city: 'Thane', contactNumber: '9820011010', latitude: '19.1972000', longitude: '72.9722000', plantStatus: 'pending', isActive: true, locationVerified: false, deliveryRadiusKm: 25, grades: ['M-20', 'M-25'], openTime: '08:00', closeTime: '18:00' },
+        { plantCode: 'PLT-011', name: 'Airoli ReadyMix (Inactive)', address: 'Sector 4, Airoli', city: 'Navi Mumbai', contactNumber: '9820011011', latitude: '19.1500000', longitude: '72.9990000', plantStatus: 'approved', isActive: false, locationVerified: true, deliveryRadiusKm: 25, grades: ['M-20', 'M-25', 'M-30'], openTime: '07:00', closeTime: '20:00' },
+    ]).returning().onConflictDoNothing();
+    // The legacy single-tenant demo dataset (clients/orders/challans/ledger) is
+    // bound to the first plant so it stays coherent as that plant's own tenant
+    // data. Each demo client gets a per-plant customer code under that plant.
+    const homePlant = plantRows[0];
+    const custCode = (i) => `${homePlant.plantCode}-C${String(i + 1).padStart(4, '0')}`;
     const clientRows = await db.insert(schema.clients).values([
-        { name: 'Arvind Builders Pvt Ltd', contactPerson: 'Arvind Shah', phone: '9876543210', email: 'arvind@arvindbuilders.com', gstNo: '27AAACL1234F1Z5', address: 'Plot 12, MIDC', city: 'Navi Mumbai', creditLimit: '500000', outstandingAmount: '125000' },
-        { name: 'Marvel Realty Ltd', contactPerson: 'Suresh Marvel', phone: '9123456780', email: 'suresh@marvelrealty.com', gstNo: '27AABCM5678G1Z3', address: 'Sector 7, Kharghar', city: 'Navi Mumbai', creditLimit: '1000000', outstandingAmount: '380000' },
-        { name: 'Thane Tower Projects', contactPerson: 'Rajan Thakur', phone: '9988776655', email: 'rajan@thanetower.com', gstNo: '27AAACT9012H1Z8', address: 'Ghodbunder Road', city: 'Thane', creditLimit: '750000', outstandingAmount: '95000' },
-        { name: 'Panvel Infrastructure', contactPerson: 'Nilesh Jadhav', phone: '9765432109', email: 'nilesh@panvelinfra.com', gstNo: '27AADCP3456J1Z2', address: 'Sector 23, Panvel', city: 'Panvel', creditLimit: '600000', outstandingAmount: '45000' },
-        { name: 'Kharghar Heights Builders', contactPerson: 'Deepak Mehra', phone: '9654321098', email: 'deepak@khargharh.com', gstNo: '27AAECK7890K1Z6', address: 'Plot 45, Sector 12', city: 'Kharghar', creditLimit: '400000', outstandingAmount: '210000' },
+        { plantId: homePlant.id, customerCode: custCode(0), name: 'Arvind Builders Pvt Ltd', contactPerson: 'Arvind Shah', phone: '9876543210', email: 'arvind@arvindbuilders.com', gstNo: '27AAACL1234F1Z5', address: 'Plot 12, MIDC', city: 'Navi Mumbai', creditLimit: '500000', outstandingAmount: '125000' },
+        { plantId: homePlant.id, customerCode: custCode(1), name: 'Marvel Realty Ltd', contactPerson: 'Suresh Marvel', phone: '9123456780', email: 'suresh@marvelrealty.com', gstNo: '27AABCM5678G1Z3', address: 'Sector 7, Kharghar', city: 'Navi Mumbai', creditLimit: '1000000', outstandingAmount: '380000' },
+        { plantId: homePlant.id, customerCode: custCode(2), name: 'Thane Tower Projects', contactPerson: 'Rajan Thakur', phone: '9988776655', email: 'rajan@thanetower.com', gstNo: '27AAACT9012H1Z8', address: 'Ghodbunder Road', city: 'Thane', creditLimit: '750000', outstandingAmount: '95000' },
+        { plantId: homePlant.id, customerCode: custCode(3), name: 'Panvel Infrastructure', contactPerson: 'Nilesh Jadhav', phone: '9765432109', email: 'nilesh@panvelinfra.com', gstNo: '27AADCP3456J1Z2', address: 'Sector 23, Panvel', city: 'Panvel', creditLimit: '600000', outstandingAmount: '45000' },
+        { plantId: homePlant.id, customerCode: custCode(4), name: 'Kharghar Heights Builders', contactPerson: 'Deepak Mehra', phone: '9654321098', email: 'deepak@khargharh.com', gstNo: '27AAECK7890K1Z6', address: 'Plot 45, Sector 12', city: 'Kharghar', creditLimit: '400000', outstandingAmount: '210000' },
     ]).returning().onConflictDoNothing();
     const siteRows = await db.insert(schema.sites).values([
         { clientId: clientRows[0].id, name: 'Arvind Galaxy Phase 2', address: 'Plot 12, Sector 4', city: 'Navi Mumbai' },
@@ -43,25 +68,26 @@ async function seed() {
         { vehicleNo: 'MH 46 DX 7788', type: 'Transit Mixer', capacity: '9', driverId: driverRows[3]?.id, insuranceExpiry: '2026-11-20', lastService: '2025-05-01', status: 'active' },
     ]).returning().onConflictDoNothing();
     const today = new Date().toISOString().slice(0, 10);
+    const hp = homePlant.id;
     const orderRows = await db.insert(schema.orders).values([
-        { orderNo: 'ORD-001', clientId: clientRows[0].id, siteId: siteRows[0].id, grade: 'M30', quantity: '42', pumpRequired: true, deliveryDate: today, status: 'in_progress', notes: 'Slab casting today morning' },
-        { orderNo: 'ORD-002', clientId: clientRows[1].id, siteId: siteRows[1].id, grade: 'M25', quantity: '28', pumpRequired: false, deliveryDate: today, status: 'pending' },
-        { orderNo: 'ORD-003', clientId: clientRows[2].id, siteId: siteRows[3].id, grade: 'M40', quantity: '56', pumpRequired: true, deliveryDate: today, status: 'in_progress' },
-        { orderNo: 'ORD-004', clientId: clientRows[3].id, siteId: siteRows[4].id, grade: 'M20', quantity: '21', pumpRequired: false, deliveryDate: today, status: 'pending' },
-        { orderNo: 'ORD-005', clientId: clientRows[4].id, siteId: null, grade: 'M35', quantity: '35', pumpRequired: true, deliveryDate: today, status: 'completed' },
-        { orderNo: 'ORD-006', clientId: clientRows[0].id, siteId: siteRows[0].id, grade: 'M20', quantity: '14', pumpRequired: false, deliveryDate: today, status: 'pending' },
-        { orderNo: 'ORD-007', clientId: clientRows[1].id, siteId: siteRows[2].id, grade: 'M30', quantity: '49', pumpRequired: true, deliveryDate: today, status: 'cancelled' },
+        { orderNo: 'ORD-001', plantId: hp, clientId: clientRows[0].id, siteId: siteRows[0].id, grade: 'M30', quantity: '42', pumpRequired: true, deliveryDate: today, status: 'in_progress', notes: 'Slab casting today morning' },
+        { orderNo: 'ORD-002', plantId: hp, clientId: clientRows[1].id, siteId: siteRows[1].id, grade: 'M25', quantity: '28', pumpRequired: false, deliveryDate: today, status: 'pending' },
+        { orderNo: 'ORD-003', plantId: hp, clientId: clientRows[2].id, siteId: siteRows[3].id, grade: 'M40', quantity: '56', pumpRequired: true, deliveryDate: today, status: 'in_progress' },
+        { orderNo: 'ORD-004', plantId: hp, clientId: clientRows[3].id, siteId: siteRows[4].id, grade: 'M20', quantity: '21', pumpRequired: false, deliveryDate: today, status: 'pending' },
+        { orderNo: 'ORD-005', plantId: hp, clientId: clientRows[4].id, siteId: null, grade: 'M35', quantity: '35', pumpRequired: true, deliveryDate: today, status: 'completed' },
+        { orderNo: 'ORD-006', plantId: hp, clientId: clientRows[0].id, siteId: siteRows[0].id, grade: 'M20', quantity: '14', pumpRequired: false, deliveryDate: today, status: 'pending' },
+        { orderNo: 'ORD-007', plantId: hp, clientId: clientRows[1].id, siteId: siteRows[2].id, grade: 'M30', quantity: '49', pumpRequired: true, deliveryDate: today, status: 'cancelled' },
     ]).returning().onConflictDoNothing();
     const now = new Date();
     const h2 = new Date(now.getTime() - 2 * 3600000);
     const h4 = new Date(now.getTime() - 4 * 3600000);
     const challanRows = await db.insert(schema.challans).values([
-        { challanNo: 'CH-0001', orderId: orderRows[0]?.id, clientId: clientRows[0].id, siteId: siteRows[0].id, vehicleId: vehicleRows[0]?.id, driverId: driverRows[0]?.id, grade: 'M30', quantity: '7', pumpRequired: true, dispatchTime: h4, status: 'delivered', deliveryTime: new Date(h4.getTime() + 3600000) },
-        { challanNo: 'CH-0002', orderId: orderRows[0]?.id, clientId: clientRows[0].id, siteId: siteRows[0].id, vehicleId: vehicleRows[1]?.id, driverId: driverRows[1]?.id, grade: 'M30', quantity: '7', pumpRequired: true, dispatchTime: h2, status: 'dispatched' },
-        { challanNo: 'CH-0003', orderId: orderRows[2]?.id, clientId: clientRows[2].id, siteId: siteRows[3].id, vehicleId: vehicleRows[3]?.id, driverId: driverRows[3]?.id, grade: 'M40', quantity: '9', pumpRequired: true, dispatchTime: h2, status: 'dispatched' },
-        { challanNo: 'CH-0004', orderId: orderRows[4]?.id, clientId: clientRows[4].id, siteId: null, vehicleId: vehicleRows[0]?.id, driverId: driverRows[0]?.id, grade: 'M35', quantity: '7', pumpRequired: true, dispatchTime: h4, status: 'delivered', deliveryTime: new Date(h4.getTime() + 4200000) },
-        { challanNo: 'CH-0005', orderId: orderRows[0]?.id, clientId: clientRows[0].id, siteId: siteRows[0].id, vehicleId: vehicleRows[1]?.id, driverId: driverRows[1]?.id, grade: 'M30', quantity: '7', pumpRequired: false, dispatchTime: now, status: 'dispatched' },
-        { challanNo: 'CH-0006', orderId: orderRows[1]?.id, clientId: clientRows[1].id, siteId: siteRows[1].id, vehicleId: vehicleRows[3]?.id, driverId: driverRows[3]?.id, grade: 'M25', quantity: '7', pumpRequired: false, dispatchTime: now, status: 'dispatched' },
+        { challanNo: 'CH-0001', plantId: hp, orderId: orderRows[0]?.id, clientId: clientRows[0].id, siteId: siteRows[0].id, vehicleId: vehicleRows[0]?.id, driverId: driverRows[0]?.id, grade: 'M30', quantity: '7', pumpRequired: true, dispatchTime: h4, status: 'delivered', deliveryTime: new Date(h4.getTime() + 3600000) },
+        { challanNo: 'CH-0002', plantId: hp, orderId: orderRows[0]?.id, clientId: clientRows[0].id, siteId: siteRows[0].id, vehicleId: vehicleRows[1]?.id, driverId: driverRows[1]?.id, grade: 'M30', quantity: '7', pumpRequired: true, dispatchTime: h2, status: 'dispatched' },
+        { challanNo: 'CH-0003', plantId: hp, orderId: orderRows[2]?.id, clientId: clientRows[2].id, siteId: siteRows[3].id, vehicleId: vehicleRows[3]?.id, driverId: driverRows[3]?.id, grade: 'M40', quantity: '9', pumpRequired: true, dispatchTime: h2, status: 'dispatched' },
+        { challanNo: 'CH-0004', plantId: hp, orderId: orderRows[4]?.id, clientId: clientRows[4].id, siteId: null, vehicleId: vehicleRows[0]?.id, driverId: driverRows[0]?.id, grade: 'M35', quantity: '7', pumpRequired: true, dispatchTime: h4, status: 'delivered', deliveryTime: new Date(h4.getTime() + 4200000) },
+        { challanNo: 'CH-0005', plantId: hp, orderId: orderRows[0]?.id, clientId: clientRows[0].id, siteId: siteRows[0].id, vehicleId: vehicleRows[1]?.id, driverId: driverRows[1]?.id, grade: 'M30', quantity: '7', pumpRequired: false, dispatchTime: now, status: 'dispatched' },
+        { challanNo: 'CH-0006', plantId: hp, orderId: orderRows[1]?.id, clientId: clientRows[1].id, siteId: siteRows[1].id, vehicleId: vehicleRows[3]?.id, driverId: driverRows[3]?.id, grade: 'M25', quantity: '7', pumpRequired: false, dispatchTime: now, status: 'dispatched' },
     ]).returning().onConflictDoNothing();
     await db.insert(schema.batchRecords).values([
         { batchNo: 'BTH-001', grade: 'M30', quantity: '7', cementBags: 56, waterLiters: 175, sandKg: 840, aggregateKg: 1120, operator: 'Suresh Patel', remarks: 'Morning batch' },
@@ -80,24 +106,6 @@ async function seed() {
         { clientId: clientRows[4].id, type: 'debit', amount: '280000', description: 'Invoice #INV-2025-005 - M35 Concrete Supply', referenceNo: 'INV-2025-005' },
         { clientId: clientRows[4].id, type: 'credit', amount: '70000', description: 'Payment received - Cheque', referenceNo: 'CHQ-20250418' },
     ]).onConflictDoNothing();
-    // Marketplace plants — seeded ONLY for CONCRETE KING's live service areas:
-    // Navi Mumbai, Thane, Vashi, Belapur, Pune, Pimpri Chinchwad, Lonavla, Karjat,
-    // Uran. Coordinates are real (Google-map) locations for each area. Most are
-    // approved + active + verified (visible to customers); two demo rows are
-    // pending / inactive to prove the nearby filter and admin onboarding flow.
-    await db.insert(schema.plants).values([
-        { name: 'CONCRETE KING — Navi Mumbai Hub', address: 'Sector 19, Nerul', city: 'Navi Mumbai', contactNumber: '9820011001', latitude: '19.0330000', longitude: '73.0297000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-15', 'M-20', 'M-25', 'M-30', 'M-35', 'M-40'], openTime: '06:00', closeTime: '21:00' },
-        { name: 'ShreeMix RMC — Vashi', address: 'Plot 21, Sector 19, Vashi', city: 'Vashi', contactNumber: '9820011002', latitude: '19.0760000', longitude: '72.9986000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 30, grades: ['M-15', 'M-20', 'M-25', 'M-30'], openTime: '06:30', closeTime: '19:30' },
-        { name: 'Belapur ReadyMix — CBD', address: 'Sector 11, CBD Belapur', city: 'Belapur', contactNumber: '9820011003', latitude: '19.0152000', longitude: '73.0359000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 30, grades: ['M-20', 'M-25', 'M-30', 'M-35'], openTime: '07:00', closeTime: '20:00' },
-        { name: 'Thane Premix — Ghodbunder', address: 'Ghodbunder Road', city: 'Thane', contactNumber: '9820011004', latitude: '19.2183000', longitude: '72.9781000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 35, grades: ['M-20', 'M-25', 'M-30', 'M-35'], openTime: '07:00', closeTime: '19:00' },
-        { name: 'Uran Coastal RMC', address: 'JNPT Road, Uran', city: 'Uran', contactNumber: '9820011005', latitude: '18.8833000', longitude: '72.9447000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-20', 'M-25', 'M-30', 'M-35', 'M-40'], openTime: '06:00', closeTime: '21:00' },
-        { name: 'Karjat Hills Concrete', address: 'Karjat–Murbad Road', city: 'Karjat', contactNumber: '9820011006', latitude: '18.9107000', longitude: '73.3239000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-15', 'M-20', 'M-25', 'M-30'], openTime: '06:30', closeTime: '20:00' },
-        { name: 'Lonavla Ghat RMC', address: 'Mumbai–Pune Highway, Lonavla', city: 'Lonavla', contactNumber: '9820011007', latitude: '18.7546000', longitude: '73.4062000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-20', 'M-25', 'M-30', 'M-35'], openTime: '06:00', closeTime: '20:00' },
-        { name: 'Deccan RMC — Pune', address: 'Hadapsar Industrial Estate', city: 'Pune', contactNumber: '9820011008', latitude: '18.5204000', longitude: '73.8567000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-25', 'M-30', 'M-35', 'M-40', 'M-45'], openTime: '05:30', closeTime: '22:00' },
-        { name: 'PCMC UltraReady Concrete', address: 'MIDC Bhosari, Pimpri Chinchwad', city: 'Pimpri Chinchwad', contactNumber: '9820011009', latitude: '18.6298000', longitude: '73.7997000', plantStatus: 'approved', isActive: true, locationVerified: true, deliveryRadiusKm: 40, grades: ['M-25', 'M-30', 'M-35', 'M-40'], openTime: '05:00', closeTime: '23:00' },
-        { name: 'Thane Skyline RMC (Pending Approval)', address: 'Wagle Estate, Thane', city: 'Thane', contactNumber: '9820011010', latitude: '19.1972000', longitude: '72.9722000', plantStatus: 'pending', isActive: true, locationVerified: false, deliveryRadiusKm: 25, grades: ['M-20', 'M-25'], openTime: '08:00', closeTime: '18:00' },
-        { name: 'Airoli ReadyMix (Inactive)', address: 'Sector 4, Airoli', city: 'Navi Mumbai', contactNumber: '9820011011', latitude: '19.1500000', longitude: '72.9990000', plantStatus: 'approved', isActive: false, locationVerified: true, deliveryRadiusKm: 25, grades: ['M-20', 'M-25', 'M-30'], openTime: '07:00', closeTime: '20:00' },
-    ]).onConflictDoNothing();
     const { eq } = await import('drizzle-orm');
     await db.update(schema.users)
         .set({ linkedClientId: clientRows[0].id })
@@ -105,6 +113,16 @@ async function seed() {
     await db.update(schema.users)
         .set({ linkedDriverId: driverRows[0].id })
         .where(eq(schema.users.email, 'driver@aakruti.com'));
+    // Map the demo customer to their per-plant client at the home plant so the
+    // marketplace cross-plant listing has a mapping row to read (mirrors what the
+    // first marketplace order would create lazily via resolvePlantCustomer).
+    const [clientUser] = await db.select({ id: schema.users.id })
+        .from(schema.users).where(eq(schema.users.email, 'client@aakruti.com'));
+    if (clientUser) {
+        await db.insert(schema.plantCustomers)
+            .values({ plantId: homePlant.id, userId: clientUser.id, clientId: clientRows[0].id })
+            .onConflictDoNothing();
+    }
     console.log('✅ Seed complete!');
     console.log('\n🔑 Demo Credentials:');
     console.log('  Admin:    admin@aakruti.com / admin123');

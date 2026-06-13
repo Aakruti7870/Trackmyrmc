@@ -9,6 +9,7 @@
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
     "db:migrate-proof-photos": "tsx src/db/migrate-proof-photos.ts",
+    "db:migrate-multitenant": "tsx src/db/migrate-multitenant.ts",
     "test": "node scripts/test.mjs"
   },
   "dependencies": {

@@ -151,13 +151,20 @@ test('GET /api/challans hides odometer from clients and drivers but shows staff'
   const driverUser = await createUser('driver', 'd@test.com', { linkedDriverId: driver.id });
   const admin = await createUser('admin', 'a@test.com');
 
-  for (const u of [clientUser, driverUser]) {
-    const res = await request(app).get('/api/challans').set('Authorization', `Bearer ${tokenFor(u)}`);
-    assert.equal(res.status, 200);
-    assert.equal(res.body.length, 1);
-    assert.equal('odometerStart' in res.body[0], false, `${u.role} must not see odometerStart`);
-    assert.equal('odometerEnd' in res.body[0], false, `${u.role} must not see odometerEnd`);
-  }
+  // The customer reads their deliveries through the plant-scoped /api/me/challans
+  // (the staff /api/challans surface is closed to clients); the driver still uses
+  // the staff list. Neither must see the odometer readings.
+  const clientRes = await request(app).get('/api/me/challans').set('Authorization', `Bearer ${tokenFor(clientUser)}`);
+  assert.equal(clientRes.status, 200);
+  assert.equal(clientRes.body.length, 1);
+  assert.equal('odometerStart' in clientRes.body[0], false, 'client must not see odometerStart');
+  assert.equal('odometerEnd' in clientRes.body[0], false, 'client must not see odometerEnd');
+
+  const driverRes = await request(app).get('/api/challans').set('Authorization', `Bearer ${tokenFor(driverUser)}`);
+  assert.equal(driverRes.status, 200);
+  assert.equal(driverRes.body.length, 1);
+  assert.equal('odometerStart' in driverRes.body[0], false, 'driver must not see odometerStart');
+  assert.equal('odometerEnd' in driverRes.body[0], false, 'driver must not see odometerEnd');
 
   const staffRes = await request(app).get('/api/challans').set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(staffRes.status, 200);
@@ -172,7 +179,9 @@ test('GET /api/challans/:id hides odometer from clients but shows staff', async 
   const clientUser = await createUser('client', 'c@test.com', { linkedClientId: client.id });
   const admin = await createUser('admin', 'a@test.com');
 
-  const clientRes = await request(app).get(`/api/challans/${challan.id}`).set('Authorization', `Bearer ${tokenFor(clientUser)}`);
+  // Customers read challan detail through the plant-scoped /api/me/challans/:id;
+  // the staff /api/challans/:id detail is closed to them.
+  const clientRes = await request(app).get(`/api/me/challans/${challan.id}`).set('Authorization', `Bearer ${tokenFor(clientUser)}`);
   assert.equal(clientRes.status, 200);
   assert.equal('odometerStart' in clientRes.body, false);
   assert.equal('odometerEnd' in clientRes.body, false);

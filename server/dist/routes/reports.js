@@ -8,13 +8,20 @@ import { computeForecast } from '../lib/forecast.js';
 import { computeRunDate, toDateStr } from '../lib/recurring.js';
 import { getIdleConfig, computeTripTiming } from '../lib/idle.js';
 import { getFuelConfig } from '../lib/fuelConfig.js';
+import { plantScope } from '../lib/tenancy.js';
 const router = Router();
 router.use(requireAuth);
 // Effective delivery variance tolerance, readable by any authenticated user so
 // the Dispatch board and Reports views flag short/over deliveries consistently.
+// This is a plant-agnostic config number (no tenant data), so it stays open.
 router.get('/variance-tolerance', async (_req, res) => {
     res.json(await getVarianceTolerance());
 });
+// Everything below aggregates plant-bound business data (challans/orders/clients).
+// Restrict to staff/owner roles — customers use /api/me/* — and every query is
+// additionally hard-scoped by the actor's plantId (see dateRange / plantScope)
+// so one plant can never read another plant's figures.
+router.use(requireRole('admin', 'dispatcher', 'authority', 'plant_operator'));
 function dateRange(req) {
     const { from, to } = req.query;
     const filters = [];
@@ -22,6 +29,9 @@ function dateRange(req) {
         filters.push(gte(challans.createdAt, new Date(from)));
     if (to)
         filters.push(lte(challans.createdAt, new Date(to)));
+    const scope = plantScope(req.user?.plantId, challans.plantId);
+    if (scope)
+        filters.push(scope);
     return filters;
 }
 // Sum of delivered quantity (treats unrecorded deliveries as 0)
@@ -64,12 +74,7 @@ router.get('/grade-wise', async (req, res) => {
     res.json(rows);
 });
 router.get('/dispatch', async (req, res) => {
-    const { from, to } = req.query;
-    const filters = [];
-    if (from)
-        filters.push(gte(challans.createdAt, new Date(from)));
-    if (to)
-        filters.push(lte(challans.createdAt, new Date(to)));
+    const filters = dateRange(req);
     const rows = await db.select({
         date: sql `date(${challans.createdAt})`,
         totalQty: sql `coalesce(sum(${challans.quantity}::numeric), 0)`,
@@ -222,11 +227,7 @@ router.get('/production', async (req, res) => {
 });
 router.get('/export', async (req, res) => {
     const { report = 'dispatch', from, to } = req.query;
-    const filters = [];
-    if (from)
-        filters.push(gte(challans.createdAt, new Date(from)));
-    if (to)
-        filters.push(lte(challans.createdAt, new Date(to)));
+    const filters = dateRange(req);
     let csv = '';
     if (report === 'dispatch') {
         const rows = await db.select({
@@ -305,6 +306,9 @@ router.get('/forecast', requireRole('admin', 'dispatcher', 'authority'), async (
     // The effective order date is the scheduled delivery date when present, else
     // the day the order was created.
     const orderDate = sql `coalesce(${orders.deliveryDate}, date(${orders.createdAt}))`;
+    // Hard-scope demand to the actor's plant so a plant-bound forecaster can't read
+    // another plant's order book (a null-plant legacy admin stays global).
+    const orderScope = plantScope(req.user?.plantId, orders.plantId);
     // History: every non-cancelled order strictly before the target day, within
     // the training window, grouped by effective date + grade.
     const windowStart = new Date(`${target}T00:00:00Z`);
@@ -316,7 +320,7 @@ router.get('/forecast', requireRole('admin', 'dispatcher', 'authority'), async (
         qty: sql `coalesce(sum(${orders.quantity}::numeric), 0)`,
     })
         .from(orders)
-        .where(and(ne(orders.status, 'cancelled'), sql `${orderDate} >= ${toDateStr(windowStart)}`, sql `${orderDate} < ${target}`))
+        .where(and(ne(orders.status, 'cancelled'), sql `${orderDate} >= ${toDateStr(windowStart)}`, sql `${orderDate} < ${target}`, orderScope))
         .groupBy(sql `${orderDate}`, orders.grade);
     const history = historyRows.map(r => ({
         date: String(r.date).slice(0, 10),
@@ -330,7 +334,7 @@ router.get('/forecast', requireRole('admin', 'dispatcher', 'authority'), async (
         qty: sql `coalesce(sum(${orders.quantity}::numeric), 0)`,
     })
         .from(orders)
-        .where(and(ne(orders.status, 'cancelled'), sql `${orderDate} = ${target}`))
+        .where(and(ne(orders.status, 'cancelled'), sql `${orderDate} = ${target}`, orderScope))
         .groupBy(orders.grade);
     const booked = bookedRows.map(r => ({ grade: r.grade, qty: Number(r.qty) || 0 }));
     // Recurring: active templates whose schedule lands exactly on the target day.

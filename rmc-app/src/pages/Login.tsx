@@ -5,6 +5,7 @@ import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 import { clerkEnabled } from '@/lib/clerk';
 import ClerkStaffLogin from '@/components/ClerkStaffLogin';
+import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 
 const DEMO = [
   { role: 'Admin', email: 'admin@aakruti.com', password: 'admin123', color: 'var(--gold)' },
@@ -66,10 +67,10 @@ export default function Login() {
             </div>
             <div>
               <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>
-                CONCRETE KING
+                {PLATFORM_NAME}
               </div>
               <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>
-                RMC Plant · Panvel
+                {PLATFORM_TAGLINE}
               </div>
             </div>
           </div>

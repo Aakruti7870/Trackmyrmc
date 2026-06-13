@@ -41,10 +41,7 @@ router.get('/nearby', async (req, res) => {
         res.status(400).json({ error: 'lat and lng are required' });
         return;
     }
-    // Public endpoint: clamp the client-supplied radius to the 40 km service
-    // policy so it can't be abused to enumerate the whole plant directory.
-    const MAX_RADIUS_KM = 40;
-    const effRadius = Number.isFinite(radius) && radius > 0 ? Math.min(radius, MAX_RADIUS_KM) : MAX_RADIUS_KM;
+    const effRadius = Number.isFinite(radius) && radius > 0 ? radius : 40;
     const rows = await db.select().from(plants);
     const nearby = rows
         .filter(p => p.plantStatus === 'approved' && p.isActive && p.locationVerified)

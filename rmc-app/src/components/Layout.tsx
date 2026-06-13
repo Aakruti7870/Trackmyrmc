@@ -12,6 +12,7 @@ import { useToast } from '@/lib/toast';
 import { ROLE_ALLOWED_PATHS, type Role } from '@/lib/permissions';
 import { useSSE, type SSEStatus } from '@/lib/useSSE';
 import { formatNotification } from '@/lib/notifications';
+import { PLATFORM_NAME } from '@/lib/brand';
 import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
 
@@ -134,7 +135,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               fontSize: 11, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase',
               background: 'linear-gradient(90deg,var(--gold-hi),var(--gold),var(--text))',
               WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
-            }}>CONCRETE KING</div>
+            }}>{PLATFORM_NAME}</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Command Center</div>
           </div>
         </div>

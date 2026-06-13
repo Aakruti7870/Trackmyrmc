@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
-import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type Site, type RecurringOrder, type FreshnessConfig, type IdleConfig } from '@/lib/api';
+import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type Site, type RecurringOrder, type FreshnessConfig, type IdleConfig, type PlantDirectoryEntry } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 import FreshnessCountdown from '@/components/FreshnessCountdown';
@@ -166,6 +166,8 @@ export default function MyOrders() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
+  const [selectedPlantId, setSelectedPlantId] = useState<number | null>(null);
+  const [plantDir, setPlantDir] = useState<PlantDirectoryEntry[]>([]);
   const [livePositions, setLivePositions] = useState<Record<number, LivePosition>>({});
   const [freshnessConfig, setFreshnessConfig] = useState<FreshnessConfig | null>(null);
   const [idleConfig, setIdleConfig] = useState<IdleConfig | undefined>(undefined);
@@ -197,6 +199,17 @@ export default function MyOrders() {
   }, []);
 
   useEffect(() => { reloadAll(); }, [reloadAll]);
+
+  // Approved plants the customer may order from. Best-effort: if it fails the
+  // selector falls back to showing only the pre-selected plant (from the
+  // marketplace handoff), so ordering still works.
+  useEffect(() => {
+    let cancelled = false;
+    api.get<PlantDirectoryEntry[]>('/plants/directory')
+      .then(list => { if (!cancelled) setPlantDir(list); })
+      .catch(() => { /* directory is best-effort */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Working-life config so the pour-by countdown matches the plant's setting.
   // Best-effort: the chip just hides if this never loads.
@@ -317,6 +330,7 @@ export default function MyOrders() {
 
   function openModal() {
     setSelectedPlant(null);
+    setSelectedPlantId(null);
     setForm(EMPTY_FORM);
     setFormError('');
     setModalOpen(true);
@@ -328,18 +342,20 @@ export default function MyOrders() {
     const raw = sessionStorage.getItem('rmc_selected_plant');
     if (!raw) return;
     sessionStorage.removeItem('rmc_selected_plant');
-    let name: string | undefined;
+    let picked: { id?: number; name?: string } | undefined;
     try {
-      name = (JSON.parse(raw) as { name?: string })?.name;
+      picked = JSON.parse(raw) as { id?: number; name?: string };
     } catch {
       return; // ignore malformed handoff
     }
-    if (!name) return;
-    const plantName = name;
+    if (!picked?.id || !picked.name) return;
+    const plantId = picked.id;
+    const plantName = picked.name;
     // Defer setState out of the effect body to avoid cascading renders.
     Promise.resolve().then(() => {
       setSelectedPlant(plantName);
-      setForm({ ...EMPTY_FORM, notes: `Preferred plant: ${plantName}` });
+      setSelectedPlantId(plantId);
+      setForm(EMPTY_FORM);
       setFormError('');
       setModalOpen(true);
     });
@@ -348,11 +364,13 @@ export default function MyOrders() {
   async function submitOrder(e: React.FormEvent) {
     e.preventDefault();
     setFormError('');
+    if (!selectedPlantId) { setFormError('Please choose a plant to order from.'); return; }
     if (!form.grade) { setFormError('Please select a concrete grade.'); return; }
     if (!(Number(form.quantity) > 0)) { setFormError('Please enter a quantity greater than zero.'); return; }
     setSaving(true);
     try {
       const created = await api.post<Order>('/me/orders', {
+        plantId: selectedPlantId,
         grade: form.grade,
         quantity: form.quantity,
         pumpRequired: form.pumpRequired,
@@ -361,7 +379,10 @@ export default function MyOrders() {
         notes: form.notes || undefined,
         siteId: form.siteId || undefined,
       });
-      setOrders(prev => [created, ...prev]);
+      // The POST returns plantId only; reflect the chosen plant's name/code
+      // optimistically so the new row labels its plant before the next reload.
+      const picked = plantDir.find(p => p.id === selectedPlantId);
+      setOrders(prev => [{ ...created, plantName: created.plantName ?? picked?.name ?? selectedPlant, plantCode: created.plantCode ?? picked?.plantCode ?? null }, ...prev]);
       setModalOpen(false);
       setTab('orders');
     } catch (err) {
@@ -572,7 +593,7 @@ export default function MyOrders() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Order No', 'Grade', 'Qty (m³)', 'Delivery Date', 'Site', 'Status', 'Actions'].map(h => (
+                  {['Order No', 'Plant', 'Grade', 'Qty (m³)', 'Delivery Date', 'Site', 'Status', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: h === 'Actions' ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
                   ))}
                 </tr>
@@ -581,6 +602,10 @@ export default function MyOrders() {
                 {orders.map(o => (
                   <tr key={o.id} style={{ borderBottom: '1px solid rgba(38,52,73,.5)' }}>
                     <td style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--blue)', fontSize: 13 }}>{o.orderNo}</td>
+                    <td style={{ padding: '12px 14px', color: 'var(--text)', fontSize: 12.5 }}>
+                      {o.plantName || '—'}
+                      {o.plantCode && <span style={{ display: 'block', color: 'var(--muted)', fontSize: 11, fontFamily: 'monospace' }}>{o.plantCode}</span>}
+                    </td>
                     <td style={{ padding: '12px 14px' }}>
                       <span style={{ background: 'rgba(56,189,248,.12)', color: 'var(--blue)', padding: '2px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>{o.grade}</span>
                     </td>
@@ -878,6 +903,29 @@ export default function MyOrders() {
               <button type="button" onClick={() => !saving && setModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>
                 <X size={18} />
               </button>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Plant</label>
+              <select
+                value={selectedPlantId ?? ''}
+                onChange={e => {
+                  const id = e.target.value ? Number(e.target.value) : null;
+                  setSelectedPlantId(id);
+                  setSelectedPlant(id ? (plantDir.find(p => p.id === id)?.name ?? null) : null);
+                }}
+                style={inputStyle}
+              >
+                <option value="">Select a plant…</option>
+                {/* Keep the handoff-selected plant available even if the
+                    directory is still loading or excludes it. */}
+                {selectedPlantId != null && !plantDir.some(p => p.id === selectedPlantId) && selectedPlant && (
+                  <option value={selectedPlantId}>{selectedPlant}</option>
+                )}
+                {plantDir.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}{p.city ? ` · ${p.city}` : ''}{p.plantCode ? ` (${p.plantCode})` : ''}</option>
+                ))}
+              </select>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>

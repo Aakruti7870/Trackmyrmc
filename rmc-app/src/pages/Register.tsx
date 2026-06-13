@@ -4,6 +4,7 @@ import { api, type User as AuthUser } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle, User, Phone, MapPin, FileText, CheckCircle2 } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
+import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '11px 14px 11px 38px',
@@ -87,8 +88,8 @@ export default function Register() {
             <Building2 size={22} color="#111" />
           </div>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>CONCRETE KING</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>RMC Plant · Panvel</div>
+            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>{PLATFORM_NAME}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>{PLATFORM_TAGLINE}</div>
           </div>
         </div>
 
