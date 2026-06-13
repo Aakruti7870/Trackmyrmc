@@ -6,6 +6,48 @@ uri = "file://rmc-app/src/assets/rmc-aerial-bg.png"
 type = "image"
 title = "rmc aerial plant background"
 
+[[generated]]
+id = "HG03lDNnD29LqVvhnIG5k"
+uri = "file://artifacts/mockup-sandbox/public/images/hero-truck.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "dS4IoYWOOAF3B5duQTiB8"
+uri = "file://artifacts/mockup-sandbox/public/images/feed-plant.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "xT86_l73ijpVd0LWxHFU7"
+uri = "file://artifacts/mockup-sandbox/public/images/feed-batching.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "NBHaaiPrNaal_L7efg21F"
+uri = "file://artifacts/mockup-sandbox/public/images/feed-transit.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "CFWwjzeY8tV_FE-Wbo35S"
+uri = "file://artifacts/mockup-sandbox/public/images/feed-arrival.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "V9vJTe9rGI0t_jmhkYWQ9"
+uri = "file://artifacts/mockup-sandbox/public/images/feed-pouring.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "IpyYM5M5xofoka9alAmC8"
+uri = "file://artifacts/mockup-sandbox/public/images/feed-quality.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "oaHn9kwGbYywEoOBjUmqg"
 uri = "file://screenshots/theme-1-midnight-gold.jpg"

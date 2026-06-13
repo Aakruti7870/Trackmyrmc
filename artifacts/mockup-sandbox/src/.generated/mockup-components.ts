@@ -3,5 +3,6 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/rmc-dashboard/CommandCenter.tsx": () => import("../components/mockups/rmc-dashboard/CommandCenter.tsx"),
   "./components/mockups/rmc-dashboard/ExceptionFirst.tsx": () => import("../components/mockups/rmc-dashboard/ExceptionFirst.tsx"),
-  "./components/mockups/rmc-dashboard/ShiftHandover.tsx": () => import("../components/mockups/rmc-dashboard/ShiftHandover.tsx")
+  "./components/mockups/rmc-dashboard/ShiftHandover.tsx": () => import("../components/mockups/rmc-dashboard/ShiftHandover.tsx"),
+  "./components/mockups/ck-landing/Landing.tsx": () => import("../components/mockups/ck-landing/Landing.tsx")
 };
