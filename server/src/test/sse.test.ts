@@ -25,6 +25,10 @@ class MockResponse {
   // Controls what res.write() returns. false simulates a full kernel/proxy
   // buffer (backpressure) so the write is never treated as flushed.
   writeReturn = true;
+  // When true, res.write() throws synchronously, simulating a socket that is
+  // torn down mid-write (e.g. ERR_STREAM_DESTROYED) without writableEnded /
+  // destroyed having been observed first.
+  throwOnWrite = false;
   req: { httpVersionMajor: number };
 
   constructor(httpVersionMajor = 1) {
@@ -38,6 +42,7 @@ class MockResponse {
   flushHeaders() {}
 
   write(payload: string): boolean {
+    if (this.throwOnWrite) throw new Error('write after end');
     this.writes.push(payload);
     return this.writeReturn;
   }
@@ -196,6 +201,67 @@ test('sweep: a healthy connection survives the sweep', () => {
     res.writes.includes(':ping\n\n'),
     'the surviving connection should still be receiving keepalive pings',
   );
+});
+
+test('emit: a broken connection is dropped during a broadcast while the healthy one survives', () => {
+  // Two observers are listening. One socket has already closed (writableEnded)
+  // without a 'close' event reaching the route, so it must be reclaimed the
+  // moment we try to write to it — not 20s later on the next sweep.
+  const broken = new MockResponse(2);
+  const healthy = new MockResponse(2);
+  const brokenId = add(broken);
+  const healthyId = add(healthy);
+  created.push(brokenId, healthyId);
+  assert.equal(getSSEClientCount(), 2);
+
+  broken.writableEnded = true;
+
+  // A real event broadcast: writeToClient fails for the dead socket and
+  // emitSSEEvent drops it inline.
+  emitSSEEvent('system.notice', { message: 'hello' });
+
+  assert.equal(
+    getSSEClientCount(),
+    1,
+    'the broken connection must be dropped during emit, not left for the sweep',
+  );
+  assert.ok(broken.ended, 'the dropped connection should have been ended');
+  assert.ok(
+    eventsOf(healthy).includes('system.notice'),
+    'the healthy connection must still receive the broadcast event',
+  );
+  // The healthy connection is the survivor; remove the (already gone) broken id
+  // from the cleanup list so afterEach does not assert on a missing client.
+  created.length = 0;
+  created.push(healthyId);
+});
+
+test('emit: a connection whose write() throws synchronously is dropped mid-broadcast', () => {
+  // Exercises the try/catch in writeToClient: the socket is not flagged as
+  // ended/destroyed, but write() throws (e.g. ERR_STREAM_DESTROYED) the instant
+  // we push the payload. That throwing client must be reclaimed during emit.
+  const throwing = new MockResponse(2);
+  const healthy = new MockResponse(2);
+  const throwingId = add(throwing);
+  const healthyId = add(healthy);
+  created.push(throwingId, healthyId);
+  assert.equal(getSSEClientCount(), 2);
+
+  throwing.throwOnWrite = true;
+
+  emitSSEEvent('system.notice', { message: 'hello' });
+
+  assert.equal(
+    getSSEClientCount(),
+    1,
+    'a connection whose write throws must be dropped during emit',
+  );
+  assert.ok(
+    eventsOf(healthy).includes('system.notice'),
+    'the healthy connection must still receive the broadcast event',
+  );
+  created.length = 0;
+  created.push(healthyId);
 });
 
 test('proxy headers: HTTP/1.x stream is unbuffered, no-transform, and chunked', () => {

@@ -7,6 +7,7 @@ import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore } from '../lib/proofPhoto.js';
 import { nextOrderNo } from '../lib/orderNo.js';
 import { computeFirstRunDate } from '../lib/recurring.js';
+import { getIdleConfig } from '../lib/idle.js';
 const router = Router();
 router.use(requireAuth);
 // Resolve a siteId from the request, ensuring it belongs to the caller's client.
@@ -205,6 +206,13 @@ router.get('/challans/:id', requireRole('client'), async (req, res) => {
     const proofPhotos = (await Promise.all(stored.map(p => proofPhotoStore.resolve(p.photo))))
         .filter((url) => url != null);
     res.json({ ...row, proofPhotos });
+});
+// Client-safe idle configuration (free window + per-hour rate). Read-only and
+// config-only so a customer can render the same time-at-site / idle-charge math
+// the plant uses, without exposing the staff-only /admin/idle-settings endpoint
+// (which also carries the editable defaults). Best-effort on the client.
+router.get('/idle-config', requireRole('client'), async (_req, res) => {
+    res.json(await getIdleConfig());
 });
 router.get('/ledger', requireRole('client'), async (req, res) => {
     const clientId = await getLinkedClientId(req.user.id);
