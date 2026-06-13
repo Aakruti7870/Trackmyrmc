@@ -1,12 +1,13 @@
 import { useState } from "react";
 import {
   Crown, Navigation, ShoppingCart, Eye, Truck, ShieldCheck,
-  FileText, Bell, Headphones, Phone, Mail, ArrowRight, X, Play,
+  FileText, Bell, Headphones, Phone, Mail, ArrowRight, X,
   MapPin, Factory, Radio, ChevronRight,
 } from "lucide-react";
 import "./_group.css";
 
 const IMG = (n: string) => `/__mockup/images/${n}`;
+const VID = (n: string) => `/__mockup/videos/${n}`;
 const GRADES = ["M20", "M25", "M30", "M35", "M40", "M50"];
 
 const FEATURES = [
@@ -37,12 +38,12 @@ const FEATURES = [
 ];
 
 const FEED = [
-  { img: "feed-plant.png", title: "Plant Live", sub: "Panvel Hub · Batching", tag: "LIVE" },
-  { img: "feed-batching.png", title: "Batching Plant", sub: "Mix · M30 in progress", tag: "LIVE" },
-  { img: "feed-transit.png", title: "Transit on the Way", sub: "MH-46 · ETA 18 min", tag: "LIVE" },
-  { img: "feed-arrival.png", title: "Site Arrival", sub: "Sector 19 · Arriving", tag: "LIVE" },
-  { img: "feed-pouring.png", title: "Pouring in Progress", sub: "Slab L2 · 6.5 m³", tag: "LIVE" },
-  { img: "feed-quality.png", title: "Quality Check", sub: "Slump 120mm · Pass", tag: "LIVE" },
+  { video: "ck-plant.mp4" },
+  { video: "ck-batching.mp4" },
+  { video: "ck-transit.mp4" },
+  { video: "ck-arrival.mp4" },
+  { video: "ck-pouring.mp4" },
+  { video: "ck-quality.mp4" },
 ];
 
 const MAIL = "support@goldetechapp.com";
@@ -264,40 +265,19 @@ export function Landing() {
 
       {/* LIVE FEED */}
       <section style={{ padding: "56px 0 12px" }}>
-        <div style={{ ...section, display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <span style={{ ...kicker, display: "inline-flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)", animation: "ck-pulse-red 1.6s ease infinite" }} />
-              Live Feed
-            </span>
-            <h2 style={h2}>See it happen, in real time</h2>
-          </div>
-          <span style={{ color: "var(--muted)", fontSize: 14 }}>Cinematic look at the network, right now</span>
+        <div style={{ ...section, marginBottom: 24 }}>
+          <span style={{ ...kicker, display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)", animation: "ck-pulse-red 1.6s ease infinite" }} />
+            Live Feed
+          </span>
         </div>
         <div className="ck-no-scrollbar" style={{ ...section, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
           {FEED.map((f, i) => (
-            <button key={f.title} onClick={() => setOpenFeed(i)} className="ck-feed ck-card-hover"
+            <button key={f.video} onClick={() => setOpenFeed(i)} className="ck-feed ck-card-hover"
               style={{ position: "relative", height: 220, borderRadius: 18, overflow: "hidden", cursor: "pointer",
-                border: "1px solid var(--line)", padding: 0 }}>
-              <img className="ck-feed-img" src={IMG(f.img)} alt={f.title}
+                border: "1px solid var(--line)", padding: 0, background: "#0a1525" }}>
+              <video className="ck-feed-img" src={VID(f.video)} autoPlay muted loop playsInline
                 style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-              <div style={{ position: "absolute", inset: 0,
-                background: "linear-gradient(180deg, rgba(8,17,31,.05) 30%, rgba(8,17,31,.92) 100%)" }} />
-              <span style={{ position: "absolute", top: 12, left: 12, display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "5px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800, letterSpacing: 1,
-                background: "rgba(239,68,68,.92)", color: "#fff" }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#fff", animation: "ck-pulse-red 1.4s ease infinite" }} />
-                {f.tag}
-              </span>
-              <span style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-                width: 56, height: 56, borderRadius: "50%", display: "grid", placeItems: "center",
-                background: "rgba(247,201,72,.92)", color: "#0a1322", boxShadow: "0 10px 30px -8px rgba(247,201,72,.7)" }}>
-                <Play size={22} fill="#0a1322" />
-              </span>
-              <div style={{ position: "absolute", left: 14, bottom: 12, textAlign: "left" }}>
-                <div style={{ fontWeight: 800, fontSize: 16.5, color: "#fff" }}>{f.title}</div>
-                <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 3 }}>{f.sub}</div>
-              </div>
             </button>
           ))}
         </div>
@@ -381,24 +361,9 @@ export function Landing() {
           {(() => {
             const f = FEED[openFeed];
             return (
-              <div>
-                <div style={{ position: "relative", borderRadius: 14, overflow: "hidden", aspectRatio: "16/9" }}>
-                  <img src={IMG(f.img)} alt={f.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(8,17,31,.1), rgba(8,17,31,.7))" }} />
-                  <span style={{ position: "absolute", top: 14, left: 14, display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "5px 11px", borderRadius: 999, fontSize: 11, fontWeight: 800, letterSpacing: 1,
-                    background: "rgba(239,68,68,.92)", color: "#fff" }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#fff", animation: "ck-pulse-red 1.4s ease infinite" }} />
-                    LIVE
-                  </span>
-                  <span style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-                    width: 60, height: 60, borderRadius: "50%", display: "grid", placeItems: "center",
-                    background: "rgba(247,201,72,.92)", color: "#0a1322" }}>
-                    <Play size={24} fill="#0a1322" />
-                  </span>
-                </div>
-                <h3 style={{ fontSize: 21, fontWeight: 800, margin: "16px 0 0" }}>{f.title}</h3>
-                <p style={{ color: "var(--muted)", fontSize: 14.5, marginTop: 6 }}>{f.sub} · streaming live from the network</p>
+              <div style={{ position: "relative", borderRadius: 14, overflow: "hidden", aspectRatio: "16/9", background: "#0a1525" }}>
+                <video src={VID(f.video)} autoPlay muted loop playsInline
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
             );
           })()}
