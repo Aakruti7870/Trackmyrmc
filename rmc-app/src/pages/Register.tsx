@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { api } from '@/lib/api';
+import { api, type User as AuthUser } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle, User, Phone, MapPin, FileText, CheckCircle2 } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 
@@ -29,6 +30,7 @@ function Field({ icon, label, children }: { icon: React.ReactNode; label: string
 
 export default function Register() {
   const [, setLoc] = useLocation();
+  const { updateUser } = useAuth();
   const [name, setName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
@@ -46,7 +48,12 @@ export default function Register() {
     setError('');
     setLoading(true);
     try {
-      await api.post('/auth/register', { name, companyName, email, phone, gstNo, city, password });
+      const res = await api.post<{ token: string; user: AuthUser }>(
+        '/auth/register', { name, companyName, email, phone, gstNo, city, password },
+      );
+      // Log the customer in immediately. Setting the user makes RegisterRoute
+      // redirect to their dashboard, so they can place an order right away.
+      updateUser(res.user, res.token);
       setDone(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -95,24 +102,23 @@ export default function Register() {
             }}>
               <CheckCircle2 size={28} style={{ color: 'var(--green)' }} />
             </div>
-            <h2 style={{ margin: '0 0 10px', fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Registration received</h2>
+            <h2 style={{ margin: '0 0 10px', fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Account created</h2>
             <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>
-              Thanks for signing up. An administrator will review and activate your account shortly.
-              You'll be able to sign in and place orders once it's approved.
+              You're all set — taking you to your dashboard so you can place your first order.
             </p>
-            <button onClick={() => setLoc('/login')} style={{
+            <button onClick={() => setLoc('/')} style={{
               padding: '11px 24px', borderRadius: 12, border: 'none', cursor: 'pointer',
               background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
               color: '#111827', fontWeight: 800, fontSize: 14,
             }}>
-              Back to Sign In
+              Go to my dashboard
             </button>
           </div>
         ) : (
           <>
             <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Create your account</h2>
             <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 13 }}>
-              Register your company to request ready-mix concrete. New accounts are activated by our team before first sign-in.
+              Register your company and start ordering ready-mix concrete right away — no waiting for approval.
             </p>
 
             <form onSubmit={handleSubmit}>

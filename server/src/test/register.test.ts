@@ -32,16 +32,18 @@ beforeEach(async () => {
 
 after(async () => { await pool.end(); });
 
-test('public register creates an inactive client linked to a new client record', async () => {
+test('public register creates an active client linked to a new client record and returns a session token', async () => {
   const res = await request(app).post('/api/auth/register').send(validBody);
   assert.equal(res.status, 201);
-  assert.equal(res.body.pendingApproval, true);
+  assert.ok(res.body.token, 'a session token is issued so the customer is logged in immediately');
+  assert.equal(res.body.user.role, 'client');
+  assert.ok(res.body.user.linkedClientId, 'response carries the linked client id');
 
   const [user] = await db.select().from(users).where(eq(users.email, 'priya@shah.com'));
   assert.ok(user, 'user created');
   assert.equal(user.email, 'priya@shah.com', 'email lowercased');
   assert.equal(user.role, 'client');
-  assert.equal(user.isActive, false, 'account starts inactive pending approval');
+  assert.equal(user.isActive, true, 'self-serve account is active immediately');
   assert.ok(user.linkedClientId, 'linked to a client');
 
   const [client] = await db.select().from(clients).where(eq(clients.id, user.linkedClientId!));
@@ -54,18 +56,11 @@ test('public register creates an inactive client linked to a new client record',
   assert.equal(audit.targetUserEmail, 'priya@shah.com');
 });
 
-test('a freshly registered account cannot log in until activated', async () => {
+test('a freshly registered account can log in immediately', async () => {
   await request(app).post('/api/auth/register').send(validBody).expect(201);
   const res = await request(app).post('/api/auth/login').send({ email: 'priya@shah.com', password: 'supersecret' });
-  assert.equal(res.status, 401, 'inactive account is rejected at login');
-});
-
-test('admin activation lets the account log in', async () => {
-  await request(app).post('/api/auth/register').send(validBody).expect(201);
-  await db.update(users).set({ isActive: true }).where(eq(users.email, 'priya@shah.com'));
-  const res = await request(app).post('/api/auth/login').send({ email: 'priya@shah.com', password: 'supersecret' });
-  assert.equal(res.status, 200);
-  assert.ok(res.body.token, 'token issued after activation');
+  assert.equal(res.status, 200, 'active self-serve account can sign in right away');
+  assert.ok(res.body.token, 'token issued on login');
 });
 
 test('duplicate email is rejected with 409', async () => {

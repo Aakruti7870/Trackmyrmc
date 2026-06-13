@@ -31,7 +31,7 @@ async function createDriverUser(name: string, email: string) {
 // Challan deletion is a write-role action (admin/dispatcher), so the proof-photo
 // cleanup tests below act as an admin while still assigning a driver to the row.
 async function createWriteRoleUser(email: string) {
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const passwordHash = await hashPassword(PASSWORD);
   const [user] = await db.insert(users).values({
     name: 'Dispatch Admin', email, passwordHash, role: 'admin', isActive: true,
   }).returning();

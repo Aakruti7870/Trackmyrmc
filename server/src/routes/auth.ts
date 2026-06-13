@@ -256,10 +256,10 @@ router.post('/clerk', async (req, res) => {
 
 // --- Self-service customer registration ------------------------------------
 // Public endpoint: a prospective customer creates their own company + login.
-// Accounts are created INACTIVE (isActive=false) and stay locked out of login
-// until an administrator approves them from the Users screen. This prevents
-// anonymous strangers from instantly transacting while still letting genuine
-// clients sign themselves up.
+// Accounts are created ACTIVE so the customer can sign in and place an order
+// straight away — a friction-free, self-serve onboarding. Abuse is mitigated by
+// the per-IP rate limit below rather than a manual approval queue. The endpoint
+// returns a session token so the client app can log the customer in instantly.
 const registerSchema = z.object({
   name: z.string().trim().min(2, 'Your name is required').max(120),
   companyName: z.string().trim().min(2, 'Company name is required').max(160),
@@ -317,7 +317,7 @@ router.post('/register', async (req, res) => {
       email: data.email,
       passwordHash,
       role: 'client',
-      isActive: false,
+      isActive: true,
       linkedClientId: client.id,
     }).returning();
 
@@ -327,18 +327,28 @@ router.post('/register', async (req, res) => {
       action: 'account_registered',
       targetUserId: user.id,
       targetUserEmail: user.email,
-      status: 'pending',
-      detail: `Self-registered customer "${data.companyName}" — awaiting admin approval`,
+      status: 'success',
+      detail: `Self-registered customer "${data.companyName}" — account active`,
     });
 
     return user;
   });
 
+  // Log the customer straight in so they can place an order without a second
+  // step. Mirrors the /login response shape so the client can reuse it.
+  const token = signToken({
+    id: newUser.id, email: newUser.email, role: newUser.role, name: newUser.name,
+    linkedClientId: newUser.linkedClientId,
+    linkedDriverId: newUser.linkedDriverId,
+  });
   res.status(201).json({
     ok: true,
-    pendingApproval: true,
-    message: 'Registration received. An administrator will review and activate your account, then you can sign in.',
-    userId: newUser.id,
+    token,
+    user: {
+      id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role,
+      linkedClientId: newUser.linkedClientId,
+      linkedDriverId: newUser.linkedDriverId,
+    },
   });
 });
 
