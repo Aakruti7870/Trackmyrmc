@@ -57,6 +57,19 @@ testUrl.pathname = `/${testName}`;
 const testDatabaseUrl = testUrl.toString();
 const env = { ...process.env, DATABASE_URL: testDatabaseUrl, NODE_ENV: 'test' };
 
+// Strip any ambient SMTP credentials so the suite can never open a real
+// network connection to a live mail server. The deployed/dev environment may
+// have real SMTP_* secrets set; without this, tests that create users or
+// trigger welcome / password-reset emails (and don't mock the email module)
+// build a real transporter and stall on a live Gmail handshake (EAUTH). Tests
+// that intentionally exercise SMTP set their own fake env vars and mock
+// nodemailer.createTransport, so clearing the ambient ones here is safe and
+// keeps coverage unchanged — the non-mocking tests simply hit the existing
+// "SMTP not configured, skipping" short-circuit instead.
+for (const key of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM']) {
+  delete env[key];
+}
+
 let exitCode = 1;
 try {
   console.log('[test] Pushing schema to test database...');
