@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MessageCircle, X, Send, Mic, MicOff, Volume2, VolumeX, LifeBuoy, Loader2 } from 'lucide-react';
+import { MessageCircle, X, Send, Square, Mic, MicOff, Volume2, VolumeX, LifeBuoy, Loader2 } from 'lucide-react';
 import { aiApi, type AiConfig, type AiPlantOption } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import AvatarPortrait from './AvatarPortrait';
@@ -47,6 +47,8 @@ export default function AIHelpAgent() {
 
   const sessionId = useMemo(() => getSessionId(), []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Lets the user interrupt an in-flight streamed reply via the Stop button.
+  const abortRef = useRef<AbortController | null>(null);
   const tts = useTextToSpeech();
 
   const sttFinal = useCallback((text: string) => {
@@ -99,6 +101,9 @@ export default function AIHelpAgent() {
       });
     };
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       await aiApi.chatStream(
         {
@@ -123,14 +128,23 @@ export default function AIHelpAgent() {
             if (voiceOut && acc) tts.speak(acc);
           },
         },
+        controller.signal,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
+      // A user-initiated Stop aborts the fetch; keep the partial text, no error.
+      if (e instanceof DOMException && e.name === 'AbortError') { /* stopped by user */ }
+      else setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
     } finally {
+      abortRef.current = null;
       setSending(false);
       setAwaitingReply(false);
     }
   }, [sending, sessionId, voiceOut, config, selectedPlantId, tts]);
+
+  // Interrupt an in-flight reply, keeping whatever text already streamed in.
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
 
   const submitTicket = useCallback(async () => {
     if (!ticketMsg.trim() || ticketBusy) return;
@@ -323,9 +337,15 @@ export default function AIHelpAgent() {
                   rows={1}
                   style={{ ...fieldStyle, flex: 1, resize: 'none', maxHeight: 96 }}
                 />
-                <button onClick={() => send(input, false)} disabled={sending || !input.trim()} aria-label="Send" style={iconBtn(false, sending || !input.trim())}>
-                  {sending ? <Loader2 size={18} className="ai-spin" /> : <Send size={18} />}
-                </button>
+                {sending ? (
+                  <button onClick={stop} aria-label="Stop" title="Stop the reply" style={iconBtn(true)}>
+                    <Square size={16} fill="currentColor" />
+                  </button>
+                ) : (
+                  <button onClick={() => send(input, false)} disabled={!input.trim()} aria-label="Send" style={iconBtn(false, !input.trim())}>
+                    <Send size={18} />
+                  </button>
+                )}
               </div>
               <button onClick={() => { setError(null); setTicketOpen(true); }} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,

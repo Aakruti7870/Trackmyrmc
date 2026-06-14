@@ -172,7 +172,12 @@ router.post('/chat/stream', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_cha
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   (res as { flushHeaders?: () => void }).flushHeaders?.();
-  const sse = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  // Guard writes: once the client disconnects (Stop button / closed tab) the
+  // socket is gone, so writing would throw "write after end".
+  const sse = (event: string, data: unknown) => {
+    if (res.writableEnded) return;
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch { /* client gone */ }
+  };
 
   if (prep.kind === 'refused') {
     sse('meta', { refused: true, source: 'policy', outputType: prep.outType });
@@ -185,29 +190,44 @@ router.post('/chat/stream', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_cha
 
   sse('meta', { refused: false, functionsUsed: prep.functionsUsed, outputType: prep.outType });
 
+  // The client may hang up mid-stream (Stop button or closed tab). When that
+  // happens we stop pulling from the model, persist the partial text, and skip
+  // the closing frame since there's no one left to read it.
+  let aborted = false;
+  res.on('close', () => { if (!res.writableEnded) aborted = true; });
+
   let reply = '';
   let source: 'gemini' | 'fallback' = 'gemini';
+  const gen = chatCompleteStream({ system: prep.persona, context: prep.context, history: prep.history, message: prep.message });
   try {
-    const gen = chatCompleteStream({ system: prep.persona, context: prep.context, history: prep.history, message: prep.message });
     let next = await gen.next();
     while (!next.done) {
+      if (aborted) break;
       reply += next.value;
       sse('delta', { text: next.value });
       next = await gen.next();
     }
-    reply = next.value.text;
-    source = next.value.source;
+    if (!aborted && next.done) {
+      reply = next.value.text;
+      source = next.value.source;
+    }
   } catch (err) {
     if (err instanceof GeminiError) console.error('[ai] gemini stream error', err.status, err.message);
     else console.error('[ai] unexpected stream error', err);
     source = 'fallback';
     // If nothing streamed yet, surface the fallback; otherwise keep partial text.
-    if (!reply.trim()) { reply = STREAM_FALLBACK; sse('delta', { text: reply }); }
+    if (!aborted && !reply.trim()) { reply = STREAM_FALLBACK; sse('delta', { text: reply }); }
+  } finally {
+    // Release the upstream reader when we bailed out early.
+    if (aborted) await gen.return({ text: reply.trim(), source }).catch(() => undefined);
   }
 
+  // Persist whatever was generated, even on an interrupted stream.
   await persistMessage(prep.conversationId, prep.sessionId, prep.userId, prep.scopePlantId, prep.message, reply, prep.inType, prep.outType, prep.functionsUsed.join(','));
-  sse('done', { reply, source });
-  res.end();
+  if (!aborted) {
+    sse('done', { reply, source });
+    res.end();
+  }
 });
 
 async function persistMessage(
