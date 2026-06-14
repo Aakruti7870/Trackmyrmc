@@ -11,12 +11,31 @@
 //   chain of ~40 files.
 //
 // How parallelism is made safe:
-//   The test files are sharded across N workers. Each worker runs node:test
-//   over its own subset of files (still --test-concurrency=1, so files WITHIN a
-//   worker run one at a time and never clobber each other) against a database
-//   that belongs only to that worker. Workers run at the same time, so the
-//   total wall-clock time drops to roughly the slowest single shard instead of
-//   the sum of all files.
+//   The test files are distributed across N workers. Each worker owns its own
+//   database and runs one file at a time (each file is a fresh `node --test`
+//   invocation with --test-concurrency=1, so files WITHIN a worker run serially
+//   and never clobber each other). Workers run at the same time, so the total
+//   wall-clock time drops to roughly the slowest single shard instead of the
+//   sum of all files.
+//
+// Why a work-stealing queue instead of fixed round-robin shards?
+//   Files finish very unevenly — the bcrypt-heavy users.delete / auth.lockout /
+//   users.authority suites cost far more than the rest, and (because the work is
+//   in bcrypt rounds, not file length) cost does NOT track file size. A static
+//   round-robin split therefore left one worker doing ~107s while another
+//   finished in ~48s, and the run was bound by that unlucky-heavy worker.
+//   Instead, all files go into one shared queue and every worker pulls the next
+//   file the instant it goes idle. A worker that draws a heavy file simply runs
+//   fewer files, so the workers finish within ~one file of each other and the
+//   total drops toward the cost of the single heaviest file.
+//
+// Why recorded timings?
+//   To shrink the tail further we dispatch heaviest-first (longest-processing-
+//   time ordering): the queue is sorted by each file's last recorded duration so
+//   the expensive suites start immediately and never strand a worker at the end.
+//   Timings are written to .test-timings.json after every run; a missing/stale
+//   entry just means that file is dispatched early and the queue self-corrects —
+//   the work-stealing keeps things balanced even with no timing data at all.
 //
 // Why a template database?
 //   drizzle-kit push is the slow part of setup. We push the schema ONCE into a
@@ -30,7 +49,7 @@
 import pg from 'pg';
 import os from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, renameSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -144,35 +163,93 @@ function findTests(dir) {
   return out;
 }
 
-// Run one worker: node:test over `files` against `dbName`. Output is buffered
-// and printed as a contiguous block when the worker finishes, so the parallel
-// workers' spec reporters don't interleave into unreadable noise.
-function runWorker(index, files, dbName) {
+// Per-file recorded durations live next to this script keyed by path relative to
+// serverDir. They are only a scheduling HINT (heaviest-first dispatch), never a
+// correctness input, so a missing/corrupt file is harmless.
+const TIMINGS_PATH = path.join(serverDir, '.test-timings.json');
+
+function loadTimings() {
+  try {
+    const data = JSON.parse(readFileSync(TIMINGS_PATH, 'utf8'));
+    return data && typeof data === 'object' ? data : {};
+  } catch {
+    return {}; // first run, or a concurrent writer left it momentarily unreadable
+  }
+}
+
+// Merge fresh measurements into the existing file and write atomically (temp +
+// rename) so a concurrent `pnpm test` reading the file never sees a half-written
+// blob. Best-effort: timing data is a hint, so any failure is swallowed.
+function saveTimings(measured) {
+  try {
+    const merged = { ...loadTimings(), ...measured };
+    const tmp = `${TIMINGS_PATH}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(merged, null, 2));
+    renameSync(tmp, TIMINGS_PATH);
+  } catch (err) {
+    console.error('[test] Warning: could not persist test timings:', err.message);
+  }
+}
+
+// Run a SINGLE test file as its own `node --test` process against `dbName`.
+// Output is buffered and flushed as one contiguous block on close so the
+// parallel workers' spec reporters never interleave into unreadable noise.
+function runFile(file, dbName) {
   return new Promise((resolve) => {
     const env = { ...baseEnv, DATABASE_URL: urlFor(dbName) };
-    // --test-concurrency=1: files within a worker share that worker's database,
-    //   so they must still run one at a time (each TRUNCATEs shared tables).
+    // --test-concurrency=1: a file may contain several top-level tests; keep
+    //   them serial so they don't race on the worker's shared database.
     // --test-force-exit: some suites exercise SSE/streaming endpoints that can
     //   leave a socket or timer holding the event loop open after every test has
     //   already passed; without this the run would hang on exit.
+    const started = Date.now();
     const child = spawn(
       'node',
-      ['--import', 'tsx', '--experimental-test-module-mocks', '--test', '--test-concurrency=1', '--test-force-exit', '--test-reporter', 'spec', ...files],
+      ['--import', 'tsx', '--experimental-test-module-mocks', '--test', '--test-concurrency=1', '--test-force-exit', '--test-reporter', 'spec', file],
       { env, cwd: serverDir },
     );
     let buf = '';
     child.stdout.on('data', (d) => { buf += d; });
     child.stderr.on('data', (d) => { buf += d; });
     child.on('close', (code) => {
-      const names = files.map((f) => path.basename(f)).join(', ');
-      console.log(`\n===== worker ${index + 1} (${files.length} file(s): ${names}) — exit ${code} =====`);
-      process.stdout.write(buf);
-      resolve(code ?? 1);
+      resolve({ code: code ?? 1, buf, ms: Date.now() - started });
     });
     child.on('error', (err) => {
-      console.error(`[test] worker ${index + 1} failed to start:`, err.message);
-      resolve(1);
+      resolve({ code: 1, buf: `failed to start: ${err.message}\n`, ms: Date.now() - started });
     });
+  });
+}
+
+// One worker: owns `dbName`, and keeps pulling the next file from the shared
+// `queue` until it is empty. Because every idle worker races for the same queue,
+// a worker that draws a heavy file simply ends up running fewer files — this is
+// the work-stealing that keeps all workers finishing within ~one file of each
+// other regardless of how lumpy the per-file costs are.
+function runWorker(index, dbName, queue, measured) {
+  return new Promise((resolve) => {
+    let worstCode = 0;
+    let count = 0;
+    let totalMs = 0;
+    const step = () => {
+      const file = queue.shift(); // shift() is atomic between awaits (single-threaded)
+      if (file === undefined) {
+        resolve({ code: worstCode, count, totalMs });
+        return;
+      }
+      runFile(file, dbName).then(({ code, buf, ms }) => {
+        const rel = path.relative(serverDir, file);
+        measured[rel] = ms;
+        count += 1;
+        totalMs += ms;
+        if (code !== 0) worstCode = 1;
+        console.log(
+          `\n===== worker ${index + 1} — ${path.basename(file)} — exit ${code} — ${(ms / 1000).toFixed(1)}s =====`,
+        );
+        process.stdout.write(buf);
+        step();
+      });
+    };
+    step();
   });
 }
 
@@ -209,17 +286,31 @@ try {
       console.error('[test] No test files found.');
       exitCode = 1;
     } else {
-      // 2. Decide worker count and shard files round-robin (spreads heavy
-      //    files across shards rather than clustering them in one).
+      // 2. Decide worker count.
       const requested = Number(process.env.TEST_WORKERS) || 0;
       const workerCount = Math.max(
         1,
         Math.min(requested > 0 ? requested : os.cpus().length, testFiles.length, 6),
       );
-      const shards = Array.from({ length: workerCount }, () => []);
-      testFiles.forEach((file, i) => shards[i % workerCount].push(file));
 
-      // 3. Create one database per worker from the template (fast copy).
+      // 3. Build the shared work queue, ordered heaviest-first (longest-
+      //    processing-time). We sort by last recorded duration; files with no
+      //    recorded timing (new files, or a fresh checkout with no
+      //    .test-timings.json) sort to the FRONT so a potentially-heavy new file
+      //    is dispatched early rather than stranding a worker at the very end.
+      //    The work-stealing in runWorker means even a perfectly wrong order
+      //    still balances — this just tightens the tail.
+      const timings = loadTimings();
+      const queue = [...testFiles].sort((a, b) => {
+        const ta = timings[path.relative(serverDir, a)];
+        const tb = timings[path.relative(serverDir, b)];
+        const sa = ta === undefined ? Infinity : ta;
+        const sb = tb === undefined ? Infinity : tb;
+        return sb - sa; // descending: heaviest (and unknown) first
+      });
+
+      // 4. Create one database per worker from the template (fast copy).
+      const workerDbs = [];
       const admin = new pg.Pool({ connectionString: baseUrl, ssl });
       try {
         // CREATE DATABASE ... TEMPLATE requires zero sessions on the source.
@@ -235,24 +326,38 @@ try {
           const dbName = makeDbName(`w${i}`);
           await admin.query(`CREATE DATABASE "${dbName}" TEMPLATE "${templateName}"`);
           createdDbs.push(dbName);
-          shards[i].dbName = dbName;
+          workerDbs.push(dbName);
         }
       } finally {
         await admin.end();
       }
 
       console.log(
-        `[test] Running ${testFiles.length} test file(s) across ${workerCount} parallel worker(s)...`,
+        `[test] Running ${testFiles.length} test file(s) across ${workerCount} work-stealing worker(s)...`,
       );
-      // 4. Run all workers in parallel; fail the run if any worker fails.
-      const codes = await Promise.all(
-        shards.map((files, i) => runWorker(i, files, files.dbName)),
+      // 5. Run all workers in parallel against the shared queue; fail the run if
+      //    any file failed. `measured` collects this run's per-file durations.
+      const measured = {};
+      const results = await Promise.all(
+        workerDbs.map((dbName, i) => runWorker(i, dbName, queue, measured)),
       );
-      exitCode = codes.every((c) => c === 0) ? 0 : 1;
+      exitCode = results.every((r) => r.code === 0) ? 0 : 1;
+
+      // 6. Persist timings for next run's ordering, and report the balance so the
+      //    spread between the busiest and idlest worker is visible.
+      saveTimings(measured);
+      const totals = results.map((r) => r.totalMs / 1000);
+      const slowest = Math.max(...totals);
+      const fastest = Math.min(...totals);
+      console.log(
+        `[test] Worker busy-time: ${results
+          .map((r, i) => `w${i + 1}=${(r.totalMs / 1000).toFixed(0)}s/${r.count}f`)
+          .join('  ')}  (spread ${(slowest - fastest).toFixed(0)}s)`,
+      );
     }
   }
 } finally {
-  // 5. Drop every database we created (workers + template).
+  // 7. Drop every database we created (workers + template).
   await Promise.all(createdDbs.map((name) => dropDatabase(name)));
 }
 
