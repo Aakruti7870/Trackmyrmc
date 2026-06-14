@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -26,17 +26,14 @@ const ADMIN: User = {
   role: 'admin',
 } as User;
 
-// Default reads for every endpoint ProfileSettings loads on mount. The
-// plant-invite-notify endpoint can be overridden per-test via `notify`.
-function mockReads(notify: { emailEnabled: boolean; recipients: string[] } = { emailEnabled: true, recipients: [] }) {
+type InviteNotify = { emailEnabled: boolean; roles: string[]; recipients: string[] };
+
+function mockReads(invite: InviteNotify) {
   vi.mocked(api.get).mockImplementation(async (path: string) => {
-    if (path === '/admin/plant-invite-notify') return notify as never;
+    if (path === '/admin/plant-invite-notify') return invite as never;
     if (path === '/admin/smtp-settings') return { configured: false } as never;
-    if (path === '/admin/variance-tolerance') return { abs: 0, pct: 0 } as never;
-    if (path === '/admin/idle-settings') {
-      return { freeMin: 0, ratePerHour: null, defaults: { freeMin: 0, ratePerHour: null } } as never;
-    }
-    // email-test/history, lockouts, fuel-settings, proof-photos/stuck, plants/mine, etc.
+    // Everything else (email-test history, lockouts, variance, idle, fuel, …)
+    // is non-fatal — return empty/neutral shapes so their loaders settle.
     return [] as never;
   });
 }
@@ -60,13 +57,22 @@ function renderPage() {
   );
 }
 
+// Scope queries to the "New Plant-Request Notifications" card so role
+// checkboxes don't collide with checkboxes in other settings cards.
+async function findInviteCard(): Promise<HTMLElement> {
+  const heading = await screen.findByText('New Plant-Request Notifications');
+  // heading div → title/subtitle wrapper → header row → card root (holds the form too).
+  const card = heading.parentElement?.parentElement?.parentElement as HTMLElement;
+  return card;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe('ProfileSettings — New Plant-Request Notifications', () => {
-  it('loads the current settings from /admin/plant-invite-notify', async () => {
-    mockReads({ emailEnabled: true, recipients: ['ops@aakruti.com', 'dispatch@aakruti.com'] });
+  it('loads the saved roles and extra recipients from the API', async () => {
+    mockReads({ emailEnabled: true, roles: ['admin', 'dispatcher'], recipients: ['ops@yourco.com'] });
 
     renderPage();
 
@@ -74,115 +80,94 @@ describe('ProfileSettings — New Plant-Request Notifications', () => {
       expect(api.get).toHaveBeenCalledWith('/admin/plant-invite-notify'),
     );
 
-    const toggle = await screen.findByRole('checkbox', {
-      name: /Send an email when a new plant is requested/i,
-    });
-    expect(toggle).toBeChecked();
+    const card = await findInviteCard();
 
-    const recipients = await screen.findByLabelText(/Recipients/i);
-    expect(recipients).toHaveValue('ops@aakruti.com, dispatch@aakruti.com');
-    expect(recipients).toBeEnabled();
+    // The two saved roles are checked; the unsaved ones are not.
+    expect(within(card).getByRole('checkbox', { name: 'Admin' })).toBeChecked();
+    expect(within(card).getByRole('checkbox', { name: 'Dispatcher' })).toBeChecked();
+    expect(within(card).getByRole('checkbox', { name: 'Authority' })).not.toBeChecked();
+    expect(within(card).getByRole('checkbox', { name: 'Plant Operator' })).not.toBeChecked();
+
+    // Extra recipients are joined into the textarea.
+    expect(within(card).getByLabelText(/Extra recipients/i)).toHaveValue('ops@yourco.com');
   });
 
-  it('disables the recipients field when the email toggle is turned off', async () => {
+  it('toggles a role and posts the chosen roles + recipients, then reflects the saved state', async () => {
     const user = userEvent.setup();
-    mockReads({ emailEnabled: true, recipients: [] });
-
-    renderPage();
-
-    const toggle = await screen.findByRole('checkbox', {
-      name: /Send an email when a new plant is requested/i,
-    });
-    expect(toggle).toBeChecked();
-
-    await user.click(toggle);
-    expect(toggle).not.toBeChecked();
-
-    const recipients = screen.getByLabelText(/Recipients/i);
-    expect(recipients).toBeDisabled();
-  });
-
-  it('blocks an invalid recipient email locally without posting', async () => {
-    const user = userEvent.setup();
-    mockReads({ emailEnabled: true, recipients: [] });
-
-    renderPage();
-
-    const recipients = await screen.findByLabelText(/Recipients/i);
-    await user.type(recipients, 'not-an-email');
-
-    await user.click(screen.getByRole('button', { name: /Save notifications/i }));
-
-    expect(await screen.findByText(/Not a valid email: not-an-email/i)).toBeInTheDocument();
-    expect(api.post).not.toHaveBeenCalled();
-  });
-
-  it('posts the toggle + recipients on save and shows the success toast', async () => {
-    const user = userEvent.setup();
-    mockReads({ emailEnabled: true, recipients: [] });
+    mockReads({ emailEnabled: true, roles: ['admin'], recipients: [] });
     vi.mocked(api.post).mockResolvedValue({
       emailEnabled: true,
-      recipients: ['ops@aakruti.com', 'dispatch@aakruti.com'],
+      roles: ['admin', 'authority'],
+      recipients: ['ops@yourco.com'],
     } as never);
 
     renderPage();
 
-    const recipients = await screen.findByLabelText(/Recipients/i);
-    await user.type(recipients, 'ops@aakruti.com, dispatch@aakruti.com');
+    const card = await findInviteCard();
+    await waitFor(() =>
+      expect(within(card).getByRole('checkbox', { name: 'Admin' })).toBeChecked(),
+    );
 
-    await user.click(screen.getByRole('button', { name: /Save notifications/i }));
+    // Add the Authority role and an extra recipient.
+    await user.click(within(card).getByRole('checkbox', { name: 'Authority' }));
+    await user.type(within(card).getByLabelText(/Extra recipients/i), 'ops@yourco.com');
+
+    await user.click(within(card).getByRole('button', { name: /Save notifications/i }));
 
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/admin/plant-invite-notify', {
         emailEnabled: true,
-        recipients: 'ops@aakruti.com, dispatch@aakruti.com',
+        roles: ['admin', 'authority'],
+        recipients: 'ops@yourco.com',
       }),
     );
 
+    // Server response is echoed back into the form + a success toast shows.
     expect(await screen.findByText('Notification settings saved.')).toBeInTheDocument();
-    // The form reflects the server's normalized recipients after save.
-    expect(screen.getByLabelText(/Recipients/i)).toHaveValue('ops@aakruti.com, dispatch@aakruti.com');
+    await waitFor(() =>
+      expect(within(card).getByLabelText(/Extra recipients/i)).toHaveValue('ops@yourco.com'),
+    );
   });
 
-  it('posts emailEnabled=false when saving with the email turned off', async () => {
+  it('blocks an invalid extra recipient without calling the API', async () => {
     const user = userEvent.setup();
-    mockReads({ emailEnabled: true, recipients: [] });
-    vi.mocked(api.post).mockResolvedValue({ emailEnabled: false, recipients: [] } as never);
+    mockReads({ emailEnabled: true, roles: ['admin'], recipients: [] });
 
     renderPage();
 
-    const toggle = await screen.findByRole('checkbox', {
-      name: /Send an email when a new plant is requested/i,
-    });
-    await user.click(toggle);
-
-    await user.click(screen.getByRole('button', { name: /Save notifications/i }));
-
+    const card = await findInviteCard();
     await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/admin/plant-invite-notify', {
-        emailEnabled: false,
-        recipients: '',
-      }),
+      expect(within(card).getByRole('checkbox', { name: 'Admin' })).toBeChecked(),
     );
+
+    await user.type(within(card).getByLabelText(/Extra recipients/i), 'not-an-email');
+    await user.click(within(card).getByRole('button', { name: /Save notifications/i }));
+
+    expect(await screen.findByText('Not a valid email: not-an-email')).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it('surfaces the server error and re-enables Save when the save fails', async () => {
     const user = userEvent.setup();
-    mockReads({ emailEnabled: true, recipients: [] });
+    mockReads({ emailEnabled: true, roles: ['admin'], recipients: [] });
     vi.mocked(api.post).mockRejectedValue(
       new ApiError('Recipients could not be saved', 500, {}),
     );
 
     renderPage();
 
-    const recipients = await screen.findByLabelText(/Recipients/i);
-    await user.type(recipients, 'ops@aakruti.com');
+    const card = await findInviteCard();
+    await waitFor(() =>
+      expect(within(card).getByRole('checkbox', { name: 'Admin' })).toBeChecked(),
+    );
 
-    await user.click(screen.getByRole('button', { name: /Save notifications/i }));
+    await user.type(within(card).getByLabelText(/Extra recipients/i), 'ops@aakruti.com');
+    await user.click(within(card).getByRole('button', { name: /Save notifications/i }));
 
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/admin/plant-invite-notify', {
         emailEnabled: true,
+        roles: ['admin'],
         recipients: 'ops@aakruti.com',
       }),
     );
@@ -191,10 +176,9 @@ describe('ProfileSettings — New Plant-Request Notifications', () => {
     expect(await screen.findByText('Recipients could not be saved')).toBeInTheDocument();
 
     // The form is not cleared by the failure.
-    expect(screen.getByLabelText(/Recipients/i)).toHaveValue('ops@aakruti.com');
+    expect(within(card).getByLabelText(/Extra recipients/i)).toHaveValue('ops@aakruti.com');
 
     // The Save button leaves the "Saving…" state and is interactive again.
-    const saveBtn = await screen.findByRole('button', { name: /Save notifications/i });
-    expect(saveBtn).toBeEnabled();
+    expect(within(card).getByRole('button', { name: /Save notifications/i })).toBeEnabled();
   });
 });
