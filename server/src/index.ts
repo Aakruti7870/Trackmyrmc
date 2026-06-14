@@ -30,6 +30,7 @@ import { tickFreshnessAlerts } from './lib/freshnessAlerts.js';
 import { cleanupExpiredRateLimits } from './lib/rateLimit.js';
 import { cleanupExpiredCache } from './lib/places.js';
 import { ensureMasterAccounts } from './lib/masterAccounts.js';
+import { ensurePlantDirectory } from './lib/plantDirectory.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
@@ -187,6 +188,7 @@ async function tickDiscoveryCleanup() {
 app.listen(PORT, () => {
   console.log(`TrackMyRMC API running on port ${PORT}`);
   ensureMasterAccounts().catch((e) => console.error('ensureMasterAccounts failed', e));
+  ensurePlantDirectory().catch((e) => console.error('ensurePlantDirectory failed', e));
   cleanupOldAttempts().catch(() => {});
   setInterval(() => cleanupOldAttempts().catch(() => {}), 60 * 60 * 1000);
   tickRecurringOrders();
