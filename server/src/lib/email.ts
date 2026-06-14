@@ -751,3 +751,137 @@ export async function sendPlantInviteNotification(
   });
   return true;
 }
+
+// Alert staff that a customer's WhatsApp order/dispatch/delivery update could not
+// be delivered (e.g. invalid number, no WhatsApp account, opted-out). Sent to the
+// active staff mailboxes (joined into one message) so they can phone the customer
+// instead. Best-effort like the other notifications: returns false (and logs)
+// when SMTP is unconfigured rather than throwing.
+export interface WhatsAppFailureAlertDetails {
+  event: 'order' | 'dispatch' | 'delivery';
+  toPhone: string;
+  status: string;
+  errorCode?: string | null;
+  orderNo?: string | null;
+  challanNo?: string | null;
+}
+
+const WHATSAPP_EVENT_LABEL: Record<string, string> = {
+  order: 'order confirmation',
+  dispatch: 'dispatch update',
+  delivery: 'delivery update',
+};
+
+export async function sendWhatsAppFailureAlertEmail(
+  toEmails: string[],
+  details: WhatsAppFailureAlertDetails,
+): Promise<boolean> {
+  const recipients = toEmails.map(e => e.trim()).filter(Boolean);
+  if (recipients.length === 0) return false;
+
+  const cfg = await getSmtpConfig();
+  const transporter = transporterFor(cfg);
+
+  if (!transporter) {
+    console.warn(
+      '[email] SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing). ' +
+      'Skipping WhatsApp delivery-failure alert email.',
+    );
+    return false;
+  }
+
+  const from = cfg.from || cfg.user || undefined;
+  const safe = (v: string | null | undefined) =>
+    String(v ?? '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+  const kind = WHATSAPP_EVENT_LABEL[details.event] ?? `${details.event} update`;
+  const ref = details.challanNo
+    ? `Challan ${details.challanNo}`
+    : details.orderNo
+      ? `Order ${details.orderNo}`
+      : 'a record';
+  const errorSuffix = details.errorCode ? ` (error ${details.errorCode})` : '';
+
+  await transporter.sendMail({
+    from,
+    to: recipients,
+    subject: `WhatsApp ${kind} failed: ${ref}`,
+    text: [
+      `A customer's WhatsApp ${kind} could not be delivered${errorSuffix}.`,
+      'The customer never received this update — please call them instead.',
+      '',
+      `  Reference:   ${ref}`,
+      `  Customer:    ${details.toPhone}`,
+      `  Update type: ${kind}`,
+      `  Status:      ${details.status}`,
+      ...(details.errorCode ? [`  Twilio error: ${details.errorCode}`] : []),
+      '',
+      'Open Profile & Settings -> "WhatsApp Delivery Status" to review.',
+      '',
+      '— Aakruti Infra RMC Plant Management System',
+    ].join('\n'),
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+        <tr>
+          <td style="background:#08111f;padding:24px 32px">
+            <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
+              Aakruti Infra RMC Plant
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px">
+            <h2 style="margin:0 0 16px;color:#b91c1c;font-size:18px">
+              WhatsApp Update Failed
+            </h2>
+            <p style="color:#444;line-height:1.6;margin:0 0 16px">
+              A customer's WhatsApp ${safe(kind)} could not be delivered. The
+              customer never received this update — please call them instead.
+            </p>
+            <table cellpadding="0" cellspacing="0"
+                   style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin:0 0 24px;width:100%">
+              <tr>
+                <td style="color:#555;font-size:14px;padding:4px 0;width:120px">Reference</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${safe(ref)}</td>
+              </tr>
+              <tr>
+                <td style="color:#555;font-size:14px;padding:4px 0">Customer</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${safe(details.toPhone)}</td>
+              </tr>
+              <tr>
+                <td style="color:#555;font-size:14px;padding:4px 0">Update type</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${safe(kind)}</td>
+              </tr>
+              <tr>
+                <td style="color:#555;font-size:14px;padding:4px 0">Status</td>
+                <td style="color:#b91c1c;font-size:14px;font-weight:700;padding:4px 0">${safe(details.status)}</td>
+              </tr>
+              ${details.errorCode ? `<tr>
+                <td style="color:#555;font-size:14px;padding:4px 0">Twilio error</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${safe(details.errorCode)}</td>
+              </tr>` : ''}
+            </table>
+            <p style="color:#444;line-height:1.6;margin:0 0 24px">
+              Open <strong>Profile &amp; Settings</strong> -> <strong>WhatsApp Delivery Status</strong> to review.
+            </p>
+            <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
+            <p style="color:#888;font-size:13px;margin:0">
+              — Aakruti Infra RMC Plant Management System
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+  });
+  return true;
+}
+

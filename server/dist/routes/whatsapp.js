@@ -6,7 +6,10 @@ import { whatsappMessages, orders, challans } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
 import { verifyWhatsAppWebhookSignature, whatsAppStatusCallbackUrl } from '../lib/whatsapp.js';
+import { notifyStaffOfWhatsAppFailure } from '../lib/deliveryNotify.js';
 const router = Router();
+// Twilio MessageStatus values meaning the customer never received the message.
+const FAILURE_STATUSES = new Set(['failed', 'undelivered']);
 // Roles allowed to read the WhatsApp delivery-status surface. Mirrors the staff
 // challan/report readers; customers and drivers never see other people's
 // notification delivery state.
@@ -41,6 +44,22 @@ router.post('/status', express.urlencoded({ extended: false }), async (req, res)
         return;
     }
     const errorCode = params.ErrorCode || null;
+    // Alert staff only on the transition INTO a failure, not on every repeated
+    // callback. Read the stored status first so a duplicate 'failed' delivery from
+    // Twilio doesn't re-toast/re-email. A read failure simply skips the dedupe.
+    let alertOnFailure = false;
+    if (FAILURE_STATUSES.has(status)) {
+        try {
+            const [existing] = await db
+                .select({ status: whatsappMessages.status })
+                .from(whatsappMessages)
+                .where(eq(whatsappMessages.messageSid, sid));
+            alertOnFailure = !!existing && !FAILURE_STATUSES.has(existing.status);
+        }
+        catch (err) {
+            console.error('[whatsapp] Failed to read prior status for failure alert:', err);
+        }
+    }
     try {
         await db
             .update(whatsappMessages)
@@ -49,6 +68,12 @@ router.post('/status', express.urlencoded({ extended: false }), async (req, res)
     }
     catch (err) {
         console.error('[whatsapp] Failed to apply status callback:', err);
+    }
+    // Proactively notify staff that the customer never got their update so they can
+    // phone instead. Best-effort and fire-and-forget — it must never delay the
+    // webhook ack or make Twilio retry.
+    if (alertOnFailure) {
+        void notifyStaffOfWhatsAppFailure(sid);
     }
     // Always 2xx a verified callback — a write failure is ours to fix, not
     // Twilio's to retry indefinitely.

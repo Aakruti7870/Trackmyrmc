@@ -12,9 +12,14 @@ let cfg = fullConfig();
 let waSent = [];
 let waBehavior = 'record';
 let sidSeq = 0;
+let failureAlerts = [];
 mock.module('../lib/email.js', {
     namedExports: {
         sendDeliveryNotificationEmail: async () => true,
+        sendWhatsAppFailureAlertEmail: async (emails, details) => {
+            failureAlerts.push({ emails, details });
+            return true;
+        },
         sendWelcomeEmail: async () => true,
         sendPasswordResetNotification: async () => false,
         sendTestEmail: async () => ({ ok: false }),
@@ -52,8 +57,8 @@ mock.module('../lib/whatsapp.js', {
     },
 });
 const { db, pool } = await import('../db/index.js');
-const { clients, sites, challans, orders, whatsappMessages } = await import('../db/schema.js');
-const { notifyChallanStatus, notifyOrderPlaced } = await import('../lib/deliveryNotify.js');
+const { clients, sites, challans, orders, whatsappMessages, users } = await import('../db/schema.js');
+const { notifyChallanStatus, notifyOrderPlaced, notifyStaffOfWhatsAppFailure } = await import('../lib/deliveryNotify.js');
 const { eq } = await import('drizzle-orm');
 let seq = 0;
 async function seedChallan(opts = {}) {
@@ -92,8 +97,9 @@ beforeEach(async () => {
     waSent = [];
     waBehavior = 'record';
     sidSeq = 0;
+    failureAlerts = [];
     cfg = fullConfig();
-    await db.execute(sql `TRUNCATE TABLE whatsapp_messages, challans, orders, sites, clients RESTART IDENTITY CASCADE`);
+    await db.execute(sql `TRUNCATE TABLE whatsapp_messages, challans, orders, sites, clients, users RESTART IDENTITY CASCADE`);
 });
 after(async () => { await pool.end(); });
 test('dispatch sends the dispatch template with challan variables', async () => {
@@ -182,4 +188,48 @@ test('never throws when the WhatsApp sender fails', async () => {
     // Must resolve without rejecting — a failing send can never break the request.
     await notifyChallanStatus(challan.id, 'dispatched');
     assert.equal(waSent.length, 0);
+});
+// --- Staff failure alert -----------------------------------------------------
+async function seedStaff(role, email, opts = {}) {
+    await db.insert(users).values({
+        name: role, email, passwordHash: 'x',
+        role: role,
+        isActive: opts.active ?? true,
+    });
+}
+test('failure alert emails every active staff mailbox in the alert roles', async () => {
+    await seedStaff('admin', 'admin@test.com');
+    await seedStaff('dispatcher', 'dispatch@test.com');
+    await seedStaff('authority', 'authority@test.com');
+    await seedStaff('plant_operator', 'op@test.com');
+    // Excluded: a customer, a driver and an inactive admin.
+    await seedStaff('client', 'client@test.com');
+    await seedStaff('driver', 'driver@test.com');
+    await seedStaff('admin', 'gone@test.com', { active: false });
+    const order = await seedOrder();
+    const [msg] = await db.insert(whatsappMessages).values({
+        messageSid: 'SMfailmail', event: 'order', orderId: order.id,
+        toPhone: '+919991112222', status: 'failed', errorCode: '63016', channel: 'whatsapp',
+    }).returning();
+    await notifyStaffOfWhatsAppFailure(msg.messageSid);
+    assert.equal(failureAlerts.length, 1);
+    const recipients = [...failureAlerts[0].emails].sort();
+    assert.deepEqual(recipients, ['admin@test.com', 'authority@test.com', 'dispatch@test.com', 'op@test.com']);
+    assert.equal(failureAlerts[0].details.event, 'order');
+    assert.equal(failureAlerts[0].details.orderNo, order.orderNo);
+    assert.equal(failureAlerts[0].details.toPhone, '+919991112222');
+    assert.equal(failureAlerts[0].details.errorCode, '63016');
+});
+test('failure alert skips the email when no staff mailboxes resolve', async () => {
+    const order = await seedOrder();
+    const [msg] = await db.insert(whatsappMessages).values({
+        messageSid: 'SMnostaff', event: 'order', orderId: order.id,
+        toPhone: '+910000000000', status: 'failed', channel: 'whatsapp',
+    }).returning();
+    await notifyStaffOfWhatsAppFailure(msg.messageSid);
+    assert.equal(failureAlerts.length, 0);
+});
+test('failure alert resolves nothing (and never throws) for an unknown SID', async () => {
+    await notifyStaffOfWhatsAppFailure('SMdoesnotexist');
+    assert.equal(failureAlerts.length, 0);
 });

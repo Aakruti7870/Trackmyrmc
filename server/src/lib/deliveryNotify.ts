@@ -1,8 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { challans, clients, sites, orders, plants, whatsappMessages } from '../db/schema.js';
+import { challans, clients, sites, orders, plants, users, whatsappMessages } from '../db/schema.js';
 import { normalizePhone } from './otp.js';
-import { sendDeliveryNotificationEmail } from './email.js';
+import { sendDeliveryNotificationEmail, sendWhatsAppFailureAlertEmail } from './email.js';
+import { emitSSEEvent } from './sseEmitter.js';
 import {
   getWhatsAppConfig,
   eventEnabled,
@@ -10,6 +11,11 @@ import {
   type WhatsAppSendResult,
 } from './whatsapp.js';
 import { sendWhatsAppWithRetry } from './whatsappRetry.js';
+
+// Staff roles alerted when a customer's WhatsApp update fails to deliver. Mirrors
+// the delivery-status panel's readers, including `authority` (the super-admin,
+// which sits outside the SSE STAFF_ROLES set) so the role allow-list reaches it.
+const WHATSAPP_FAILURE_ALERT_ROLES = ['admin', 'dispatcher', 'authority', 'plant_operator'] as const;
 
 // Best-effort customer notifications for order/challan lifecycle events. Each
 // function loads what it needs, sends an email (where applicable) and/or a
@@ -155,5 +161,87 @@ export async function notifyOrderPlaced(orderId: number): Promise<void> {
     await recordWhatsAppMessage('order', { orderId, plantId: row.plantId }, row.phone, result);
   } catch (err) {
     console.warn(`[notify] Failed to send order-placed notification for order ${orderId}:`, err);
+  }
+}
+
+// A WhatsApp customer update (order/dispatch/delivery) was reported by Twilio's
+// status callback as failed/undelivered — the customer never received it. Alert
+// staff proactively so they can phone the customer instead. Sends a real-time
+// SSE toast (scoped to the staff roles) plus a best-effort email to active staff.
+// Identified by Twilio's MessageSid, which the webhook has already matched to the
+// stored notification row. Best-effort: never throws back into the webhook.
+export async function notifyStaffOfWhatsAppFailure(messageSid: string): Promise<void> {
+  try {
+    const [row] = await db
+      .select({
+        event: whatsappMessages.event,
+        status: whatsappMessages.status,
+        errorCode: whatsappMessages.errorCode,
+        toPhone: whatsappMessages.toPhone,
+        orderId: whatsappMessages.orderId,
+        challanId: whatsappMessages.challanId,
+        plantId: whatsappMessages.plantId,
+        orderNo: orders.orderNo,
+        challanNo: challans.challanNo,
+      })
+      .from(whatsappMessages)
+      .leftJoin(orders, eq(whatsappMessages.orderId, orders.id))
+      .leftJoin(challans, eq(whatsappMessages.challanId, challans.id))
+      .where(eq(whatsappMessages.messageSid, messageSid));
+
+    if (!row) return;
+
+    // Real-time in-app toast for staff. Scoped to the alert roles via an explicit
+    // allow-list so it reaches `authority` (outside the SSE STAFF_ROLES set) and
+    // is never delivered to customers/drivers. The payload names the order/challan,
+    // the customer phone and the Twilio error code so staff can act immediately.
+    emitSSEEvent(
+      'whatsapp.failed',
+      {
+        event: row.event,
+        status: row.status,
+        errorCode: row.errorCode,
+        toPhone: row.toPhone,
+        orderId: row.orderId,
+        challanId: row.challanId,
+        orderNo: row.orderNo,
+        challanNo: row.challanNo,
+      },
+      { roles: [...WHATSAPP_FAILURE_ALERT_ROLES] },
+    );
+
+    // Best-effort email to every active staff mailbox in the alert roles. Folded
+    // into a single message; skipped silently when no mailboxes resolve or SMTP
+    // is unconfigured. A normalized event keeps the email helper's union type tight.
+    try {
+      const event: 'order' | 'dispatch' | 'delivery' =
+        row.event === 'dispatch' || row.event === 'delivery' ? row.event : 'order';
+      const staff = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(
+          and(
+            isNull(users.deletedAt),
+            eq(users.isActive, true),
+            inArray(users.role, [...WHATSAPP_FAILURE_ALERT_ROLES]),
+          ),
+        );
+      const emails = new Set<string>();
+      for (const s of staff) if (s.email) emails.add(s.email);
+      if (emails.size > 0) {
+        await sendWhatsAppFailureAlertEmail([...emails], {
+          event,
+          toPhone: row.toPhone,
+          status: row.status,
+          errorCode: row.errorCode,
+          orderNo: row.orderNo,
+          challanNo: row.challanNo,
+        });
+      }
+    } catch (err) {
+      console.warn('[notify] Failed to email staff about a WhatsApp delivery failure:', err);
+    }
+  } catch (err) {
+    console.warn(`[notify] Failed to alert staff of WhatsApp failure ${messageSid}:`, err);
   }
 }

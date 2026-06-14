@@ -63,6 +63,26 @@ describe('Layout live status-change toasts', () => {
     expect(screen.queryByText(/CH-3003/)).not.toBeInTheDocument();
   });
 
+  it('shows an error toast naming the challan, phone and code on whatsapp.failed', () => {
+    renderLayout();
+    emit('whatsapp.failed', {
+      event: 'dispatch', toPhone: '+919876543210', errorCode: '63016',
+      orderNo: 'ORD-1', challanNo: 'CH-9009',
+    });
+    expect(screen.getByText(/Challan CH-9009/)).toBeInTheDocument();
+    expect(screen.getByText(/\+919876543210/)).toBeInTheDocument();
+    expect(screen.getByText(/error 63016/)).toBeInTheDocument();
+  });
+
+  it('falls back to the order number when there is no challan on whatsapp.failed', () => {
+    renderLayout();
+    emit('whatsapp.failed', {
+      event: 'order_placed', toPhone: '+911234567890', errorCode: null,
+      orderNo: 'ORD-77', challanNo: null,
+    });
+    expect(screen.getByText(/Order ORD-77/)).toBeInTheDocument();
+  });
+
   it('removes its SSE handlers when Layout unmounts', () => {
     const { unmount } = renderLayout();
 

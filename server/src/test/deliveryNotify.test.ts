@@ -18,6 +18,7 @@ mock.module('../lib/email.js', {
     },
     sendWelcomeEmail: async () => true,
     sendPasswordResetNotification: async () => false,
+    sendWhatsAppFailureAlertEmail: async () => true,
     sendTestEmail: async () => ({ ok: false }),
     getSmtpSettings: async () => ({ host: null, port: null, user: null, from: null, configured: false }),
     verifySmtpConnection: async () => ({ ok: false }),

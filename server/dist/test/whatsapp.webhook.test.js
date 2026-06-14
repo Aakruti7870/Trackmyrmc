@@ -6,10 +6,53 @@ import { eq, sql } from 'drizzle-orm';
 import { hashPassword } from '../lib/password.js';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, plants, whatsappMessages, orders, clients } from '../db/schema.js';
+import { users, plants, whatsappMessages, orders, challans, clients } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
+import { addSSEClient, removeSSEClient } from '../lib/sseEmitter.js';
 let app;
 const PASSWORD = 'secret123';
+// Capture SSE events broadcast via emitSSEEvent by registering an identity-less
+// fake client against the real emitter. Such an observer receives every event
+// regardless of audience, so we can assert that whatsapp.failed is (or is not)
+// emitted and inspect its payload.
+function captureSSE() {
+    const raw = [];
+    const mockRes = {
+        writableEnded: false,
+        destroyed: false,
+        req: { httpVersionMajor: 2 },
+        setHeader() { },
+        flushHeaders() { },
+        write(payload) { raw.push(payload); return true; },
+        end() { mockRes.writableEnded = true; },
+    };
+    const id = addSSEClient(mockRes);
+    return {
+        id,
+        events() {
+            return raw
+                .map((chunk) => /^event: (.+)$/m.exec(chunk)?.[1])
+                .filter((e) => Boolean(e));
+        },
+        payloads(eventName) {
+            const out = [];
+            for (const chunk of raw) {
+                const ev = /^event: (.+)$/m.exec(chunk)?.[1];
+                if (ev !== eventName)
+                    continue;
+                const data = /^data: (.+)$/m.exec(chunk)?.[1];
+                if (data)
+                    out.push(JSON.parse(data));
+            }
+            return out;
+        },
+        close() { removeSSEClient(id); },
+    };
+}
+// Let the fire-and-forget staff alert (kicked off after the webhook acks) settle.
+function flush() {
+    return new Promise((resolve) => setTimeout(resolve, 50));
+}
 // The webhook validates the X-Twilio-Signature against the URL Twilio was told to
 // call. Pin it so the signed-request test can compute a matching HMAC instead of
 // depending on supertest's random ephemeral host.
@@ -117,6 +160,80 @@ test('a callback for an unknown SID is acknowledged but changes nothing', async 
     assert.equal(res.status, 204);
     const rows = await db.select().from(whatsappMessages);
     assert.equal(rows.length, 0);
+});
+// --- Staff failure alert -----------------------------------------------------
+test('a failed callback alerts staff via SSE naming the challan, phone and error code', async () => {
+    const [client] = await db.insert(clients).values({
+        name: 'Acme', contactPerson: 'Jane', phone: '999', email: null,
+    }).returning();
+    const [challan] = await db.insert(challans).values({
+        challanNo: 'CH-A1', clientId: client.id, grade: 'M30', quantity: '8.00', status: 'dispatched',
+    }).returning();
+    await seedMessage({ messageSid: 'SMalert', event: 'dispatch', challanId: challan.id, toPhone: '+919991112222', status: 'sent' });
+    const sse = captureSSE();
+    try {
+        const res = await request(app)
+            .post('/api/whatsapp/status')
+            .type('form')
+            .send({ MessageSid: 'SMalert', MessageStatus: 'failed', ErrorCode: '63016' });
+        assert.equal(res.status, 204);
+        await flush();
+        const alerts = sse.payloads('whatsapp.failed');
+        assert.equal(alerts.length, 1);
+        assert.equal(alerts[0].challanNo, 'CH-A1');
+        assert.equal(alerts[0].toPhone, '+919991112222');
+        assert.equal(alerts[0].errorCode, '63016');
+        assert.equal(alerts[0].status, 'failed');
+        assert.equal(alerts[0].event, 'dispatch');
+    }
+    finally {
+        sse.close();
+    }
+});
+test('an undelivered callback also alerts staff', async () => {
+    await seedMessage({ messageSid: 'SMundel', event: 'order', status: 'sent' });
+    const sse = captureSSE();
+    try {
+        await request(app)
+            .post('/api/whatsapp/status')
+            .type('form')
+            .send({ MessageSid: 'SMundel', MessageStatus: 'undelivered', ErrorCode: '63024' });
+        await flush();
+        assert.equal(sse.payloads('whatsapp.failed').length, 1);
+    }
+    finally {
+        sse.close();
+    }
+});
+test('a repeated failed callback does not re-alert staff (dedupe)', async () => {
+    await seedMessage({ messageSid: 'SMdup', event: 'dispatch', status: 'failed', errorCode: '63016' });
+    const sse = captureSSE();
+    try {
+        await request(app)
+            .post('/api/whatsapp/status')
+            .type('form')
+            .send({ MessageSid: 'SMdup', MessageStatus: 'failed', ErrorCode: '63016' });
+        await flush();
+        assert.equal(sse.payloads('whatsapp.failed').length, 0);
+    }
+    finally {
+        sse.close();
+    }
+});
+test('a successful (delivered) callback does not alert staff', async () => {
+    await seedMessage({ messageSid: 'SMok', event: 'delivery', status: 'sent' });
+    const sse = captureSSE();
+    try {
+        await request(app)
+            .post('/api/whatsapp/status')
+            .type('form')
+            .send({ MessageSid: 'SMok', MessageStatus: 'delivered' });
+        await flush();
+        assert.equal(sse.payloads('whatsapp.failed').length, 0);
+    }
+    finally {
+        sse.close();
+    }
 });
 // --- Staff messages list -----------------------------------------------------
 test('staff list returns notifications with their order/challan reference', async () => {
