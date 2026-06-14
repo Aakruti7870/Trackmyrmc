@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://concretekingapp.com/sitemap.xml
+Sitemap: https://www.gold-etechapp.com/sitemap.xml
