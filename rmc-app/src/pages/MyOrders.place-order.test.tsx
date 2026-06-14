@@ -1,6 +1,16 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// The order modal has two <select> comboboxes (concrete grade + delivery site),
+// so target the grade one by the "Select grade…" placeholder option it contains.
+function gradeSelect(): HTMLElement {
+  const el = screen.getAllByRole('combobox').find(
+    c => within(c).queryByRole('option', { name: /select grade/i }),
+  );
+  if (!el) throw new Error('grade <select> not found');
+  return el;
+}
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
@@ -27,6 +37,10 @@ function makeOrder(over: Partial<Order> = {}): Order {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.get).mockImplementation((path: string) => {
+    // Only the ledger/config endpoints return objects; every other endpoint
+    // MyOrders loads (orders, challans, sites, recurring, positions/mine) is an
+    // array, so default unhandled paths to [] or the page's `.filter`/`for…of`
+    // loops throw.
     if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
     if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
     return Promise.resolve([] as never);
@@ -46,7 +60,7 @@ describe('MyOrders place order', () => {
     const dialog = await screen.findByRole('heading', { name: /place new order/i });
     expect(dialog).toBeInTheDocument();
 
-    await user.selectOptions(screen.getAllByRole('combobox')[0], 'M30');
+    await user.selectOptions(gradeSelect(), 'M30');
     await user.type(screen.getByPlaceholderText(/e\.g\. 10/i), '8');
 
     const submitBtns = screen.getAllByRole("button", { name: /place order/i });

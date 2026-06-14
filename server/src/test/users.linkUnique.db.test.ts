@@ -53,6 +53,11 @@ async function insertUser(opts: {
 // `constraint`. routes/users.ts (linkUniqueViolationMessage) keys off exactly
 // these two values to turn the raw DB error into a friendly 409, so the tests
 // assert both — if the index were renamed or dropped, this would catch it.
+//
+// drizzle-orm (>=0.44) wraps every failed query in a `DrizzleQueryError` and
+// hangs the original `pg` DatabaseError off `.cause`, so the 23505/constraint
+// fields now live one level down. Unwrap to the underlying pg error before
+// asserting (falling back to the top-level error for direct pg rejections).
 function assertUniqueViolation(err: unknown, constraint: string) {
   // drizzle-orm wraps the driver error in a DrizzleQueryError; the raw Postgres
   // error (carrying `code` and `constraint`) is on `.cause`. Read both levels so

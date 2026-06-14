@@ -1,23 +1,38 @@
 ---
-name: RMC test baseline failures
-description: Known pre-existing test failures in `pnpm test` (server + frontend) unrelated to feature work — don't chase them.
+name: RMC order/trip test gate breakages
+description: Durable root-cause heuristics for the recurring `pnpm test` gate failures in MyOrders/MyTrips suites and a couple of server suites.
 ---
 
-# Pre-existing failing tests (baseline)
+# Recurring causes of RMC `pnpm test` gate breakages
 
-Running the `test` validation (server `pnpm test` then rmc-app `pnpm test`) currently
-has failures that exist independent of feature work. Do NOT assume your change caused
-them — verify they touch your changed surface first.
+Heuristics for the failures that keep recurring in the test gate (server
+`pnpm test` then rmc-app `pnpm test`). When the gate is red, check these first.
 
-## Server (1 failure remaining)
-- `src/test/users.welcome-email.test.ts` — module load fails: `email.js` does not export `sendDeliveryNotificationEmail` (imported by `deliveryNotify.ts`).
-- FIXED (no longer baseline): `src/test/users.linkUnique.db.test.ts` — the partial unique indexes DO exist and DO raise 23505; the 6 failures were a drizzle error-wrapping mismatch (see [drizzle error wrapping](drizzle-error-wrapping.md)), now resolved.
+## Server
+- Raw pg error-code assertions are fragile: drizzle-orm (>=0.44) wraps every
+  failed query in a `DrizzleQueryError` and hangs the real pg `DatabaseError`
+  (with `.code`/`.constraint`) off `.cause`. Top-level `e.code` is `undefined`.
+  Any test asserting `23505`/constraint names must unwrap `.cause` first.
+- `mock.module('../lib/email.js', {namedExports})` must list EVERY export any
+  statically-imported consumer needs (e.g. `deliveryNotify.ts` imports
+  `sendDeliveryNotificationEmail`). A missing one fails ESM instantiation
+  ("does not provide an export named …") only in single-file/mocked runs.
 
-## Frontend (6 failures, 2 files)
-- `src/pages/MyOrders.place-order.test.tsx` and `src/pages/MyOrders.quick-actions.test.tsx`.
-- Root cause: `MyOrders.tsx` seeds live positions via `api.get('/positions/mine')` then `for (const p of list)`. These tests' default `api.get` mock branch returns a non-array `{entries:[],...}` for unhandled paths, so the loop throws `list is not iterable`.
-- Fix when in scope: make those mocks return `[]` for `/positions/mine` (mirror `MyOrders.tracking.test.tsx`, which handles it).
+## Frontend — MyOrders
+- MyOrders loads several list endpoints (`/me/orders`, `/me/challans`,
+  `/me/sites`, `/me/recurring`, `/positions/mine`) plus the object `/me/ledger`.
+  `api.get` mocks must default unhandled paths to `[]` and special-case only
+  `/me/ledger`, or list loops throw "not iterable". Mirror `MyOrders.tracking`.
+- reorder/cancel live on the Orders tab, not Overview — click `Orders (N)` first.
+- The order modal has TWO `<select>` comboboxes (grade + SitePicker); target the
+  grade one by its "Select grade…" option, never `getByRole('combobox')` alone.
 
-**Why:** a type-only change (e.g. editing a TS interface in `api.ts`) can never cause a
-runtime "not iterable" error — types are erased. If you see these exact failures after a
-type/UI change that doesn't touch MyOrders or those users tests, they're baseline, not yours.
+## Frontend — MyTrips
+- The delivery modal has TWO number inputs (delivered-quantity +
+  "Vehicle odometer reading"). Never use `getByRole('spinbutton')` — it matches
+  both. Target the delivered-qty field by its `Planned: … m³` placeholder.
+
+**Why:** every one of these breaks because a single-element query (role,
+top-level error field, default mock branch) silently assumed there was only one
+match; later UI/library growth added a second, turning the query ambiguous or
+the assertion stale. Prefer specific, intent-revealing selectors.

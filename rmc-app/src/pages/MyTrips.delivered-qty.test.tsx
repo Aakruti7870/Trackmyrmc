@@ -47,7 +47,7 @@ describe('MyTrips proof-of-delivery delivered quantity', () => {
 
     await openProofForm(user);
 
-    const qty = screen.getByPlaceholderText(/Planned:/i) as HTMLInputElement;
+    const qty = screen.getByPlaceholderText(/^Planned:/i) as HTMLInputElement;
     expect(qty).toHaveValue(8);
   });
 
@@ -61,7 +61,7 @@ describe('MyTrips proof-of-delivery delivered quantity', () => {
 
     await openProofForm(user);
 
-    const qty = screen.getByPlaceholderText(/Planned:/i);
+    const qty = screen.getByPlaceholderText(/^Planned:/i);
     await user.clear(qty);
     await user.type(qty, '7.5');
 
@@ -85,7 +85,7 @@ describe('MyTrips proof-of-delivery delivered quantity', () => {
 
     await openProofForm(user);
 
-    const qty = screen.getByPlaceholderText(/Planned:/i);
+    const qty = screen.getByPlaceholderText(/^Planned:/i);
     await user.clear(qty);
 
     await user.click(screen.getByRole('button', { name: /Confirm Delivery/i }));

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -48,6 +48,9 @@ function mockLists(orders: Order[], challans: Challan[]) {
   vi.mocked(api.get).mockImplementation((path: string) => {
     if (path === '/me/orders') return Promise.resolve(orders as never);
     if (path === '/me/challans') return Promise.resolve(challans as never);
+    // Only the ledger/config endpoints return objects; every other endpoint
+    // MyOrders loads (sites, recurring, positions/mine) is an array, so default
+    // unhandled paths to [] or the page's `.filter`/`for…of` loops throw.
     if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
     if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
     return Promise.resolve([] as never);
@@ -68,7 +71,10 @@ describe('MyOrders quick actions', () => {
     await user.click(await screen.findByRole('button', { name: /reorder/i }));
 
     await screen.findByRole('heading', { name: /place new order/i });
-    expect(screen.getAllByRole('combobox')[0]).toHaveValue('M30');
+    const gradeSelect = screen.getAllByRole('combobox').find(
+      c => within(c).queryByRole('option', { name: /select grade/i }),
+    )!;
+    expect(gradeSelect).toHaveValue('M30');
     expect(screen.getByPlaceholderText(/e\.g\. 10/i)).toHaveValue(8);
   });
 
