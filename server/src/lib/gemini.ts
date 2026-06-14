@@ -43,6 +43,71 @@ export function isGeminiConfigured(): boolean {
   return !!(process.env.AI_INTEGRATIONS_GEMINI_BASE_URL && process.env.AI_INTEGRATIONS_GEMINI_API_KEY);
 }
 
+// Server-side speech-to-text. The Replit Gemini integration supports audio INPUT
+// (transcription) — but NOT audio output — so we can give every browser one
+// consistent voice-input path even where the native Web Speech API is missing
+// (e.g. Firefox). Unlike chat, the multimodal generateContent path lives at
+// `/models/<model>:generateContent` and authenticates with x-goog-api-key.
+export const STT_MODEL = 'gemini-2.5-flash';
+
+// The model accepts all the containers MediaRecorder emits across browsers
+// (webm/ogg with opus on Chrome/Firefox, mp4/aac on Safari) plus common uploads.
+export const STT_ALLOWED_MIME = new Set([
+  'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/mp3',
+  'audio/wav', 'audio/x-wav', 'audio/aac', 'audio/flac',
+]);
+
+// Base64 cap (~9MB encoded ≈ ~6.7MB of audio) — comfortably under the 12mb JSON
+// body limit, and far more than a short spoken question needs.
+export const MAX_AUDIO_BASE64_LEN = 9_000_000;
+
+// Transcribe a single spoken clip to text. Throws GeminiError (with a status) so
+// the route can map failures to a graceful 503 and let the client fall back to
+// the browser-native recogniser.
+export async function transcribeAudio(audioBase64: string, mimeType: string): Promise<string> {
+  const base = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+  const key = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  if (!base || !key) throw new GeminiError('Speech-to-text is not configured.', 503);
+
+  const url = `${base.replace(/\/$/, '')}/models/${STT_MODEL}:generateContent`;
+  const payload = {
+    contents: [{
+      role: 'user',
+      parts: [
+        {
+          text:
+            'Transcribe the spoken words in this audio to plain text. Return ONLY ' +
+            'the words that were spoken, with normal punctuation and capitalisation, ' +
+            'and nothing else — no labels, quotes, or commentary. If there is no ' +
+            'intelligible speech, return an empty string.',
+        },
+        { inlineData: { mimeType, data: audioBase64 } },
+      ],
+    }],
+    generationConfig: { temperature: 0 },
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    throw new GeminiError(`Could not reach the speech service: ${(err as Error).message}`, 502);
+  }
+  if (!res.ok) {
+    throw new GeminiError(`Speech service returned an error (${res.status}).`, res.status);
+  }
+
+  const data = (await res.json()) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  };
+  const parts = data?.candidates?.[0]?.content?.parts ?? [];
+  return parts.map(p => p.text ?? '').join('').trim();
+}
+
 function fallbackReply(req: ChatRequest): string {
   const ctx = req.context.trim();
   if (ctx && ctx !== NO_DATA_MARKER) {

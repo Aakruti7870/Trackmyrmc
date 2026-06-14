@@ -83,3 +83,9 @@ id = "yH5CbJxkxcVnt8InpIEdQ"
 uri = "file://exports/Aakruti_RMC_Plant_Management.pptx"
 type = "slides"
 title = "Aakruti RMC Plant — Management System (PPTX)"
+
+[[outputs]]
+id = "GjZzmBeGnC32fcWaPKcZY"
+uri = "file://attached_assets/stt_test/sample.mp3"
+type = "audio"
+title = "stt test sample"

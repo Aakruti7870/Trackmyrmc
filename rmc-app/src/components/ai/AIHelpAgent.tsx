@@ -54,7 +54,7 @@ export default function AIHelpAgent() {
   const sttFinal = useCallback((text: string) => {
     setInput(prev => (prev ? `${prev} ${text}` : text));
   }, []);
-  const stt = useSpeechToText(sttFinal);
+  const stt = useSpeechToText(sttFinal, { serverEnabled: !!config?.voiceInput });
 
   // Load config when first authenticated; controls whether the button shows.
   useEffect(() => {
@@ -320,11 +320,12 @@ export default function AIHelpAgent() {
                 {stt.supported && (
                   <button
                     onClick={() => (stt.listening ? stt.stop() : stt.start())}
-                    title={stt.listening ? 'Stop listening' : 'Speak'}
-                    aria-label={stt.listening ? 'Stop listening' : 'Speak'}
-                    style={iconBtn(stt.listening)}
+                    disabled={stt.transcribing}
+                    title={stt.transcribing ? 'Transcribing…' : stt.listening ? 'Stop listening' : 'Speak'}
+                    aria-label={stt.transcribing ? 'Transcribing' : stt.listening ? 'Stop listening' : 'Speak'}
+                    style={iconBtn(stt.listening, stt.transcribing)}
                   >
-                    {stt.listening ? <MicOff size={18} /> : <Mic size={18} />}
+                    {stt.transcribing ? <Loader2 size={18} className="ai-spin" /> : stt.listening ? <MicOff size={18} /> : <Mic size={18} />}
                   </button>
                 )}
                 <textarea
@@ -333,7 +334,7 @@ export default function AIHelpAgent() {
                   onKeyDown={e => {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input, false); }
                   }}
-                  placeholder={stt.listening ? 'Listening…' : 'Type your message…'}
+                  placeholder={stt.transcribing ? 'Transcribing…' : stt.listening ? 'Listening…' : 'Type your message…'}
                   rows={1}
                   style={{ ...fieldStyle, flex: 1, resize: 'none', maxHeight: 96 }}
                 />

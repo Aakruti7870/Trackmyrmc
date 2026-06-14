@@ -9,7 +9,10 @@ import { rateLimit } from '../lib/rateLimit.js';
 import { isPlatformStaff } from '../lib/roleHierarchy.js';
 import { getAiSettings } from '../lib/aiSettings.js';
 import { buildAiContext, resolveScopePlantId, REFUSAL } from '../lib/aiContext.js';
-import { chatComplete, chatCompleteStream, GeminiError } from '../lib/gemini.js';
+import {
+  chatComplete, chatCompleteStream, GeminiError,
+  isGeminiConfigured, transcribeAudio, STT_ALLOWED_MIME, MAX_AUDIO_BASE64_LEN,
+} from '../lib/gemini.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -34,8 +37,42 @@ router.get('/config', async (req, res) => {
     enabled: cfg.enabled,
     greeting: cfg.greeting,
     requiresPlantSelection,
+    // When true the client can use the server speech-to-text path (one consistent
+    // recogniser on every browser); when false it falls back to the browser's
+    // native SpeechRecognition, which simply hides the mic where unavailable.
+    voiceInput: isGeminiConfigured(),
     ...(plantOptions ? { plants: plantOptions } : {}),
   });
+});
+
+// Server-side speech-to-text. Accepts a single recorded clip (base64 + its mime
+// type) and returns the transcript. This gives every browser one consistent
+// voice-input path — including Firefox/older mobile that lack the native Web
+// Speech API. Returns 503 when the audio service is unavailable so the client
+// can fall back gracefully to the browser-native recogniser.
+router.post('/stt', rateLimit({ windowMs: 60_000, max: 30, name: 'ai_stt' }), async (req, res) => {
+  if (!isGeminiConfigured()) { res.status(503).json({ error: 'Speech input is unavailable.' }); return; }
+
+  const { audio, mimeType } = (req.body ?? {}) as Record<string, unknown>;
+  if (typeof audio !== 'string' || !audio.trim()) { res.status(400).json({ error: 'Audio data is required.' }); return; }
+  if (audio.length > MAX_AUDIO_BASE64_LEN) { res.status(400).json({ error: 'Audio clip is too long.' }); return; }
+  // MediaRecorder mime types carry codec params (e.g. "audio/webm;codecs=opus");
+  // the model only needs the container type.
+  const mt = typeof mimeType === 'string' ? mimeType.split(';')[0].trim().toLowerCase() : '';
+  if (!STT_ALLOWED_MIME.has(mt)) { res.status(400).json({ error: 'Unsupported audio format.' }); return; }
+
+  try {
+    const text = await transcribeAudio(audio, mt);
+    res.json({ text });
+  } catch (err) {
+    if (err instanceof GeminiError) {
+      console.error('[ai] stt error', err.status, err.message);
+      res.status(503).json({ error: 'Could not transcribe the audio. Please type your message instead.' });
+      return;
+    }
+    console.error('[ai] unexpected stt error', err);
+    res.status(500).json({ error: 'Something went wrong transcribing your audio.' });
+  }
 });
 
 // Resolve (or lazily create) this user's conversation row for a session key. The

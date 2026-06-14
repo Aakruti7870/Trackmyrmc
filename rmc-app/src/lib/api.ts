@@ -353,6 +353,10 @@ export interface AiConfig {
   enabled: boolean;
   greeting: string;
   requiresPlantSelection: boolean;
+  // True when the server speech-to-text path is available (one consistent
+  // recogniser on every browser). When false the client uses the browser-native
+  // SpeechRecognition, which is hidden on browsers that lack it.
+  voiceInput?: boolean;
   plants?: AiPlantOption[];
 }
 
@@ -439,6 +443,9 @@ export const aiApi = {
   config: () => api.get<AiConfig>('/ai/config'),
   chat: (body: AiChatBody) => api.post<AiChatResponse>('/ai/chat', body),
   chatStream: aiChatStream,
+  // Transcribe a recorded voice clip server-side (base64 + its mime type).
+  transcribe: (audio: string, mimeType: string) =>
+    api.post<{ text: string }>('/ai/stt', { audio, mimeType }),
   supportTicket: (body: {
     subject?: string; message: string; contactInfo?: string; selectedPlantId?: number | null;
   }) => api.post<{ id: number; status: string }>('/ai/support-ticket', body),
