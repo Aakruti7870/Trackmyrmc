@@ -158,6 +158,32 @@ router.delete('/:id', ADMIN, async (req, res) => {
   res.json({ ok: true });
 });
 
+// List the live (non-soft-deleted) login accounts bound to a plant so staff can
+// see who can sign in for it and manage them (deactivate / resend invite) via
+// the existing /api/users endpoints. Scoped strictly by plantId.
+router.get('/:id/owner', ADMIN, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const [plant] = await db.select({ id: plants.id }).from(plants).where(eq(plants.id, id));
+  if (!plant) { res.status(404).json({ error: 'Plant not found' }); return; }
+
+  const rows = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      isActive: users.isActive,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(and(eq(users.plantId, id), isNull(users.deletedAt)))
+    .orderBy(users.createdAt);
+
+  res.json(rows);
+});
+
 // Plant-owner roles a staff member may provision at onboarding. An owner account
 // is hard-scoped to its plant (plantId) so it only ever sees its own tenant data.
 const OWNER_ROLES = ['admin', 'dispatcher', 'plant_operator'] as const;

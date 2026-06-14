@@ -187,6 +187,49 @@ test('POST /plants/:id/owner is 404 for an unknown plant', async () => {
   assert.equal(res.status, 404);
 });
 
+test('GET /plants/:id/owner lists the plant-scoped logins, omitting soft-deleted', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const plant = await createPlant({ name: 'Verified Plant', verified: true });
+  const other = await createPlant({ name: 'Other Plant', verified: true });
+
+  await db.insert(users).values({
+    name: 'Owner', email: 'owner@test.com', passwordHash: await hashPassword(PASSWORD), role: 'admin', plantId: plant.id,
+  });
+  await db.insert(users).values({
+    name: 'Disp', email: 'disp@test.com', passwordHash: await hashPassword(PASSWORD), role: 'dispatcher', plantId: plant.id, isActive: false,
+  });
+  // Soft-deleted login on the same plant must not appear.
+  await db.insert(users).values({
+    name: 'Gone', email: 'gone@test.com', passwordHash: await hashPassword(PASSWORD), role: 'admin', plantId: plant.id, deletedAt: new Date(),
+  });
+  // A login on a different plant must not leak in.
+  await db.insert(users).values({
+    name: 'Elsewhere', email: 'elsewhere@test.com', passwordHash: await hashPassword(PASSWORD), role: 'admin', plantId: other.id,
+  });
+
+  const res = await request(app).get(`/api/plants/${plant.id}/owner`).set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(res.status, 200);
+  type LoginRow = { email: string; role: string; isActive: boolean };
+  const emails = (res.body as LoginRow[]).map(u => u.email).sort();
+  assert.deepEqual(emails, ['disp@test.com', 'owner@test.com'], 'only live logins for this plant');
+  const disp = (res.body as LoginRow[]).find(u => u.email === 'disp@test.com')!;
+  assert.equal(disp.isActive, false, 'active state is surfaced');
+  assert.equal(disp.role, 'dispatcher');
+});
+
+test('GET /plants/:id/owner is 404 for an unknown plant', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const res = await request(app).get('/api/plants/999999/owner').set('Authorization', `Bearer ${tokenFor(admin)}`);
+  assert.equal(res.status, 404);
+});
+
+test('GET /plants/:id/owner is staff-only (client token rejected)', async () => {
+  const client = await createUser({ name: 'Client', email: 'client@test.com', role: 'client' });
+  const plant = await createPlant({ name: 'Verified Plant', verified: true });
+  const res = await request(app).get(`/api/plants/${plant.id}/owner`).set('Authorization', `Bearer ${tokenFor(client)}`);
+  assert.equal(res.status, 403);
+});
+
 test('owner provisioning is staff-only (client token rejected)', async () => {
   const client = await createUser({ name: 'Client', email: 'client@test.com', role: 'client' });
   const plant = await createPlant({ name: 'Verified Plant', verified: true });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus } from 'lucide-react';
+import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 
@@ -28,6 +28,21 @@ interface Plant {
 }
 
 type OwnerRole = 'admin' | 'dispatcher' | 'plant_operator';
+
+interface PlantLogin {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Owner',
+  dispatcher: 'Dispatcher',
+  plant_operator: 'Plant operator',
+};
 
 const ALL_GRADES = ['M-15', 'M-20', 'M-25', 'M-30', 'M-35', 'M-40', 'M-45', 'M-50', 'M-55', 'M-60'];
 
@@ -65,6 +80,12 @@ export default function Plants() {
   const [ownerSaving, setOwnerSaving] = useState(false);
   const [ownerError, setOwnerError] = useState('');
   const [ownerDone, setOwnerDone] = useState('');
+  // Manage-logins modal state.
+  const [loginsFor, setLoginsFor] = useState<Plant | null>(null);
+  const [logins, setLogins] = useState<PlantLogin[] | null>(null);
+  const [loginsError, setLoginsError] = useState('');
+  const [loginsNotice, setLoginsNotice] = useState('');
+  const [busyLoginId, setBusyLoginId] = useState<number | null>(null);
 
   function load() {
     api.get<Plant[]>('/plants')
@@ -91,6 +112,52 @@ export default function Plants() {
     setOwnerForm(ownerEmpty);
     setOwnerError('');
     setOwnerDone('');
+  }
+
+  function loadLogins(plantId: number) {
+    setLogins(null);
+    setLoginsError('');
+    api.get<PlantLogin[]>(`/plants/${plantId}/owner`)
+      .then(setLogins)
+      .catch(e => { setLoginsError((e as Error).message); setLogins([]); });
+  }
+
+  function openLogins(p: Plant) {
+    setLoginsFor(p);
+    setLoginsNotice('');
+    loadLogins(p.id);
+  }
+
+  async function toggleLoginActive(u: PlantLogin) {
+    setBusyLoginId(u.id);
+    setLoginsError('');
+    setLoginsNotice('');
+    try {
+      await api.put(`/users/${u.id}`, { isActive: !u.isActive });
+      setLoginsNotice(`${u.name} ${u.isActive ? 'deactivated' : 'reactivated'}.`);
+      if (loginsFor) loadLogins(loginsFor.id);
+      load();
+    } catch (err) {
+      setLoginsError((err as Error).message || 'Could not update the login.');
+    } finally {
+      setBusyLoginId(null);
+    }
+  }
+
+  async function resendWelcome(u: PlantLogin) {
+    setBusyLoginId(u.id);
+    setLoginsError('');
+    setLoginsNotice('');
+    try {
+      const res = await api.post<{ emailSent?: boolean }>(`/users/${u.id}/resend-welcome`, {});
+      setLoginsNotice(res.emailSent
+        ? `Welcome email re-sent to ${u.email}.`
+        : `Could not send the welcome email to ${u.email} — SMTP is not configured.`);
+    } catch (err) {
+      setLoginsError((err as Error).message || 'Could not resend the welcome email.');
+    } finally {
+      setBusyLoginId(null);
+    }
   }
 
   async function provisionOwner(e: React.FormEvent) {
@@ -211,7 +278,12 @@ export default function Plants() {
                     {[p.address, p.city].filter(Boolean).join(', ') || '—'} · {p.contactNumber || 'no contact'}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
-                    {p.gstNo ? `GST ${p.gstNo}` : 'no GST'} · {p.email || 'no email'} · {p.ownerCount > 0 ? `${p.ownerCount} login${p.ownerCount > 1 ? 's' : ''}` : 'no owner login'}
+                    {p.gstNo ? `GST ${p.gstNo}` : 'no GST'} · {p.email || 'no email'} ·{' '}
+                    {p.ownerCount > 0 ? (
+                      <button onClick={() => openLogins(p)} style={linkBtn} title="View and manage the logins for this plant">
+                        {p.ownerCount} login{p.ownerCount > 1 ? 's' : ''}
+                      </button>
+                    ) : 'no owner login'}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
                     {p.grades.join(', ') || 'no grades'} · delivers {p.deliveryRadiusKm} km · {p.openTime && p.closeTime ? `${p.openTime}–${p.closeTime}` : 'hours n/a'}
@@ -233,9 +305,15 @@ export default function Plants() {
                   <button onClick={() => patch(p, { locationVerified: !p.locationVerified })} title="Toggle location verified" style={chip(p.locationVerified, 'var(--gold)')}>
                     {p.locationVerified ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />} {p.locationVerified ? 'Pin OK' : 'Pin?'}
                   </button>
-                  <button onClick={() => openOwner(p)} title="Provision an owner login" style={chip(p.ownerCount > 0, 'var(--blue)')}>
-                    {p.ownerCount > 0 ? <KeyRound size={13} /> : <UserPlus size={13} />} {p.ownerCount > 0 ? 'Add login' : 'Owner login'}
-                  </button>
+                  {p.ownerCount > 0 ? (
+                    <button onClick={() => openLogins(p)} title="View and manage the logins for this plant" style={chip(true, 'var(--blue)')}>
+                      <Users size={13} /> Manage logins
+                    </button>
+                  ) : (
+                    <button onClick={() => openOwner(p)} title="Provision an owner login" style={chip(false, 'var(--blue)')}>
+                      <UserPlus size={13} /> Owner login
+                    </button>
+                  )}
                   <button onClick={() => openEdit(p)} style={iconBtn}><Pencil size={15} /></button>
                   <button onClick={() => remove(p)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={15} /></button>
                 </div>
@@ -362,6 +440,61 @@ export default function Plants() {
           </form>
         </div>
       )}
+
+      {loginsFor && (
+        <div onClick={() => setLoginsFor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 14px', zIndex: 1000, overflowY: 'auto' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(540px, 100%)', background: 'var(--card, #0d1828)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Users size={18} style={{ color: 'var(--blue)' }} /> Logins
+              </h2>
+              <button type="button" onClick={() => setLoginsFor(null)} style={iconBtn}><X size={18} /></button>
+            </div>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--muted)' }}>
+              Accounts that can sign in for <strong style={{ color: 'var(--text)' }}>{loginsFor.name}</strong>. Each is scoped to this plant only.
+            </p>
+
+            {loginsError && <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--red) 45%, transparent)', color: 'var(--red)', marginBottom: 12, fontSize: 13.5 }}>{loginsError}</div>}
+            {loginsNotice && <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--green) 45%, transparent)', color: 'var(--green)', marginBottom: 12, fontSize: 13.5 }}>{loginsNotice}</div>}
+
+            {logins == null ? (
+              <div style={{ color: 'var(--muted)', padding: '14px 0', fontSize: 13.5 }}>Loading…</div>
+            ) : logins.length === 0 ? (
+              <div style={{ ...softCard, textAlign: 'center', color: 'var(--muted)', fontSize: 13.5 }}>No logins linked to this plant.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {logins.map(u => (
+                  <div key={u.id} style={{ ...softCard, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', padding: 13 }}>
+                    <div style={{ minWidth: 180, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text)' }}>{u.name}</span>
+                        <span style={badge('var(--blue)')}>{ROLE_LABELS[u.role] ?? u.role}</span>
+                        <span style={badge(u.isActive ? 'var(--green)' : 'var(--muted)')}>{u.isActive ? 'ACTIVE' : 'INACTIVE'}</span>
+                      </div>
+                      <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>{u.email}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button onClick={() => resendWelcome(u)} disabled={busyLoginId === u.id} title="Resend the welcome / invite email" style={{ ...chip(false, 'var(--gold)'), opacity: busyLoginId === u.id ? 0.6 : 1 }}>
+                        <Mail size={13} /> Resend invite
+                      </button>
+                      <button onClick={() => toggleLoginActive(u)} disabled={busyLoginId === u.id} title={u.isActive ? 'Deactivate this login' : 'Reactivate this login'} style={{ ...chip(u.isActive, u.isActive ? 'var(--red)' : 'var(--green)'), opacity: busyLoginId === u.id ? 0.6 : 1 }}>
+                        <Power size={13} /> {u.isActive ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
+              <button type="button" onClick={() => { const p = loginsFor; setLoginsFor(null); if (p) openOwner(p); }} style={ghostBtn}>
+                <UserPlus size={15} /> Add login
+              </button>
+              <button type="button" onClick={() => setLoginsFor(null)} style={primaryBtn}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -392,6 +525,10 @@ const iconBtn: React.CSSProperties = {
   background: 'rgba(255,255,255,.05)', color: 'var(--text)', border: '1px solid var(--line)',
 };
 const softCard: React.CSSProperties = { padding: 16, borderRadius: 13, border: '1px solid var(--line)', background: 'rgba(255,255,255,.02)' };
+const linkBtn: React.CSSProperties = {
+  padding: 0, background: 'none', border: 'none', cursor: 'pointer',
+  color: 'var(--blue)', fontSize: 12, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 2,
+};
 const checkRow: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' };
 
 function pill(color: string): React.CSSProperties {
