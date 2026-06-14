@@ -107,6 +107,12 @@ export interface WhatsAppSendResult {
   ok: boolean;
   channel: 'whatsapp' | 'dev';
   error?: string;
+  // True only for *transient* failures worth re-sending later (provider
+  // unreachable, or a 5xx/429 from Twilio). Permanent failures — a bad number,
+  // a template error (4xx), an unconfigured provider, or a missing recipient —
+  // are false, so the retry queue never wastes attempts on something that can
+  // only fail again. Undefined when ok.
+  retryable?: boolean;
 }
 
 // Send one approved WhatsApp template to a recipient. `variables` maps the
@@ -118,8 +124,8 @@ export async function sendWhatsAppTemplate(
   variables: Record<string, string>,
 ): Promise<WhatsAppSendResult> {
   const to = normalizePhone(toPhone);
-  if (!to) return { ok: false, channel: 'dev', error: 'No valid recipient phone number.' };
-  if (!templateSid) return { ok: false, channel: 'dev', error: 'No template configured for this message.' };
+  if (!to) return { ok: false, channel: 'dev', error: 'No valid recipient phone number.', retryable: false };
+  if (!templateSid) return { ok: false, channel: 'dev', error: 'No template configured for this message.', retryable: false };
 
   if (isWhatsAppMessagingConfigured()) {
     try {
@@ -141,19 +147,27 @@ export async function sendWhatsAppTemplate(
       );
       if (!res.ok) {
         const detail = await res.text().catch(() => '');
-        return { ok: false, channel: 'whatsapp', error: `WhatsApp provider error (${res.status}). ${detail.slice(0, 200)}` };
+        // 5xx = provider-side fault, 429 = rate limited: both are transient and
+        // worth a backed-off retry. Every other 4xx (invalid number, template
+        // error, auth) is the caller's fault and will only fail again.
+        const retryable = res.status >= 500 || res.status === 429;
+        return { ok: false, channel: 'whatsapp', error: `WhatsApp provider error (${res.status}). ${detail.slice(0, 200)}`, retryable };
       }
       return { ok: true, channel: 'whatsapp' };
     } catch {
-      return { ok: false, channel: 'whatsapp', error: 'Could not reach the WhatsApp provider.' };
+      // Network-level failure (DNS, connection, timeout) — the provider was
+      // briefly unreachable, so this is the canonical transient case to retry.
+      return { ok: false, channel: 'whatsapp', error: 'Could not reach the WhatsApp provider.', retryable: true };
     }
   }
 
   // --- Dev fallback ---------------------------------------------------------
   // Fail CLOSED in production: with no provider there is no way to deliver, so
-  // returning ok would silently drop real customer notifications.
+  // returning ok would silently drop real customer notifications. Not retryable:
+  // a backed-off re-send can't conjure provider credentials, so queuing it would
+  // just churn until the attempts are exhausted.
   if (isProd()) {
-    return { ok: false, channel: 'dev', error: 'WhatsApp messaging is not configured.' };
+    return { ok: false, channel: 'dev', error: 'WhatsApp messaging is not configured.', retryable: false };
   }
   console.info(`[whatsapp:dev] → ${to} template=${templateSid} vars=${JSON.stringify(variables)}`);
   return { ok: true, channel: 'dev' };

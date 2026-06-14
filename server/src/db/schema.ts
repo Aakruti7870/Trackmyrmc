@@ -492,6 +492,29 @@ export const ledgerRelations = relations(ledgerEntries, ({ one }) => ({
   client: one(clients, { fields: [ledgerEntries.clientId], references: [clients.id] }),
 }));
 
+// Durable retry queue for business WhatsApp notifications (order/dispatch/
+// delivery) whose first, inline send failed *transiently* (provider unreachable
+// or a 5xx/429 from Twilio). Permanent failures (invalid number, template
+// error) are never enqueued. A background tick re-sends due rows with
+// exponential backoff and deletes them on success or once attempts are
+// exhausted, so a brief provider outage no longer silently drops a customer
+// update. `variables` holds the template's numbered placeholder map verbatim so
+// the row is self-contained — the retry needs no access to the originating
+// order/challan. `attempts` counts sends made so far (1 = the inline attempt).
+export const whatsappRetries = pgTable('whatsapp_retries', {
+  id: serial('id').primaryKey(),
+  toPhone: text('to_phone').notNull(),
+  templateSid: text('template_sid').notNull(),
+  variables: jsonb('variables').notNull(),
+  event: text('event'),
+  attempts: integer('attempts').notNull().default(1),
+  lastError: text('last_error'),
+  nextAttemptAt: timestamp('next_attempt_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('whatsapp_retries_next_attempt_at_idx').on(t.nextAttemptAt),
+]);
+
 // Dev-mode fallback store for phone-OTP codes. When a real provider (Twilio
 // Verify) is configured the codes live in Twilio and this table is unused; when
 // it is NOT configured we generate and verify codes locally so the whole flow

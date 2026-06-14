@@ -23,6 +23,7 @@ import plantRoutes from './routes/plants.js';
 import eventsRoutes from './routes/events.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
+import { runDueWhatsAppRetries } from './lib/whatsappRetry.js';
 import { tickFreshnessAlerts } from './lib/freshnessAlerts.js';
 import { cleanupExpiredRateLimits } from './lib/rateLimit.js';
 import { cleanupExpiredCache } from './lib/places.js';
@@ -127,6 +128,25 @@ async function tickRecurringOrders() {
   }
 }
 
+// Re-send any WhatsApp notifications whose inline send failed transiently, with
+// exponential backoff. Runs out-of-band so it never blocks order placement or
+// dispatch. Guarded against overlapping runs.
+let whatsappRetryRunning = false;
+async function tickWhatsAppRetries() {
+  if (whatsappRetryRunning) return;
+  whatsappRetryRunning = true;
+  try {
+    const r = await runDueWhatsAppRetries();
+    if (r.sent > 0 || r.gaveUp > 0) {
+      console.log(`WhatsApp retry: ${r.sent} sent, ${r.retried} rescheduled, ${r.gaveUp} gave up`);
+    }
+  } catch (e) {
+    console.error('WhatsApp retry tick failed', e);
+  } finally {
+    whatsappRetryRunning = false;
+  }
+}
+
 // Re-evaluate concrete freshness for in-transit loads and push an SSE alert when
 // a load newly crosses into critical/expired. Guarded against overlapping runs.
 let freshnessRunning = false;
@@ -168,6 +188,8 @@ app.listen(PORT, () => {
   tickRecurringOrders();
   setInterval(tickRecurringOrders, 60 * 60 * 1000);
   setInterval(tickFreshness, 60 * 1000);
+  tickWhatsAppRetries();
+  setInterval(tickWhatsAppRetries, 60 * 1000);
   tickDiscoveryCleanup();
   setInterval(tickDiscoveryCleanup, 60 * 60 * 1000);
 });

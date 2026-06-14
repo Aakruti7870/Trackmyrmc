@@ -83,9 +83,9 @@ function senderAddress() {
 export async function sendWhatsAppTemplate(toPhone, templateSid, variables) {
     const to = normalizePhone(toPhone);
     if (!to)
-        return { ok: false, channel: 'dev', error: 'No valid recipient phone number.' };
+        return { ok: false, channel: 'dev', error: 'No valid recipient phone number.', retryable: false };
     if (!templateSid)
-        return { ok: false, channel: 'dev', error: 'No template configured for this message.' };
+        return { ok: false, channel: 'dev', error: 'No template configured for this message.', retryable: false };
     if (isWhatsAppMessagingConfigured()) {
         try {
             const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`, {
@@ -103,19 +103,27 @@ export async function sendWhatsAppTemplate(toPhone, templateSid, variables) {
             });
             if (!res.ok) {
                 const detail = await res.text().catch(() => '');
-                return { ok: false, channel: 'whatsapp', error: `WhatsApp provider error (${res.status}). ${detail.slice(0, 200)}` };
+                // 5xx = provider-side fault, 429 = rate limited: both are transient and
+                // worth a backed-off retry. Every other 4xx (invalid number, template
+                // error, auth) is the caller's fault and will only fail again.
+                const retryable = res.status >= 500 || res.status === 429;
+                return { ok: false, channel: 'whatsapp', error: `WhatsApp provider error (${res.status}). ${detail.slice(0, 200)}`, retryable };
             }
             return { ok: true, channel: 'whatsapp' };
         }
         catch {
-            return { ok: false, channel: 'whatsapp', error: 'Could not reach the WhatsApp provider.' };
+            // Network-level failure (DNS, connection, timeout) — the provider was
+            // briefly unreachable, so this is the canonical transient case to retry.
+            return { ok: false, channel: 'whatsapp', error: 'Could not reach the WhatsApp provider.', retryable: true };
         }
     }
     // --- Dev fallback ---------------------------------------------------------
     // Fail CLOSED in production: with no provider there is no way to deliver, so
-    // returning ok would silently drop real customer notifications.
+    // returning ok would silently drop real customer notifications. Not retryable:
+    // a backed-off re-send can't conjure provider credentials, so queuing it would
+    // just churn until the attempts are exhausted.
     if (isProd()) {
-        return { ok: false, channel: 'dev', error: 'WhatsApp messaging is not configured.' };
+        return { ok: false, channel: 'dev', error: 'WhatsApp messaging is not configured.', retryable: false };
     }
     console.info(`[whatsapp:dev] → ${to} template=${templateSid} vars=${JSON.stringify(variables)}`);
     return { ok: true, channel: 'dev' };
