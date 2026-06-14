@@ -160,4 +160,53 @@ describe('Reports Fuel tab', () => {
     expect(screen.getByText('No fuel data for this period. Log diesel fills and set vehicle mileage to enable reconciliation.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
+
+  it('acknowledges an alert, POSTs the right id, and removes it from the list', async () => {
+    mockReports({
+      alerts: [
+        {
+          id: 42, type: 'unscheduled_stop', challanId: null, vehicleId: 7, driverId: 3,
+          lat: null, lng: null, distanceM: 250, detail: 'Stopped 12 min off-route',
+          acknowledgedAt: null, createdAt: '2026-06-10T08:30:00.000Z',
+          vehicleNo: 'MH12AB1234', driverName: 'Ramesh',
+        },
+        {
+          id: 43, type: 'route_deviation', challanId: null, vehicleId: 8, driverId: 4,
+          lat: null, lng: null, distanceM: 600, detail: 'Off-route by 600 m',
+          acknowledgedAt: null, createdAt: '2026-06-10T09:15:00.000Z',
+          vehicleNo: 'MH12CD5678', driverName: 'Suresh',
+        },
+      ],
+    });
+    vi.mocked(api.post).mockResolvedValue(undefined as never);
+    const user = userEvent.setup();
+    render(<Reports />);
+
+    await waitFor(() => expect(screen.getByText('Client-wise Dispatch')).toBeInTheDocument());
+    await user.click(screen.getByText('Fuel'));
+
+    expect(await screen.findByText('Fuel Reconciliation & Theft Alerts')).toBeInTheDocument();
+    // Both open alerts are listed initially.
+    expect(screen.getByText('(2)')).toBeInTheDocument();
+    expect(screen.getByText('Stopped 12 min off-route', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('Off-route by 600 m', { exact: false })).toBeInTheDocument();
+
+    // Acknowledge the first alert.
+    const ackButtons = screen.getAllByText('Acknowledge');
+    expect(ackButtons).toHaveLength(2);
+    await user.click(ackButtons[0]);
+
+    // POSTs to the ack endpoint with the first alert's id.
+    expect(api.post).toHaveBeenCalledWith('/positions/alerts/42/ack', {});
+    // The acknowledged alert disappears, the other remains.
+    await waitFor(() => expect(screen.queryByText('Stopped 12 min off-route', { exact: false })).not.toBeInTheDocument());
+    expect(screen.getByText('Off-route by 600 m', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('(1)')).toBeInTheDocument();
+
+    // Acknowledge the remaining alert; the empty-alerts message then appears.
+    await user.click(screen.getByText('Acknowledge'));
+    expect(api.post).toHaveBeenCalledWith('/positions/alerts/43/ack', {});
+    expect(await screen.findByText('No open alerts. Unscheduled stops & route deviations show up here.')).toBeInTheDocument();
+    expect(screen.queryByText('Acknowledge')).not.toBeInTheDocument();
+  });
 });
