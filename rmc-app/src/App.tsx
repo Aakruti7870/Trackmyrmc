@@ -75,9 +75,8 @@ function ProtectedRoutes() {
     return (
       <Switch>
         <Route path="/" component={Landing} />
-        {/* Public marketplace discovery — anyone can find approved plants within
-            40 km. Placing an order still funnels through register/login. */}
-        <Route path="/nearby-plants" component={NearbyPlants} />
+        {/* Nearby-plant discovery is gated behind login: customers register,
+            then use their GPS location to find the plants we've onboarded. */}
         <Route><Redirect to="/login" /></Route>
       </Switch>
     );

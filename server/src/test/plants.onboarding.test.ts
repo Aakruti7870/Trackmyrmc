@@ -102,12 +102,23 @@ test('PUT /plants/:id can mark a lead verified and edit company details', async 
 test('GET /plants/nearby excludes unverified leads, includes verified partners', async () => {
   await createPlant({ name: 'Lead Plant', verified: false, locationVerified: true });
   await createPlant({ name: 'Verified Plant', verified: true, locationVerified: true });
+  const customer = await createUser({ name: 'Cust', email: 'cust@test.com', role: 'client' });
 
-  const res = await request(app).get('/api/plants/nearby').query({ lat: 19.033, lng: 73.0297 });
+  const res = await request(app)
+    .get('/api/plants/nearby')
+    .set('Authorization', `Bearer ${tokenFor(customer)}`)
+    .query({ lat: 19.033, lng: 73.0297 });
   assert.equal(res.status, 200);
   const names = res.body.map((p: { name: string }) => p.name);
   assert.ok(names.includes('Verified Plant'), 'verified partner should be visible to customers');
   assert.ok(!names.includes('Lead Plant'), 'onboarding lead must never reach customers');
+});
+
+test('GET /plants/nearby rejects logged-out callers (customer-only discovery)', async () => {
+  await createPlant({ name: 'Verified Plant', verified: true, locationVerified: true });
+
+  const res = await request(app).get('/api/plants/nearby').query({ lat: 19.033, lng: 73.0297 });
+  assert.equal(res.status, 401, 'nearby discovery must require authentication');
 });
 
 test('POST /plants/:id/owner provisions a plant-scoped login and writes an audit log', async () => {

@@ -17,7 +17,7 @@ export const ROLE_DEFAULT_PATH: Record<Role, string> = {
   admin: '/',
   dispatcher: '/',
   plant_operator: '/batch-report',
-  client: '/my-orders',
+  client: '/nearby-plants',
   driver: '/my-trips',
 };
 

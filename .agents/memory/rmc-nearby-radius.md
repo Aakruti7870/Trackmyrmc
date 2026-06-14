@@ -16,10 +16,12 @@ A fixed small radius silently drops farther plants. The selector lets the custom
 
 **How to apply:**
 - Backend `GET /api/plants/nearby?lat&lng&radius` (server/src/routes/plants.ts) defaults
-  radius to 40 and **clamps to 250km max** — it is a public route, so an unbounded
-  radius would enumerate the whole directory.
-- The status filter (`approved && isActive && locationVerified`) is intentional and
-  should NOT be loosened to "show more plants" — widen the radius instead.
+  radius to 40 and **clamps to 250km max** so a caller can't enumerate the whole directory.
+- It is **login-only** (requireAuth): logged-out callers get 401. Customers reach it via the
+  post-login GPS discovery screen; the public landing-page entry point was removed. The
+  frontend `client` role default landing path is `/nearby-plants`.
+- The status filter is `approved && isActive && locationVerified && verified`; do NOT loosen
+  it to "show more plants" — widen the radius instead.
 - The geolocation loader is a stable `useCallback`; the radius is mirrored in a ref
   (`radiusRef`) so changing it doesn't recreate the loader and re-prompt for location.
 
@@ -29,7 +31,7 @@ The discovery dataset (`PLT-012`+ in both the live DB and `server/src/db/seed.ts
 **real RMC plants** in the Navi Mumbai / Panvel / Raigad belt, sourced from their Google
 Maps listings — exact GPS + real postal addresses, names left verbatim (messy casing,
 parens, plus-codes in addresses are intentional). `contactNumber`/`gstNo`/`email` are
-NULL on purpose (collected at onboarding); they are still `approved + active +
-locationVerified` so customers can discover them. Do NOT "tidy" the names/addresses or
+NULL on purpose (collected at onboarding); they are `approved + active +
+locationVerified + verified` so customers can discover them. Do NOT "tidy" the names/addresses or
 invent phone numbers. See `gmaps-shortlink-coords.md` for how the coords were recovered.
 The originals `PLT-001..PLT-011` are kept (PLT-001 is the home hub with linked demo data).

@@ -7,9 +7,11 @@ The plants table has TWO independent flags:
 - `locationVerified` — only attests the GPS pin is correct.
 - `verified` — the plant is a fully onboarded partner. This is the customer-visibility gate.
 
-**Rule:** customer-facing `/plants/nearby` requires `approved && isActive && locationVerified && verified`. A plant is a "lead" purely when `verified=false`, regardless of approval/active/pin state. Onboarding leads (the ~32 seeded PLT-012..045 rows) must never reach customers even though they are seeded approved+active+locationVerified.
+**Rule:** customer-facing `/plants/nearby` requires `approved && isActive && locationVerified && verified` AND is login-only (requireAuth). A plant is a "lead" purely when `verified=false`, regardless of approval/active/pin state.
 
-**Why:** seeded leads have real GPS but null contact / no GST / no legal name; showing them would mislead customers into ordering from unconfirmed plants.
+**Product policy change:** the real seeded discovery plants (PLT-012..045) are NOW marked `verified=true` in both seed.ts and the live DB so logged-in customers actually discover them via GPS. They were previously kept as hidden leads, but that left 0 customer-visible plants, which broke the whole discovery flow. Genuine partners (PLT-001..009, 011) are also verified. Their `contactNumber`/`gstNo`/`legalName` stay null until staff finish onboarding — visibility no longer waits on those fields.
+
+**Why:** the `verified` gate was added (Task #294) to hide un-onboarded leads, but the entire seeded dataset defaulted to `verified=false`, so customers saw nothing. The product owner explicitly wants all real nearby plants shown to logged-in customers, so visibility wins over withholding incomplete company details.
 
 **Owner provisioning:** `POST /plants/:id/owner` creates a plant-scoped user (sets `plantId`, default role `admin` = owner; also dispatcher/plant_operator). Tenancy hard-scopes everything by `plantId`. Duplicate email → 409 (distinguishes soft-deleted vs live). Writes a `user.created` audit log and calls sendWelcomeEmail (best-effort; returns `emailSent`).
 

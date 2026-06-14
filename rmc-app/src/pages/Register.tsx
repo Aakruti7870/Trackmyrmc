@@ -53,7 +53,8 @@ export default function Register() {
         '/auth/register', { name, companyName, email, phone, gstNo, city, password },
       );
       // Log the customer in immediately. Setting the user makes RegisterRoute
-      // redirect to their dashboard, so they can place an order right away.
+      // redirect to their default screen (nearby-plant discovery), so they can
+      // find an approved plant near them and place an order right away.
       updateUser(res.user, res.token);
       setDone(true);
     } catch (err: unknown) {
@@ -105,9 +106,9 @@ export default function Register() {
             </div>
             <h2 style={{ margin: '0 0 10px', fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Account created</h2>
             <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>
-              You're all set — taking you to your dashboard so you can place your first order.
+              You're all set — let's use your location to find approved RMC plants near you.
             </p>
-            <button onClick={() => setLoc('/')} style={{
+            <button onClick={() => setLoc('/nearby-plants')} style={{
               padding: '11px 24px', borderRadius: 12, border: 'none', cursor: 'pointer',
               background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
               color: '#111827', fontWeight: 800, fontSize: 14,

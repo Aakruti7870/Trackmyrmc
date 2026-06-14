@@ -39,8 +39,10 @@ function isOpenNow(openTime: string | null, closeTime: string | null): boolean {
 const ADMIN = requireRole('authority', 'admin');
 
 // Customer-facing: approved + active + location-verified plants within radius km,
-// nearest first. Never exposes status/verification internals.
-router.get('/nearby', async (req, res) => {
+// nearest first. Never exposes status/verification internals. Login-only — only a
+// signed-in user (customers reach it via the post-login GPS discovery screen) may
+// query nearby plants; logged-out visitors cannot enumerate the directory.
+router.get('/nearby', requireAuth, async (req, res) => {
   const lat = parseFloat(String(req.query.lat));
   const lng = parseFloat(String(req.query.lng));
   const radius = req.query.radius != null ? parseFloat(String(req.query.radius)) : 40;
@@ -48,8 +50,8 @@ router.get('/nearby', async (req, res) => {
     res.status(400).json({ error: 'lat and lng are required' });
     return;
   }
-  // Clamp to a sane ceiling: this is a public route, so an unbounded radius would
-  // let a caller enumerate the whole plant directory. 250km is the widest the UI offers.
+  // Clamp to a sane ceiling: an unbounded radius would let a caller enumerate the
+  // whole plant directory in one shot. 250km is the widest the UI offers.
   const MAX_RADIUS_KM = 250;
   const effRadius = Math.min(Number.isFinite(radius) && radius > 0 ? radius : 40, MAX_RADIUS_KM);
 
@@ -84,9 +86,8 @@ router.get('/nearby', async (req, res) => {
 });
 
 // ---- Admin onboarding / management ----
-// The public /nearby route above is intentionally reachable by logged-out
-// marketplace visitors (the landing-page "Find Nearby Plants" flow). Everything
-// below this guard requires authentication.
+// The /nearby route above gates itself with requireAuth (customer discovery).
+// Everything below this guard additionally requires authentication.
 router.use(requireAuth);
 
 router.get('/', ADMIN, async (_req, res) => {

@@ -264,7 +264,7 @@ export default function Landing() {
               near you, order the right grade, and watch it arrive live.
             </p>
             <div className="ck-hero-cta" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 28 }}>
-              <button onClick={() => setLoc('/nearby-plants')} style={btnGold}>Find Nearby Plants <ArrowRight size={16} /></button>
+              <button onClick={() => setLoc('/register')} style={btnGold}>Get Started <ArrowRight size={16} /></button>
               <button onClick={() => scrollTo('why')} style={btnGhost}>See How It Works</button>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 26 }}>
