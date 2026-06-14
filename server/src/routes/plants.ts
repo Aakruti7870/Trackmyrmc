@@ -106,7 +106,7 @@ router.get('/nearby', requireAuth, async (req, res) => {
 // customer's coordinates. These are UNVERIFIED leads not in our directory and are
 // rendered as such by the client. Public (matches /nearby) but rate-limited
 // because every call hits a paid upstream.
-const discoverLimiter = rateLimit({ windowMs: 60_000, max: 20 });
+const discoverLimiter = rateLimit({ windowMs: 60_000, max: 20, name: 'discover' });
 router.get('/discover', discoverLimiter, async (req, res) => {
   const lat = parseFloat(String(req.query.lat));
   const lng = parseFloat(String(req.query.lng));

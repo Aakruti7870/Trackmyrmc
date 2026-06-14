@@ -1,6 +1,6 @@
 import {
   pgTable, serial, text, integer, decimal, boolean,
-  timestamp, date, time, pgEnum, uniqueIndex
+  timestamp, date, time, pgEnum, uniqueIndex, jsonb, index
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -263,6 +263,31 @@ export const appSettings = pgTable('app_settings', {
   value: text('value'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+// Shared, fixed-window rate-limit counters. Lives in Postgres (not in-process
+// memory) so the limit holds across every server instance under horizontal
+// scaling — otherwise each instance keeps its own count and the effective limit
+// is multiplied by the instance count. `key` is `${name}:${ip}`; `resetAt` is
+// when the current window expires and `count` rolls back to zero.
+export const rateLimitHits = pgTable('rate_limit_hits', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull().default(0),
+  resetAt: timestamp('reset_at').notNull(),
+}, (t) => [
+  index('rate_limit_hits_reset_at_idx').on(t.resetAt),
+]);
+
+// Shared response cache for paid upstream lookups (currently Google Places
+// discovery). Stored in Postgres so identical nearby queries reuse a single
+// upstream call regardless of which instance serves them, instead of each
+// instance maintaining its own in-memory cache and re-billing the upstream.
+export const responseCache = pgTable('response_cache', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+}, (t) => [
+  index('response_cache_expires_at_idx').on(t.expiresAt),
+]);
 
 // Single-use, time-limited invite tokens that let a newly-provisioned account
 // (e.g. a plant owner) set their OWN password via an emailed link, instead of

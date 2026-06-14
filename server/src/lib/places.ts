@@ -3,6 +3,10 @@
 // not (yet) onboarded into our own directory. All calls happen server-side so the
 // API key is never exposed to the browser.
 
+import { and, eq, gt, lt } from 'drizzle-orm';
+import { db } from '../db/index.js';
+import { responseCache } from '../db/schema.js';
+
 const PLACES_URL = 'https://places.googleapis.com/v1/places:searchText';
 // Only request the fields we actually render — Places bills per-field category,
 // so a tight mask keeps cost down.
@@ -47,9 +51,14 @@ export function isDiscoveryConfigured(): boolean {
 }
 
 // Cache responses briefly, keyed by coarse coordinates + radius, so a customer
-// panning/refreshing doesn't re-bill the upstream for an identical search.
-const cache = new Map<string, { at: number; data: DiscoveredPlace[] }>();
+// panning/refreshing doesn't re-bill the upstream for an identical search. The
+// cache lives in Postgres (see response_cache) rather than in-process memory so
+// every server instance shares one cached upstream call instead of each
+// re-billing Places for the same nearby query under horizontal scaling.
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_PREFIX = 'places:';
+
+let lastCacheCleanup = 0;
 
 export async function discoverConcretePlants(
   lat: number,
@@ -59,9 +68,18 @@ export async function discoverConcretePlants(
   const key = placesApiKey();
   if (!key) throw new Error('Places API key not configured');
 
-  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${Math.round(radiusKm)}`;
-  const hit = cache.get(cacheKey);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
+  const cacheKey = `${CACHE_PREFIX}${lat.toFixed(2)},${lng.toFixed(2)},${Math.round(radiusKm)}`;
+  try {
+    const [hit] = await db
+      .select({ value: responseCache.value })
+      .from(responseCache)
+      .where(and(eq(responseCache.key, cacheKey), gt(responseCache.expiresAt, new Date())));
+    if (hit) return hit.value as DiscoveredPlace[];
+  } catch (err) {
+    // A cache read failure must not block discovery — fall through to the
+    // upstream call as if it were a miss.
+    console.error('places cache read error, treating as miss', err);
+  }
 
   // Places Text Search circle bias caps at 50km; we still post-filter by the
   // caller's true radius in the route.
@@ -99,6 +117,26 @@ export async function discoverConcretePlants(
     }))
     .filter(p => p.placeId && p.name && Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
 
-  cache.set(cacheKey, { at: Date.now(), data });
+  try {
+    const expiresAt = new Date(Date.now() + CACHE_TTL_MS);
+    await db
+      .insert(responseCache)
+      .values({ key: cacheKey, value: data, expiresAt })
+      .onConflictDoUpdate({
+        target: responseCache.key,
+        set: { value: data, expiresAt },
+      });
+
+    // Opportunistic cleanup of expired rows, throttled to once per TTL window.
+    const now = Date.now();
+    if (now - lastCacheCleanup > CACHE_TTL_MS) {
+      lastCacheCleanup = now;
+      db.delete(responseCache).where(lt(responseCache.expiresAt, new Date())).catch(() => {});
+    }
+  } catch (err) {
+    // A cache write failure is non-fatal: still return the fresh upstream data.
+    console.error('places cache write error, returning uncached', err);
+  }
+
   return data;
 }

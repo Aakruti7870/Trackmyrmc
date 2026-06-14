@@ -33,3 +33,4 @@
 - [RMC live plant discovery](rmc-plant-discovery.md) — /plants/discover uses Places API (New) text search, soft-fails 503 w/o key, rate-limited+cached; invalid key=400 API_KEY_INVALID (valid key ~39 chars `AIza…`).
 - [RMC plant invites](rmc-plant-invites.md) — customer "Request this plant" → /plants/invite is open to ANY authed user (not staff); de-duped by placeId, status CASE reopens dismissed but never onboarded.
 - [RMC phone-OTP customer auth](rmc-phone-otp-auth.md) — customers log in by phone (WhatsApp OTP); placeholder @otp.local email + nullable users.phone partial-unique key; block @otp.local in register + fail dev OTP closed in prod.
+- [RMC discover shared store](rmc-discover-shared-store.md) — /plants/discover rate limit + Places cache live in Postgres (rate_limit_hits, response_cache) so they hold across instances; buildTestApp has no trust-proxy so X-Forwarded-For can't set req.ip in tests.
