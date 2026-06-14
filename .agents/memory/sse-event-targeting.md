@@ -9,11 +9,14 @@ description: How live SSE events are scoped per-recipient (client/driver/staff) 
 linked client/driver). Audience is `{ clientId?, driverId? }`.
 
 Rule (`clientMayReceive` in `server/src/lib/sseEmitter.ts`):
+- **`audience.roles` set → explicit allow-list, overrides everything below**: deliver ONLY to identities whose role is in the list. Use this to reach `authority`, which is NOT in STAFF_ROLES (e.g. admin-only `plant.invite` uses `{ roles: ['admin','authority'] }`).
 - staff (admin/dispatcher/plant_operator) → receive everything
 - role 'client' → only if `audience.clientId === identity.clientId`
 - role 'driver' → only if `audience.driverId === identity.driverId`
 - **no audience arg → broadcast to all** (backward compat; used by `vehicle.position`)
 - **identity-less connection → wildcard receiver** (test capture clients rely on this)
+
+Gotcha: STAFF_ROLES = {admin, dispatcher, plant_operator} only. `authority` (super-admin) is excluded, so a plain `{}` audience reaches dispatchers/operators but NOT authority — for admin-targeted alerts always use `{ roles: [...] }`.
 
 **Why:** order/challan toasts were fanning out to every client/driver, leaking other
 companies' activity. Filtering lives server-side so the frontend toast listener needs

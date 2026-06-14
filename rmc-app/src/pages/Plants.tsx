@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users, HandHeart, Inbox } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useSSE } from '@/lib/useSSE';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 
 type PlantStatus = 'pending' | 'approved' | 'rejected';
@@ -113,6 +114,10 @@ export default function Plants() {
   const [invites, setInvites] = useState<PlantInvite[] | null>(null);
   const [invitesError, setInvitesError] = useState('');
   const [busyInviteId, setBusyInviteId] = useState<number | null>(null);
+  // Live "unread" marker: bumped when a new request streams in via SSE while the
+  // admin is not looking at the Onboarding-requests tab. Cleared on tab open.
+  const [unseenInvites, setUnseenInvites] = useState(0);
+  const { subscribe } = useSSE();
   // Owner-provisioning modal state.
   const [ownerFor, setOwnerFor] = useState<Plant | null>(null);
   const [ownerForm, setOwnerForm] = useState(ownerEmpty);
@@ -139,6 +144,22 @@ export default function Plants() {
       .catch(e => { setInvitesError((e as Error).message); setInvites([]); });
   }
   useEffect(() => { load(); loadInvites(); }, []);
+
+  // Keep the queue live: a streamed-in request refreshes the list and, unless
+  // the admin is already on the tab, lights up an unread marker on it.
+  useEffect(() => {
+    const unsub = subscribe('plant.invite', () => {
+      loadInvites();
+      setTab(t => {
+        if (t !== 'invites') setUnseenInvites(n => n + 1);
+        return t;
+      });
+    });
+    return unsub;
+  }, [subscribe]);
+
+  // Opening the tab acknowledges everything that streamed in while away.
+  function openInvitesTab() { setTab('invites'); setUnseenInvites(0); }
 
   async function setInviteStatus(inv: PlantInvite, status: InviteStatus) {
     setBusyInviteId(inv.id);
@@ -375,8 +396,13 @@ export default function Plants() {
             <button onClick={() => setTab('verified')} style={tabBtn(tab === 'verified', 'var(--green)')}>
               <BadgeCheck size={14} /> Verified partners <span style={countPill}>{verified.length}</span>
             </button>
-            <button onClick={() => setTab('invites')} style={tabBtn(tab === 'invites', 'var(--blue)')}>
+            <button onClick={openInvitesTab} style={{ ...tabBtn(tab === 'invites', 'var(--blue)'), position: 'relative' }}>
               <HandHeart size={14} /> Onboarding requests <span style={countPill}>{pendingInviteCount}</span>
+              {unseenInvites > 0 && (
+                <span style={unreadDot} title={`${unseenInvites} new request${unseenInvites === 1 ? '' : 's'}`}>
+                  {unseenInvites > 9 ? '9+' : unseenInvites}
+                </span>
+              )}
             </button>
           </div>
 
@@ -808,4 +834,11 @@ function tabBtn(active: boolean, color: string): React.CSSProperties {
 }
 const countPill: React.CSSProperties = {
   fontSize: 11.5, fontWeight: 800, background: 'rgba(255,255,255,.1)', borderRadius: 20, padding: '1px 8px', color: 'inherit',
+};
+const unreadDot: React.CSSProperties = {
+  position: 'absolute', top: -6, right: -6, minWidth: 18, height: 18, padding: '0 4px',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  fontSize: 10.5, fontWeight: 900, lineHeight: 1, color: '#08111f',
+  background: 'var(--blue)', borderRadius: 20,
+  boxShadow: '0 0 0 2px var(--bg, #08111f), 0 2px 8px color-mix(in srgb, var(--blue) 55%, transparent)',
 };

@@ -14,9 +14,15 @@ export type SSEIdentity = {
 // events; a client receives one whose `clientId` matches their linked client,
 // and a driver receives one whose `driverId` matches their linked driver.
 // Omitting the audience entirely broadcasts to every connection.
+//
+// `roles` is an explicit allow-list: when present it overrides the default
+// staff/client/driver routing and delivers ONLY to connections whose role is
+// listed (e.g. `{ roles: ['admin', 'authority'] }` for admin-only alerts that
+// must reach the `authority` super-admin, which is not part of STAFF_ROLES).
 export type SSEAudience = {
   clientId?: number | null;
   driverId?: number | null;
+  roles?: string[];
 };
 
 const STAFF_ROLES = new Set(['admin', 'dispatcher', 'plant_operator']);
@@ -34,6 +40,10 @@ function clientMayReceive(client: SSEClient, audience?: SSEAudience): boolean {
   const identity = client.identity;
   // Identity-less observers (e.g. test capture clients) receive everything.
   if (!identity) return true;
+  // An explicit role allow-list takes precedence over the default routing so
+  // an alert can be scoped to exactly the named roles (including `authority`,
+  // which STAFF_ROLES does not cover).
+  if (audience.roles) return audience.roles.includes(identity.role);
   // Staff see all order/trip activity.
   if (STAFF_ROLES.has(identity.role)) return true;
   if (identity.role === 'client') {

@@ -107,7 +107,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       showToast(`Load ${d.challanNo} (${d.grade})${where} ${verb} — pour now`, 'error');
     });
 
-    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); };
+    // A customer asked to onboard a discovered plant (admins/authority only,
+    // scoped server-side). Prompts staff to open the Onboarding-requests tab.
+    const unsubInvite = subscribe('plant.invite', (data: unknown) => {
+      const d = data as { name?: string; requestedByName?: string | null };
+      if (!d?.name) return;
+      const who = d.requestedByName ? ` by ${d.requestedByName}` : '';
+      showToast(`New plant onboarding request${who}: ${d.name}`, 'info');
+    });
+
+    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); unsubInvite(); };
   }, [subscribe, showToast, isClient]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';

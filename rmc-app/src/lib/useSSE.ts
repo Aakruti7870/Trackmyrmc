@@ -92,6 +92,10 @@ export function useSSE() {
         dispatchEvent('order.updated', JSON.parse(e.data));
       });
 
+      es.addEventListener('plant.invite', (e: MessageEvent) => {
+        dispatchEvent('plant.invite', JSON.parse(e.data));
+      });
+
       es.addEventListener('ping', () => {});
     }
 
