@@ -40,10 +40,18 @@ async function getOrCreateConversation(userId, sessionId, role, scopePlantId) {
         .where(and(eq(aiConversations.sessionId, sessionId), eq(aiConversations.userId, userId)));
     if (existing)
         return existing;
+    // Uniqueness is on (sessionId, userId): two different users may legitimately
+    // reuse the same client-generated sessionId, so onConflictDoNothing only fires
+    // when THIS user races itself (concurrent first turns on one session) — in
+    // which case we fall back to reading the row the other request just created.
     const [created] = await db.insert(aiConversations).values({
         sessionId, userId, plantId: scopePlantId, role,
-    }).returning();
-    return created;
+    }).onConflictDoNothing({ target: [aiConversations.sessionId, aiConversations.userId] }).returning();
+    if (created)
+        return created;
+    const [raced] = await db.select().from(aiConversations)
+        .where(and(eq(aiConversations.sessionId, sessionId), eq(aiConversations.userId, userId)));
+    return raced;
 }
 router.post('/chat', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_chat' }), async (req, res) => {
     const cfg = await getAiSettings();
@@ -136,7 +144,7 @@ async function persistMessage(conversationId, sessionId, userId, plantId, messag
 // Raise a support ticket when the AI can't help or the user asks for a human.
 // Plant-scoped to the user's derived identity; clientId is attached when the
 // user is a linked customer.
-router.post('/support-ticket', async (req, res) => {
+router.post('/support-ticket', rateLimit({ windowMs: 60_000, max: 5, name: 'ai_support_ticket' }), async (req, res) => {
     const user = req.user;
     const { subject, message, contactInfo, selectedPlantId } = req.body ?? {};
     if (typeof message !== 'string' || !message.trim()) {

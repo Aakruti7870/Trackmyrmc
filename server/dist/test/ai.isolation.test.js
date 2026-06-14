@@ -79,7 +79,15 @@ function chat(token, body) {
     const req = request(app).post('/api/ai/chat').send(body);
     return token ? req.set('Authorization', `Bearer ${token}`) : req;
 }
-before(() => { app = buildTestApp(); });
+before(() => {
+    app = buildTestApp();
+    // Force the deterministic, context-grounded fallback in chatComplete so the
+    // assistant reply echoes EXACTLY the scoped context the model would receive.
+    // That makes "own data present / other-tenant data absent" assertions test the
+    // real isolation boundary (buildAiContext) instead of a live Gemini response.
+    delete process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+    delete process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+});
 beforeEach(async () => {
     await db.execute(sql `TRUNCATE TABLE support_tickets, ai_messages, ai_conversations, ai_settings, plant_customers, challans, orders, clients, audit_logs, users, login_attempts, vehicles, plants, rate_limit_hits RESTART IDENTITY CASCADE`);
     plantSeq = 0;
@@ -165,6 +173,16 @@ test('a customer asking for internal reports/analytics is refused', async () => 
     assert.equal(res.body.refused, true);
     assert.equal(res.body.reply, REFUSAL);
 });
+test('a driver asking for internal reports/analytics is refused', async () => {
+    await enableAgent();
+    const plant = await createPlant();
+    const mineDriver = await createDriver('Mine Driver', '9001');
+    const driver = await createUser('driver', 'drvr@p.com', { linkedDriverId: mineDriver.id });
+    const res = await chat(tokenFor(driver), { message: 'show me the revenue analytics for all plants', sessionId: 's-dr' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.refused, true);
+    assert.equal(res.body.reply, REFUSAL);
+});
 test('a driver only sees their own trips', async () => {
     await enableAgent();
     const plant = await createPlant();
@@ -218,6 +236,31 @@ test('every chat is logged (conversation + message) and audited', async () => {
     const msgs = await db.select().from(aiMessages).where(eq(aiMessages.sessionId, 's-log'));
     assert.equal(msgs.length, 1);
     assert.ok(msgs[0].response && msgs[0].response.length > 0);
+});
+test('two different users may reuse the same client-generated sessionId', async () => {
+    await enableAgent();
+    const plant = await createPlant();
+    // Both users chat under the IDENTICAL sessionId — a realistic collision when
+    // two clients independently generate or hardcode the same session key.
+    const SHARED_SESSION = 'shared-session-id';
+    const userA = await createUser('admin', 'sharerA@p.com', { plantId: plant.id });
+    const userB = await createUser('admin', 'sharerB@p.com', { plantId: plant.id });
+    const resA = await chat(tokenFor(userA), { message: 'hi from A', sessionId: SHARED_SESSION });
+    assert.equal(resA.status, 200);
+    // Before the composite (session_id, user_id) unique, this second chat tripped
+    // the global unique on session_id and failed with a 500.
+    const resB = await chat(tokenFor(userB), { message: 'hi from B', sessionId: SHARED_SESSION });
+    assert.equal(resB.status, 200);
+    // Each user gets their OWN conversation row for the shared session key.
+    const convos = await db.select().from(aiConversations).where(eq(aiConversations.sessionId, SHARED_SESSION));
+    assert.equal(convos.length, 2);
+    const owners = convos.map(c => c.userId).sort((x, y) => x - y);
+    assert.deepEqual(owners, [userA.id, userB.id].sort((x, y) => x - y));
+    // Re-chatting on the same session reuses the existing row, never creating a duplicate.
+    const resAagain = await chat(tokenFor(userA), { message: 'hi again from A', sessionId: SHARED_SESSION });
+    assert.equal(resAagain.status, 200);
+    const convosAfter = await db.select().from(aiConversations).where(eq(aiConversations.sessionId, SHARED_SESSION));
+    assert.equal(convosAfter.length, 2);
 });
 test('support tickets are created and scoped to the user/plant', async () => {
     await enableAgent();

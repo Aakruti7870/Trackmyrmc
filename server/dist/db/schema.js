@@ -552,7 +552,11 @@ export const aiConversations = pgTable('ai_conversations', {
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
-    uniqueIndex('ai_conversations_session_unique').on(t.sessionId),
+    // Conversations are per-user: the same client-generated sessionId may legitimately
+    // be reused by two different accounts, so uniqueness is scoped to (sessionId,
+    // userId) rather than sessionId alone. A global unique on sessionId would make
+    // getOrCreateConversation throw a 500 when two users collide on a session key.
+    uniqueIndex('ai_conversations_session_user_unique').on(t.sessionId, t.userId),
     index('ai_conversations_user_idx').on(t.userId),
 ]);
 // Each message turn: the user's `message` and the assistant's `response`, with

@@ -45,10 +45,17 @@ async function getOrCreateConversation(userId: number, sessionId: string, role: 
   const [existing] = await db.select().from(aiConversations)
     .where(and(eq(aiConversations.sessionId, sessionId), eq(aiConversations.userId, userId)));
   if (existing) return existing;
+  // Uniqueness is on (sessionId, userId): two different users may legitimately
+  // reuse the same client-generated sessionId, so onConflictDoNothing only fires
+  // when THIS user races itself (concurrent first turns on one session) — in
+  // which case we fall back to reading the row the other request just created.
   const [created] = await db.insert(aiConversations).values({
     sessionId, userId, plantId: scopePlantId, role,
-  }).returning();
-  return created;
+  }).onConflictDoNothing({ target: [aiConversations.sessionId, aiConversations.userId] }).returning();
+  if (created) return created;
+  const [raced] = await db.select().from(aiConversations)
+    .where(and(eq(aiConversations.sessionId, sessionId), eq(aiConversations.userId, userId)));
+  return raced;
 }
 
 router.post('/chat', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_chat' }), async (req, res) => {
