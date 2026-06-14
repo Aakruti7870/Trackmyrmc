@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { hashPassword } from '../lib/password.js';
 import { sendWelcomeEmail, sendOwnerInviteEmail, sendPlantInviteNotification } from '../lib/email.js';
-import { getPlantInviteNotifyConfig } from '../lib/plantInviteNotify.js';
+import { getPlantInviteNotifyConfig, DEFAULT_PLANT_INVITE_EMAIL_ENABLED, DEFAULT_PLANT_INVITE_NOTIFY_ROLES, } from '../lib/plantInviteNotify.js';
 import { createInviteToken } from '../lib/inviteToken.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { discoverConcretePlants, isDiscoveryConfigured } from '../lib/places.js';
@@ -204,35 +204,52 @@ router.post('/invite', async (req, res) => {
     // intentionally silent to avoid spam. Fire-and-forget AFTER responding so a
     // slow SMTP server never delays the customer's request.
     if (!deduped) {
-        // In-app SSE toast for admins (incl. the `authority` super-admin, which is
-        // outside STAFF_ROLES — hence the explicit role allow-list).
-        emitSSEEvent('plant.invite', {
-            id: row.id,
-            name: row.name,
-            address: row.address,
-            requestedByName: row.lastRequestedByName,
-        }, { roles: ['admin', 'authority'] });
         void (async () => {
+            // Resolve the configured audience once. On any failure fall back to the
+            // built-in defaults so the in-app toast still reaches admins.
+            let notifyCfg;
             try {
-                // The in-app SSE toast above always fires (cheap, non-intrusive). The
-                // email is opt-out via an admin setting, and admins can override the
-                // default all-admins audience with an explicit recipient list.
-                const notifyCfg = await getPlantInviteNotifyConfig();
+                notifyCfg = await getPlantInviteNotifyConfig();
+            }
+            catch (err) {
+                console.error('[plants] Failed to load plant-request notification config:', err);
+                notifyCfg = {
+                    emailEnabled: DEFAULT_PLANT_INVITE_EMAIL_ENABLED,
+                    roles: DEFAULT_PLANT_INVITE_NOTIFY_ROLES,
+                    recipients: [],
+                };
+            }
+            // In-app SSE toast, scoped to the chosen staff roles. When no roles are
+            // selected we still alert admins + authority so the in-app heads-up is
+            // never silently lost (the `authority` super-admin is outside STAFF_ROLES,
+            // hence an explicit allow-list either way).
+            const toastRoles = notifyCfg.roles.length > 0 ? notifyCfg.roles : DEFAULT_PLANT_INVITE_NOTIFY_ROLES;
+            emitSSEEvent('plant.invite', {
+                id: row.id,
+                name: row.name,
+                address: row.address,
+                requestedByName: row.lastRequestedByName,
+            }, { roles: toastRoles });
+            // The toast above always fires (cheap, non-intrusive). The email is
+            // opt-out via an admin setting; its audience = active users in the chosen
+            // roles PLUS any explicit extra recipient mailboxes.
+            try {
                 if (!notifyCfg.emailEnabled)
                     return;
-                let emails;
-                if (notifyCfg.recipients.length > 0) {
-                    emails = notifyCfg.recipients;
-                }
-                else {
-                    const admins = await db
+                const emails = new Set();
+                for (const e of notifyCfg.recipients)
+                    emails.add(e);
+                if (notifyCfg.roles.length > 0) {
+                    const staff = await db
                         .select({ email: users.email })
                         .from(users)
-                        .where(and(isNull(users.deletedAt), eq(users.isActive, true), inArray(users.role, ['admin', 'authority'])));
-                    emails = admins.map(a => a.email).filter(Boolean);
+                        .where(and(isNull(users.deletedAt), eq(users.isActive, true), inArray(users.role, notifyCfg.roles)));
+                    for (const s of staff)
+                        if (s.email)
+                            emails.add(s.email);
                 }
-                if (emails.length > 0) {
-                    await sendPlantInviteNotification(emails, {
+                if (emails.size > 0) {
+                    await sendPlantInviteNotification([...emails], {
                         plantName: row.name,
                         address: row.address,
                         contactNumber: row.contactNumber,

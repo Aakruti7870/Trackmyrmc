@@ -108,13 +108,14 @@ test('a NEW invite emails admins+authority and toasts them over SSE (not staff/c
             .send(LEAD);
         assert.equal(res.status, 201);
         assert.equal(res.body.deduped, false);
+        // The toast + email both fire after the response (fire-and-forget), so wait.
+        await flush();
         // SSE: only admin + authority receive the alert.
         assert.ok(adminSSE.events().includes('plant.invite'), 'admin receives plant.invite');
         assert.ok(authoritySSE.events().includes('plant.invite'), 'authority receives plant.invite');
         assert.ok(!dispatcherSSE.events().includes('plant.invite'), 'a dispatcher must NOT receive it');
         assert.ok(!clientSSE.events().includes('plant.invite'), 'a client must NOT receive it');
         // Email: sent once to exactly the admin + authority mailboxes.
-        await flush();
         assert.equal(inviteCalls.length, 1, 'the mailer is invoked exactly once');
         assert.equal(inviteCalls[0].plantName, LEAD.name);
         assert.deepEqual([...inviteCalls[0].emails].sort(), [admin.email, authority.email].sort(), 'only admin + authority mailboxes are notified');
@@ -185,15 +186,18 @@ test('disabling the email setting suppresses the mailer but still toasts admins'
         adminSSE.close();
     }
 });
-test('a configured recipient list replaces the default all-admins audience', async () => {
+test('extra recipients are emailed on top of the role-based audience', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const customer = await createUser({ name: 'Cust', email: 'cust@test.com', role: 'client' });
+    // Default roles = admin + authority. Adding an extra mailbox should AUGMENT
+    // (not replace) that audience.
     const save = await request(app)
         .post('/api/admin/plant-invite-notify')
         .set('Authorization', `Bearer ${tokenFor(admin)}`)
-        .send({ recipients: 'onboarding@team.com, dispatch@team.com' });
+        .send({ recipients: 'onboarding@team.com' });
     assert.equal(save.status, 200);
-    assert.deepEqual(save.body.recipients, ['onboarding@team.com', 'dispatch@team.com']);
+    assert.deepEqual(save.body.recipients, ['onboarding@team.com']);
+    assert.deepEqual(save.body.roles, ['admin', 'authority']);
     const res = await request(app)
         .post('/api/plants/invite')
         .set('Authorization', `Bearer ${tokenFor(customer)}`)
@@ -201,7 +205,59 @@ test('a configured recipient list replaces the default all-admins audience', asy
     assert.equal(res.status, 201);
     await flush();
     assert.equal(inviteCalls.length, 1, 'the mailer is invoked once');
-    assert.deepEqual([...inviteCalls[0].emails].sort(), ['dispatch@team.com', 'onboarding@team.com'], 'only the configured mailboxes are notified — NOT the admin row');
+    assert.deepEqual([...inviteCalls[0].emails].sort(), ['admin@test.com', 'onboarding@team.com'].sort(), 'the admin row AND the extra mailbox are both notified');
+});
+test('clearing the roles routes the email to only the explicit recipients', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const customer = await createUser({ name: 'Cust', email: 'cust@test.com', role: 'client' });
+    const save = await request(app)
+        .post('/api/admin/plant-invite-notify')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`)
+        .send({ roles: [], recipients: 'shared@team.com' });
+    assert.equal(save.status, 200);
+    assert.deepEqual(save.body.roles, []);
+    const res = await request(app)
+        .post('/api/plants/invite')
+        .set('Authorization', `Bearer ${tokenFor(customer)}`)
+        .send(LEAD);
+    assert.equal(res.status, 201);
+    await flush();
+    assert.equal(inviteCalls.length, 1, 'the mailer is invoked once');
+    assert.deepEqual([...inviteCalls[0].emails], ['shared@team.com'], 'with no roles selected only the explicit mailbox is notified — NOT the admin row');
+});
+test('a chosen role resolves to its active members for both the toast and the email', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const dispatcher = await createUser({ name: 'Dispatch', email: 'dispatch@test.com', role: 'dispatcher' });
+    await createUser({ name: 'Idle Dispatch', email: 'idle@test.com', role: 'dispatcher' });
+    const customer = await createUser({ name: 'Cust', email: 'cust@test.com', role: 'client' });
+    // Deactivate one dispatcher so we prove only ACTIVE members are resolved.
+    await db.execute(sql `UPDATE users SET is_active = false WHERE email = 'idle@test.com'`);
+    const save = await request(app)
+        .post('/api/admin/plant-invite-notify')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`)
+        .send({ roles: ['dispatcher'] });
+    assert.equal(save.status, 200);
+    assert.deepEqual(save.body.roles, ['dispatcher']);
+    const adminSSE = captureSSE({ role: 'admin' });
+    const dispatcherSSE = captureSSE({ role: 'dispatcher' });
+    try {
+        const res = await request(app)
+            .post('/api/plants/invite')
+            .set('Authorization', `Bearer ${tokenFor(customer)}`)
+            .send(LEAD);
+        assert.equal(res.status, 201);
+        await flush();
+        // SSE toast follows the chosen role: dispatchers in, admins out.
+        assert.ok(dispatcherSSE.events().includes('plant.invite'), 'a dispatcher receives the toast');
+        assert.ok(!adminSSE.events().includes('plant.invite'), 'an admin no longer receives the toast');
+        // Email goes to the active dispatcher only.
+        assert.equal(inviteCalls.length, 1, 'the mailer is invoked once');
+        assert.deepEqual([...inviteCalls[0].emails], [dispatcher.email], 'only the active dispatcher is notified (the deactivated one is skipped)');
+    }
+    finally {
+        adminSSE.close();
+        dispatcherSSE.close();
+    }
 });
 test('an invalid recipient email is rejected with a 400 and persists nothing', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });

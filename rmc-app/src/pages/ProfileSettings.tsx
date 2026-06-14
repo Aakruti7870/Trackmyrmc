@@ -50,6 +50,16 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
+// Staff roles an admin may pick as the new-plant-request notification audience.
+// Mirrors PLANT_INVITE_NOTIFY_ROLES on the server (client/driver excluded).
+const INVITE_NOTIFY_ROLES = ['admin', 'authority', 'dispatcher', 'plant_operator'] as const;
+const ROLE_LABEL: Record<(typeof INVITE_NOTIFY_ROLES)[number], string> = {
+  admin: 'Admin',
+  authority: 'Authority',
+  dispatcher: 'Dispatcher',
+  plant_operator: 'Plant Operator',
+};
+
 type SmtpTestLog = {
   id: number;
   action: string;
@@ -177,7 +187,7 @@ export default function ProfileSettings() {
   const [varianceLoading, setVarianceLoading] = useState(false);
   const [varianceSaving, setVarianceSaving] = useState(false);
 
-  const [inviteNotifyForm, setInviteNotifyForm] = useState({ emailEnabled: true, recipients: '' });
+  const [inviteNotifyForm, setInviteNotifyForm] = useState<{ emailEnabled: boolean; roles: string[]; recipients: string }>({ emailEnabled: true, roles: ['admin', 'authority'], recipients: '' });
   const [inviteNotifyLoading, setInviteNotifyLoading] = useState(false);
   const [inviteNotifySaving, setInviteNotifySaving] = useState(false);
 
@@ -306,9 +316,9 @@ export default function ProfileSettings() {
     async function loadInviteNotify() {
       setInviteNotifyLoading(true);
       try {
-        const v = await api.get<{ emailEnabled: boolean; recipients: string[] }>('/admin/plant-invite-notify');
+        const v = await api.get<{ emailEnabled: boolean; roles: string[]; recipients: string[] }>('/admin/plant-invite-notify');
         if (cancelled) return;
-        setInviteNotifyForm({ emailEnabled: v.emailEnabled, recipients: v.recipients.join(', ') });
+        setInviteNotifyForm({ emailEnabled: v.emailEnabled, roles: v.roles ?? [], recipients: v.recipients.join(', ') });
       } catch {
         /* non-fatal — keep defaults */
       } finally {
@@ -632,11 +642,11 @@ export default function ProfileSettings() {
     }
     setInviteNotifySaving(true);
     try {
-      const updated = await api.post<{ emailEnabled: boolean; recipients: string[] }>(
+      const updated = await api.post<{ emailEnabled: boolean; roles: string[]; recipients: string[] }>(
         '/admin/plant-invite-notify',
-        { emailEnabled: inviteNotifyForm.emailEnabled, recipients },
+        { emailEnabled: inviteNotifyForm.emailEnabled, roles: inviteNotifyForm.roles, recipients },
       );
-      setInviteNotifyForm({ emailEnabled: updated.emailEnabled, recipients: updated.recipients.join(', ') });
+      setInviteNotifyForm({ emailEnabled: updated.emailEnabled, roles: updated.roles ?? [], recipients: updated.recipients.join(', ') });
       showToast('Notification settings saved.', 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to save notification settings';
@@ -1281,13 +1291,41 @@ export default function ProfileSettings() {
                 </span>
               </label>
 
+              <div style={{ marginBottom: 16 }}>
+                <label style={label}>Notify these staff roles</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px', marginTop: 4 }}>
+                  {INVITE_NOTIFY_ROLES.map(role => {
+                    const checked = inviteNotifyForm.roles.includes(role);
+                    return (
+                      <label
+                        key={role}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={e => setInviteNotifyForm(f => ({
+                            ...f,
+                            roles: e.target.checked
+                              ? [...f.roles, role]
+                              : f.roles.filter(r => r !== role),
+                          }))}
+                          style={{ width: 15, height: 15, accentColor: 'var(--gold)', cursor: 'pointer' }}
+                        />
+                        <span style={{ fontSize: 13, color: 'var(--text)' }}>{ROLE_LABEL[role]}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
-                <label style={label} htmlFor="invite-recipients">Recipients (optional)</label>
+                <label style={label} htmlFor="invite-recipients">Extra recipients (optional)</label>
                 <textarea
                   id="invite-recipients"
                   value={inviteNotifyForm.recipients}
                   onChange={e => setInviteNotifyForm(f => ({ ...f, recipients: e.target.value }))}
-                  placeholder="Leave blank to notify all admins"
+                  placeholder="e.g. onboarding@yourcompany.com"
                   disabled={!inviteNotifyForm.emailEnabled}
                   rows={2}
                   style={{
@@ -1300,10 +1338,10 @@ export default function ProfileSettings() {
               </div>
 
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
-                The in-app alert is always shown to admins. When the email is on and you list one or more
-                addresses here (comma or newline separated), the email goes <strong style={{ color: 'var(--text)' }}>only</strong> to
-                those mailboxes — handy for a single shared inbox or to include dispatchers. Leave it blank to
-                email every active admin &amp; authority.
+                Every active user in a checked role is emailed (and gets the in-app alert), so the audience stays
+                correct as staff come and go. Add any extra addresses above (comma or newline separated) for a
+                shared inbox or an outside mailbox — they're notified <strong style={{ color: 'var(--text)' }}>in addition</strong> to
+                the chosen roles. With no roles checked, the in-app alert still goes to admins.
               </div>
 
               <button

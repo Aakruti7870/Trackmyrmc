@@ -10,8 +10,11 @@ import { getVarianceTolerance, VARIANCE_KEYS, DEFAULT_VARIANCE_ABS, DEFAULT_VARI
 import {
   getPlantInviteNotifyConfig,
   parseRecipients,
+  serializeRoles,
   PLANT_INVITE_NOTIFY_KEYS,
+  PLANT_INVITE_NOTIFY_ROLES,
   DEFAULT_PLANT_INVITE_EMAIL_ENABLED,
+  DEFAULT_PLANT_INVITE_NOTIFY_ROLES,
 } from '../lib/plantInviteNotify.js';
 import {
   getFreshnessConfig,
@@ -255,18 +258,26 @@ router.post('/variance-tolerance', async (req, res) => {
   res.json({ ...after, defaults: { abs: DEFAULT_VARIANCE_ABS, pct: DEFAULT_VARIANCE_PCT } });
 });
 
+const PLANT_INVITE_NOTIFY_DEFAULTS = {
+  emailEnabled: DEFAULT_PLANT_INVITE_EMAIL_ENABLED,
+  roles: DEFAULT_PLANT_INVITE_NOTIFY_ROLES,
+  availableRoles: PLANT_INVITE_NOTIFY_ROLES,
+};
+
 router.get('/plant-invite-notify', async (_req, res) => {
   res.json({
     ...(await getPlantInviteNotifyConfig()),
-    defaults: { emailEnabled: DEFAULT_PLANT_INVITE_EMAIL_ENABLED },
+    defaults: PLANT_INVITE_NOTIFY_DEFAULTS,
   });
 });
 
 // emailEnabled toggles whether the email is sent at all (the in-app toast always
-// fires). recipients is an optional comma/newline-separated list that, when set,
-// REPLACES the default all-admins audience; blank reverts to all admins.
+// fires). roles is the staff audience: every active user in one of the chosen
+// roles is notified (email + SSE toast). recipients is an optional list of extra
+// mailboxes ADDED on top of the role-based audience.
 const plantInviteNotifySchema = z.object({
   emailEnabled: z.boolean().optional(),
+  roles: z.array(z.enum(PLANT_INVITE_NOTIFY_ROLES)).optional(),
   recipients: z
     .string()
     .max(2000)
@@ -284,11 +295,17 @@ router.post('/plant-invite-notify', async (req, res) => {
     return;
   }
 
-  const { emailEnabled, recipients } = parse.data;
+  const { emailEnabled, roles, recipients } = parse.data;
   const before = await getPlantInviteNotifyConfig();
 
   if (emailEnabled !== undefined) {
     await setSetting(PLANT_INVITE_NOTIFY_KEYS.emailEnabled, String(emailEnabled));
+  }
+  if (roles !== undefined) {
+    // Persist the canonical, de-duplicated list. Store '' for an empty selection
+    // so it reads back as an explicit "no roles" rather than reverting to the
+    // default admin + authority audience.
+    await setSetting(PLANT_INVITE_NOTIFY_KEYS.roles, serializeRoles(roles));
   }
   if (recipients !== undefined) {
     const cleaned = parseRecipients(recipients);
@@ -301,11 +318,18 @@ router.post('/plant-invite-notify', async (req, res) => {
   if (before.emailEnabled !== after.emailEnabled) {
     changed.push(`email ${after.emailEnabled ? 'enabled' : 'disabled'}`);
   }
+  if (before.roles.join(',') !== after.roles.join(',')) {
+    changed.push(
+      after.roles.length
+        ? `roles set to ${after.roles.join(', ')}`
+        : 'roles cleared (no role-based audience)',
+    );
+  }
   if (before.recipients.join(', ') !== after.recipients.join(', ')) {
     changed.push(
       after.recipients.length
-        ? `recipients set to ${after.recipients.length} address(es)`
-        : 'recipients reset to all admins',
+        ? `extra recipients set to ${after.recipients.length} address(es)`
+        : 'extra recipients cleared',
     );
   }
 
@@ -327,7 +351,7 @@ router.post('/plant-invite-notify', async (req, res) => {
     console.error('[admin] Failed to write plant-invite notification audit log:', err);
   }
 
-  res.json({ ...after, defaults: { emailEnabled: DEFAULT_PLANT_INVITE_EMAIL_ENABLED } });
+  res.json({ ...after, defaults: PLANT_INVITE_NOTIFY_DEFAULTS });
 });
 
 router.get('/freshness-settings', async (_req, res) => {
