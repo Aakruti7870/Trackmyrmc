@@ -116,14 +116,7 @@ export async function* chatCompleteStream(req) {
     const decoder = new TextDecoder();
     let buffer = '';
     let full = '';
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done)
-            break;
-        buffer += decoder.decode(value, { stream: true });
-        // SSE frames are separated by blank lines; process complete lines only.
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
+    function* drain(lines) {
         for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed.startsWith('data:'))
@@ -143,6 +136,22 @@ export async function* chatCompleteStream(req) {
                 // Ignore partial/non-JSON keep-alive frames.
             }
         }
+    }
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done)
+            break;
+        buffer += decoder.decode(value, { stream: true });
+        // SSE frames are separated by blank lines; process complete lines only.
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        yield* drain(lines);
+    }
+    // Flush any trailing line left in the buffer if the stream ended without a
+    // final newline (some providers omit it on the last frame).
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+        yield* drain([buffer]);
     }
     if (!full.trim()) {
         throw new GeminiError('The AI service returned an empty response.', 502);

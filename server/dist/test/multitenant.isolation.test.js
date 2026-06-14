@@ -468,6 +468,11 @@ test('fuel reconciliation is plant-scoped: a plant only sees its own vehicles\' 
     assert.equal(csvA.status, 200);
     assert.match(csvA.text, /FR-A-1",100,/, 'plant A CSV reflects its own vehicle\'s KM');
     assert.doesNotMatch(csvA.text, /FR-B-1/, 'plant A CSV never shows plant B\'s vehicle');
+    const csvB = await request(app).get('/api/reports/export?report=fuel-reconciliation')
+        .set('Authorization', `Bearer ${tokenFor(staffB)}`);
+    assert.equal(csvB.status, 200);
+    assert.match(csvB.text, /FR-B-1",500,/, 'plant B CSV reflects its own vehicle\'s KM');
+    assert.doesNotMatch(csvB.text, /FR-A-1/, 'plant B CSV never shows plant A\'s vehicle');
 });
 // ----- FLEET (vehicles) isolation -----
 async function createVehicle(plantId, vehicleNo) {

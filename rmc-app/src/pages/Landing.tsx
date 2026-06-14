@@ -13,7 +13,7 @@ const GRADES = ['M20', 'M25', 'M30', 'M35', 'M40', 'M50'];
 
 const MAIL = 'support@goldetech.com';
 const PHONE = '+91 74982 86760';
-const ONBOARD_MAIL = 'krushnabade54@gmail.com';
+const ONBOARD_MAIL = 'support@goldetech.com';
 
 const FEATURES = [
   { icon: Navigation, color: 'var(--gold)', title: 'Live GPS Tracking',
