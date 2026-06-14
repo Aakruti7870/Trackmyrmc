@@ -1,13 +1,18 @@
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
-import { THEMES, ThemeContext, initialTheme, applyTheme, persistTheme, useTheme } from './theme';
+import { THEMES, ThemeContext, initialTheme, applyTheme, loadThemeFont, persistTheme, useTheme } from './theme';
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState(initialTheme);
 
+  useEffect(() => {
+    loadThemeFont(initialTheme.fontName);
+  }, []);
+
   const setTheme = useCallback((id: string) => {
     const next = THEMES.find(t => t.id === id) || THEMES[0];
     applyTheme(next);
+    loadThemeFont(next.fontName);
     persistTheme(next);
     setThemeState(next);
   }, []);

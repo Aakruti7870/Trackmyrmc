@@ -286,7 +286,6 @@ test('per-plant role limit holds under concurrent provisioning (no double-count 
     .from(users).where(eq(users.role, 'dispatcher'));
   assert.equal(count, 1, 'only one dispatcher persisted despite the race');
 });
-
 test('POST /users gates plant_owner creation to authority only', async () => {
   const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
 

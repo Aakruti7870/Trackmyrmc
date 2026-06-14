@@ -115,11 +115,33 @@ export const THEMES: Theme[] = [
 
 const STORAGE_KEY = 'rmc-theme';
 
+const FONT_URLS: Record<string, string> = {
+  'Sora':             'https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap',
+  'Plus Jakarta Sans':'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+  'Space Grotesk':    'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap',
+  'Manrope':          'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap',
+  'Outfit':           'https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap',
+};
+
 export function applyTheme(theme: Theme) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   for (const [k, v] of Object.entries(theme.tokens)) root.style.setProperty(k, v);
   root.style.setProperty('--font-app', theme.font);
+}
+
+export function loadThemeFont(fontName: string) {
+  if (typeof document === 'undefined') return;
+  const url = FONT_URLS[fontName];
+  if (!url) return;
+  let link = document.getElementById('gf-theme-font') as HTMLLinkElement | null;
+  if (!link) {
+    link = document.createElement('link');
+    link.id = 'gf-theme-font';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+  }
+  if (link.href !== url) link.href = url;
 }
 
 function readStored(): Theme {
