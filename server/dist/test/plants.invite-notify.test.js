@@ -86,7 +86,7 @@ before(() => {
     app = buildTestApp();
 });
 beforeEach(async () => {
-    await db.execute(sql `TRUNCATE TABLE plant_invites, users RESTART IDENTITY CASCADE`);
+    await db.execute(sql `TRUNCATE TABLE plant_invites, users, app_settings RESTART IDENTITY CASCADE`);
     inviteCalls = [];
 });
 after(async () => {
@@ -159,4 +159,59 @@ test('a new request with no admins in the system sends no email and does not err
     assert.equal(inviteCalls.length, 0, 'no admins => the mailer is never called');
     const rows = await db.select().from(plantInvites);
     assert.equal(rows.length, 1, 'the invite is still recorded');
+});
+test('disabling the email setting suppresses the mailer but still toasts admins', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const customer = await createUser({ name: 'Cust', email: 'cust@test.com', role: 'client' });
+    // Admin turns the email notification off via the settings endpoint.
+    const save = await request(app)
+        .post('/api/admin/plant-invite-notify')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`)
+        .send({ emailEnabled: false });
+    assert.equal(save.status, 200);
+    assert.equal(save.body.emailEnabled, false);
+    const adminSSE = captureSSE({ role: 'admin' });
+    try {
+        const res = await request(app)
+            .post('/api/plants/invite')
+            .set('Authorization', `Bearer ${tokenFor(customer)}`)
+            .send(LEAD);
+        assert.equal(res.status, 201);
+        await flush();
+        assert.equal(inviteCalls.length, 0, 'email disabled => the mailer is never called');
+        assert.ok(adminSSE.events().includes('plant.invite'), 'the in-app toast still fires regardless');
+    }
+    finally {
+        adminSSE.close();
+    }
+});
+test('a configured recipient list replaces the default all-admins audience', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const customer = await createUser({ name: 'Cust', email: 'cust@test.com', role: 'client' });
+    const save = await request(app)
+        .post('/api/admin/plant-invite-notify')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`)
+        .send({ recipients: 'onboarding@team.com, dispatch@team.com' });
+    assert.equal(save.status, 200);
+    assert.deepEqual(save.body.recipients, ['onboarding@team.com', 'dispatch@team.com']);
+    const res = await request(app)
+        .post('/api/plants/invite')
+        .set('Authorization', `Bearer ${tokenFor(customer)}`)
+        .send(LEAD);
+    assert.equal(res.status, 201);
+    await flush();
+    assert.equal(inviteCalls.length, 1, 'the mailer is invoked once');
+    assert.deepEqual([...inviteCalls[0].emails].sort(), ['dispatch@team.com', 'onboarding@team.com'], 'only the configured mailboxes are notified — NOT the admin row');
+});
+test('an invalid recipient email is rejected with a 400 and persists nothing', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const save = await request(app)
+        .post('/api/admin/plant-invite-notify')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`)
+        .send({ recipients: 'not-an-email' });
+    assert.equal(save.status, 400);
+    const cfg = await request(app)
+        .get('/api/admin/plant-invite-notify')
+        .set('Authorization', `Bearer ${tokenFor(admin)}`);
+    assert.deepEqual(cfg.body.recipients, [], 'the bad value was not persisted');
 });

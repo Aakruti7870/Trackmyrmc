@@ -52,11 +52,10 @@ export function rateLimit({ windowMs, max, name = 'default', }) {
         }
     };
 }
-// Purge rate-limit windows whose reset time has already passed. The middleware
-// also cleans opportunistically, but that only fires when a request comes in;
-// on a low-traffic instance expired rows would otherwise linger forever. A
-// periodic background call keeps the table bounded regardless of traffic. The
-// DELETE is idempotent and safe to run from multiple instances concurrently.
+// Purge rate-limit windows whose reset time has already passed. The middleware no
+// longer cleans inline, so this periodic background call is the sole mechanism
+// that keeps the table bounded regardless of traffic. The DELETE is idempotent
+// and safe to run from multiple instances concurrently.
 export async function cleanupExpiredRateLimits() {
     const result = await db
         .delete(rateLimitHits)
