@@ -16,8 +16,8 @@ describe('permissions — AUTHORITY super-role', () => {
     expect(ROLE_ALLOWED_PATHS.authority).toEqual(ROLE_ALLOWED_PATHS.admin);
   });
 
-  it('authority lands on the dashboard by default', () => {
-    expect(defaultPath('authority')).toBe('/');
+  it('authority lands on the plant onboarding list by default', () => {
+    expect(defaultPath('authority')).toBe('/plants');
   });
 
   it('lesser roles still cannot reach the admin-only /users screen', () => {

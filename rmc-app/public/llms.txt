@@ -4,9 +4,9 @@
 
 ## Public pages
 
-- Homepage / Landing: https://www.gold-etechapp.com/ — Marketing landing page describing the platform, its features, and how to get started as a customer or plant operator.
-- Login: https://www.gold-etechapp.com/login — Sign in to an existing account (staff, plant operator, driver, or customer).
-- Register: https://www.gold-etechapp.com/register — Create a new customer or operator account.
+- Homepage / Landing: https://www.goldetech.com/ — Marketing landing page describing the platform, its features, and how to get started as a customer or plant operator.
+- Login: https://www.goldetech.com/login — Sign in to an existing account (staff, plant operator, driver, or customer).
+- Register: https://www.goldetech.com/register — Create a new customer or operator account.
 
 ## About
 

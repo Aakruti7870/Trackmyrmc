@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { defaultPath } from '@/lib/permissions';
 
 /**
- * Staff & Authority single sign-on entry. Rendered only when Clerk is
+ * Staff single sign-on entry. Rendered only when Clerk is
  * configured. The glowing crown opens Clerk's modal (email/password, Google,
  * Phone OTP, plus any providers enabled in the Clerk dashboard). Once a Clerk session
  * exists, we exchange its session token for the app's own JWT via
@@ -51,7 +51,7 @@ export default function ClerkStaffLogin({ onError }: { onError: (msg: string) =>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 16px' }}>
         <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.08)' }} />
         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>
-          Staff & Authority
+          Staff
         </span>
         <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.08)' }} />
       </div>
@@ -59,13 +59,13 @@ export default function ClerkStaffLogin({ onError }: { onError: (msg: string) =>
       <SignInButton mode="modal" fallbackRedirectUrl="/login">
         <button type="button" disabled={exchanging} className="crown-sso-btn">
           <Crown size={18} />
-          {exchanging ? 'Signing in…' : 'Authority & Staff Sign-In'}
+          {exchanging ? 'Signing in…' : 'Staff Sign-In'}
         </button>
       </SignInButton>
 
       <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
-        Sign in with email, Google or phone — for admins, dispatchers,
-        plant operators &amp; authority. Clients &amp; drivers use the form above.
+        Sign in with email, Google or phone — for admins, dispatchers
+        &amp; plant operators. Clients &amp; drivers use the form above.
       </p>
     </div>
   );

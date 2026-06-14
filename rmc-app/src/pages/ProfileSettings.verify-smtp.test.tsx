@@ -47,7 +47,7 @@ function renderPage() {
   const ctx: AuthCtx = {
     user: ADMIN,
     loading: false,
-    login: async () => {},
+    login: async () => ({} as User),
     logout: () => {},
     updateUser: () => {},
   };

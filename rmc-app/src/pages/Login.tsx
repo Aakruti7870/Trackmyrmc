@@ -5,6 +5,7 @@ import { api, type User } from '@/lib/api';
 import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle, Phone, MessageCircle, ArrowLeft } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 import { clerkEnabled } from '@/lib/clerk';
+import { defaultPath } from '@/lib/permissions';
 import ClerkStaffLogin from '@/components/ClerkStaffLogin';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 
@@ -50,8 +51,8 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
-      setLoc('/');
+      const loggedIn = await login(email, password);
+      setLoc(defaultPath(loggedIn.role));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

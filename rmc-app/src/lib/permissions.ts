@@ -13,7 +13,7 @@ export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
 };
 
 export const ROLE_DEFAULT_PATH: Record<Role, string> = {
-  authority: '/',
+  authority: '/plants',
   admin: '/',
   dispatcher: '/',
   plant_operator: '/batch-report',

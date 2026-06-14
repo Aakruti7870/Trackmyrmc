@@ -11,7 +11,7 @@ const IMG = (n: string) => `/ck/images/${n}`;
 const VID = (n: string) => `/ck/videos/${n}`;
 const GRADES = ['M20', 'M25', 'M30', 'M35', 'M40', 'M50'];
 
-const MAIL = 'support@goldetechapp.com';
+const MAIL = 'support@goldetech.com';
 const PHONE = '+91 74982 86760';
 const ONBOARD_MAIL = 'krushnabade54@gmail.com';
 

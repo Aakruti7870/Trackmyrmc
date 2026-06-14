@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://www.gold-etechapp.com/sitemap.xml
+Sitemap: https://www.goldetech.com/sitemap.xml

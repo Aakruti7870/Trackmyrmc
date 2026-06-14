@@ -77,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('rmc_token', data.token);
     localStorage.setItem('rmc_user', JSON.stringify(data.user));
     setUser(data.user);
+    return data.user;
   }
 
   function logout() {
