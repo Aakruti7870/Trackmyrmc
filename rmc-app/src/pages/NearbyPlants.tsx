@@ -24,7 +24,10 @@ export interface NearbyPlant {
   distanceKm: number;
 }
 
-const RADIUS_KM = 40;
+// Customers can widen the search when their site is farther from the metro
+// cluster — the default 40 km only reaches the immediate plants.
+const RADIUS_OPTIONS = [40, 80, 150, 250] as const;
+const DEFAULT_RADIUS_KM = 40;
 // Single network-wide help line shown when a customer taps a plant.
 const HELP_CONTACT = '+91 74982 86760';
 const HELP_TEL = '+917498286760';
@@ -58,13 +61,17 @@ export default function NearbyPlants() {
   const [fetchError, setFetchError] = useState('');
   const [view, setView] = useState<'list' | 'map'>('list');
   const [manual, setManual] = useState<LatLng | null>(null);
+  const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
   const focusRef = useRef<number | null>(null);
+  // Mirror the radius in a ref so the geolocation loader can read the latest
+  // value without being recreated (which would re-prompt for location).
+  const radiusRef = useRef(radiusKm);
 
-  const loadPlants = useCallback(async (c: LatLng) => {
+  const loadPlants = useCallback(async (c: LatLng, radius: number) => {
     setPhase('loading');
     setFetchError('');
     try {
-      const data = await api.get<NearbyPlant[]>(`/plants/nearby?lat=${c.lat}&lng=${c.lng}&radius=${RADIUS_KM}`);
+      const data = await api.get<NearbyPlant[]>(`/plants/nearby?lat=${c.lat}&lng=${c.lng}&radius=${radius}`);
       setPlants(data);
       setPhase('ready');
     } catch (e) {
@@ -85,7 +92,7 @@ export default function NearbyPlants() {
         { enableHighAccuracy: true, timeout: 12000 },
       );
     })
-      .then(c => { setCoords(c); return loadPlants(c); })
+      .then(c => { setCoords(c); return loadPlants(c, radiusRef.current); })
       .catch(() => setPhase('geoerror'));
   }, [loadPlants]);
 
@@ -99,7 +106,13 @@ export default function NearbyPlants() {
   function useManualLocation() {
     if (!manual) return;
     setCoords(manual);
-    loadPlants(manual);
+    loadPlants(manual, radiusRef.current);
+  }
+
+  function changeRadius(r: number) {
+    setRadiusKm(r);
+    radiusRef.current = r;
+    if (coords) loadPlants(coords, r);
   }
 
   function placeOrder(p: NearbyPlant) {
@@ -124,11 +137,17 @@ export default function NearbyPlants() {
             <MapPin size={26} style={{ color: 'var(--gold)' }} /> Nearby RMC Plants
           </h1>
           <p style={{ margin: '6px 0 0', color: 'var(--muted)', fontSize: 14 }}>
-            Approved plants delivering within {RADIUS_KM} km of your site, nearest first.
+            Approved plants within {radiusKm} km of your site, nearest first.
           </p>
         </div>
         {phase === 'ready' && (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--muted)' }}>
+              <Navigation size={14} style={{ color: 'var(--gold)' }} />
+              <select value={radiusKm} onChange={e => changeRadius(Number(e.target.value))} style={radiusSelect}>
+                {RADIUS_OPTIONS.map(r => <option key={r} value={r}>Within {r} km</option>)}
+              </select>
+            </label>
             <button onClick={() => setView('list')} style={toggleBtn(view === 'list')}><List size={15} /> List</button>
             <button onClick={() => setView('map')} style={toggleBtn(view === 'map')}><MapIcon size={15} /> Map</button>
             <button onClick={retryLocation} title="Refresh location" style={toggleBtn(false)}><RefreshCw size={15} /></button>
@@ -176,10 +195,17 @@ export default function NearbyPlants() {
           {plants.length === 0 && !fetchError && (
             <div style={centerCard}>
               <MapPin size={30} style={{ color: 'var(--muted)' }} />
-              <div style={{ marginTop: 12, fontWeight: 700, color: 'var(--text)' }}>No approved RMC plants found within {RADIUS_KM} km.</div>
-              <button onClick={() => setPhase('geoerror')} style={{ ...ghostBtn, marginTop: 14 }}>
-                <Navigation size={15} /> Change location
-              </button>
+              <div style={{ marginTop: 12, fontWeight: 700, color: 'var(--text)' }}>No approved RMC plants found within {radiusKm} km.</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {radiusKm < RADIUS_OPTIONS[RADIUS_OPTIONS.length - 1] && (
+                  <button onClick={() => changeRadius(RADIUS_OPTIONS.find(r => r > radiusKm) ?? radiusKm)} style={primaryBtn}>
+                    <Navigation size={15} /> Widen search
+                  </button>
+                )}
+                <button onClick={() => setPhase('geoerror')} style={ghostBtn}>
+                  <Navigation size={15} /> Change location
+                </button>
+              </div>
             </div>
           )}
 
@@ -284,6 +310,10 @@ function toggleBtn(active: boolean): React.CSSProperties {
     border: `1px solid ${active ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'var(--line)'}`,
   };
 }
+const radiusSelect: React.CSSProperties = {
+  appearance: 'none', padding: '8px 13px', borderRadius: 9, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+  background: 'rgba(255,255,255,.04)', color: 'var(--text)', border: '1px solid var(--line)',
+};
 const primaryBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, fontWeight: 800,
   background: 'var(--gold)', color: '#1a1a1a', border: 'none',

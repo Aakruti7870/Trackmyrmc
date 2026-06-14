@@ -41,7 +41,10 @@ router.get('/nearby', async (req, res) => {
         res.status(400).json({ error: 'lat and lng are required' });
         return;
     }
-    const effRadius = Number.isFinite(radius) && radius > 0 ? radius : 40;
+    // Clamp to a sane ceiling: this is a public route, so an unbounded radius would
+    // let a caller enumerate the whole plant directory. 250km is the widest the UI offers.
+    const MAX_RADIUS_KM = 250;
+    const effRadius = Math.min(Number.isFinite(radius) && radius > 0 ? radius : 40, MAX_RADIUS_KM);
     const rows = await db.select().from(plants);
     const nearby = rows
         .filter(p => p.plantStatus === 'approved' && p.isActive && p.locationVerified)

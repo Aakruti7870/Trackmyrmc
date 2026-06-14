@@ -26,3 +26,5 @@
 - [Integration files break prod ESM](integration-esm-extensions.md) — replit_integrations/* use extensionless relative imports; fine under tsx dev but crash prod node ESM (ERR_MODULE_NOT_FOUND). Add .js after (re)installing an integration.
 - [RMC reports/dashboard tenant scoping](rmc-reports-tenant-scoping.md) — EVERY aggregate over challans/orders/clients (incl. forecast history+booked and fuel-reconciliation JSON+CSV) must append plantScope; helper funcs need an explicit actorPlantId param.
 - [drizzle error wrapping](drizzle-error-wrapping.md) — drizzle-orm 0.45 wraps query errors; PG `code`/`constraint` live on `err.cause`, not top-level — read both or 23505 checks silently no-op.
+- [seed.ts is fresh-DB-only](seed-fresh-db-only.md) — full seed breaks on a populated DB (onConflictDoNothing → empty returning → homePlant undefined); add row deltas via direct INSERT…ON CONFLICT, not by re-seeding.
+- [RMC nearby radius](rmc-nearby-radius.md) — customer plant discovery is gated by a UI search radius (default 40km, options up to 250km); backend /plants/nearby clamps radius to 250km max on the public route.
