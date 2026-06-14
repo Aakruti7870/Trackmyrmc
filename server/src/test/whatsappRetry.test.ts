@@ -1,6 +1,7 @@
 import { test, before, beforeEach, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { sql, eq } from 'drizzle-orm';
+import type { Response } from 'express';
 
 // Exercises the out-of-band WhatsApp retry queue: enqueue-on-transient-failure,
 // the backoff schedule, and the runDueWhatsAppRetries scheduler (success,
@@ -26,7 +27,8 @@ mock.module('../lib/whatsapp.js', {
 });
 
 const { db, pool } = await import('../db/index.js');
-const { whatsappRetries } = await import('../db/schema.js');
+const { whatsappRetries, auditLogs } = await import('../db/schema.js');
+const { addSSEClient, removeSSEClient } = await import('../lib/sseEmitter.js');
 const {
   enqueueWhatsAppRetry,
   runDueWhatsAppRetries,
@@ -47,7 +49,33 @@ beforeEach(async () => {
   sendCalls = [];
   sendImpl = () => ({ ok: true, channel: 'whatsapp' });
   await db.execute(sql`TRUNCATE TABLE whatsapp_retries RESTART IDENTITY CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE audit_logs RESTART IDENTITY CASCADE`);
 });
+
+// Registers an identity-less SSE observer (which receives every event) against
+// the real emitter and records the event names + payloads it actually gets.
+function captureSSE() {
+  const events: Array<{ event: string; data: unknown }> = [];
+  const mockRes = {
+    writableEnded: false,
+    destroyed: false,
+    req: { httpVersionMajor: 2 },
+    setHeader() {},
+    flushHeaders() {},
+    write(payload: string) {
+      const m = /^event: (.+)\ndata: (.+)$/m.exec(payload);
+      if (m) events.push({ event: m[1], data: JSON.parse(m[2]) });
+      return true;
+    },
+    end() { (mockRes as { writableEnded: boolean }).writableEnded = true; },
+  };
+  const id = addSSEClient(mockRes as unknown as Response);
+  return { events, close() { removeSSEClient(id); } };
+}
+
+async function auditRows() {
+  return db.select().from(auditLogs);
+}
 
 after(async () => { await pool.end(); });
 
@@ -144,7 +172,8 @@ test('a due retry that fails transiently again is rescheduled with backoff', asy
 
 test('a due retry that fails permanently is dropped (gives up)', async () => {
   const now = new Date('2026-06-14T10:00:00Z');
-  await enqueueWhatsAppRetry({ toPhone: PHONE, templateSid: SID, variables: VARS, now });
+  await enqueueWhatsAppRetry({ toPhone: PHONE, templateSid: SID, variables: VARS, event: 'dispatch', now });
+  const observer = captureSSE();
 
   sendImpl = () => ({ ok: false, channel: 'whatsapp', retryable: false, error: 'template removed' });
   const later = new Date(now.getTime() + backoffDelayMs(1) + 1000);
@@ -152,6 +181,29 @@ test('a due retry that fails permanently is dropped (gives up)', async () => {
 
   assert.deepEqual(result, { sent: 0, retried: 0, gaveUp: 1 });
   assert.equal((await rows()).length, 0);
+
+  // A durable give-up outcome is recorded to the audit log...
+  const audit = await auditRows();
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0].action, 'whatsapp.gave_up');
+  assert.equal(audit[0].status, 'failure');
+  assert.match(audit[0].detail ?? '', /dispatch/);
+  assert.match(audit[0].detail ?? '', new RegExp(PHONE.replace(/\+/g, '\\+')));
+  assert.match(audit[0].detail ?? '', /template removed/);
+  assert.match(audit[0].detail ?? '', /permanently/);
+
+  // ...and a staff-only SSE alert is emitted so dispatchers can call the customer.
+  const alerts = observer.events.filter(e => e.event === 'whatsapp.gave_up');
+  observer.close();
+  assert.equal(alerts.length, 1);
+  assert.deepEqual(alerts[0].data, {
+    event: 'dispatch',
+    toPhone: PHONE,
+    reason: 'permanent_failure',
+    // 1 inline attempt + this final failed background send.
+    totalAttempts: 2,
+    lastError: 'template removed',
+  });
 });
 
 test('a row that is not yet due is left untouched', async () => {
@@ -168,8 +220,9 @@ test('a row that is not yet due is left untouched', async () => {
 test('repeated transient failures stop after MAX_ATTEMPTS total sends', async () => {
   // Enqueue (= inline attempt #1 already failed) then keep failing transiently.
   let clock = new Date('2026-06-14T10:00:00Z');
-  await enqueueWhatsAppRetry({ toPhone: PHONE, templateSid: SID, variables: VARS, now: clock });
+  await enqueueWhatsAppRetry({ toPhone: PHONE, templateSid: SID, variables: VARS, event: 'delivery', now: clock });
   sendImpl = () => ({ ok: false, channel: 'whatsapp', retryable: true, error: 'down' });
+  const observer = captureSSE();
 
   let gaveUp = 0;
   let backgroundSends = 0;
@@ -187,6 +240,27 @@ test('repeated transient failures stop after MAX_ATTEMPTS total sends', async ()
   // 1 inline + (MAX_ATTEMPTS - 1) background sends.
   assert.equal(sendCalls.length, MAX_ATTEMPTS - 1, 'background made MAX_ATTEMPTS-1 sends');
   assert.equal(backgroundSends, MAX_ATTEMPTS - 1);
+
+  // Exhausting attempts is also recorded as a give-up, distinguished from a
+  // permanent failure by its reason and "after N attempts" wording.
+  const audit = await auditRows();
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0].action, 'whatsapp.gave_up');
+  assert.match(audit[0].detail ?? '', new RegExp(`after ${MAX_ATTEMPTS} attempts`));
+  assert.match(audit[0].detail ?? '', /down/);
+
+  // The exhaustion give-up also emits a staff SSE alert, distinguished from a
+  // permanent failure by its reason and the full MAX_ATTEMPTS total.
+  const alerts = observer.events.filter(e => e.event === 'whatsapp.gave_up');
+  observer.close();
+  assert.equal(alerts.length, 1);
+  assert.deepEqual(alerts[0].data, {
+    event: 'delivery',
+    toPhone: PHONE,
+    reason: 'attempts_exhausted',
+    totalAttempts: MAX_ATTEMPTS,
+    lastError: 'down',
+  });
 });
 
 test('processes multiple due rows in a single run', async () => {

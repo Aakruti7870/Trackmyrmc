@@ -1,7 +1,13 @@
 import { eq, lte } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { whatsappRetries } from '../db/schema.js';
+import { auditLogs, whatsappRetries } from '../db/schema.js';
+import { emitSSEEvent } from './sseEmitter.js';
 import { sendWhatsAppTemplate, } from './whatsapp.js';
+// Staff roles that should be told when a customer WhatsApp update is finally
+// given up on, so a dispatcher can phone the customer instead. `authority` is
+// the super-admin and is NOT part of the SSE emitter's default STAFF_ROLES, so
+// it must be named explicitly here.
+const GIVE_UP_ALERT_ROLES = ['admin', 'dispatcher', 'plant_operator', 'authority'];
 // Out-of-band retry for business WhatsApp notifications whose first, inline send
 // failed transiently (provider unreachable / 5xx / 429). The originating request
 // (order placement, dispatch, delivery) still fires-and-forgets a single inline
@@ -111,10 +117,47 @@ export async function runDueWhatsAppRetries(now = new Date()) {
             result.retried += 1;
         }
         else {
-            // Permanent failure, or out of attempts: stop retrying.
+            // Permanent failure, or out of attempts: stop retrying. Before dropping
+            // the row, record a durable give-up outcome so staff can audit and follow
+            // up on a customer who never received their order/dispatch/delivery
+            // update, and alert any online staff to call the customer.
+            const reason = res.retryable ? 'attempts_exhausted' : 'permanent_failure';
+            await recordGiveUp(claimed, reason, res.error ?? null);
             await db.delete(whatsappRetries).where(eq(whatsappRetries.id, claimed.id));
             result.gaveUp += 1;
         }
     }
     return result;
+}
+// Persist a permanent-failure outcome for a WhatsApp notification that has been
+// abandoned, and emit a staff-only SSE alert. Never throws — failing to record
+// the give-up must not break the retry loop or leak the (already deleted) row.
+async function recordGiveUp(row, reason, lastError) {
+    const event = row.event ?? 'notification';
+    // row.attempts counts sends made BEFORE this final failed send, so the total
+    // number of delivery attempts is one more. Both the audit detail and the SSE
+    // payload report this same total so operators see a consistent count.
+    const totalAttempts = row.attempts + 1;
+    const why = reason === 'attempts_exhausted'
+        ? `after ${totalAttempts} attempts`
+        : 'permanently';
+    const detail = `WhatsApp ${event} update to ${row.toPhone} was not delivered (gave up ${why}). ` +
+        `Last error: ${lastError ?? 'unknown'}. Please contact the customer.`;
+    try {
+        await db.insert(auditLogs).values({
+            action: 'whatsapp.gave_up',
+            status: 'failure',
+            detail,
+            emailSent: false,
+        });
+    }
+    catch (err) {
+        console.error('[whatsapp] failed to write give-up audit log:', err);
+    }
+    try {
+        emitSSEEvent('whatsapp.gave_up', { event, toPhone: row.toPhone, reason, totalAttempts, lastError }, { roles: GIVE_UP_ALERT_ROLES });
+    }
+    catch (err) {
+        console.error('[whatsapp] failed to emit give-up SSE alert:', err);
+    }
 }
