@@ -275,6 +275,11 @@ export const plants = pgTable('plants', {
   plantStatus: plantStatusEnum('plant_status').notNull().default('pending'),
   isActive: boolean('is_active').notNull().default(true),
   locationVerified: boolean('location_verified').notNull().default(false),
+  // Partner verification, distinct from locationVerified (which only attests the
+  // GPS pin). A row stays an onboarding *lead* until staff confirm the company
+  // details (contact, GST, legal name) and flip this true. Customers only ever
+  // see verified partners — a lead is never exposed by /nearby.
+  verified: boolean('verified').notNull().default(false),
   deliveryRadiusKm: integer('delivery_radius_km').notNull().default(25),
   grades: text('grades').array().notNull().default(sql`ARRAY[]::text[]`),
   openTime: text('open_time'),   // 'HH:MM' 24h local

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus } from 'lucide-react';
 import { api } from '@/lib/api';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 
@@ -8,6 +8,9 @@ type PlantStatus = 'pending' | 'approved' | 'rejected';
 interface Plant {
   id: number;
   name: string;
+  legalName: string | null;
+  gstNo: string | null;
+  email: string | null;
   address: string | null;
   city: string | null;
   contactNumber: string | null;
@@ -16,26 +19,37 @@ interface Plant {
   plantStatus: PlantStatus;
   isActive: boolean;
   locationVerified: boolean;
+  verified: boolean;
   deliveryRadiusKm: number;
   grades: string[];
   openTime: string | null;
   closeTime: string | null;
+  ownerCount: number;
 }
+
+type OwnerRole = 'admin' | 'dispatcher' | 'plant_operator';
 
 const ALL_GRADES = ['M-15', 'M-20', 'M-25', 'M-30', 'M-35', 'M-40', 'M-45', 'M-50', 'M-55', 'M-60'];
 
 interface FormState {
-  name: string; address: string; city: string; contactNumber: string;
+  name: string; legalName: string; gstNo: string; email: string;
+  address: string; city: string; contactNumber: string;
   latitude: string; longitude: string; plantStatus: PlantStatus;
-  isActive: boolean; locationVerified: boolean; deliveryRadiusKm: number;
+  isActive: boolean; locationVerified: boolean; verified: boolean; deliveryRadiusKm: number;
   grades: string[]; openTime: string; closeTime: string;
 }
 
 const emptyForm: FormState = {
-  name: '', address: '', city: '', contactNumber: '', latitude: '', longitude: '',
-  plantStatus: 'pending', isActive: true, locationVerified: false, deliveryRadiusKm: 25,
+  name: '', legalName: '', gstNo: '', email: '', address: '', city: '', contactNumber: '', latitude: '', longitude: '',
+  plantStatus: 'pending', isActive: true, locationVerified: false, verified: false, deliveryRadiusKm: 25,
   grades: [], openTime: '06:00', closeTime: '20:00',
 };
+
+// A plant is a verified partner once company details are confirmed and staff flip
+// `verified`. Everything else is still an onboarding lead, even if approved/active.
+function isLead(p: Plant): boolean { return !p.verified; }
+
+const ownerEmpty = { name: '', email: '', password: '', role: 'admin' as OwnerRole };
 
 export default function Plants() {
   const [plants, setPlants] = useState<Plant[] | null>(null);
@@ -44,6 +58,13 @@ export default function Plants() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<'leads' | 'verified'>('leads');
+  // Owner-provisioning modal state.
+  const [ownerFor, setOwnerFor] = useState<Plant | null>(null);
+  const [ownerForm, setOwnerForm] = useState(ownerEmpty);
+  const [ownerSaving, setOwnerSaving] = useState(false);
+  const [ownerError, setOwnerError] = useState('');
+  const [ownerDone, setOwnerDone] = useState('');
 
   function load() {
     api.get<Plant[]>('/plants')
@@ -55,13 +76,43 @@ export default function Plants() {
   function openCreate() { setForm(emptyForm); setEditId(null); setShowForm(true); }
   function openEdit(p: Plant) {
     setForm({
-      name: p.name, address: p.address ?? '', city: p.city ?? '', contactNumber: p.contactNumber ?? '',
+      name: p.name, legalName: p.legalName ?? '', gstNo: p.gstNo ?? '', email: p.email ?? '',
+      address: p.address ?? '', city: p.city ?? '', contactNumber: p.contactNumber ?? '',
       latitude: p.latitude, longitude: p.longitude, plantStatus: p.plantStatus,
-      isActive: p.isActive, locationVerified: p.locationVerified, deliveryRadiusKm: p.deliveryRadiusKm,
+      isActive: p.isActive, locationVerified: p.locationVerified, verified: p.verified, deliveryRadiusKm: p.deliveryRadiusKm,
       grades: p.grades, openTime: p.openTime ?? '', closeTime: p.closeTime ?? '',
     });
     setEditId(p.id);
     setShowForm(true);
+  }
+
+  function openOwner(p: Plant) {
+    setOwnerFor(p);
+    setOwnerForm(ownerEmpty);
+    setOwnerError('');
+    setOwnerDone('');
+  }
+
+  async function provisionOwner(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ownerFor) return;
+    if (!ownerForm.name.trim() || !ownerForm.email.trim() || ownerForm.password.length < 6) {
+      setOwnerError('Name, email and a password of at least 6 characters are required.');
+      return;
+    }
+    setOwnerSaving(true);
+    setOwnerError('');
+    try {
+      const res = await api.post<{ emailSent?: boolean }>(`/plants/${ownerFor.id}/owner`, ownerForm);
+      setOwnerDone(res.emailSent
+        ? `Owner login created — a welcome email was sent to ${ownerForm.email}.`
+        : `Owner login created for ${ownerForm.email}. (Welcome email not sent — SMTP not configured.)`);
+      load();
+    } catch (err) {
+      setOwnerError((err as Error).message || 'Could not create the owner login.');
+    } finally {
+      setOwnerSaving(false);
+    }
   }
 
   async function save(e: React.FormEvent) {
@@ -99,6 +150,10 @@ export default function Plants() {
     catch (err) { setError((err as Error).message); }
   }
 
+  const leads = useMemo(() => (plants ?? []).filter(isLead), [plants]);
+  const verified = useMemo(() => (plants ?? []).filter(p => !isLead(p)), [plants]);
+  const visible = tab === 'leads' ? leads : verified;
+
   const pin: LatLng | null = form.latitude && form.longitude
     ? { lat: parseFloat(form.latitude), lng: parseFloat(form.longitude) } : null;
 
@@ -110,7 +165,7 @@ export default function Plants() {
             <Factory size={26} style={{ color: 'var(--gold)' }} /> Plants
           </h1>
           <p style={{ margin: '6px 0 0', color: 'var(--muted)', fontSize: 14 }}>
-            Onboard marketplace plants. Customers see only approved + active + location-verified plants.
+            Onboard marketplace plants. Customers only ever see <strong style={{ color: 'var(--text)' }}>verified</strong> partners — onboarding leads stay hidden until you confirm their details.
           </p>
         </div>
         <button onClick={openCreate} style={primaryBtn}><Plus size={16} /> Add Plant</button>
@@ -123,18 +178,40 @@ export default function Plants() {
       ) : plants.length === 0 ? (
         <div style={{ ...softCard, textAlign: 'center', color: 'var(--muted)' }}>No plants yet. Add your first plant.</div>
       ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
-          {plants.map(p => {
-            const live = p.plantStatus === 'approved' && p.isActive && p.locationVerified;
+        <>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            <button onClick={() => setTab('leads')} style={tabBtn(tab === 'leads', 'var(--gold)')}>
+              <Sprout size={14} /> Leads <span style={countPill}>{leads.length}</span>
+            </button>
+            <button onClick={() => setTab('verified')} style={tabBtn(tab === 'verified', 'var(--green)')}>
+              <BadgeCheck size={14} /> Verified partners <span style={countPill}>{verified.length}</span>
+            </button>
+          </div>
+
+          {visible.length === 0 ? (
+            <div style={{ ...softCard, textAlign: 'center', color: 'var(--muted)' }}>
+              {tab === 'leads' ? 'No onboarding leads left — every plant is verified.' : 'No verified partners yet. Onboard a lead to get started.'}
+            </div>
+          ) : (
+          <div style={{ display: 'grid', gap: 12 }}>
+          {visible.map(p => {
+            const lead = isLead(p);
+            const live = p.verified && p.plantStatus === 'approved' && p.isActive && p.locationVerified;
             return (
-              <div key={p.id} style={{ ...softCard, display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center', justifyContent: 'space-between' }}>
+              <div key={p.id} style={{ ...softCard, display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center', justifyContent: 'space-between', borderColor: lead ? 'color-mix(in srgb, var(--gold) 32%, transparent)' : 'var(--line)' }}>
                 <div style={{ minWidth: 220, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)' }}>{p.name}</span>
-                    {live && <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', background: 'color-mix(in srgb, var(--green) 16%, transparent)', borderRadius: 20, padding: '2px 9px' }}>LIVE</span>}
+                    {lead
+                      ? <span style={badge('var(--gold)')}><Sprout size={11} /> LEAD</span>
+                      : <span style={badge('var(--green)')}><BadgeCheck size={11} /> VERIFIED</span>}
+                    {live && <span style={badge('var(--blue)')}>LIVE</span>}
                   </div>
                   <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
                     {[p.address, p.city].filter(Boolean).join(', ') || '—'} · {p.contactNumber || 'no contact'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+                    {p.gstNo ? `GST ${p.gstNo}` : 'no GST'} · {p.email || 'no email'} · {p.ownerCount > 0 ? `${p.ownerCount} login${p.ownerCount > 1 ? 's' : ''}` : 'no owner login'}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
                     {p.grades.join(', ') || 'no grades'} · delivers {p.deliveryRadiusKm} km · {p.openTime && p.closeTime ? `${p.openTime}–${p.closeTime}` : 'hours n/a'}
@@ -142,6 +219,9 @@ export default function Plants() {
                 </div>
 
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button onClick={() => patch(p, { verified: !p.verified })} title="Toggle partner verification" style={chip(p.verified, 'var(--green)')}>
+                    <BadgeCheck size={13} /> {p.verified ? 'Verified' : 'Mark verified'}
+                  </button>
                   <select value={p.plantStatus} onChange={e => patch(p, { plantStatus: e.target.value as PlantStatus })} style={pill(p.plantStatus === 'approved' ? 'var(--green)' : p.plantStatus === 'rejected' ? 'var(--red)' : 'var(--muted)')}>
                     <option value="pending">Pending</option>
                     <option value="approved">Approved</option>
@@ -151,7 +231,10 @@ export default function Plants() {
                     <Power size={13} /> {p.isActive ? 'Active' : 'Inactive'}
                   </button>
                   <button onClick={() => patch(p, { locationVerified: !p.locationVerified })} title="Toggle location verified" style={chip(p.locationVerified, 'var(--gold)')}>
-                    {p.locationVerified ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />} {p.locationVerified ? 'Verified' : 'Unverified'}
+                    {p.locationVerified ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />} {p.locationVerified ? 'Pin OK' : 'Pin?'}
+                  </button>
+                  <button onClick={() => openOwner(p)} title="Provision an owner login" style={chip(p.ownerCount > 0, 'var(--blue)')}>
+                    {p.ownerCount > 0 ? <KeyRound size={13} /> : <UserPlus size={13} />} {p.ownerCount > 0 ? 'Add login' : 'Owner login'}
                   </button>
                   <button onClick={() => openEdit(p)} style={iconBtn}><Pencil size={15} /></button>
                   <button onClick={() => remove(p)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={15} /></button>
@@ -159,7 +242,9 @@ export default function Plants() {
               </div>
             );
           })}
-        </div>
+          </div>
+          )}
+        </>
       )}
 
       {showForm && (
@@ -173,8 +258,13 @@ export default function Plants() {
             <div style={{ display: 'grid', gap: 12 }}>
               <Field label="Plant name *"><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={input} /></Field>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <Field label="Legal / company name"><input value={form.legalName} onChange={e => setForm(f => ({ ...f, legalName: e.target.value }))} style={input} placeholder="Printed on challans" /></Field>
+                <Field label="GST number"><input value={form.gstNo} onChange={e => setForm(f => ({ ...f, gstNo: e.target.value }))} style={input} /></Field>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                 <Field label="City"><input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} style={input} /></Field>
                 <Field label="Contact number"><input value={form.contactNumber} onChange={e => setForm(f => ({ ...f, contactNumber: e.target.value }))} style={input} /></Field>
+                <Field label="Email"><input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={input} /></Field>
               </div>
               <Field label="Address"><input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} style={input} /></Field>
 
@@ -210,7 +300,8 @@ export default function Plants() {
                   </select>
                 </Field>
                 <label style={checkRow}><input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} /> Active</label>
-                <label style={checkRow}><input type="checkbox" checked={form.locationVerified} onChange={e => setForm(f => ({ ...f, locationVerified: e.target.checked }))} /> Location verified</label>
+                <label style={checkRow}><input type="checkbox" checked={form.locationVerified} onChange={e => setForm(f => ({ ...f, locationVerified: e.target.checked }))} /> Map pin verified</label>
+                <label style={{ ...checkRow, color: 'var(--green)' }}><input type="checkbox" checked={form.verified} onChange={e => setForm(f => ({ ...f, verified: e.target.checked }))} /> Verified partner (visible to customers)</label>
               </div>
             </div>
 
@@ -220,6 +311,54 @@ export default function Plants() {
                 <MapPin size={15} /> {saving ? 'Saving…' : editId != null ? 'Save changes' : 'Add plant'}
               </button>
             </div>
+          </form>
+        </div>
+      )}
+
+      {ownerFor && (
+        <div onClick={() => setOwnerFor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 14px', zIndex: 1000, overflowY: 'auto' }}>
+          <form onClick={e => e.stopPropagation()} onSubmit={provisionOwner} style={{ width: 'min(460px, 100%)', background: 'var(--card, #0d1828)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <KeyRound size={18} style={{ color: 'var(--blue)' }} /> Owner login
+              </h2>
+              <button type="button" onClick={() => setOwnerFor(null)} style={iconBtn}><X size={18} /></button>
+            </div>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--muted)' }}>
+              Create a login for <strong style={{ color: 'var(--text)' }}>{ownerFor.name}</strong>. The account is scoped to this plant — it only ever sees this plant's own data.
+            </p>
+
+            {ownerDone ? (
+              <>
+                <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--green) 45%, transparent)', color: 'var(--green)', fontSize: 13.5, marginBottom: 16 }}>{ownerDone}</div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => { setOwnerDone(''); setOwnerForm(ownerEmpty); }} style={ghostBtn}>Add another</button>
+                  <button type="button" onClick={() => setOwnerFor(null)} style={primaryBtn}>Done</button>
+                </div>
+              </>
+            ) : (
+              <>
+                {ownerError && <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--red) 45%, transparent)', color: 'var(--red)', marginBottom: 14, fontSize: 13.5 }}>{ownerError}</div>}
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <Field label="Owner name *"><input value={ownerForm.name} onChange={e => setOwnerForm(f => ({ ...f, name: e.target.value }))} style={input} /></Field>
+                  <Field label="Email *"><input type="email" value={ownerForm.email} onChange={e => setOwnerForm(f => ({ ...f, email: e.target.value }))} style={input} /></Field>
+                  <Field label="Temporary password * (min 6 chars)"><input type="text" value={ownerForm.password} onChange={e => setOwnerForm(f => ({ ...f, password: e.target.value }))} style={input} /></Field>
+                  <Field label="Access level">
+                    <select value={ownerForm.role} onChange={e => setOwnerForm(f => ({ ...f, role: e.target.value as OwnerRole }))} style={input}>
+                      <option value="admin">Owner (full plant access)</option>
+                      <option value="dispatcher">Dispatcher</option>
+                      <option value="plant_operator">Plant operator</option>
+                    </select>
+                  </Field>
+                </div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+                  <button type="button" onClick={() => setOwnerFor(null)} style={ghostBtn}>Cancel</button>
+                  <button type="submit" disabled={ownerSaving} style={{ ...primaryBtn, opacity: ownerSaving ? 0.6 : 1 }}>
+                    <UserPlus size={15} /> {ownerSaving ? 'Creating…' : 'Create login'}
+                  </button>
+                </div>
+              </>
+            )}
           </form>
         </div>
       )}
@@ -266,3 +405,20 @@ function chip(on: boolean, color: string): React.CSSProperties {
     border: `1px solid ${on ? `color-mix(in srgb, ${color} 38%, transparent)` : 'var(--line)'}`,
   };
 }
+function badge(color: string): React.CSSProperties {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, letterSpacing: '0.3px',
+    color, background: `color-mix(in srgb, ${color} 16%, transparent)`, borderRadius: 20, padding: '2px 9px',
+  };
+}
+function tabBtn(active: boolean, color: string): React.CSSProperties {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
+    background: active ? `color-mix(in srgb, ${color} 16%, transparent)` : 'rgba(255,255,255,.04)',
+    color: active ? color : 'var(--muted)',
+    border: `1px solid ${active ? `color-mix(in srgb, ${color} 38%, transparent)` : 'var(--line)'}`,
+  };
+}
+const countPill: React.CSSProperties = {
+  fontSize: 11.5, fontWeight: 800, background: 'rgba(255,255,255,.1)', borderRadius: 20, padding: '1px 8px', color: 'inherit',
+};

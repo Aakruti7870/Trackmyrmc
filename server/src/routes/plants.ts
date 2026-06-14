@@ -1,8 +1,11 @@
 import { Router } from 'express';
-import { eq } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { db } from '../db/index.js';
-import { plants } from '../db/schema.js';
+import { plants, users, auditLogs } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { hashPassword } from '../lib/password.js';
+import { sendWelcomeEmail } from '../lib/email.js';
 
 const router = Router();
 
@@ -52,7 +55,9 @@ router.get('/nearby', async (req, res) => {
 
   const rows = await db.select().from(plants);
   const nearby = rows
-    .filter(p => p.plantStatus === 'approved' && p.isActive && p.locationVerified)
+    // verified = a fully onboarded partner. Onboarding leads (verified=false) are
+    // never shown to customers, even if their GPS pin happens to be confirmed.
+    .filter(p => p.plantStatus === 'approved' && p.isActive && p.locationVerified && p.verified)
     .map(p => {
       const pLat = parseFloat(p.latitude);
       const pLng = parseFloat(p.longitude);
@@ -86,12 +91,24 @@ router.use(requireAuth);
 
 router.get('/', ADMIN, async (_req, res) => {
   const rows = await db.select().from(plants).orderBy(plants.createdAt);
-  res.json(rows);
+  // Count the live (non-soft-deleted) login accounts bound to each plant so the
+  // onboarding UI can show whether an owner has already been provisioned.
+  const counts = await db
+    .select({ plantId: users.plantId, count: sql<number>`count(*)::int` })
+    .from(users)
+    .where(and(isNull(users.deletedAt), sql`${users.plantId} IS NOT NULL`))
+    .groupBy(users.plantId);
+  const byPlant = new Map(counts.map(c => [c.plantId, c.count]));
+  res.json(rows.map(r => ({ ...r, ownerCount: byPlant.get(r.id) ?? 0 })));
 });
 
 function parseBody(body: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
+  const optStr = (v: unknown) => (v === null || v === '' ? null : String(v));
   if (body.name !== undefined) out.name = String(body.name).trim();
+  if (body.legalName !== undefined) out.legalName = optStr(body.legalName);
+  if (body.gstNo !== undefined) out.gstNo = optStr(body.gstNo);
+  if (body.email !== undefined) out.email = optStr(body.email);
   if (body.address !== undefined) out.address = body.address === null ? null : String(body.address);
   if (body.city !== undefined) out.city = body.city === null ? null : String(body.city);
   if (body.contactNumber !== undefined) out.contactNumber = body.contactNumber === null ? null : String(body.contactNumber);
@@ -100,6 +117,7 @@ function parseBody(body: Record<string, unknown>) {
   if (body.plantStatus !== undefined) out.plantStatus = body.plantStatus;
   if (body.isActive !== undefined) out.isActive = Boolean(body.isActive);
   if (body.locationVerified !== undefined) out.locationVerified = Boolean(body.locationVerified);
+  if (body.verified !== undefined) out.verified = Boolean(body.verified);
   if (body.deliveryRadiusKm !== undefined) out.deliveryRadiusKm = Math.round(Number(body.deliveryRadiusKm)) || 0;
   if (body.grades !== undefined) out.grades = Array.isArray(body.grades) ? body.grades.map(String) : [];
   if (body.openTime !== undefined) out.openTime = body.openTime === null ? null : String(body.openTime);
@@ -137,6 +155,73 @@ router.delete('/:id', ADMIN, async (req, res) => {
   const [row] = await db.delete(plants).where(eq(plants.id, id)).returning();
   if (!row) { res.status(404).json({ error: 'Plant not found' }); return; }
   res.json({ ok: true });
+});
+
+// Plant-owner roles a staff member may provision at onboarding. An owner account
+// is hard-scoped to its plant (plantId) so it only ever sees its own tenant data.
+const OWNER_ROLES = ['admin', 'dispatcher', 'plant_operator'] as const;
+const ownerSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  role: z.enum(OWNER_ROLES).optional(),
+});
+
+// Provision a login for an onboarded plant. Creates a plant-scoped staff account
+// (default role: admin = plant owner) bound to this plant via plantId.
+router.post('/:id/owner', ADMIN, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const parse = ownerSchema.safeParse(req.body);
+  if (!parse.success) {
+    res.status(400).json({ error: parse.error.flatten().fieldErrors });
+    return;
+  }
+  const { name, email, password } = parse.data;
+  const role = parse.data.role ?? 'admin';
+
+  const [plant] = await db.select({ id: plants.id, name: plants.name }).from(plants).where(eq(plants.id, id));
+  if (!plant) { res.status(404).json({ error: 'Plant not found' }); return; }
+
+  const [existing] = await db.select({ id: users.id, name: users.name, deletedAt: users.deletedAt })
+    .from(users).where(eq(users.email, email));
+  if (existing) {
+    if (existing.deletedAt) {
+      res.status(409).json({ error: `An account with this email was previously deleted (${existing.name}). Restore it instead of creating a new one.` });
+    } else {
+      res.status(409).json({ error: 'Email already in use' });
+    }
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+  const [user] = await db.insert(users).values({
+    name, email, passwordHash, role, plantId: id,
+  }).returning();
+
+  let emailSent: boolean | undefined;
+  try {
+    emailSent = await sendWelcomeEmail(user.email, user.name, user.role);
+  } catch (err) {
+    console.error('[email] Failed to send owner welcome email:', err);
+    emailSent = false;
+  }
+
+  const actor = req.user!;
+  await db.insert(auditLogs).values({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'user.created',
+    targetUserId: user.id,
+    targetUserEmail: user.email,
+    detail: `Plant-owner login provisioned for ${plant.name}`,
+    emailSent: emailSent ?? false,
+  });
+
+  res.status(201).json({
+    id: user.id, name: user.name, email: user.email, role: user.role, plantId: user.plantId, emailSent,
+  });
 });
 
 export default router;
