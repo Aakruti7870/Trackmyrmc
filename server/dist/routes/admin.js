@@ -10,6 +10,7 @@ import { getVarianceTolerance, VARIANCE_KEYS, DEFAULT_VARIANCE_ABS, DEFAULT_VARI
 import { getPlantInviteNotifyConfig, parseRecipients, serializeRoles, PLANT_INVITE_NOTIFY_KEYS, PLANT_INVITE_NOTIFY_ROLES, DEFAULT_PLANT_INVITE_EMAIL_ENABLED, DEFAULT_PLANT_INVITE_NOTIFY_ROLES, } from '../lib/plantInviteNotify.js';
 import { getFreshnessConfig, FRESHNESS_KEYS, DEFAULT_WORKING_LIFE_MIN, DEFAULT_WARN_MIN, DEFAULT_AVG_SPEED_KMH, } from '../lib/freshness.js';
 import { getIdleConfig, IDLE_KEYS, DEFAULT_IDLE_FREE_MIN } from '../lib/idle.js';
+import { getWhatsAppConfig, WHATSAPP_KEYS, DEFAULT_WHATSAPP_ENABLED } from '../lib/whatsapp.js';
 import { getFuelConfig, FUEL_KEYS, DEFAULT_RECON_VARIANCE_PCT, DEFAULT_IDLE_BURN_LPH, DEFAULT_UNSCHEDULED_STOP_MIN, DEFAULT_ROUTE_DEVIATION_M, } from '../lib/fuelConfig.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 import { findStuckPhotos, retryFailedPhotos } from '../db/migrate-proof-photos.js';
@@ -296,6 +297,85 @@ router.post('/plant-invite-notify', async (req, res) => {
         console.error('[admin] Failed to write plant-invite notification audit log:', err);
     }
     res.json({ ...after, defaults: PLANT_INVITE_NOTIFY_DEFAULTS });
+});
+// WhatsApp order-automation settings. `enabled` is the global kill switch; the
+// three per-event toggles + their Twilio Content template SIDs control order
+// confirmation, dispatch, and delivery messages. `configured` reflects whether
+// the Twilio messaging credentials/sender are present (read-only status).
+router.get('/whatsapp-settings', async (_req, res) => {
+    res.json({
+        ...(await getWhatsAppConfig()),
+        defaults: { enabled: DEFAULT_WHATSAPP_ENABLED },
+    });
+});
+// All fields optional so the form can patch a subset. A template SID may be
+// cleared (empty string) to silence that event without flipping its toggle.
+const whatsappSettingsSchema = z.object({
+    enabled: z.boolean().optional(),
+    orderEnabled: z.boolean().optional(),
+    dispatchEnabled: z.boolean().optional(),
+    deliveryEnabled: z.boolean().optional(),
+    orderTemplateSid: z.string().trim().max(64).optional(),
+    dispatchTemplateSid: z.string().trim().max(64).optional(),
+    deliveryTemplateSid: z.string().trim().max(64).optional(),
+});
+router.post('/whatsapp-settings', async (req, res) => {
+    const parse = whatsappSettingsSchema.safeParse(req.body);
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.flatten().fieldErrors });
+        return;
+    }
+    const { enabled, orderEnabled, dispatchEnabled, deliveryEnabled, orderTemplateSid, dispatchTemplateSid, deliveryTemplateSid } = parse.data;
+    const before = await getWhatsAppConfig();
+    if (enabled !== undefined)
+        await setSetting(WHATSAPP_KEYS.enabled, String(enabled));
+    if (orderEnabled !== undefined)
+        await setSetting(WHATSAPP_KEYS.orderEnabled, String(orderEnabled));
+    if (dispatchEnabled !== undefined)
+        await setSetting(WHATSAPP_KEYS.dispatchEnabled, String(dispatchEnabled));
+    if (deliveryEnabled !== undefined)
+        await setSetting(WHATSAPP_KEYS.deliveryEnabled, String(deliveryEnabled));
+    // A blank SID clears the stored value (so that event won't send).
+    if (orderTemplateSid !== undefined)
+        await setSetting(WHATSAPP_KEYS.orderTemplateSid, orderTemplateSid.trim() || null);
+    if (dispatchTemplateSid !== undefined)
+        await setSetting(WHATSAPP_KEYS.dispatchTemplateSid, dispatchTemplateSid.trim() || null);
+    if (deliveryTemplateSid !== undefined)
+        await setSetting(WHATSAPP_KEYS.deliveryTemplateSid, deliveryTemplateSid.trim() || null);
+    const after = await getWhatsAppConfig();
+    const changed = [];
+    if (before.enabled !== after.enabled)
+        changed.push(`notifications ${after.enabled ? 'enabled' : 'disabled'}`);
+    if (before.orderEnabled !== after.orderEnabled)
+        changed.push(`order confirmation ${after.orderEnabled ? 'on' : 'off'}`);
+    if (before.dispatchEnabled !== after.dispatchEnabled)
+        changed.push(`dispatch ${after.dispatchEnabled ? 'on' : 'off'}`);
+    if (before.deliveryEnabled !== after.deliveryEnabled)
+        changed.push(`delivery ${after.deliveryEnabled ? 'on' : 'off'}`);
+    if (before.orderTemplateSid !== after.orderTemplateSid)
+        changed.push('order template updated');
+    if (before.dispatchTemplateSid !== after.dispatchTemplateSid)
+        changed.push('dispatch template updated');
+    if (before.deliveryTemplateSid !== after.deliveryTemplateSid)
+        changed.push('delivery template updated');
+    const detail = changed.length
+        ? `WhatsApp notification settings updated. Changed: ${changed.join('; ')}.`
+        : 'WhatsApp notification settings saved from the admin panel. No values were changed.';
+    const actor = req.user;
+    try {
+        await db.insert(auditLogs).values({
+            actorId: actor.id,
+            actorName: actor.name,
+            action: 'whatsapp_settings_updated',
+            status: 'success',
+            detail,
+            emailSent: null,
+        });
+    }
+    catch (err) {
+        console.error('[admin] Failed to write WhatsApp settings audit log:', err);
+    }
+    res.json({ ...after, defaults: { enabled: DEFAULT_WHATSAPP_ENABLED } });
 });
 router.get('/freshness-settings', async (_req, res) => {
     res.json({

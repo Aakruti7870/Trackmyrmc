@@ -5,6 +5,7 @@ import { orders, clients, sites } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { plantScope, clientInScope } from '../lib/tenancy.js';
+import { notifyOrderPlaced } from '../lib/deliveryNotify.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -92,6 +93,8 @@ router.post('/', async (req, res) => {
     pumpRequired: !!pumpRequired,
     deliveryDate, deliveryTime, notes,
   }).returning();
+  // Confirm the order to the customer over WhatsApp (best-effort).
+  void notifyOrderPlaced(row.id);
   res.status(201).json(row);
 });
 

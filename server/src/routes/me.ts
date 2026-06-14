@@ -9,6 +9,7 @@ import { nextOrderNo } from '../lib/orderNo.js';
 import { computeFirstRunDate } from '../lib/recurring.js';
 import { getIdleConfig } from '../lib/idle.js';
 import { resolvePlantCustomer, type CustomerProfile } from '../lib/tenancy.js';
+import { notifyOrderPlaced } from '../lib/deliveryNotify.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -213,6 +214,8 @@ router.post('/orders', requireRole('client'), async (req, res) => {
       throw e;
     }
     emitSSEEvent('order.created', row, { clientId: row.clientId });
+    // Confirm the order to the customer over WhatsApp (best-effort).
+    void notifyOrderPlaced(row.id);
     res.status(201).json(row);
     return;
   }
@@ -235,6 +238,8 @@ router.post('/orders', requireRole('client'), async (req, res) => {
   }).returning();
 
   emitSSEEvent('order.created', row, { clientId: row.clientId });
+  // Confirm the order to the customer over WhatsApp (best-effort).
+  void notifyOrderPlaced(row.id);
   res.status(201).json(row);
 });
 

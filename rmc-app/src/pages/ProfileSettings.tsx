@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle } from 'lucide-react';
 import { api, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -28,6 +28,20 @@ interface PlantProfile {
   address: string | null;
   city: string | null;
   contactNumber: string | null;
+}
+
+interface WhatsAppForm {
+  enabled: boolean;
+  orderEnabled: boolean;
+  dispatchEnabled: boolean;
+  deliveryEnabled: boolean;
+  orderTemplateSid: string;
+  dispatchTemplateSid: string;
+  deliveryTemplateSid: string;
+}
+
+interface WhatsAppSettings extends WhatsAppForm {
+  configured: boolean;
 }
 
 const card: React.CSSProperties = {
@@ -191,6 +205,14 @@ export default function ProfileSettings() {
   const [inviteNotifyLoading, setInviteNotifyLoading] = useState(false);
   const [inviteNotifySaving, setInviteNotifySaving] = useState(false);
 
+  const [whatsappForm, setWhatsappForm] = useState<WhatsAppForm>({
+    enabled: true, orderEnabled: true, dispatchEnabled: true, deliveryEnabled: true,
+    orderTemplateSid: '', dispatchTemplateSid: '', deliveryTemplateSid: '',
+  });
+  const [whatsappConfigured, setWhatsappConfigured] = useState(false);
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
+  const [whatsappSaving, setWhatsappSaving] = useState(false);
+
   const [idleForm, setIdleForm] = useState({ freeMin: '', ratePerHour: '' });
   const [idleDefaults, setIdleDefaults] = useState<{ freeMin: number; ratePerHour: number | null }>({ freeMin: 45, ratePerHour: null });
   const [idleLoading, setIdleLoading] = useState(false);
@@ -326,6 +348,32 @@ export default function ProfileSettings() {
       }
     }
     loadInviteNotify();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function loadWhatsapp() {
+      setWhatsappLoading(true);
+      try {
+        const v = await api.get<WhatsAppSettings>('/admin/whatsapp-settings');
+        if (cancelled) return;
+        setWhatsappConfigured(v.configured);
+        setWhatsappForm({
+          enabled: v.enabled, orderEnabled: v.orderEnabled,
+          dispatchEnabled: v.dispatchEnabled, deliveryEnabled: v.deliveryEnabled,
+          orderTemplateSid: v.orderTemplateSid ?? '',
+          dispatchTemplateSid: v.dispatchTemplateSid ?? '',
+          deliveryTemplateSid: v.deliveryTemplateSid ?? '',
+        });
+      } catch {
+        /* non-fatal — keep defaults */
+      } finally {
+        if (!cancelled) setWhatsappLoading(false);
+      }
+    }
+    loadWhatsapp();
     return () => { cancelled = true; };
   }, [isAdmin]);
 
@@ -653,6 +701,36 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setInviteNotifySaving(false);
+    }
+  }
+
+  async function handleWhatsappSave(e: React.FormEvent) {
+    e.preventDefault();
+    setWhatsappSaving(true);
+    try {
+      const updated = await api.post<WhatsAppSettings>('/admin/whatsapp-settings', {
+        enabled: whatsappForm.enabled,
+        orderEnabled: whatsappForm.orderEnabled,
+        dispatchEnabled: whatsappForm.dispatchEnabled,
+        deliveryEnabled: whatsappForm.deliveryEnabled,
+        orderTemplateSid: whatsappForm.orderTemplateSid.trim(),
+        dispatchTemplateSid: whatsappForm.dispatchTemplateSid.trim(),
+        deliveryTemplateSid: whatsappForm.deliveryTemplateSid.trim(),
+      });
+      setWhatsappConfigured(updated.configured);
+      setWhatsappForm({
+        enabled: updated.enabled, orderEnabled: updated.orderEnabled,
+        dispatchEnabled: updated.dispatchEnabled, deliveryEnabled: updated.deliveryEnabled,
+        orderTemplateSid: updated.orderTemplateSid ?? '',
+        dispatchTemplateSid: updated.dispatchTemplateSid ?? '',
+        deliveryTemplateSid: updated.deliveryTemplateSid ?? '',
+      });
+      showToast('WhatsApp settings saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save WhatsApp settings';
+      showToast(msg, 'error');
+    } finally {
+      setWhatsappSaving(false);
     }
   }
 
@@ -1356,6 +1434,111 @@ export default function ProfileSettings() {
                 }}
               >
                 {inviteNotifySaving ? 'Saving…' : 'Save notifications'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* WhatsApp order-automation card — admins only */}
+      {isAdmin && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <MessageCircle size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>WhatsApp Order Notifications</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Send customers order, dispatch &amp; delivery updates over WhatsApp</div>
+            </div>
+          </div>
+
+          {whatsappLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
+          ) : (
+            <form onSubmit={handleWhatsappSave}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 16,
+                padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                background: whatsappConfigured ? 'color-mix(in srgb, #22c55e 14%, transparent)' : 'color-mix(in srgb, #ef4444 14%, transparent)',
+                border: `1px solid ${whatsappConfigured ? 'color-mix(in srgb, #22c55e 35%, transparent)' : 'color-mix(in srgb, #ef4444 35%, transparent)'}`,
+                color: whatsappConfigured ? '#22c55e' : '#ef4444',
+              }}>
+                {whatsappConfigured ? <CheckCircle size={13} /> : <XCircle size={13} />}
+                {whatsappConfigured ? 'Twilio WhatsApp sender connected' : 'Twilio WhatsApp sender not configured'}
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 16 }}>
+                <input
+                  type="checkbox"
+                  checked={whatsappForm.enabled}
+                  onChange={e => setWhatsappForm(f => ({ ...f, enabled: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: 'var(--gold)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+                  Send WhatsApp notifications to customers
+                </span>
+              </label>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18, opacity: whatsappForm.enabled ? 1 : 0.5 }}>
+                {([
+                  { key: 'order', toggle: 'orderEnabled', sid: 'orderTemplateSid', title: 'Order confirmation', desc: 'Sent when a customer places an order' },
+                  { key: 'dispatch', toggle: 'dispatchEnabled', sid: 'dispatchTemplateSid', title: 'Dispatch update', desc: 'Sent when a challan leaves the plant' },
+                  { key: 'delivery', toggle: 'deliveryEnabled', sid: 'deliveryTemplateSid', title: 'Delivery confirmation', desc: 'Sent when the delivery is completed' },
+                ] as const).map(evt => (
+                  <div key={evt.key}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={whatsappForm[evt.toggle]}
+                        disabled={!whatsappForm.enabled}
+                        onChange={e => setWhatsappForm(f => ({ ...f, [evt.toggle]: e.target.checked }))}
+                        style={{ width: 15, height: 15, accentColor: 'var(--gold)', cursor: 'pointer' }}
+                      />
+                      <span>
+                        <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>{evt.title}</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 8 }}>{evt.desc}</span>
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={whatsappForm[evt.sid]}
+                      onChange={e => setWhatsappForm(f => ({ ...f, [evt.sid]: e.target.value }))}
+                      placeholder="Twilio Content template SID (HX…)"
+                      disabled={!whatsappForm.enabled || !whatsappForm[evt.toggle]}
+                      autoComplete="off"
+                      style={{
+                        ...inputStyle, padding: '10px 12px',
+                        opacity: whatsappForm.enabled && whatsappForm[evt.toggle] ? 1 : 0.5,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 14, lineHeight: 1.5 }}>
+                Paste the <strong style={{ color: 'var(--text)' }}>approved Twilio Content template SID</strong> for each event
+                (created &amp; approved in your Twilio console). A message only sends when notifications are on, the event is
+                enabled, a template SID is set, and a Twilio WhatsApp sender is connected. Delivery is best-effort and never
+                blocks the order.
+              </div>
+
+              <button
+                type="submit"
+                disabled={whatsappSaving}
+                style={{
+                  marginTop: 16, padding: '10px 22px', borderRadius: 10,
+                  background: whatsappSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: whatsappSaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14,
+                  transition: 'opacity .15s',
+                }}
+              >
+                {whatsappSaving ? 'Saving…' : 'Save WhatsApp settings'}
               </button>
             </form>
           )}
