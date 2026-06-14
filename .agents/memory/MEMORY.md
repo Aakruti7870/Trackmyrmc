@@ -32,3 +32,4 @@
 - [RMC lead vs verified plants](rmc-lead-verification.md) — `verified` (not `locationVerified`) is the customer-visibility gate; leads (verified=false) never hit /nearby; owner login = plant-scoped user via POST /plants/:id/owner.
 - [RMC live plant discovery](rmc-plant-discovery.md) — /plants/discover uses Places API (New) text search, soft-fails 503 w/o key, rate-limited+cached; invalid key=400 API_KEY_INVALID (valid key ~39 chars `AIza…`).
 - [RMC plant invites](rmc-plant-invites.md) — customer "Request this plant" → /plants/invite is open to ANY authed user (not staff); de-duped by placeId, status CASE reopens dismissed but never onboarded.
+- [RMC phone-OTP customer auth](rmc-phone-otp-auth.md) — customers log in by phone (WhatsApp OTP); placeholder @otp.local email + nullable users.phone partial-unique key; block @otp.local in register + fail dev OTP closed in prod.

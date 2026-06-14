@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
-import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { api, type User } from '@/lib/api';
+import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle, Phone, MessageCircle, ArrowLeft } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 import { clerkEnabled } from '@/lib/clerk';
 import ClerkStaffLogin from '@/components/ClerkStaffLogin';
@@ -15,16 +16,36 @@ const DEMO = [
   { role: 'Driver', email: 'driver@aakruti.com', password: 'driver123', color: '#f97316' },
 ];
 
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '11px 14px 11px 38px',
+  background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+  borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
+  boxSizing: 'border-box',
+};
+
 export default function Login() {
-  const { login } = useAuth();
+  const { login, updateUser } = useAuth();
   const [, setLoc] = useLocation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
+
+  // 'phone' is the default — most customers have no email. 'email' is the
+  // collapsible staff / existing-account path.
+  const [mode, setMode] = useState<'phone' | 'email'>('phone');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Email / password (staff)
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+
+  // Phone OTP (customers)
+  const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
+  const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
+  const [code, setCode] = useState('');
+  const [devCode, setDevCode] = useState<string | null>(null);
+
+  async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -38,7 +59,49 @@ export default function Login() {
     }
   }
 
+  async function handleSendOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await api.post<{ ok: boolean; channel: string; devMode: boolean; devCode?: string }>(
+        '/auth/otp/send', { phone, name: name || undefined },
+      );
+      setDevCode(res.devCode ?? null);
+      setOtpStep('code');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not send the code');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const data = await api.post<{ token: string; user: User }>(
+        '/auth/otp/verify', { phone, code, name: name || undefined },
+      );
+      updateUser(data.user, data.token);
+      setLoc('/');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Verification failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetOtp() {
+    setOtpStep('phone');
+    setCode('');
+    setDevCode(null);
+    setError('');
+  }
+
   function fillDemo(d: { email: string; password: string }) {
+    setMode('email');
     setEmail(d.email);
     setPassword(d.password);
     setError('');
@@ -111,96 +174,190 @@ export default function Login() {
           borderRadius: 20, padding: '40px 32px',
           backdropFilter: 'blur(12px)',
         }}>
-          <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Sign In</h2>
-          <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>Enter your credentials to access the platform</p>
+          {mode === 'phone' ? (
+            <>
+              <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Sign in with your phone</h2>
+              <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>
+                {otpStep === 'phone'
+                  ? 'We\u2019ll send a one-time code to your WhatsApp.'
+                  : `Enter the 6-digit code sent to ${phone || 'your number'}.`}
+              </p>
 
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: 18 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                Email Address
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="you@company.com" required
-                  style={{
-                    width: '100%', padding: '11px 14px 11px 38px',
-                    background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
-                    borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-            </div>
+              {otpStep === 'phone' ? (
+                <form onSubmit={handleSendOtp}>
+                  <div style={{ marginBottom: 18 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
+                      Mobile Number
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Phone size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="tel" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                        placeholder="98765 43210" required autoFocus
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                Password
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type={showPw ? 'text' : 'password'} value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••" required
-                  style={{
-                    width: '100%', padding: '11px 40px 11px 38px',
-                    background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
-                    borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                <button type="button" onClick={() => setShowPw(s => !s)} style={{
-                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                }}>
-                  {showPw ? <EyeOff size={15} style={{ color: 'var(--muted)' }} /> : <Eye size={15} style={{ color: 'var(--muted)' }} />}
+                  <div style={{ marginBottom: 24 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
+                      Your Name <span style={{ fontWeight: 500, textTransform: 'none' }}>(new customers only)</span>
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Building2 size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="text" value={name} onChange={e => setName(e.target.value)}
+                        placeholder="Optional"
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+
+                  {error && <ErrorBox message={error} />}
+
+                  <SubmitButton loading={loading} label={loading ? 'Sending code…' : 'Send code via WhatsApp'} icon={<MessageCircle size={16} />} />
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtp}>
+                  {devCode && (
+                    <div style={{
+                      marginBottom: 18, padding: '10px 14px', borderRadius: 10,
+                      background: 'color-mix(in srgb, var(--blue) 10%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--blue) 25%, transparent)',
+                      fontSize: 13, color: 'var(--blue)',
+                    }}>
+                      <strong>Dev mode</strong> — your code is <strong style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{devCode}</strong>
+                    </div>
+                  )}
+
+                  <div style={{ marginBottom: 24 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
+                      Verification Code
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="text" inputMode="numeric" value={code}
+                        onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="123456" required autoFocus
+                        style={{ ...inputStyle, letterSpacing: 4, fontFamily: 'monospace' }}
+                      />
+                    </div>
+                  </div>
+
+                  {error && <ErrorBox message={error} />}
+
+                  <SubmitButton loading={loading} label={loading ? 'Verifying…' : 'Verify & continue →'} />
+
+                  <button type="button" onClick={resetOtp} style={{
+                    marginTop: 14, display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                    color: 'var(--muted)', fontSize: 13, fontWeight: 600,
+                  }}>
+                    <ArrowLeft size={14} /> Use a different number
+                  </button>
+                </form>
+              )}
+
+              <div style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
+                Staff member?{' '}
+                <button type="button" onClick={() => { setMode('email'); setError(''); }} style={linkBtnStyle}>
+                  Sign in with email
                 </button>
               </div>
-            </div>
+            </>
+          ) : (
+            <>
+              <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Staff Sign In</h2>
+              <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>Enter your email and password to access the platform</p>
 
-            {error && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)',
-                borderRadius: 10, padding: '10px 14px', marginBottom: 18,
-              }}>
-                <AlertCircle size={14} style={{ color: 'var(--red)' }} />
-                <span style={{ color: 'var(--red)', fontSize: 13 }}>{error}</span>
+              <form onSubmit={handleEmailSubmit}>
+                <div style={{ marginBottom: 18 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
+                    Email Address
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="email" value={email} onChange={e => setEmail(e.target.value)}
+                      placeholder="you@company.com" required
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 24 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
+                    Password
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type={showPw ? 'text' : 'password'} value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="••••••••" required
+                      style={{ ...inputStyle, padding: '11px 40px 11px 38px' }}
+                    />
+                    <button type="button" onClick={() => setShowPw(s => !s)} style={{
+                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                    }}>
+                      {showPw ? <EyeOff size={15} style={{ color: 'var(--muted)' }} /> : <Eye size={15} style={{ color: 'var(--muted)' }} />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && <ErrorBox message={error} />}
+
+                <SubmitButton loading={loading} label={loading ? 'Signing in...' : 'Sign In →'} />
+              </form>
+
+              <div style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
+                Customer?{' '}
+                <button type="button" onClick={() => { setMode('phone'); setError(''); }} style={linkBtnStyle}>
+                  Sign in with your phone
+                </button>
               </div>
-            )}
 
-            <button type="submit" disabled={loading} style={{
-              width: '100%', padding: '12px', borderRadius: 12,
-              background: loading ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
-              color: '#111827', fontWeight: 800, fontSize: 15,
-              boxShadow: '0 12px 30px color-mix(in srgb, var(--gold) 20%, transparent)',
-              cursor: loading ? 'not-allowed' : 'pointer', border: 'none',
-              transition: 'all .15s',
-            }}>
-              {loading ? 'Signing in...' : 'Sign In →'}
-            </button>
-          </form>
-
-          <div style={{ marginTop: 18, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
-            New customer?{' '}
-            <button type="button" onClick={() => setLoc('/register')} style={{
-              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-              color: 'var(--gold)', fontWeight: 700, fontSize: 13, textDecoration: 'underline',
-            }}>
-              Create an account
-            </button>
-          </div>
-
-          <div style={{ marginTop: 24, padding: '14px', background: 'color-mix(in srgb, var(--gold) 6%, transparent)', borderRadius: 10, border: '1px solid color-mix(in srgb, var(--gold) 12%, transparent)' }}>
-            <div style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 700, marginBottom: 4 }}>💡 Quick Start</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Click any demo account above to auto-fill credentials</div>
-          </div>
-
-          {clerkEnabled && <ClerkStaffLogin onError={setError} />}
+              {clerkEnabled && <ClerkStaffLogin onError={setError} />}
+            </>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+const linkBtnStyle: React.CSSProperties = {
+  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+  color: 'var(--gold)', fontWeight: 700, fontSize: 13, textDecoration: 'underline',
+};
+
+function ErrorBox({ message }: { message: string }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)',
+      borderRadius: 10, padding: '10px 14px', marginBottom: 18,
+    }}>
+      <AlertCircle size={14} style={{ color: 'var(--red)' }} />
+      <span style={{ color: 'var(--red)', fontSize: 13 }}>{message}</span>
+    </div>
+  );
+}
+
+function SubmitButton({ loading, label, icon }: { loading: boolean; label: string; icon?: React.ReactNode }) {
+  return (
+    <button type="submit" disabled={loading} style={{
+      width: '100%', padding: '12px', borderRadius: 12,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+      background: loading ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+      color: '#111827', fontWeight: 800, fontSize: 15,
+      boxShadow: '0 12px 30px color-mix(in srgb, var(--gold) 20%, transparent)',
+      cursor: loading ? 'not-allowed' : 'pointer', border: 'none',
+      transition: 'all .15s',
+    }}>
+      {icon}{label}
+    </button>
   );
 }

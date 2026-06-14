@@ -51,6 +51,11 @@ export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
+  // Optional mobile number — the login key for phone-first (WhatsApp OTP)
+  // customers. Staff/owner accounts created by email keep this NULL. Stored in
+  // normalized E.164 form (e.g. +919876543210). Uniqueness across LIVE accounts
+  // is enforced by the partial index below.
+  phone: text('phone'),
   passwordHash: text('password_hash').notNull(),
   role: userRoleEnum('role').notNull().default('dispatcher'),
   isActive: boolean('is_active').notNull().default(true),
@@ -73,6 +78,11 @@ export const users = pgTable('users', {
   uniqueIndex('users_linked_driver_unique')
     .on(t.linkedDriverId)
     .where(sql`${t.deletedAt} IS NULL AND ${t.linkedDriverId} IS NOT NULL`),
+  // One live account per phone number (the phone-OTP login key). A soft-deleted
+  // account or a NULL phone never collides, so staff/email accounts are exempt.
+  uniqueIndex('users_phone_unique')
+    .on(t.phone)
+    .where(sql`${t.deletedAt} IS NULL AND ${t.phone} IS NOT NULL`),
 ]);
 
 export const sites = pgTable('sites', {
@@ -438,3 +448,20 @@ export const auditLogs = pgTable('audit_logs', {
 export const ledgerRelations = relations(ledgerEntries, ({ one }) => ({
   client: one(clients, { fields: [ledgerEntries.clientId], references: [clients.id] }),
 }));
+
+// Dev-mode fallback store for phone-OTP codes. When a real provider (Twilio
+// Verify) is configured the codes live in Twilio and this table is unused; when
+// it is NOT configured we generate and verify codes locally so the whole flow
+// is testable end-to-end without any external dependency. Only the SHA-256 hash
+// of the code is stored, never the plaintext. One live row per phone (latest
+// send wins) — see the unique index.
+export const otpCodes = pgTable('otp_codes', {
+  id: serial('id').primaryKey(),
+  phone: text('phone').notNull(),
+  codeHash: text('code_hash').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('otp_codes_phone_unique').on(t.phone),
+]);

@@ -183,6 +183,8 @@ router.post('/invite', async (req, res) => {
             requestCount: sql `${plantInvites.requestCount} + 1`,
             name,
             address: address ?? null,
+            latitude: latitude != null ? String(latitude) : null,
+            longitude: longitude != null ? String(longitude) : null,
             contactNumber: contactNumber ?? null,
             lastRequestedById: actor.id,
             lastRequestedByName: actor.name,

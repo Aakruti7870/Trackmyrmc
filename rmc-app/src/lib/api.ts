@@ -64,6 +64,7 @@ export const api = {
 
 export type User = {
   id: number; name: string; email: string; role: string;
+  phone?: string | null;
   linkedClientId?: number | null;
   linkedDriverId?: number | null;
 };

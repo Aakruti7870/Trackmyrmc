@@ -1,7 +1,8 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { hashPassword } from '../lib/password.js';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { users, clients, auditLogs } from '../db/schema.js';
@@ -11,6 +12,8 @@ import { isAuthorityEmail } from '../lib/authority.js';
 import { resolveStaffSsoUser } from '../lib/staffSso.js';
 import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.js';
 import { peekInviteToken, redeemInviteToken } from '../lib/inviteToken.js';
+import { rateLimit } from '../lib/rateLimit.js';
+import { normalizePhone, isOtpProviderConfigured, sendOtp, verifyOtp } from '../lib/otp.js';
 const router = Router();
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
@@ -306,7 +309,12 @@ router.post('/set-password', async (req, res) => {
 const registerSchema = z.object({
     name: z.string().trim().min(2, 'Your name is required').max(120),
     companyName: z.string().trim().min(2, 'Company name is required').max(160),
-    email: z.string().trim().toLowerCase().email('A valid email is required').max(160),
+    email: z.string().trim().toLowerCase().email('A valid email is required').max(160)
+        // The @otp.local domain is reserved for placeholder addresses on phone-OTP
+        // accounts; blocking it here stops a self-registration from squatting the
+        // deterministic placeholder of a target phone number and blocking that
+        // number's OTP signup.
+        .refine((e) => !e.endsWith('@otp.local'), 'A valid email is required'),
     phone: z.string().trim().min(6, 'A valid phone number is required').max(30),
     password: z.string().min(8, 'Password must be at least 8 characters').max(200),
     gstNo: z.string().trim().max(30).optional().or(z.literal('')),
@@ -383,6 +391,157 @@ router.post('/register', async (req, res) => {
             id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role,
             linkedClientId: newUser.linkedClientId,
             linkedDriverId: newUser.linkedDriverId,
+        },
+    });
+});
+// --- Phone-first WhatsApp OTP (customers) -----------------------------------
+// Customers in our market often have no email, so they sign in with a mobile
+// number verified by a one-time code (WhatsApp via Twilio Verify in production,
+// a local dev fallback otherwise). Verifying a number that has no account yet
+// transparently creates a 'client' account — there is no separate register step.
+const otpSendSchema = z.object({
+    phone: z.string().min(1, 'Phone number is required'),
+    name: z.string().trim().max(120).optional(),
+});
+const otpVerifySchema = z.object({
+    phone: z.string().min(1, 'Phone number is required'),
+    code: z.string().trim().min(4, 'Enter the code you received').max(10),
+    name: z.string().trim().max(120).optional(),
+});
+// Reserved placeholder email for OTP-only accounts (the users table requires a
+// unique email). Derived deterministically from the number so it never collides
+// with a real address and stays stable across re-sends.
+function placeholderEmailFor(phone) {
+    return `otp_${phone.replace(/\D/g, '')}@otp.local`;
+}
+// 5 sends per 10 minutes per IP — enough for a fat-fingered retry, not enough to
+// run up a WhatsApp bill or enumerate numbers.
+const otpSendLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 5 });
+// Defense-in-depth on the verify side: cap guesses per IP so the endpoint can't
+// be hammered to brute-force a code (the dev fallback also caps attempts per
+// issued code, and Twilio caps in provider mode).
+const otpVerifyLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 15 });
+router.post('/otp/send', otpSendLimiter, async (req, res) => {
+    const parse = otpSendSchema.safeParse(req.body ?? {});
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.issues[0]?.message ?? 'Invalid request' });
+        return;
+    }
+    const phone = normalizePhone(parse.data.phone);
+    if (!phone) {
+        res.status(400).json({ error: 'Please enter a valid mobile number.' });
+        return;
+    }
+    const result = await sendOtp(phone);
+    if (!result.ok) {
+        res.status(502).json({ error: result.error ?? 'Could not send the verification code. Please try again.' });
+        return;
+    }
+    res.json({
+        ok: true,
+        channel: result.channel,
+        devMode: !isOtpProviderConfigured(),
+        // Only present in dev mode (no provider) and never in production.
+        devCode: result.devCode,
+    });
+});
+router.post('/otp/verify', otpVerifyLimiter, async (req, res) => {
+    const parse = otpVerifySchema.safeParse(req.body ?? {});
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.issues[0]?.message ?? 'Invalid request' });
+        return;
+    }
+    const phone = normalizePhone(parse.data.phone);
+    if (!phone) {
+        res.status(400).json({ error: 'Please enter a valid mobile number.' });
+        return;
+    }
+    const check = await verifyOtp(phone, parse.data.code);
+    if (!check.ok) {
+        res.status(400).json({ error: check.error ?? 'That code is incorrect or has expired.' });
+        return;
+    }
+    // Find the live account for this number, or create one on first verified login.
+    let [user] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.phone, phone), isNull(users.deletedAt)));
+    if (!user) {
+        const displayName = parse.data.name?.trim() || `Customer ${phone.slice(-4)}`;
+        const placeholderEmail = placeholderEmailFor(phone);
+        // Random, unusable password — these accounts authenticate only by OTP.
+        const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+        try {
+            user = await db.transaction(async (tx) => {
+                const [client] = await tx.insert(clients).values({
+                    name: displayName,
+                    contactPerson: displayName,
+                    phone,
+                }).returning();
+                const [created] = await tx.insert(users).values({
+                    name: displayName,
+                    email: placeholderEmail,
+                    phone,
+                    passwordHash,
+                    role: 'client',
+                    isActive: true,
+                    linkedClientId: client.id,
+                }).returning();
+                await tx.insert(auditLogs).values({
+                    actorId: null,
+                    actorName: displayName,
+                    action: 'account_registered',
+                    targetUserId: created.id,
+                    targetUserEmail: created.email,
+                    status: 'success',
+                    detail: `Phone-OTP customer (${phone}) — account active`,
+                });
+                return created;
+            });
+        }
+        catch (err) {
+            // A unique violation here means two verifies for the same number raced, or
+            // the placeholder email/phone was already taken. Re-read the live account
+            // and continue; if there genuinely isn't one, surface a clean error
+            // instead of a 500.
+            if (err && typeof err === 'object' && err.code === '23505') {
+                [user] = await db
+                    .select()
+                    .from(users)
+                    .where(and(eq(users.phone, phone), isNull(users.deletedAt)));
+                if (!user) {
+                    res.status(409).json({ error: 'This number could not be registered. Please contact support.' });
+                    return;
+                }
+            }
+            else {
+                throw err;
+            }
+        }
+    }
+    if (!user) {
+        res.status(500).json({ error: 'Could not complete sign-in. Please try again.' });
+        return;
+    }
+    else if (!user.isActive) {
+        res.status(403).json({ error: 'This account has been disabled. Please contact support.' });
+        return;
+    }
+    const token = signToken({
+        id: user.id, email: user.email, role: user.role, name: user.name,
+        plantId: user.plantId,
+        linkedClientId: user.linkedClientId,
+        linkedDriverId: user.linkedDriverId,
+    });
+    res.json({
+        ok: true,
+        token,
+        user: {
+            id: user.id, name: user.name, email: user.email, role: user.role,
+            phone: user.phone,
+            plantId: user.plantId,
+            linkedClientId: user.linkedClientId,
+            linkedDriverId: user.linkedDriverId,
         },
     });
 });
