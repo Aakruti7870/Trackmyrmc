@@ -139,7 +139,7 @@ async function persistMessage(
 // Raise a support ticket when the AI can't help or the user asks for a human.
 // Plant-scoped to the user's derived identity; clientId is attached when the
 // user is a linked customer.
-router.post('/support-ticket', async (req, res) => {
+router.post('/support-ticket', rateLimit({ windowMs: 60_000, max: 5, name: 'ai_support_ticket' }), async (req, res) => {
   const user = req.user!;
   const { subject, message, contactInfo, selectedPlantId } = req.body ?? {};
   if (typeof message !== 'string' || !message.trim()) { res.status(400).json({ error: 'A message is required.' }); return; }

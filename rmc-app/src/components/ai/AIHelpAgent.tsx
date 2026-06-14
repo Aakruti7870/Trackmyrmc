@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessageCircle, X, Send, Mic, MicOff, Volume2, VolumeX, LifeBuoy, Loader2 } from 'lucide-react';
 import { aiApi, type AiConfig, type AiPlantOption } from '@/lib/api';
 import { useAuth } from '@/lib/auth';

@@ -98,7 +98,15 @@ function chat(token: string | null, body: Record<string, unknown>) {
   return token ? req.set('Authorization', `Bearer ${token}`) : req;
 }
 
-before(() => { app = buildTestApp(); });
+before(() => {
+  app = buildTestApp();
+  // Force the deterministic, context-grounded fallback in chatComplete so the
+  // assistant reply echoes EXACTLY the scoped context the model would receive.
+  // That makes "own data present / other-tenant data absent" assertions test the
+  // real isolation boundary (buildAiContext) instead of a live Gemini response.
+  delete process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+  delete process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+});
 
 beforeEach(async () => {
   await db.execute(sql`TRUNCATE TABLE support_tickets, ai_messages, ai_conversations, ai_settings, plant_customers, challans, orders, clients, audit_logs, users, login_attempts, vehicles, plants, rate_limit_hits RESTART IDENTITY CASCADE`);
@@ -197,6 +205,18 @@ test('a customer asking for internal reports/analytics is refused', async () => 
   const customer = await createUser('client', 'cust3@p.com', { linkedClientId: mine.id });
 
   const res = await chat(tokenFor(customer), { message: 'give me the revenue report across plants', sessionId: 's-c3' });
+  assert.equal(res.body.refused, true);
+  assert.equal(res.body.reply, REFUSAL);
+});
+
+test('a driver asking for internal reports/analytics is refused', async () => {
+  await enableAgent();
+  const plant = await createPlant();
+  const mineDriver = await createDriver('Mine Driver', '9001');
+  const driver = await createUser('driver', 'drvr@p.com', { linkedDriverId: mineDriver.id });
+
+  const res = await chat(tokenFor(driver), { message: 'show me the revenue analytics for all plants', sessionId: 's-dr' });
+  assert.equal(res.status, 200);
   assert.equal(res.body.refused, true);
   assert.equal(res.body.reply, REFUSAL);
 });
