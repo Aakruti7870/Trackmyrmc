@@ -99,6 +99,73 @@ test('PUT /plants/:id can mark a lead verified and edit company details', async 
   assert.equal(res.body.contactNumber, '9820011001');
 });
 
+test('PUT /plants/:id rejects verifying a plant with missing company details', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const lead = await createPlant({ name: 'Lead Plant', verified: false });
+
+  // A scripted request flipping verified=true on a bare lead must be blocked.
+  const res = await request(app)
+    .put(`/api/plants/${lead.id}`)
+    .set('Authorization', `Bearer ${tokenFor(admin)}`)
+    .send({ verified: true });
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /legal \/ company name/);
+  assert.match(res.body.error, /GST number/);
+  assert.match(res.body.error, /contact number/);
+  assert.match(res.body.error, /email/);
+
+  // The plant must remain an unverified lead.
+  const [after] = await db.select().from(plants).where(eq(plants.id, lead.id));
+  assert.equal(after.verified, false, 'plant must not have been published');
+});
+
+test('PUT /plants/:id rejects verifying when a single detail is blank', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const lead = await createPlant({ name: 'Lead Plant', verified: false });
+  // Fill everything except email, then try to publish with email blank.
+  await db.update(plants).set({
+    legalName: 'Lead Infra Pvt Ltd', gstNo: '27AAKCK0001A1Z5', contactNumber: '9820011001',
+  }).where(eq(plants.id, lead.id));
+
+  const res = await request(app)
+    .put(`/api/plants/${lead.id}`)
+    .set('Authorization', `Bearer ${tokenFor(admin)}`)
+    .send({ verified: true, email: '   ' });
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /email/);
+  assert.doesNotMatch(res.body.error, /GST number/);
+});
+
+test('PUT /plants/:id allows verifying when stored details are complete (partial PUT)', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const lead = await createPlant({ name: 'Lead Plant', verified: false });
+  await db.update(plants).set({
+    legalName: 'Lead Infra Pvt Ltd', gstNo: '27AAKCK0001A1Z5',
+    contactNumber: '9820011001', email: 'lead@example.com',
+  }).where(eq(plants.id, lead.id));
+
+  // Only the verified flag is sent — the guard merges against the stored row.
+  const res = await request(app)
+    .put(`/api/plants/${lead.id}`)
+    .set('Authorization', `Bearer ${tokenFor(admin)}`)
+    .send({ verified: true });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.verified, true);
+});
+
+test('PUT /plants/:id can still un-verify and edit a plant with missing details', async () => {
+  const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+  const verified = await createPlant({ name: 'Verified Plant', verified: true });
+
+  // Un-verifying (and any other edit) must not be blocked by missing details.
+  const res = await request(app)
+    .put(`/api/plants/${verified.id}`)
+    .set('Authorization', `Bearer ${tokenFor(admin)}`)
+    .send({ verified: false, legalName: null });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.verified, false);
+});
+
 test('GET /plants/nearby excludes unverified leads, includes verified partners', async () => {
   await createPlant({ name: 'Lead Plant', verified: false, locationVerified: true });
   await createPlant({ name: 'Verified Plant', verified: true, locationVerified: true });

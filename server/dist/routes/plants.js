@@ -346,6 +346,17 @@ router.post('/', ADMIN, async (req, res) => {
         res.status(409).json({ error: 'A plant with this name already exists' });
     }
 });
+// The company details that must be present before a plant can be published to
+// the customer-facing marketplace. Mirrors missingVerifyFields() in the UI.
+function missingVerifyFields(src) {
+    const checks = [
+        [src.legalName, 'legal / company name'],
+        [src.gstNo, 'GST number'],
+        [src.contactNumber, 'contact number'],
+        [src.email, 'email'],
+    ];
+    return checks.filter(([v]) => v == null || !String(v).trim()).map(([, label]) => label);
+}
 router.put('/:id', ADMIN, async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -354,6 +365,28 @@ router.put('/:id', ADMIN, async (req, res) => {
     }
     const data = parseBody(req.body ?? {});
     data.updatedAt = new Date();
+    // Authoritatively block publishing a half-onboarded plant: setting verified=true
+    // requires the key company details to be present. A partial PUT (e.g. just
+    // { verified: true }) is merged against the stored row before checking.
+    if (data.verified === true) {
+        const [existing] = await db.select().from(plants).where(eq(plants.id, id));
+        if (!existing) {
+            res.status(404).json({ error: 'Plant not found' });
+            return;
+        }
+        const pick = (key) => key in data ? data[key] : existing[key];
+        const missing = missingVerifyFields({
+            legalName: pick('legalName'), gstNo: pick('gstNo'),
+            contactNumber: pick('contactNumber'), email: pick('email'),
+        });
+        if (missing.length > 0) {
+            res.status(400).json({
+                error: `Cannot verify a plant with missing details: ${missing.join(', ')}. ` +
+                    `Verified plants are published to the customer-facing marketplace.`,
+            });
+            return;
+        }
+    }
     const [row] = await db.update(plants).set(data).where(eq(plants.id, id)).returning();
     if (!row) {
         res.status(404).json({ error: 'Plant not found' });

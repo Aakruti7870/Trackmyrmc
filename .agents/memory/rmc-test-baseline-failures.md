@@ -15,8 +15,14 @@ Heuristics for the failures that keep recurring in the test gate (server
   Any test asserting `23505`/constraint names must unwrap `.cause` first.
 - `mock.module('../lib/email.js', {namedExports})` must list EVERY export any
   statically-imported consumer needs (e.g. `deliveryNotify.ts` imports
-  `sendDeliveryNotificationEmail`). A missing one fails ESM instantiation
+  `sendDeliveryNotificationEmail`; the plants router imports
+  `sendOwnerInviteEmail`). A missing one fails ESM instantiation
   ("does not provide an export named …") only in single-file/mocked runs.
+- The OTP send/verify limiters in `auth.ts` are UNNAMED, so both share one
+  DB-backed `default:<ip>` counter (`rateLimitHits`), max 5/10min. All tests
+  hit it from 127.0.0.1, so any OTP test file MUST `db.delete(rateLimitHits)`
+  in `beforeEach` or its own send+verify budget is consumed across cases and
+  later requests 429 (assertion shows 400 != 200), order-dependently.
 
 ## Frontend — MyOrders
 - MyOrders loads several list endpoints (`/me/orders`, `/me/challans`,

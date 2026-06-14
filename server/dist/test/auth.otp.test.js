@@ -4,7 +4,7 @@ import request from 'supertest';
 import { sql, eq, and, isNull } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, clients, otpCodes } from '../db/schema.js';
+import { users, clients, otpCodes, rateLimitHits } from '../db/schema.js';
 let app;
 before(() => {
     // These tests rely on the dev fallback (no Twilio configured). Guard against a
@@ -16,6 +16,12 @@ before(() => {
 });
 beforeEach(async () => {
     await db.delete(otpCodes);
+    // The OTP send/verify routes share an unnamed ('default') DB-backed rate-limit
+    // counter keyed by IP. Every request in this file comes from 127.0.0.1, so
+    // without resetting the counter the per-window budget (max 5) is consumed
+    // across tests and later sends/verifies 429 — making the suite order-flaky.
+    // Clearing it per test keeps each case deterministic.
+    await db.delete(rateLimitHits);
     // Clean up any OTP-created customer accounts/clients from prior runs.
     await db.delete(users).where(sql `${users.email} LIKE 'otp_%@otp.local'`);
     await db.delete(clients).where(sql `${clients.phone} LIKE '+91%'`);
