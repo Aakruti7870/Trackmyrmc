@@ -33,7 +33,9 @@ export default defineConfig({
         navigateFallback: '/index.html',
         // The app is auth'd + realtime: never let the service worker serve
         // cached HTML for API calls or intercept/cache the SSE stream.
-        navigateFallbackDenylist: [/^\/api/],
+        // Auth routes have their own HTML entry points (MPA); exclude them so
+        // the SW does not override them with the homepage index.html.
+        navigateFallbackDenylist: [/^\/api/, /^\/(login|register|set-password)(\/|$)/],
         // Workbox matches RegExp urlPatterns against the full href, so an
         // ^-anchored pathname regex never fires. Use a callback that tests the
         // pathname to actually force NetworkOnly for every API call.
@@ -48,6 +50,16 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        login: 'login/index.html',
+        register: 'register/index.html',
+        'set-password': 'set-password/index.html',
+      },
     },
   },
   server: {

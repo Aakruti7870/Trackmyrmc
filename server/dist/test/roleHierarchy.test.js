@@ -192,6 +192,46 @@ test('legacy global admin (no plant binding) retains full user-console access', 
     const list = await request(app).get('/api/users').set('Authorization', `Bearer ${tokenFor(admin)}`);
     assert.equal(list.status, 200);
 });
+test('plant-scoped admin is denied global plant administration (no cross-tenant plant access)', async () => {
+    const plant = await createPlant('Alpha');
+    const scopedAdmin = await createUser({ name: 'ScopedAdmin', email: 'scoped@test.com', role: 'admin', plantId: plant.id });
+    const token = tokenFor(scopedAdmin);
+    const list = await request(app).get('/api/plants').set('Authorization', `Bearer ${token}`);
+    assert.equal(list.status, 403);
+    const create = await request(app)
+        .post('/api/plants')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Rogue', latitude: '19.0', longitude: '73.0' });
+    assert.equal(create.status, 403);
+    const del = await request(app).delete(`/api/plants/${plant.id}`).set('Authorization', `Bearer ${token}`);
+    assert.equal(del.status, 403);
+});
+test('platform staff (authority + legacy global admin) keep global plant administration', async () => {
+    const authority = await createUser({ name: 'Super', email: 'krushnabade54@gmail.com', role: 'authority' });
+    const authList = await request(app).get('/api/plants').set('Authorization', `Bearer ${tokenFor(authority)}`);
+    assert.equal(authList.status, 200);
+    const globalAdmin = await createUser({ name: 'GlobalAdmin', email: 'global@test.com', role: 'admin' });
+    const adminList = await request(app).get('/api/plants').set('Authorization', `Bearer ${tokenFor(globalAdmin)}`);
+    assert.equal(adminList.status, 200);
+});
+test('per-plant role limit holds under concurrent provisioning (no double-count race)', async () => {
+    const plant = await createPlant('Alpha');
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const token = tokenFor(admin);
+    // Fire two dispatcher provisions (cap = 1) simultaneously. Exactly one must
+    // win; the row lock in the handler must force the other to see the insert.
+    const [a, b] = await Promise.all([
+        request(app).post(`/api/plants/${plant.id}/owner`).set('Authorization', `Bearer ${token}`)
+            .send({ name: 'D1', email: 'd1@test.com', password: 'ownerpass1', role: 'dispatcher' }),
+        request(app).post(`/api/plants/${plant.id}/owner`).set('Authorization', `Bearer ${token}`)
+            .send({ name: 'D2', email: 'd2@test.com', password: 'ownerpass1', role: 'dispatcher' }),
+    ]);
+    const statuses = [a.status, b.status].sort();
+    assert.deepEqual(statuses, [201, 409], 'exactly one provision succeeds, the other is capped');
+    const [{ count }] = await db.select({ count: sql `count(*)::int` })
+        .from(users).where(eq(users.role, 'dispatcher'));
+    assert.equal(count, 1, 'only one dispatcher persisted despite the race');
+});
 test('POST /users gates plant_owner creation to authority only', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const denied = await request(app)
