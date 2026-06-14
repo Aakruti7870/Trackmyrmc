@@ -323,6 +323,35 @@ export const plantCustomers = pgTable('plant_customers', {
   uniqueIndex('plant_customers_plant_user_unique').on(t.plantId, t.userId),
 ]);
 
+// Customer/staff-submitted requests to onboard a real-world concrete plant that
+// was discovered live on the map directory (Google Places) but is not yet a
+// partner. One row per Google placeId — repeated requests for the same plant are
+// de-duplicated by incrementing requestCount and recording the latest requester,
+// so staff see demand without a flood of duplicate leads.
+export const plantInvites = pgTable('plant_invites', {
+  id: serial('id').primaryKey(),
+  placeId: text('place_id').notNull(),
+  name: text('name').notNull(),
+  address: text('address'),
+  latitude: decimal('latitude', { precision: 10, scale: 7 }),
+  longitude: decimal('longitude', { precision: 10, scale: 7 }),
+  contactNumber: text('contact_number'),
+  // How many times this plant has been requested (across all users).
+  requestCount: integer('request_count').notNull().default(1),
+  // 'pending' (awaiting staff action) | 'onboarded' | 'dismissed'.
+  status: text('status').notNull().default('pending'),
+  // Who first requested it, and who requested it most recently. Both nullable so
+  // the row survives the requester's account being deleted.
+  firstRequestedById: integer('first_requested_by_id').references(() => users.id, { onDelete: 'set null' }),
+  firstRequestedByName: text('first_requested_by_name'),
+  lastRequestedById: integer('last_requested_by_id').references(() => users.id, { onDelete: 'set null' }),
+  lastRequestedByName: text('last_requested_by_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('plant_invites_place_id_unique').on(t.placeId),
+]);
+
 export const plantsRelations = relations(plants, ({ many }) => ({
   clients: many(clients),
   orders: many(orders),

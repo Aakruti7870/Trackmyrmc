@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { eq, and, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { plants, users, auditLogs } from '../db/schema.js';
+import { plants, users, auditLogs, plantInvites } from '../db/schema.js';
 import { randomBytes } from 'node:crypto';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { hashPassword } from '../lib/password.js';
@@ -140,6 +140,96 @@ router.get('/discover', discoverLimiter, async (req, res) => {
 // The /nearby route above gates itself with requireAuth (customer discovery).
 // Everything below this guard additionally requires authentication.
 router.use(requireAuth);
+// A customer (or staff) flags a discovered, not-yet-onboarded plant so the
+// business can reach out and onboard it. De-duplicated by Google placeId: a
+// repeat request for the same plant bumps requestCount + records the latest
+// requester rather than creating a duplicate lead. Available to any signed-in
+// user — customers reach it from the live discovery map.
+const inviteSchema = z.object({
+    placeId: z.string().min(1, 'placeId is required'),
+    name: z.string().min(1, 'name is required'),
+    address: z.string().nullish(),
+    latitude: z.coerce.number().finite().optional(),
+    longitude: z.coerce.number().finite().optional(),
+    contactNumber: z.string().nullish(),
+});
+router.post('/invite', async (req, res) => {
+    const parse = inviteSchema.safeParse(req.body);
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.flatten().fieldErrors });
+        return;
+    }
+    const { placeId, name, address, latitude, longitude, contactNumber } = parse.data;
+    const actor = req.user;
+    const [row] = await db
+        .insert(plantInvites)
+        .values({
+        placeId,
+        name,
+        address: address ?? null,
+        latitude: latitude != null ? String(latitude) : null,
+        longitude: longitude != null ? String(longitude) : null,
+        contactNumber: contactNumber ?? null,
+        requestCount: 1,
+        status: 'pending',
+        firstRequestedById: actor.id,
+        firstRequestedByName: actor.name,
+        lastRequestedById: actor.id,
+        lastRequestedByName: actor.name,
+    })
+        .onConflictDoUpdate({
+        target: plantInvites.placeId,
+        set: {
+            requestCount: sql `${plantInvites.requestCount} + 1`,
+            name,
+            address: address ?? null,
+            contactNumber: contactNumber ?? null,
+            lastRequestedById: actor.id,
+            lastRequestedByName: actor.name,
+            // A dismissed lead that gets requested again returns to the pending
+            // queue so staff see the renewed demand; an already-onboarded one stays.
+            status: sql `CASE WHEN ${plantInvites.status} = 'onboarded' THEN ${plantInvites.status} ELSE 'pending' END`,
+            updatedAt: sql `NOW()`,
+        },
+    })
+        .returning();
+    res.status(201).json({ ...row, deduped: row.requestCount > 1 });
+});
+// Staff-only: the queue of submitted invites, most-requested / most-recent first.
+router.get('/invites', ADMIN, async (_req, res) => {
+    const rows = await db
+        .select()
+        .from(plantInvites)
+        .orderBy(sql `${plantInvites.status} = 'pending' DESC`, sql `${plantInvites.requestCount} DESC`, sql `${plantInvites.updatedAt} DESC`);
+    res.json(rows);
+});
+// Staff-only: update an invite's status (e.g. mark onboarded once the plant is
+// added, or dismiss a request that won't be pursued).
+const inviteStatusSchema = z.object({
+    status: z.enum(['pending', 'onboarded', 'dismissed']),
+});
+router.patch('/invites/:id', ADMIN, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+        res.status(400).json({ error: 'Invalid id' });
+        return;
+    }
+    const parse = inviteStatusSchema.safeParse(req.body);
+    if (!parse.success) {
+        res.status(400).json({ error: 'Invalid status' });
+        return;
+    }
+    const [row] = await db
+        .update(plantInvites)
+        .set({ status: parse.data.status, updatedAt: new Date() })
+        .where(eq(plantInvites.id, id))
+        .returning();
+    if (!row) {
+        res.status(404).json({ error: 'Invite not found' });
+        return;
+    }
+    res.json(row);
+});
 router.get('/', ADMIN, async (_req, res) => {
     const rows = await db.select().from(plants).orderBy(plants.createdAt);
     // Count the live (non-soft-deleted) login accounts bound to each plant so the

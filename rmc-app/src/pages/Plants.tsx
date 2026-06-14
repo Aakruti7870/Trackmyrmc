@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users } from 'lucide-react';
+import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users, HandHeart, Inbox } from 'lucide-react';
 import { api } from '@/lib/api';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 
@@ -36,6 +36,26 @@ interface PlantLogin {
   role: string;
   isActive: boolean;
   createdAt: string;
+}
+
+type InviteStatus = 'pending' | 'onboarded' | 'dismissed';
+
+// A customer/staff request to onboard a real-world plant discovered live on the
+// map directory (Google Places), de-duplicated by placeId server-side.
+interface PlantInvite {
+  id: number;
+  placeId: string;
+  name: string;
+  address: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  contactNumber: string | null;
+  requestCount: number;
+  status: InviteStatus;
+  firstRequestedByName: string | null;
+  lastRequestedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -88,7 +108,11 @@ export default function Plants() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<'leads' | 'verified'>('leads');
+  const [tab, setTab] = useState<'leads' | 'verified' | 'invites'>('leads');
+  // Customer-submitted onboarding requests for discovered plants.
+  const [invites, setInvites] = useState<PlantInvite[] | null>(null);
+  const [invitesError, setInvitesError] = useState('');
+  const [busyInviteId, setBusyInviteId] = useState<number | null>(null);
   // Owner-provisioning modal state.
   const [ownerFor, setOwnerFor] = useState<Plant | null>(null);
   const [ownerForm, setOwnerForm] = useState(ownerEmpty);
@@ -109,7 +133,40 @@ export default function Plants() {
       .then(p => { setPlants(p); setError(''); })
       .catch(e => { setError((e as Error).message); setPlants([]); });
   }
-  useEffect(load, []);
+  function loadInvites() {
+    api.get<PlantInvite[]>('/plants/invites')
+      .then(rows => { setInvites(rows); setInvitesError(''); })
+      .catch(e => { setInvitesError((e as Error).message); setInvites([]); });
+  }
+  useEffect(() => { load(); loadInvites(); }, []);
+
+  async function setInviteStatus(inv: PlantInvite, status: InviteStatus) {
+    setBusyInviteId(inv.id);
+    setInvitesError('');
+    try {
+      await api.patch(`/plants/invites/${inv.id}`, { status });
+      loadInvites();
+    } catch (err) {
+      setInvitesError((err as Error).message || 'Could not update the request.');
+    } finally {
+      setBusyInviteId(null);
+    }
+  }
+
+  // Prefill the Add-Plant form from a customer's onboarding request so staff can
+  // turn the lead into a real plant in one step.
+  function onboardInvite(inv: PlantInvite) {
+    setForm({
+      ...emptyForm,
+      name: inv.name,
+      address: inv.address ?? '',
+      contactNumber: inv.contactNumber ?? '',
+      latitude: inv.latitude ?? '',
+      longitude: inv.longitude ?? '',
+    });
+    setEditId(null);
+    setShowForm(true);
+  }
 
   function openCreate() { setForm(emptyForm); setEditId(null); setShowForm(true); }
   function openEdit(p: Plant) {
@@ -285,7 +342,8 @@ export default function Plants() {
 
   const leads = useMemo(() => (plants ?? []).filter(isLead), [plants]);
   const verified = useMemo(() => (plants ?? []).filter(p => !isLead(p)), [plants]);
-  const visible = tab === 'leads' ? leads : verified;
+  const visible = tab === 'verified' ? verified : leads;
+  const pendingInviteCount = useMemo(() => (invites ?? []).filter(i => i.status === 'pending').length, [invites]);
 
   const pin: LatLng | null = form.latitude && form.longitude
     ? { lat: parseFloat(form.latitude), lng: parseFloat(form.longitude) } : null;
@@ -308,8 +366,6 @@ export default function Plants() {
 
       {plants == null ? (
         <div style={{ color: 'var(--muted)', padding: 30 }}>Loading…</div>
-      ) : plants.length === 0 ? (
-        <div style={{ ...softCard, textAlign: 'center', color: 'var(--muted)' }}>No plants yet. Add your first plant.</div>
       ) : (
         <>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -319,9 +375,22 @@ export default function Plants() {
             <button onClick={() => setTab('verified')} style={tabBtn(tab === 'verified', 'var(--green)')}>
               <BadgeCheck size={14} /> Verified partners <span style={countPill}>{verified.length}</span>
             </button>
+            <button onClick={() => setTab('invites')} style={tabBtn(tab === 'invites', 'var(--blue)')}>
+              <HandHeart size={14} /> Onboarding requests <span style={countPill}>{pendingInviteCount}</span>
+            </button>
           </div>
 
-          {visible.length === 0 ? (
+          {tab === 'invites' ? (
+            <InvitesPanel
+              invites={invites}
+              error={invitesError}
+              busyId={busyInviteId}
+              onOnboard={onboardInvite}
+              onSetStatus={setInviteStatus}
+            />
+          ) : plants.length === 0 ? (
+            <div style={{ ...softCard, textAlign: 'center', color: 'var(--muted)' }}>No plants yet. Add your first plant.</div>
+          ) : visible.length === 0 ? (
             <div style={{ ...softCard, textAlign: 'center', color: 'var(--muted)' }}>
               {tab === 'leads' ? 'No onboarding leads left — every plant is verified.' : 'No verified partners yet. Onboard a lead to get started.'}
             </div>
@@ -594,6 +663,86 @@ export default function Plants() {
               <button type="button" onClick={() => setLoginsFor(null)} style={primaryBtn}>Done</button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const INVITE_STATUS_COLORS: Record<InviteStatus, string> = {
+  pending: 'var(--gold)',
+  onboarded: 'var(--green)',
+  dismissed: 'var(--muted)',
+};
+
+function InvitesPanel({ invites, error, busyId, onOnboard, onSetStatus }: {
+  invites: PlantInvite[] | null;
+  error: string;
+  busyId: number | null;
+  onOnboard: (inv: PlantInvite) => void;
+  onSetStatus: (inv: PlantInvite, status: InviteStatus) => void;
+}) {
+  return (
+    <div>
+      <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--muted)' }}>
+        Plants customers found on the live map and asked us to onboard. Each placeId is de-duplicated — repeat requests bump the count instead of piling up.
+      </p>
+      {error && <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--red) 45%, transparent)', color: 'var(--red)', marginBottom: 12, fontSize: 13.5 }}>{error}</div>}
+      {invites == null ? (
+        <div style={{ color: 'var(--muted)', padding: 30 }}>Loading…</div>
+      ) : invites.length === 0 ? (
+        <div style={{ ...softCard, textAlign: 'center', color: 'var(--muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <Inbox size={26} style={{ color: 'var(--muted)' }} />
+          No onboarding requests yet. When a customer flags a discovered plant, it shows up here.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {invites.map(inv => {
+            const busy = busyId === inv.id;
+            const hasCoords = !!(inv.latitude && inv.longitude);
+            return (
+              <div key={inv.id} style={{ ...softCard, display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ minWidth: 220, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)' }}>{inv.name}</span>
+                    <span style={badge(INVITE_STATUS_COLORS[inv.status])}>{inv.status.toUpperCase()}</span>
+                    {inv.requestCount > 1 && <span style={badge('var(--blue)')}>{inv.requestCount} requests</span>}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
+                    {inv.address || 'no address'} · {inv.contactNumber || 'no contact'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+                    Requested by {inv.lastRequestedByName || 'a customer'} · {new Date(inv.updatedAt).toLocaleDateString()}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {hasCoords && (
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${inv.latitude},${inv.longitude}`} target="_blank" rel="noopener noreferrer" style={{ ...chip(false, 'var(--gold)'), textDecoration: 'none' }} title="View this location on Google Maps">
+                      <MapPin size={13} /> Map
+                    </a>
+                  )}
+                  <button onClick={() => onOnboard(inv)} disabled={busy} style={{ ...chip(true, 'var(--green)'), opacity: busy ? 0.6 : 1 }} title="Create a plant from this request">
+                    <Plus size={13} /> Add as plant
+                  </button>
+                  {inv.status !== 'onboarded' && (
+                    <button onClick={() => onSetStatus(inv, 'onboarded')} disabled={busy} style={{ ...chip(false, 'var(--green)'), opacity: busy ? 0.6 : 1 }} title="Mark this request as onboarded">
+                      <Check size={13} /> Mark onboarded
+                    </button>
+                  )}
+                  {inv.status !== 'dismissed' ? (
+                    <button onClick={() => onSetStatus(inv, 'dismissed')} disabled={busy} style={{ ...chip(false, 'var(--red)'), opacity: busy ? 0.6 : 1 }} title="Dismiss this request">
+                      <X size={13} /> Dismiss
+                    </button>
+                  ) : (
+                    <button onClick={() => onSetStatus(inv, 'pending')} disabled={busy} style={{ ...chip(false, 'var(--gold)'), opacity: busy ? 0.6 : 1 }} title="Restore this request to the queue">
+                      <Sprout size={13} /> Restore
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

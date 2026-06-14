@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, List, Map as MapIcon, Phone, Clock, Navigation, PackagePlus, Loader2, LocateFixed, RefreshCw, Headphones, Search, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { MapPin, List, Map as MapIcon, Phone, Clock, Navigation, PackagePlus, Loader2, LocateFixed, RefreshCw, Headphones, Search, ShieldCheck, ShieldAlert, HandHeart, Check } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
@@ -81,6 +81,10 @@ export default function NearbyPlants() {
   const [manual, setManual] = useState<LatLng | null>(null);
   const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
   const focusRef = useRef<number | null>(null);
+  // Per-lead invite state, keyed by Google placeId, so a customer can flag a
+  // discovered plant for onboarding without re-requesting it.
+  const [inviteState, setInviteState] = useState<Record<string, 'sending' | 'done' | 'error'>>({});
+  const [inviteMsg, setInviteMsg] = useState<Record<string, string>>({});
   // Mirror the radius in a ref so the geolocation loader can read the latest
   // value without being recreated (which would re-prompt for location).
   const radiusRef = useRef(radiusKm);
@@ -157,6 +161,29 @@ export default function NearbyPlants() {
   function viewOnMap(p: NearbyPlant) {
     focusRef.current = p.id;
     setView('map');
+  }
+
+  // Flag a discovered (not-yet-onboarded) plant so our team can reach out and
+  // onboard it. Logged-out visitors are funneled to register first (the action
+  // is recorded server-side against the requesting user).
+  function inviteLead(p: DiscoveredPlant) {
+    if (!user) { navigate('/register'); return; }
+    if (inviteState[p.placeId] === 'sending' || inviteState[p.placeId] === 'done') return;
+    setInviteState(s => ({ ...s, [p.placeId]: 'sending' }));
+    setInviteMsg(m => ({ ...m, [p.placeId]: '' }));
+    api.post('/plants/invite', {
+      placeId: p.placeId,
+      name: p.name,
+      address: p.address,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      contactNumber: p.contactNumber,
+    })
+      .then(() => setInviteState(s => ({ ...s, [p.placeId]: 'done' })))
+      .catch((e: Error) => {
+        setInviteState(s => ({ ...s, [p.placeId]: 'error' }));
+        setInviteMsg(m => ({ ...m, [p.placeId]: e.message || 'Could not send your request.' }));
+      });
   }
 
   const wrap: React.CSSProperties = { padding: '22px clamp(14px, 4vw, 34px)', maxWidth: 1100, margin: '0 auto' };
@@ -272,7 +299,16 @@ export default function NearbyPlants() {
                     sub="Found live on the map — unverified, not yet onboarded."
                   />
                   <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', marginTop: 12 }}>
-                    {discovered.map(p => <LeadCard key={p.placeId} p={p} onMap={() => setView('map')} />)}
+                    {discovered.map(p => (
+                      <LeadCard
+                        key={p.placeId}
+                        p={p}
+                        onMap={() => setView('map')}
+                        invite={inviteState[p.placeId]}
+                        inviteError={inviteMsg[p.placeId]}
+                        onInvite={() => inviteLead(p)}
+                      />
+                    ))}
                   </div>
                 </>
               )}
@@ -398,7 +434,13 @@ function SectionHeader({ icon, title, sub }: { icon: React.ReactNode; title: str
 // Card for an unverified, not-yet-onboarded plant discovered live from the map
 // directory. Deliberately dimmer than PlantCard, with no "Place Order" CTA —
 // these plants can't be ordered from until they onboard.
-function LeadCard({ p, onMap }: { p: DiscoveredPlant; onMap: () => void }) {
+function LeadCard({ p, onMap, invite, inviteError, onInvite }: {
+  p: DiscoveredPlant;
+  onMap: () => void;
+  invite?: 'sending' | 'done' | 'error';
+  inviteError?: string;
+  onInvite: () => void;
+}) {
   return (
     <div style={{
       background: 'rgba(255,255,255,.02)',
@@ -436,8 +478,26 @@ function LeadCard({ p, onMap }: { p: DiscoveredPlant; onMap: () => void }) {
       </div>
 
       <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
-        Not on CONCRETE KING yet. To order here, call our team to request onboarding.
+        Not on CONCRETE KING yet. Request it below and our team will reach out to onboard this plant.
       </div>
+
+      {invite === 'done' ? (
+        <div style={{ display: 'flex', gap: 7, alignItems: 'flex-start', fontSize: 12.5, fontWeight: 700, color: 'var(--green)', background: 'color-mix(in srgb, var(--green) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--green) 32%, transparent)', borderRadius: 9, padding: '9px 11px' }}>
+          <Check size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>Thanks! We've recorded your request to onboard this plant.</span>
+        </div>
+      ) : (
+        <>
+          {invite === 'error' && inviteError && (
+            <div style={{ fontSize: 12, color: 'var(--red)', fontWeight: 600 }}>{inviteError}</div>
+          )}
+          <button onClick={onInvite} disabled={invite === 'sending'} style={{ ...primaryBtn, opacity: invite === 'sending' ? 0.6 : 1, cursor: invite === 'sending' ? 'wait' : 'pointer' }}>
+            {invite === 'sending'
+              ? <><Loader2 size={15} className="np-spin" /> Sending request…</>
+              : <><HandHeart size={15} /> Request this plant</>}
+          </button>
+        </>
+      )}
 
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5, fontWeight: 700, color: 'var(--gold)' }}>
         <Headphones size={13} /> Help:&nbsp;
