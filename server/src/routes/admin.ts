@@ -8,6 +8,12 @@ import { sendTestEmail, getSmtpSettings, verifySmtpConnection, getSmtpConfig, SM
 import { setSetting } from '../lib/settings.js';
 import { getVarianceTolerance, VARIANCE_KEYS, DEFAULT_VARIANCE_ABS, DEFAULT_VARIANCE_PCT } from '../lib/variance.js';
 import {
+  getPlantInviteNotifyConfig,
+  parseRecipients,
+  PLANT_INVITE_NOTIFY_KEYS,
+  DEFAULT_PLANT_INVITE_EMAIL_ENABLED,
+} from '../lib/plantInviteNotify.js';
+import {
   getFreshnessConfig,
   FRESHNESS_KEYS,
   DEFAULT_WORKING_LIFE_MIN,
@@ -247,6 +253,81 @@ router.post('/variance-tolerance', async (req, res) => {
   }
 
   res.json({ ...after, defaults: { abs: DEFAULT_VARIANCE_ABS, pct: DEFAULT_VARIANCE_PCT } });
+});
+
+router.get('/plant-invite-notify', async (_req, res) => {
+  res.json({
+    ...(await getPlantInviteNotifyConfig()),
+    defaults: { emailEnabled: DEFAULT_PLANT_INVITE_EMAIL_ENABLED },
+  });
+});
+
+// emailEnabled toggles whether the email is sent at all (the in-app toast always
+// fires). recipients is an optional comma/newline-separated list that, when set,
+// REPLACES the default all-admins audience; blank reverts to all admins.
+const plantInviteNotifySchema = z.object({
+  emailEnabled: z.boolean().optional(),
+  recipients: z
+    .string()
+    .max(2000)
+    .optional()
+    .refine(
+      v => v === undefined || parseRecipients(v).every(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)),
+      'Every recipient must be a valid email address',
+    ),
+});
+
+router.post('/plant-invite-notify', async (req, res) => {
+  const parse = plantInviteNotifySchema.safeParse(req.body);
+  if (!parse.success) {
+    res.status(400).json({ error: parse.error.flatten().fieldErrors });
+    return;
+  }
+
+  const { emailEnabled, recipients } = parse.data;
+  const before = await getPlantInviteNotifyConfig();
+
+  if (emailEnabled !== undefined) {
+    await setSetting(PLANT_INVITE_NOTIFY_KEYS.emailEnabled, String(emailEnabled));
+  }
+  if (recipients !== undefined) {
+    const cleaned = parseRecipients(recipients);
+    await setSetting(PLANT_INVITE_NOTIFY_KEYS.recipients, cleaned.length ? cleaned.join(', ') : null);
+  }
+
+  const after = await getPlantInviteNotifyConfig();
+
+  const changed: string[] = [];
+  if (before.emailEnabled !== after.emailEnabled) {
+    changed.push(`email ${after.emailEnabled ? 'enabled' : 'disabled'}`);
+  }
+  if (before.recipients.join(', ') !== after.recipients.join(', ')) {
+    changed.push(
+      after.recipients.length
+        ? `recipients set to ${after.recipients.length} address(es)`
+        : 'recipients reset to all admins',
+    );
+  }
+
+  const detail = changed.length
+    ? `New-plant-request notifications updated. Changed: ${changed.join('; ')}.`
+    : 'New-plant-request notification settings saved from the admin panel. No values were changed.';
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'plant_invite_notify_updated',
+      status: 'success',
+      detail,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write plant-invite notification audit log:', err);
+  }
+
+  res.json({ ...after, defaults: { emailEnabled: DEFAULT_PLANT_INVITE_EMAIL_ENABLED } });
 });
 
 router.get('/freshness-settings', async (_req, res) => {

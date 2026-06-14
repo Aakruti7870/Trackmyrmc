@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { hashPassword } from '../lib/password.js';
 import { sendWelcomeEmail, sendOwnerInviteEmail, sendPlantInviteNotification } from '../lib/email.js';
+import { getPlantInviteNotifyConfig } from '../lib/plantInviteNotify.js';
 import { createInviteToken } from '../lib/inviteToken.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { discoverConcretePlants, isDiscoveryConfigured } from '../lib/places.js';
@@ -238,17 +239,28 @@ router.post('/invite', async (req, res) => {
 
     void (async () => {
       try {
-        const admins = await db
-          .select({ email: users.email })
-          .from(users)
-          .where(
-            and(
-              isNull(users.deletedAt),
-              eq(users.isActive, true),
-              inArray(users.role, ['admin', 'authority']),
-            ),
-          );
-        const emails = admins.map(a => a.email).filter(Boolean);
+        // The in-app SSE toast above always fires (cheap, non-intrusive). The
+        // email is opt-out via an admin setting, and admins can override the
+        // default all-admins audience with an explicit recipient list.
+        const notifyCfg = await getPlantInviteNotifyConfig();
+        if (!notifyCfg.emailEnabled) return;
+
+        let emails: string[];
+        if (notifyCfg.recipients.length > 0) {
+          emails = notifyCfg.recipients;
+        } else {
+          const admins = await db
+            .select({ email: users.email })
+            .from(users)
+            .where(
+              and(
+                isNull(users.deletedAt),
+                eq(users.isActive, true),
+                inArray(users.role, ['admin', 'authority']),
+              ),
+            );
+          emails = admins.map(a => a.email).filter(Boolean);
+        }
         if (emails.length > 0) {
           await sendPlantInviteNotification(emails, {
             plantName: row.name,

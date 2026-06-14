@@ -177,6 +177,10 @@ export default function ProfileSettings() {
   const [varianceLoading, setVarianceLoading] = useState(false);
   const [varianceSaving, setVarianceSaving] = useState(false);
 
+  const [inviteNotifyForm, setInviteNotifyForm] = useState({ emailEnabled: true, recipients: '' });
+  const [inviteNotifyLoading, setInviteNotifyLoading] = useState(false);
+  const [inviteNotifySaving, setInviteNotifySaving] = useState(false);
+
   const [idleForm, setIdleForm] = useState({ freeMin: '', ratePerHour: '' });
   const [idleDefaults, setIdleDefaults] = useState<{ freeMin: number; ratePerHour: number | null }>({ freeMin: 45, ratePerHour: null });
   const [idleLoading, setIdleLoading] = useState(false);
@@ -293,6 +297,25 @@ export default function ProfileSettings() {
       }
     }
     loadVariance();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function loadInviteNotify() {
+      setInviteNotifyLoading(true);
+      try {
+        const v = await api.get<{ emailEnabled: boolean; recipients: string[] }>('/admin/plant-invite-notify');
+        if (cancelled) return;
+        setInviteNotifyForm({ emailEnabled: v.emailEnabled, recipients: v.recipients.join(', ') });
+      } catch {
+        /* non-fatal — keep defaults */
+      } finally {
+        if (!cancelled) setInviteNotifyLoading(false);
+      }
+    }
+    loadInviteNotify();
     return () => { cancelled = true; };
   }, [isAdmin]);
 
@@ -590,6 +613,36 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setVarianceSaving(false);
+    }
+  }
+
+  async function handleInviteNotifySave(e: React.FormEvent) {
+    e.preventDefault();
+    const recipients = inviteNotifyForm.recipients.trim();
+    if (recipients) {
+      const bad = recipients
+        .split(/[\s,;]+/)
+        .map(r => r.trim())
+        .filter(Boolean)
+        .filter(r => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r));
+      if (bad.length) {
+        showToast(`Not a valid email: ${bad[0]}`, 'error');
+        return;
+      }
+    }
+    setInviteNotifySaving(true);
+    try {
+      const updated = await api.post<{ emailEnabled: boolean; recipients: string[] }>(
+        '/admin/plant-invite-notify',
+        { emailEnabled: inviteNotifyForm.emailEnabled, recipients },
+      );
+      setInviteNotifyForm({ emailEnabled: updated.emailEnabled, recipients: updated.recipients.join(', ') });
+      showToast('Notification settings saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save notification settings';
+      showToast(msg, 'error');
+    } finally {
+      setInviteNotifySaving(false);
     }
   }
 
@@ -1189,6 +1242,82 @@ export default function ProfileSettings() {
                 }}
               >
                 {varianceSaving ? 'Saving…' : 'Save tolerance'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* New plant-request notification card — admins only */}
+      {isAdmin && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Mail size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>New Plant-Request Notifications</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Who gets emailed when a customer requests a new plant onboarding</div>
+            </div>
+          </div>
+
+          {inviteNotifyLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
+          ) : (
+            <form onSubmit={handleInviteNotifySave}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 16 }}>
+                <input
+                  type="checkbox"
+                  checked={inviteNotifyForm.emailEnabled}
+                  onChange={e => setInviteNotifyForm(f => ({ ...f, emailEnabled: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: 'var(--gold)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+                  Send an email when a new plant is requested
+                </span>
+              </label>
+
+              <div>
+                <label style={label} htmlFor="invite-recipients">Recipients (optional)</label>
+                <textarea
+                  id="invite-recipients"
+                  value={inviteNotifyForm.recipients}
+                  onChange={e => setInviteNotifyForm(f => ({ ...f, recipients: e.target.value }))}
+                  placeholder="Leave blank to notify all admins"
+                  disabled={!inviteNotifyForm.emailEnabled}
+                  rows={2}
+                  style={{
+                    ...inputStyle,
+                    padding: '10px 12px',
+                    resize: 'vertical',
+                    opacity: inviteNotifyForm.emailEnabled ? 1 : 0.5,
+                  }}
+                />
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+                The in-app alert is always shown to admins. When the email is on and you list one or more
+                addresses here (comma or newline separated), the email goes <strong style={{ color: 'var(--text)' }}>only</strong> to
+                those mailboxes — handy for a single shared inbox or to include dispatchers. Leave it blank to
+                email every active admin &amp; authority.
+              </div>
+
+              <button
+                type="submit"
+                disabled={inviteNotifySaving}
+                style={{
+                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
+                  background: inviteNotifySaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: inviteNotifySaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14,
+                  transition: 'opacity .15s',
+                }}
+              >
+                {inviteNotifySaving ? 'Saving…' : 'Save notifications'}
               </button>
             </form>
           )}
