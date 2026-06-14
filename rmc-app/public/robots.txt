@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://www.goldetech.com/sitemap.xml
+Sitemap: __SITE_URL__/sitemap.xml

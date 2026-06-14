@@ -1,11 +1,53 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+import fs from 'fs'
 
-export default defineConfig({
+const STATIC_FILES_WITH_SITE_URL = ['robots.txt', 'sitemap.xml', 'llms.txt']
+const PLACEHOLDER = '__SITE_URL__'
+
+function staticSiteUrlPlugin(siteUrl: string): Plugin {
+  return {
+    name: 'static-site-url',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const filePath = req.url?.split('?')[0] ?? ''
+        const fileName = filePath.replace(/^\//, '')
+        if (!STATIC_FILES_WITH_SITE_URL.includes(fileName)) return next()
+        const srcPath = path.resolve(__dirname, 'public', fileName)
+        if (!fs.existsSync(srcPath)) return next()
+        const raw = fs.readFileSync(srcPath, 'utf-8')
+        const content = raw.replaceAll(PLACEHOLDER, siteUrl)
+        const contentType =
+          fileName.endsWith('.xml') ? 'application/xml; charset=utf-8' : 'text/plain; charset=utf-8'
+        res.setHeader('Content-Type', contentType)
+        res.end(content)
+      })
+    },
+    transformIndexHtml(html) {
+      return html.replaceAll(PLACEHOLDER, siteUrl)
+    },
+    closeBundle() {
+      const distDir = path.resolve(__dirname, 'dist')
+      for (const fileName of STATIC_FILES_WITH_SITE_URL) {
+        const filePath = path.join(distDir, fileName)
+        if (!fs.existsSync(filePath)) continue
+        const raw = fs.readFileSync(filePath, 'utf-8')
+        fs.writeFileSync(filePath, raw.replaceAll(PLACEHOLDER, siteUrl))
+      }
+    },
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const siteUrl = (env.VITE_PUBLIC_SITE_URL || 'https://www.goldetech.com').replace(/\/$/, '')
+
+  return {
   plugins: [
+    staticSiteUrlPlugin(siteUrl),
     react(),
     tailwindcss(),
     VitePWA({
@@ -83,4 +125,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })
