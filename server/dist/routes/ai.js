@@ -7,7 +7,7 @@ import { rateLimit } from '../lib/rateLimit.js';
 import { isPlatformStaff } from '../lib/roleHierarchy.js';
 import { getAiSettings } from '../lib/aiSettings.js';
 import { buildAiContext, resolveScopePlantId, REFUSAL } from '../lib/aiContext.js';
-import { chatComplete, GeminiError } from '../lib/gemini.js';
+import { chatComplete, chatCompleteStream, GeminiError } from '../lib/gemini.js';
 const router = Router();
 router.use(requireAuth);
 const INPUT_TYPES = new Set(['text', 'voice']);
@@ -53,26 +53,22 @@ async function getOrCreateConversation(userId, sessionId, role, scopePlantId) {
         .where(and(eq(aiConversations.sessionId, sessionId), eq(aiConversations.userId, userId)));
     return raced;
 }
-router.post('/chat', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_chat' }), async (req, res) => {
+// Shared graceful-fallback line when the model can't be reached.
+const STREAM_FALLBACK = "I'm having trouble reaching the assistant right now. Your chat still works — please try again, or I can connect you with the team via a support ticket.";
+// Validate, scope, audit, persist the conversation row and gather history. Shared
+// by both the buffered (/chat) and streaming (/chat/stream) endpoints so the
+// security boundary (scoping, refusal, audit, logging) is identical for both.
+async function prepareChat(user, body) {
     const cfg = await getAiSettings();
-    if (!cfg.enabled) {
-        res.status(403).json({ error: 'The AI assistant is currently turned off.' });
-        return;
-    }
-    const user = req.user;
-    const { message, sessionId, inputType, outputType, selectedPlantId } = req.body ?? {};
-    if (typeof message !== 'string' || !message.trim()) {
-        res.status(400).json({ error: 'A message is required.' });
-        return;
-    }
-    if (message.length > MAX_MESSAGE_LEN) {
-        res.status(400).json({ error: 'Message is too long.' });
-        return;
-    }
-    if (typeof sessionId !== 'string' || !sessionId.trim()) {
-        res.status(400).json({ error: 'A session id is required.' });
-        return;
-    }
+    if (!cfg.enabled)
+        return { kind: 'error', status: 403, error: 'The AI assistant is currently turned off.' };
+    const { message, sessionId, inputType, outputType, selectedPlantId } = (body ?? {});
+    if (typeof message !== 'string' || !message.trim())
+        return { kind: 'error', status: 400, error: 'A message is required.' };
+    if (message.length > MAX_MESSAGE_LEN)
+        return { kind: 'error', status: 400, error: 'Message is too long.' };
+    if (typeof sessionId !== 'string' || !sessionId.trim())
+        return { kind: 'error', status: 400, error: 'A session id is required.' };
     const inType = INPUT_TYPES.has(inputType) ? inputType : 'text';
     const outType = OUTPUT_TYPES.has(outputType) ? outputType : 'text';
     // SECURITY: scope is derived purely from req.user. selectedPlantId is honoured
@@ -95,11 +91,8 @@ router.post('/chat', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_chat' }), 
         console.error('[ai] failed to write audit log', err);
     }
     const conversation = await getOrCreateConversation(user.id, sessionId, user.role, scopePlantId);
-    // Disallowed topic: return the standard refusal without ever calling the model.
     if (built.refused) {
-        await persistMessage(conversation.id, sessionId, user.id, scopePlantId, message, REFUSAL, inType, outType, 'refused');
-        res.json({ reply: REFUSAL, refused: true, source: 'policy', outputType: outType });
-        return;
+        return { kind: 'refused', conversationId: conversation.id, sessionId, userId: user.id, scopePlantId, message, inType, outType };
     }
     // Prior turns for continuity (cap to recent history).
     const prior = await db.select({ message: aiMessages.message, response: aiMessages.response })
@@ -111,10 +104,27 @@ router.post('/chat', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_chat' }), 
             turns.push({ role: 'assistant', content: p.response });
         return turns;
     });
+    return {
+        kind: 'ready', conversationId: conversation.id, sessionId, userId: user.id, scopePlantId,
+        message, inType, outType, persona: cfg.persona, context: built.context,
+        functionsUsed: built.functionsUsed, history,
+    };
+}
+router.post('/chat', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_chat' }), async (req, res) => {
+    const prep = await prepareChat(req.user, req.body ?? {});
+    if (prep.kind === 'error') {
+        res.status(prep.status).json({ error: prep.error });
+        return;
+    }
+    if (prep.kind === 'refused') {
+        await persistMessage(prep.conversationId, prep.sessionId, prep.userId, prep.scopePlantId, prep.message, REFUSAL, prep.inType, prep.outType, 'refused');
+        res.json({ reply: REFUSAL, refused: true, source: 'policy', outputType: prep.outType });
+        return;
+    }
     let reply;
     let source;
     try {
-        const result = await chatComplete({ system: cfg.persona, context: built.context, history, message });
+        const result = await chatComplete({ system: prep.persona, context: prep.context, history: prep.history, message: prep.message });
         reply = result.text;
         source = result.source;
     }
@@ -124,11 +134,67 @@ router.post('/chat', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_chat' }), 
             console.error('[ai] gemini error', err.status, err.message);
         else
             console.error('[ai] unexpected error', err);
-        reply = "I'm having trouble reaching the assistant right now. Your chat still works — please try again, or I can connect you with the team via a support ticket.";
+        reply = STREAM_FALLBACK;
         source = 'fallback';
     }
-    await persistMessage(conversation.id, sessionId, user.id, scopePlantId, message, reply, inType, outType, built.functionsUsed.join(','));
-    res.json({ reply, refused: false, source, functionsUsed: built.functionsUsed, outputType: outType });
+    await persistMessage(prep.conversationId, prep.sessionId, prep.userId, prep.scopePlantId, prep.message, reply, prep.inType, prep.outType, prep.functionsUsed.join(','));
+    res.json({ reply, refused: false, source, functionsUsed: prep.functionsUsed, outputType: prep.outType });
+});
+// Streaming variant: emits the reply incrementally over Server-Sent Events so the
+// UI can render the answer as the model produces it. Events:
+//   meta  { refused, source?, functionsUsed?, outputType }
+//   delta { text }            (zero or more)
+//   done  { reply, source }
+// Validation errors are returned as a normal JSON status BEFORE the stream opens.
+router.post('/chat/stream', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_chat' }), async (req, res) => {
+    const prep = await prepareChat(req.user, req.body ?? {});
+    if (prep.kind === 'error') {
+        res.status(prep.status).json({ error: prep.error });
+        return;
+    }
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+    const sse = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (prep.kind === 'refused') {
+        sse('meta', { refused: true, source: 'policy', outputType: prep.outType });
+        sse('delta', { text: REFUSAL });
+        await persistMessage(prep.conversationId, prep.sessionId, prep.userId, prep.scopePlantId, prep.message, REFUSAL, prep.inType, prep.outType, 'refused');
+        sse('done', { reply: REFUSAL, source: 'policy' });
+        res.end();
+        return;
+    }
+    sse('meta', { refused: false, functionsUsed: prep.functionsUsed, outputType: prep.outType });
+    let reply = '';
+    let source = 'gemini';
+    try {
+        const gen = chatCompleteStream({ system: prep.persona, context: prep.context, history: prep.history, message: prep.message });
+        let next = await gen.next();
+        while (!next.done) {
+            reply += next.value;
+            sse('delta', { text: next.value });
+            next = await gen.next();
+        }
+        reply = next.value.text;
+        source = next.value.source;
+    }
+    catch (err) {
+        if (err instanceof GeminiError)
+            console.error('[ai] gemini stream error', err.status, err.message);
+        else
+            console.error('[ai] unexpected stream error', err);
+        source = 'fallback';
+        // If nothing streamed yet, surface the fallback; otherwise keep partial text.
+        if (!reply.trim()) {
+            reply = STREAM_FALLBACK;
+            sse('delta', { text: reply });
+        }
+    }
+    await persistMessage(prep.conversationId, prep.sessionId, prep.userId, prep.scopePlantId, prep.message, reply, prep.inType, prep.outType, prep.functionsUsed.join(','));
+    sse('done', { reply, source });
+    res.end();
 });
 async function persistMessage(conversationId, sessionId, userId, plantId, message, response, inputType, outputType, functionsUsed) {
     try {

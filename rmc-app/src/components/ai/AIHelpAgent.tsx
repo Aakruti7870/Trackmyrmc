@@ -29,7 +29,12 @@ export default function AIHelpAgent() {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [voiceOut, setVoiceOut] = useState(false);
+  // True only between hitting send and the first streamed chunk, so the
+  // "Thinking…" indicator gives way to the live reply as it streams in.
+  const [awaitingReply, setAwaitingReply] = useState(false);
+  const [voiceOut, setVoiceOut] = useState(() => {
+    try { return localStorage.getItem('rmc_ai_voice_out') === '1'; } catch { return false; }
+  });
   const [selectedPlantId, setSelectedPlantId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,19 +80,55 @@ export default function AIHelpAgent() {
     setInput('');
     setTurns(prev => [...prev, { role: 'user', text: message }]);
     setSending(true);
-    try {
-      const res = await aiApi.chat({
-        message, sessionId,
-        inputType: viaVoice ? 'voice' : 'text',
-        outputType: voiceOut ? 'audio' : 'text',
-        selectedPlantId: config?.requiresPlantSelection ? selectedPlantId : undefined,
+    setAwaitingReply(true);
+
+    let acc = '';
+    let started = false;
+    const pushDelta = (text: string) => {
+      acc += text;
+      setTurns(prev => {
+        if (!started) {
+          started = true;
+          setAwaitingReply(false);
+          return [...prev, { role: 'assistant', text: acc, spoken: voiceOut }];
+        }
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last && last.role === 'assistant') next[next.length - 1] = { ...last, text: acc };
+        return next;
       });
-      setTurns(prev => [...prev, { role: 'assistant', text: res.reply, spoken: voiceOut }]);
-      if (voiceOut) tts.speak(res.reply);
+    };
+
+    try {
+      await aiApi.chatStream(
+        {
+          message, sessionId,
+          inputType: viaVoice ? 'voice' : 'text',
+          outputType: voiceOut ? 'audio' : 'text',
+          selectedPlantId: config?.requiresPlantSelection ? selectedPlantId : undefined,
+        },
+        {
+          onDelta: pushDelta,
+          onDone: ({ reply }) => {
+            // Reconcile with the server's canonical (trimmed) reply.
+            if (reply && reply !== acc) {
+              acc = reply;
+              setTurns(prev => {
+                const next = [...prev];
+                const last = next[next.length - 1];
+                if (last && last.role === 'assistant') next[next.length - 1] = { ...last, text: reply };
+                return next;
+              });
+            }
+            if (voiceOut && acc) tts.speak(acc);
+          },
+        },
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
     } finally {
       setSending(false);
+      setAwaitingReply(false);
     }
   }, [sending, sessionId, voiceOut, config, selectedPlantId, tts]);
 
@@ -113,7 +154,9 @@ export default function AIHelpAgent() {
   const toggleVoiceOut = useCallback(() => {
     setVoiceOut(v => {
       if (v) tts.cancel();
-      return !v;
+      const next = !v;
+      try { localStorage.setItem('rmc_ai_voice_out', next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
     });
   }, [tts]);
 
@@ -158,7 +201,7 @@ export default function AIHelpAgent() {
             display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
             borderBottom: '1px solid var(--line)',
           }}>
-            <AvatarPortrait speaking={tts.speaking} size={44} />
+            <AvatarPortrait speaking={tts.speaking} thinking={sending} size={44} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Help Assistant</div>
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>
@@ -216,7 +259,7 @@ export default function AIHelpAgent() {
                 </div>
               </div>
             ))}
-            {sending && (
+            {awaitingReply && (
               <div style={{ alignSelf: 'flex-start', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                 <Loader2 size={14} className="ai-spin" /> Thinking…
               </div>

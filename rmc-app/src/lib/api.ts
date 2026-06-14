@@ -371,13 +371,74 @@ export interface AiSettings {
   defaults: { persona: string; greeting: string };
 }
 
+export interface AiChatBody {
+  message: string; sessionId: string;
+  inputType?: 'text' | 'voice'; outputType?: 'text' | 'audio';
+  selectedPlantId?: number | null;
+}
+
+export interface AiStreamHandlers {
+  onMeta?: (meta: { refused: boolean; source?: string; functionsUsed?: string[]; outputType: string }) => void;
+  onDelta: (text: string) => void;
+  onDone?: (done: { reply: string; source?: string }) => void;
+}
+
+// Stream a chat reply over Server-Sent Events. Resolves once the stream ends.
+// Falls back to throwing on HTTP/network errors so the caller can surface them.
+async function aiChatStream(body: AiChatBody, handlers: AiStreamHandlers, signal?: AbortSignal): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${BASE}/ai/chat/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (res.status === 401) {
+    if (token) clearSessionAndRedirect();
+    throw new Error('Unauthorized');
+  }
+  if (!res.ok || !res.body) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new ApiError(err.error || res.statusText, res.status, err);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  const handleFrame = (frame: string) => {
+    let event = 'message';
+    let data = '';
+    for (const line of frame.split('\n')) {
+      if (line.startsWith('event:')) event = line.slice(6).trim();
+      else if (line.startsWith('data:')) data += line.slice(5).trim();
+    }
+    if (!data) return;
+    let parsed: Record<string, unknown>;
+    try { parsed = JSON.parse(data); } catch { return; }
+    if (event === 'meta') handlers.onMeta?.(parsed as never);
+    else if (event === 'delta') handlers.onDelta(String((parsed as { text?: string }).text ?? ''));
+    else if (event === 'done') handlers.onDone?.(parsed as never);
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+    for (const frame of frames) handleFrame(frame);
+  }
+  if (buffer.trim()) handleFrame(buffer);
+}
+
 export const aiApi = {
   config: () => api.get<AiConfig>('/ai/config'),
-  chat: (body: {
-    message: string; sessionId: string;
-    inputType?: 'text' | 'voice'; outputType?: 'text' | 'audio';
-    selectedPlantId?: number | null;
-  }) => api.post<AiChatResponse>('/ai/chat', body),
+  chat: (body: AiChatBody) => api.post<AiChatResponse>('/ai/chat', body),
+  chatStream: aiChatStream,
   supportTicket: (body: {
     subject?: string; message: string; contactInfo?: string; selectedPlantId?: number | null;
   }) => api.post<{ id: number; status: string }>('/ai/support-ticket', body),
