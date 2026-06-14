@@ -8,6 +8,8 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { hashPassword } from '../lib/password.js';
 import { sendWelcomeEmail, sendOwnerInviteEmail } from '../lib/email.js';
 import { createInviteToken } from '../lib/inviteToken.js';
+import { rateLimit } from '../lib/rateLimit.js';
+import { discoverConcretePlants, isDiscoveryConfigured } from '../lib/places.js';
 
 // Build the public base URL the owner-invite link points at. Prefers an
 // explicit env override (so emails work behind a custom domain in production),
@@ -98,6 +100,55 @@ router.get('/nearby', requireAuth, async (req, res) => {
     .sort((a, b) => a.distanceKm - b.distanceKm);
 
   res.json(nearby);
+});
+
+// Live discovery: real-world concrete plants pulled from Google Places around the
+// customer's coordinates. These are UNVERIFIED leads not in our directory and are
+// rendered as such by the client. Public (matches /nearby) but rate-limited
+// because every call hits a paid upstream.
+const discoverLimiter = rateLimit({ windowMs: 60_000, max: 20 });
+router.get('/discover', discoverLimiter, async (req, res) => {
+  const lat = parseFloat(String(req.query.lat));
+  const lng = parseFloat(String(req.query.lng));
+  const radius = req.query.radius != null ? parseFloat(String(req.query.radius)) : 40;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    res.status(400).json({ error: 'lat and lng are required' });
+    return;
+  }
+  if (!isDiscoveryConfigured()) {
+    // Soft-fail: the feature is optional. The client hides the section silently.
+    res.status(503).json({ error: 'Live plant discovery is not configured.', configured: false });
+    return;
+  }
+  const MAX_RADIUS_KM = 250;
+  const effRadius = Math.min(Number.isFinite(radius) && radius > 0 ? radius : 40, MAX_RADIUS_KM);
+
+  try {
+    const places = await discoverConcretePlants(lat, lng, effRadius);
+    // Pull onboarded approved plants so we can drop any discovered lead that is
+    // really one of our partner plants (avoids showing the same plant twice).
+    const onboarded = (await db.select().from(plants)).filter(
+      p => p.plantStatus === 'approved' && p.isActive && p.locationVerified,
+    );
+    const out = places
+      .map(pl => ({
+        ...pl,
+        source: 'discovered' as const,
+        distanceKm: Math.round(haversineKm(lat, lng, pl.latitude, pl.longitude) * 10) / 10,
+      }))
+      .filter(pl => pl.distanceKm <= effRadius)
+      .filter(
+        pl =>
+          !onboarded.some(
+            op => haversineKm(pl.latitude, pl.longitude, parseFloat(op.latitude), parseFloat(op.longitude)) < 0.15,
+          ),
+      )
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+    res.json(out);
+  } catch (e) {
+    console.error('Plant discovery failed', e);
+    res.status(502).json({ error: 'Could not reach the live plant directory right now.' });
+  }
 });
 
 // ---- Admin onboarding / management ----

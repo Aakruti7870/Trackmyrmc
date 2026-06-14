@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, List, Map as MapIcon, Phone, Clock, Navigation, PackagePlus, Loader2, LocateFixed, RefreshCw, Headphones } from 'lucide-react';
+import { MapPin, List, Map as MapIcon, Phone, Clock, Navigation, PackagePlus, Loader2, LocateFixed, RefreshCw, Headphones, Search, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
@@ -24,6 +24,20 @@ export interface NearbyPlant {
   distanceKm: number;
 }
 
+// A real-world concrete plant discovered live from the public maps directory.
+// These are NOT onboarded partner plants — surfaced as unverified leads only.
+export interface DiscoveredPlant {
+  placeId: string;
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  contactNumber: string | null;
+  openNow: boolean | null;
+  distanceKm: number;
+  source: 'discovered';
+}
+
 // Customers can widen the search when their site is farther from the metro
 // cluster — the default 40 km only reaches the immediate plants.
 const RADIUS_OPTIONS = [40, 80, 150, 250] as const;
@@ -41,6 +55,8 @@ function dot(color: string, glyph: string) {
 }
 const meIcon = dot('#38bdf8', '🧍');
 const plantIcon = dot('var(--gold, #f7c948)', '🏭');
+// Muted grey marker for unverified, not-yet-onboarded leads from the live map directory.
+const leadIcon = dot('#94a3b8', '🏭');
 
 function FitAll({ points }: { points: [number, number][] }) {
   const map = useMap();
@@ -57,6 +73,8 @@ export default function NearbyPlants() {
   const { user } = useAuth();
   const [coords, setCoords] = useState<LatLng | null>(null);
   const [plants, setPlants] = useState<NearbyPlant[] | null>(null);
+  const [discovered, setDiscovered] = useState<DiscoveredPlant[]>([]);
+  const [discovering, setDiscovering] = useState(false);
   const [phase, setPhase] = useState<'locating' | 'loading' | 'ready' | 'geoerror'>('locating');
   const [fetchError, setFetchError] = useState('');
   const [view, setView] = useState<'list' | 'map'>('list');
@@ -67,9 +85,22 @@ export default function NearbyPlants() {
   // value without being recreated (which would re-prompt for location).
   const radiusRef = useRef(radiusKm);
 
+  // Live discovery is best-effort: a failure (key missing, upstream down, rate
+  // limited) must never block the onboarded results, so it owns its own state and
+  // swallows errors into an empty list.
+  const loadDiscovered = useCallback((c: LatLng, radius: number) => {
+    setDiscovering(true);
+    return api
+      .get<DiscoveredPlant[]>(`/plants/discover?lat=${c.lat}&lng=${c.lng}&radius=${radius}`)
+      .then(data => setDiscovered(data))
+      .catch(() => setDiscovered([]))
+      .finally(() => setDiscovering(false));
+  }, []);
+
   const loadPlants = useCallback(async (c: LatLng, radius: number) => {
     setPhase('loading');
     setFetchError('');
+    setDiscovered([]);
     try {
       const data = await api.get<NearbyPlant[]>(`/plants/nearby?lat=${c.lat}&lng=${c.lng}&radius=${radius}`);
       setPlants(data);
@@ -79,7 +110,8 @@ export default function NearbyPlants() {
       setPhase('ready');
       setPlants([]);
     }
-  }, []);
+    loadDiscovered(c, radius);
+  }, [loadDiscovered]);
 
   // Promise-chain loader: all setState happens inside .then/.catch (deferred),
   // so this is safe to call directly from an effect without sync setState.
@@ -209,20 +241,56 @@ export default function NearbyPlants() {
             </div>
           )}
 
-          {plants.length > 0 && view === 'list' && (
-            <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', marginTop: 16 }}>
-              {plants.map(p => <PlantCard key={p.id} p={p} onOrder={() => placeOrder(p)} onMap={() => viewOnMap(p)} />)}
-            </div>
+          {/* Empty onboarded list but live leads exist: still surface the section header. */}
+          {view === 'list' && (plants.length > 0 || discovered.length > 0 || discovering) && (
+            <>
+              {plants.length > 0 && (
+                <>
+                  <SectionHeader
+                    icon={<ShieldCheck size={16} style={{ color: 'var(--green)' }} />}
+                    title="Verified partner plants"
+                    sub="Approved on CONCRETE KING — order directly."
+                  />
+                  <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', marginTop: 12 }}>
+                    {plants.map(p => <PlantCard key={p.id} p={p} onOrder={() => placeOrder(p)} onMap={() => viewOnMap(p)} />)}
+                  </div>
+                </>
+              )}
+
+              {discovering && discovered.length === 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 22, color: 'var(--muted)', fontSize: 13.5, fontWeight: 600 }}>
+                  <Loader2 size={16} className="np-spin" style={{ color: 'var(--muted)' }} />
+                  Searching the live map directory for more nearby plants…
+                </div>
+              )}
+
+              {discovered.length > 0 && (
+                <>
+                  <SectionHeader
+                    icon={<Search size={16} style={{ color: 'var(--muted)' }} />}
+                    title="Other concrete plants nearby"
+                    sub="Found live on the map — unverified, not yet onboarded."
+                  />
+                  <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', marginTop: 12 }}>
+                    {discovered.map(p => <LeadCard key={p.placeId} p={p} onMap={() => setView('map')} />)}
+                  </div>
+                </>
+              )}
+            </>
           )}
 
-          {plants.length > 0 && view === 'map' && coords && (
+          {view === 'map' && coords && (plants.length > 0 || discovered.length > 0) && (
             <div style={{ marginTop: 16, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(255,255,255,.03)', borderBottom: '1px solid var(--line)', fontSize: 12.5, fontWeight: 700 }}>
+                <span style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text)' }}><span style={{ width: 11, height: 11, borderRadius: '50%', background: 'var(--gold)' }} /> Verified partner</span>
+                <span style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--muted)' }}><span style={{ width: 11, height: 11, borderRadius: '50%', background: '#94a3b8' }} /> Unverified lead</span>
+              </div>
               <MapContainer center={[coords.lat, coords.lng]} zoom={12} style={{ height: 'min(70vh, 560px)', width: '100%' }} scrollWheelZoom>
                 <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <FitAll points={[[coords.lat, coords.lng], ...plants.map(p => [p.latitude, p.longitude] as [number, number])]} />
+                <FitAll points={[[coords.lat, coords.lng], ...plants.map(p => [p.latitude, p.longitude] as [number, number]), ...discovered.map(p => [p.latitude, p.longitude] as [number, number])]} />
                 <Marker position={[coords.lat, coords.lng]} icon={meIcon}><Popup>Your location</Popup></Marker>
                 {plants.map(p => (
-                  <Marker key={p.id} position={[p.latitude, p.longitude]} icon={plantIcon}>
+                  <Marker key={`v-${p.id}`} position={[p.latitude, p.longitude]} icon={plantIcon}>
                     <Popup>
                       <div style={{ minWidth: 180 }}>
                         <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 2 }}>{p.name}</div>
@@ -231,6 +299,19 @@ export default function NearbyPlants() {
                         <div style={{ fontSize: 12, color: '#333', marginTop: 8, paddingTop: 6, borderTop: '1px solid #eee' }}>
                           Need help? <a href={`tel:${HELP_TEL}`} style={{ color: '#0a66c2', fontWeight: 700, textDecoration: 'none' }}>{HELP_CONTACT}</a>
                         </div>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+                {discovered.map(p => (
+                  <Marker key={`d-${p.placeId}`} position={[p.latitude, p.longitude]} icon={leadIcon}>
+                    <Popup>
+                      <div style={{ minWidth: 180 }}>
+                        <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 2 }}>{p.name}</div>
+                        <div style={{ fontSize: 11, color: '#92400e', background: '#fef3c7', display: 'inline-block', padding: '1px 7px', borderRadius: 20, fontWeight: 800, marginBottom: 6 }}>Unverified · not onboarded</div>
+                        <div style={{ fontSize: 12, color: '#555', marginBottom: 6 }}>{p.distanceKm} km away{p.openNow != null ? ` · ${p.openNow ? 'Open now' : 'Closed'}` : ''}</div>
+                        {p.address && <div style={{ fontSize: 11.5, color: '#666', marginBottom: 6 }}>{p.address}</div>}
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0a66c2', fontWeight: 700, fontSize: 12, textDecoration: 'none' }}>Open in Google Maps →</a>
                       </div>
                     </Popup>
                   </Marker>
@@ -297,6 +378,77 @@ function PlantCard({ p, onOrder, onMap }: { p: NearbyPlant; onOrder: () => void;
       <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 4 }}>
         <button onClick={onMap} style={{ ...ghostBtn, flex: 1 }}><MapIcon size={15} /> View on map</button>
         <button onClick={onOrder} style={{ ...primaryBtn, flex: 1 }}><PackagePlus size={15} /> Place Order</button>
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ icon, title, sub }: { icon: React.ReactNode; title: string; sub: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 26, paddingBottom: 2 }}>
+      {icon}
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)', lineHeight: 1.2 }}>{title}</div>
+        <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 1 }}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+// Card for an unverified, not-yet-onboarded plant discovered live from the map
+// directory. Deliberately dimmer than PlantCard, with no "Place Order" CTA —
+// these plants can't be ordered from until they onboard.
+function LeadCard({ p, onMap }: { p: DiscoveredPlant; onMap: () => void }) {
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,.02)',
+      border: '1px dashed var(--line)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+        <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)', lineHeight: 1.25 }}>{p.name}</div>
+        <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color: 'var(--muted)', background: 'rgba(148,163,184,.14)', border: '1px solid rgba(148,163,184,.35)', borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>
+          {p.distanceKm} km
+        </span>
+      </div>
+
+      <span style={{ alignSelf: 'flex-start', display: 'inline-flex', gap: 5, alignItems: 'center', fontSize: 11.5, fontWeight: 800, color: '#f59e0b', background: 'color-mix(in srgb, #f59e0b 14%, transparent)', border: '1px solid color-mix(in srgb, #f59e0b 35%, transparent)', borderRadius: 7, padding: '2px 8px' }}>
+        <ShieldAlert size={12} /> Unverified · not yet onboarded
+      </span>
+
+      {p.address && (
+        <div style={{ fontSize: 13, color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+          <MapPin size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+          <span>{p.address}</span>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--muted)' }}>
+        {p.contactNumber && (
+          <a href={`tel:${p.contactNumber}`} style={{ display: 'flex', gap: 5, alignItems: 'center', color: 'var(--text)', textDecoration: 'none' }}>
+            <Phone size={13} /> {p.contactNumber}
+          </a>
+        )}
+        {p.openNow != null && (
+          <span style={{ display: 'flex', gap: 5, alignItems: 'center', color: p.openNow ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>
+            <Clock size={13} /> {p.openNow ? 'Open now' : 'Closed'}
+          </span>
+        )}
+      </div>
+
+      <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
+        Not on CONCRETE KING yet. To order here, call our team to request onboarding.
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5, fontWeight: 700, color: 'var(--gold)' }}>
+        <Headphones size={13} /> Help:&nbsp;
+        <a href={`tel:${HELP_TEL}`} style={{ color: 'var(--gold)', textDecoration: 'none' }}>{HELP_CONTACT}</a>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 4 }}>
+        <button onClick={onMap} style={{ ...ghostBtn, flex: 1 }}><MapIcon size={15} /> View on map</button>
+        <a href={`https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}`} target="_blank" rel="noopener noreferrer" style={{ ...ghostBtn, flex: 1, textDecoration: 'none' }}>
+          <Navigation size={15} /> Directions
+        </a>
       </div>
     </div>
   );

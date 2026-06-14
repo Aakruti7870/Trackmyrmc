@@ -30,3 +30,4 @@
 - [RMC nearby radius](rmc-nearby-radius.md) — customer plant discovery is gated by a UI search radius (default 40km, options up to 250km); backend /plants/nearby clamps radius to 250km max on the public route.
 - [Google Maps short-link coords](gmaps-shortlink-coords.md) — maps.app.goo.gl → CID → webFetch `?cid=` page; exact GPS is the `!1x<lat×1e7>!2x<lng×1e7>` tile params, not the HTML/Nominatim fallback.
 - [RMC lead vs verified plants](rmc-lead-verification.md) — `verified` (not `locationVerified`) is the customer-visibility gate; leads (verified=false) never hit /nearby; owner login = plant-scoped user via POST /plants/:id/owner.
+- [RMC live plant discovery](rmc-plant-discovery.md) — /plants/discover uses Places API (New) text search, soft-fails 503 w/o key, rate-limited+cached; invalid key=400 API_KEY_INVALID (valid key ~39 chars `AIza…`).
