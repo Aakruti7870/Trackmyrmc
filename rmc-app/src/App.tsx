@@ -8,6 +8,7 @@ import { ThemeProvider } from '@/lib/theme-providers';
 import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
+import SetPassword from '@/pages/SetPassword';
 import Landing from '@/pages/Landing';
 import Dashboard from '@/pages/Dashboard';
 import Orders from '@/pages/Orders';
@@ -142,6 +143,7 @@ export default function App() {
           <Switch>
             <Route path="/login" component={LoginRoute} />
             <Route path="/register" component={RegisterRoute} />
+            <Route path="/set-password" component={SetPassword} />
             <Route component={ProtectedRoutes} />
           </Switch>
         </ToastProvider>

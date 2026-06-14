@@ -10,6 +10,7 @@ import { signToken, requireAuth } from '../middleware/auth.js';
 import { isAuthorityEmail } from '../lib/authority.js';
 import { resolveStaffSsoUser } from '../lib/staffSso.js';
 import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.js';
+import { peekInviteToken, redeemInviteToken } from '../lib/inviteToken.js';
 const router = Router();
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
@@ -225,6 +226,63 @@ router.post('/clerk', async (req, res) => {
         return;
     }
     const { user } = result;
+    const appToken = signToken({
+        id: user.id, email: user.email, role: user.role, name: user.name,
+        linkedClientId: user.linkedClientId,
+        linkedDriverId: user.linkedDriverId,
+    });
+    res.json({
+        token: appToken,
+        user: {
+            id: user.id, name: user.name, email: user.email, role: user.role,
+            linkedClientId: user.linkedClientId,
+            linkedDriverId: user.linkedDriverId,
+        },
+    });
+});
+// --- Password-setup invite (plant-owner onboarding) ------------------------
+// A newly provisioned account is emailed a single-use link; these two public
+// endpoints back the "set your password" page. GET validates the token so the
+// page can show whose account it is; POST consumes it and sets the password.
+router.get('/invite/:token', async (req, res) => {
+    const result = await peekInviteToken(req.params.token);
+    if (!result.ok) {
+        res.status(400).json({ error: 'This invite link is invalid or has expired.', reason: result.reason });
+        return;
+    }
+    res.json({ name: result.user.name, email: result.user.email, role: result.user.role });
+});
+const setPasswordSchema = z.object({
+    token: z.string().min(1, 'A valid invite token is required'),
+    password: z.string().min(8, 'Password must be at least 8 characters').max(200),
+});
+router.post('/set-password', async (req, res) => {
+    const parse = setPasswordSchema.safeParse(req.body ?? {});
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.issues[0]?.message ?? 'Invalid request' });
+        return;
+    }
+    const { token, password } = parse.data;
+    const passwordHash = await hashPassword(password);
+    const result = await redeemInviteToken(token, passwordHash);
+    if (!result.ok) {
+        res.status(400).json({ error: 'This invite link is invalid or has expired.', reason: result.reason });
+        return;
+    }
+    // Reload the full account so the issued session token carries the same fields
+    // the login/register flows set (plant scoping etc. are reloaded in requireAuth).
+    const [user] = await db.select().from(users).where(eq(users.id, result.user.id));
+    await db.insert(auditLogs).values({
+        actorId: user.id,
+        actorName: user.name,
+        action: 'password_set',
+        targetUserId: user.id,
+        targetUserEmail: user.email,
+        status: 'success',
+        detail: 'Password set via invite link',
+    });
+    // Log the owner straight in so they land in their plant dashboard without a
+    // second sign-in step. Mirrors the /login response shape.
     const appToken = signToken({
         id: user.id, email: user.email, role: user.role, name: user.name,
         linkedClientId: user.linkedClientId,

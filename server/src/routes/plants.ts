@@ -3,9 +3,24 @@ import { eq, and, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { plants, users, auditLogs } from '../db/schema.js';
+import { randomBytes } from 'node:crypto';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { hashPassword } from '../lib/password.js';
-import { sendWelcomeEmail } from '../lib/email.js';
+import { sendWelcomeEmail, sendOwnerInviteEmail } from '../lib/email.js';
+import { createInviteToken } from '../lib/inviteToken.js';
+
+// Build the public base URL the owner-invite link points at. Prefers an
+// explicit env override (so emails work behind a custom domain in production),
+// then the proxy-forwarded host, finally the request's own host. This matches
+// whatever domain staff are actually using to provision the owner.
+function appBaseUrl(req: { headers: Record<string, unknown>; protocol: string }): string {
+  const envUrl = process.env.APP_URL || process.env.PUBLIC_URL;
+  if (envUrl) return envUrl.replace(/\/+$/, '');
+  const fwdProto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim();
+  const proto = fwdProto || req.protocol || 'https';
+  const host = String(req.headers['x-forwarded-host'] ?? req.headers['host'] ?? '').trim();
+  return `${proto}://${host}`;
+}
 
 const router = Router();
 
@@ -187,10 +202,14 @@ router.get('/:id/owner', ADMIN, async (req, res) => {
 // Plant-owner roles a staff member may provision at onboarding. An owner account
 // is hard-scoped to its plant (plantId) so it only ever sees its own tenant data.
 const OWNER_ROLES = ['admin', 'dispatcher', 'plant_operator'] as const;
+// password is optional: when omitted (the default, recommended flow) the owner
+// receives a single-use invite link to set their own password, instead of staff
+// typing and sharing one. A password may still be passed for the legacy
+// set-it-by-hand flow.
 const ownerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
   role: z.enum(OWNER_ROLES).optional(),
 });
 
@@ -207,6 +226,8 @@ router.post('/:id/owner', ADMIN, async (req, res) => {
   }
   const { name, email, password } = parse.data;
   const role = parse.data.role ?? 'admin';
+  // No typed password => the owner sets their own via an emailed invite link.
+  const useInvite = !password;
 
   const [plant] = await db.select({ id: plants.id, name: plants.name }).from(plants).where(eq(plants.id, id));
   if (!plant) { res.status(404).json({ error: 'Plant not found' }); return; }
@@ -222,17 +243,32 @@ router.post('/:id/owner', ADMIN, async (req, res) => {
     return;
   }
 
-  const passwordHash = await hashPassword(password);
+  // For the invite flow the account has no usable password yet, so we seed it
+  // with an un-guessable random hash. The owner can't log in until they redeem
+  // the invite (which overwrites this hash with the password they choose).
+  const passwordHash = await hashPassword(password ?? randomBytes(32).toString('base64url'));
   const [user] = await db.insert(users).values({
     name, email, passwordHash, role, plantId: id,
   }).returning();
 
   let emailSent: boolean | undefined;
-  try {
-    emailSent = await sendWelcomeEmail(user.email, user.name, user.role);
-  } catch (err) {
-    console.error('[email] Failed to send owner welcome email:', err);
-    emailSent = false;
+  let inviteUrl: string | undefined;
+  if (useInvite) {
+    try {
+      const { token, expiresAt } = await createInviteToken(user.id);
+      inviteUrl = `${appBaseUrl(req)}/set-password?token=${token}`;
+      emailSent = await sendOwnerInviteEmail(user.email, user.name, user.role, inviteUrl, expiresAt);
+    } catch (err) {
+      console.error('[email] Failed to send owner invite email:', err);
+      emailSent = false;
+    }
+  } else {
+    try {
+      emailSent = await sendWelcomeEmail(user.email, user.name, user.role);
+    } catch (err) {
+      console.error('[email] Failed to send owner welcome email:', err);
+      emailSent = false;
+    }
   }
 
   const actor = req.user!;
@@ -242,12 +278,18 @@ router.post('/:id/owner', ADMIN, async (req, res) => {
     action: 'user.created',
     targetUserId: user.id,
     targetUserEmail: user.email,
-    detail: `Plant-owner login provisioned for ${plant.name}`,
+    detail: `Plant-owner login provisioned for ${plant.name}${useInvite ? ' (password-setup invite)' : ''}`,
     emailSent: emailSent ?? false,
   });
 
   res.status(201).json({
-    id: user.id, name: user.name, email: user.email, role: user.role, plantId: user.plantId, emailSent,
+    id: user.id, name: user.name, email: user.email, role: user.role, plantId: user.plantId,
+    emailSent,
+    invited: useInvite,
+    // When the invite email couldn't be sent (SMTP not configured), hand the
+    // link back so staff can deliver it out-of-band. Never expose it when the
+    // email went out — the whole point is not to pass the secret around.
+    ...(useInvite && !emailSent ? { inviteUrl } : {}),
   });
 });
 

@@ -234,6 +234,22 @@ export const appSettings = pgTable('app_settings', {
     value: text('value'),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+// Single-use, time-limited invite tokens that let a newly-provisioned account
+// (e.g. a plant owner) set their OWN password via an emailed link, instead of
+// staff typing and sharing a temporary password. Only the SHA-256 hash of the
+// token is stored — the plaintext lives only in the emailed link — so a DB read
+// never exposes a usable token. A token is consumed (usedAt set) on first use
+// and is rejected once used or past expiresAt.
+export const passwordSetupTokens = pgTable('password_setup_tokens', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    usedAt: timestamp('used_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+    uniqueIndex('password_setup_tokens_hash_unique').on(t.tokenHash),
+]);
 // Marketplace directory of RMC plants. A customer only ever sees rows that are
 // approved + active + location-verified, filtered by Haversine distance.
 export const plants = pgTable('plants', {

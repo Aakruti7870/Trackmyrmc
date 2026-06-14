@@ -64,7 +64,7 @@ const emptyForm: FormState = {
 // `verified`. Everything else is still an onboarding lead, even if approved/active.
 function isLead(p: Plant): boolean { return !p.verified; }
 
-const ownerEmpty = { name: '', email: '', password: '', role: 'admin' as OwnerRole };
+const ownerEmpty = { name: '', email: '', password: '', role: 'admin' as OwnerRole, setOwnPassword: true };
 
 export default function Plants() {
   const [plants, setPlants] = useState<Plant[] | null>(null);
@@ -86,6 +86,8 @@ export default function Plants() {
   const [loginsError, setLoginsError] = useState('');
   const [loginsNotice, setLoginsNotice] = useState('');
   const [busyLoginId, setBusyLoginId] = useState<number | null>(null);
+  // Fallback link shown when an invite was created but the email couldn't be sent.
+  const [ownerInviteUrl, setOwnerInviteUrl] = useState('');
 
   function load() {
     api.get<Plant[]>('/plants')
@@ -112,6 +114,7 @@ export default function Plants() {
     setOwnerForm(ownerEmpty);
     setOwnerError('');
     setOwnerDone('');
+    setOwnerInviteUrl('');
   }
 
   function loadLogins(plantId: number) {
@@ -163,17 +166,36 @@ export default function Plants() {
   async function provisionOwner(e: React.FormEvent) {
     e.preventDefault();
     if (!ownerFor) return;
-    if (!ownerForm.name.trim() || !ownerForm.email.trim() || ownerForm.password.length < 6) {
-      setOwnerError('Name, email and a password of at least 6 characters are required.');
+    if (!ownerForm.name.trim() || !ownerForm.email.trim()) {
+      setOwnerError('Owner name and email are required.');
+      return;
+    }
+    // setOwnPassword === false → invite flow (no password sent). Otherwise the
+    // legacy typed-password flow, which still requires a 6+ char password.
+    const typedPassword = ownerForm.setOwnPassword === false;
+    if (typedPassword && ownerForm.password.length < 6) {
+      setOwnerError('A password of at least 6 characters is required.');
       return;
     }
     setOwnerSaving(true);
     setOwnerError('');
     try {
-      const res = await api.post<{ emailSent?: boolean }>(`/plants/${ownerFor.id}/owner`, ownerForm);
-      setOwnerDone(res.emailSent
-        ? `Owner login created — a welcome email was sent to ${ownerForm.email}.`
-        : `Owner login created for ${ownerForm.email}. (Welcome email not sent — SMTP not configured.)`);
+      const payload = typedPassword
+        ? { name: ownerForm.name, email: ownerForm.email, password: ownerForm.password, role: ownerForm.role }
+        : { name: ownerForm.name, email: ownerForm.email, role: ownerForm.role };
+      const res = await api.post<{ emailSent?: boolean; invited?: boolean; inviteUrl?: string }>(
+        `/plants/${ownerFor.id}/owner`, payload);
+      if (res.invited) {
+        setOwnerDone(res.emailSent
+          ? `Owner account created — an invite to set their own password was emailed to ${ownerForm.email}.`
+          : `Owner account created for ${ownerForm.email}. Email could not be sent (SMTP not configured) — copy the secure link below and share it with them.`);
+        setOwnerInviteUrl(res.inviteUrl ?? '');
+      } else {
+        setOwnerDone(res.emailSent
+          ? `Owner login created — a welcome email was sent to ${ownerForm.email}.`
+          : `Owner login created for ${ownerForm.email}. (Welcome email not sent — SMTP not configured.)`);
+        setOwnerInviteUrl('');
+      }
       load();
     } catch (err) {
       setOwnerError((err as Error).message || 'Could not create the owner login.');
@@ -409,8 +431,17 @@ export default function Plants() {
             {ownerDone ? (
               <>
                 <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--green) 45%, transparent)', color: 'var(--green)', fontSize: 13.5, marginBottom: 16 }}>{ownerDone}</div>
+                {ownerInviteUrl && (
+                  <div style={{ marginBottom: 16 }}>
+                    <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>Secure set-password link (single use, expires in 7 days)</span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input readOnly value={ownerInviteUrl} onFocus={e => e.currentTarget.select()} style={{ ...input, fontSize: 12 }} />
+                      <button type="button" onClick={() => navigator.clipboard?.writeText(ownerInviteUrl)} style={ghostBtn}>Copy</button>
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={() => { setOwnerDone(''); setOwnerForm(ownerEmpty); }} style={ghostBtn}>Add another</button>
+                  <button type="button" onClick={() => { setOwnerDone(''); setOwnerInviteUrl(''); setOwnerForm(ownerEmpty); }} style={ghostBtn}>Add another</button>
                   <button type="button" onClick={() => setOwnerFor(null)} style={primaryBtn}>Done</button>
                 </div>
               </>
@@ -420,7 +451,6 @@ export default function Plants() {
                 <div style={{ display: 'grid', gap: 12 }}>
                   <Field label="Owner name *"><input value={ownerForm.name} onChange={e => setOwnerForm(f => ({ ...f, name: e.target.value }))} style={input} /></Field>
                   <Field label="Email *"><input type="email" value={ownerForm.email} onChange={e => setOwnerForm(f => ({ ...f, email: e.target.value }))} style={input} /></Field>
-                  <Field label="Temporary password * (min 6 chars)"><input type="text" value={ownerForm.password} onChange={e => setOwnerForm(f => ({ ...f, password: e.target.value }))} style={input} /></Field>
                   <Field label="Access level">
                     <select value={ownerForm.role} onChange={e => setOwnerForm(f => ({ ...f, role: e.target.value as OwnerRole }))} style={input}>
                       <option value="admin">Owner (full plant access)</option>
@@ -428,11 +458,28 @@ export default function Plants() {
                       <option value="plant_operator">Plant operator</option>
                     </select>
                   </Field>
+
+                  <div style={{ ...softCard, padding: 14 }}>
+                    <label style={{ ...checkRow, alignItems: 'flex-start' }}>
+                      <input type="checkbox" checked={ownerForm.setOwnPassword} onChange={e => setOwnerForm(f => ({ ...f, setOwnPassword: e.target.checked }))} style={{ marginTop: 2 }} />
+                      <span>
+                        Email a secure “set your password” link
+                        <span style={{ display: 'block', fontWeight: 500, color: 'var(--muted)', fontSize: 12, marginTop: 3 }}>
+                          The owner sets their own password via a single-use link that expires in 7 days. Recommended.
+                        </span>
+                      </span>
+                    </label>
+                    {!ownerForm.setOwnPassword && (
+                      <div style={{ marginTop: 12 }}>
+                        <Field label="Temporary password * (min 6 chars)"><input type="text" value={ownerForm.password} onChange={e => setOwnerForm(f => ({ ...f, password: e.target.value }))} style={input} /></Field>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
                   <button type="button" onClick={() => setOwnerFor(null)} style={ghostBtn}>Cancel</button>
                   <button type="submit" disabled={ownerSaving} style={{ ...primaryBtn, opacity: ownerSaving ? 0.6 : 1 }}>
-                    <UserPlus size={15} /> {ownerSaving ? 'Creating…' : 'Create login'}
+                    <UserPlus size={15} /> {ownerSaving ? 'Creating…' : ownerForm.setOwnPassword ? 'Create & send invite' : 'Create login'}
                   </button>
                 </div>
               </>
