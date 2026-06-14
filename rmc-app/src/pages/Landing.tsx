@@ -13,6 +13,7 @@ const GRADES = ['M20', 'M25', 'M30', 'M35', 'M40', 'M50'];
 
 const MAIL = 'support@goldetechapp.com';
 const PHONE = '+91 74982 86760';
+const ONBOARD_MAIL = 'krushnabade54@gmail.com';
 
 const FEATURES = [
   { icon: Navigation, color: 'var(--gold)', title: 'Live GPS Tracking',
@@ -160,6 +161,7 @@ export default function Landing() {
   const [openFeature, setOpenFeature] = useState<number | null>(null);
   const [openFeed, setOpenFeed] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [openOnboard, setOpenOnboard] = useState(false);
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -342,9 +344,9 @@ export default function Landing() {
               Join the network and reach customers searching for approved RMC plants nearby.
               Our team will help you onboard, verify and go live.
             </p>
-            <a href={`mailto:${MAIL}?subject=Onboard%20my%20RMC%20plant`} style={{ ...btnGold, marginTop: 22, textDecoration: 'none' }}>
+            <button onClick={() => setOpenOnboard(true)} style={{ ...btnGold, marginTop: 22 }}>
               Onboard Your Plant <ArrowRight size={16} />
-            </a>
+            </button>
           </div>
           <div style={{ position: 'relative', display: 'grid', gap: 14 }}>
             <a href={`mailto:${MAIL}`} style={{ ...panel, padding: 18, display: 'flex', alignItems: 'center', gap: 14,
@@ -402,6 +404,13 @@ export default function Landing() {
         </Modal>
       )}
 
+      {/* ONBOARD MODAL */}
+      {openOnboard && (
+        <Modal onClose={() => setOpenOnboard(false)} wide>
+          <OnboardForm onClose={() => setOpenOnboard(false)} />
+        </Modal>
+      )}
+
       {/* FEED MODAL */}
       {openFeed !== null && (
         <Modal onClose={() => setOpenFeed(null)} wide>
@@ -420,12 +429,135 @@ export default function Landing() {
   );
 }
 
+function OnboardForm({ onClose }: { onClose: () => void }) {
+  const [form, setForm] = useState({ plant: '', name: '', phone: '', email: '', city: '', gst: '', message: '' });
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const label: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, margin: '0 0 7px' };
+  const opt: React.CSSProperties = { color: 'var(--muted)', fontWeight: 500 };
+  const req: React.CSSProperties = { color: 'var(--gold)' };
+  const field: React.CSSProperties = {
+    width: '100%', background: 'rgba(8,16,30,.7)', border: '1px solid var(--line)',
+    color: 'var(--text)', borderRadius: 11, padding: '12px 13px', fontSize: 14,
+    outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.plant.trim() || !form.name.trim() || !form.phone.trim() || !form.city.trim()) {
+      setError('Please fill in the required fields marked with *.');
+      return;
+    }
+    setError('');
+    const body = [
+      `Plant name: ${form.plant.trim()}`,
+      `Owner / contact: ${form.name.trim()}`,
+      `Mobile: ${form.phone.trim()}`,
+      form.email.trim() && `Email: ${form.email.trim()}`,
+      `City / location: ${form.city.trim()}`,
+      form.gst.trim() && `GST number: ${form.gst.trim()}`,
+      form.message.trim() && `\nMessage:\n${form.message.trim()}`,
+    ].filter(Boolean).join('\n');
+    const subject = `New Plant Onboarding Inquiry — ${form.plant.trim()}`;
+    window.location.href =
+      `mailto:${ONBOARD_MAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setSent(true);
+  };
+
+  if (sent) {
+    return (
+      <div style={{ textAlign: 'center', padding: '8px 4px 4px' }}>
+        <div style={{ width: 60, height: 60, borderRadius: '50%', display: 'grid', placeItems: 'center',
+          margin: '0 auto 16px', background: 'rgba(34,197,94,.12)', border: '1px solid rgba(34,197,94,.35)' }}>
+          <ShieldCheck size={30} color="var(--green)" />
+        </div>
+        <h3 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Inquiry ready to send</h3>
+        <p style={{ color: 'var(--muted)', fontSize: 15, lineHeight: 1.6, marginTop: 12 }}>
+          Your email app should have opened with your plant details pre-filled. Just hit send and our team
+          will reach out to help you get listed. If nothing opened, email us directly at{' '}
+          <a href={`mailto:${ONBOARD_MAIL}`} style={{ color: 'var(--gold)' }}>{ONBOARD_MAIL}</a>.
+        </p>
+        <button onClick={onClose} style={{
+          marginTop: 20, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 22px',
+          borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: 'none',
+          background: 'linear-gradient(160deg,#f7c948,#e0a91f)', color: '#0a1322', fontFamily: 'inherit',
+        }}>Done</button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <span style={{ color: 'var(--gold)', fontWeight: 700, letterSpacing: 3, fontSize: 12.5, textTransform: 'uppercase' }}>
+        Onboarding &amp; Support
+      </span>
+      <h3 style={{ fontSize: 24, fontWeight: 800, margin: '8px 0 4px' }}>Onboard your plant</h3>
+      <p style={{ color: 'var(--muted)', fontSize: 14.5, lineHeight: 1.5, margin: '0 0 20px' }}>
+        Tell us about your RMC plant and our team will help you verify and go live.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16 }}>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label style={label}>Plant name <span style={req}>*</span></label>
+          <input style={field} value={form.plant} onChange={set('plant')} placeholder="e.g. Shree RMC Plant" />
+        </div>
+        <div>
+          <label style={label}>Owner / contact name <span style={req}>*</span></label>
+          <input style={field} value={form.name} onChange={set('name')} placeholder="e.g. Krushna Bade" />
+        </div>
+        <div>
+          <label style={label}>Mobile number <span style={req}>*</span></label>
+          <input style={field} value={form.phone} onChange={set('phone')} placeholder="+91 98765 43210" inputMode="tel" />
+        </div>
+        <div>
+          <label style={label}>City / location <span style={req}>*</span></label>
+          <input style={field} value={form.city} onChange={set('city')} placeholder="e.g. Pune" />
+        </div>
+        <div>
+          <label style={label}>GST number <span style={opt}>· optional</span></label>
+          <input style={field} value={form.gst} onChange={set('gst')} placeholder="22AAAAA0000A1Z5" />
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label style={label}>Email <span style={opt}>· optional</span></label>
+          <input style={field} value={form.email} onChange={set('email')} placeholder="you@company.com" inputMode="email" />
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label style={label}>Message <span style={opt}>· optional</span></label>
+          <textarea style={{ ...field, minHeight: 84, resize: 'vertical' }} value={form.message} onChange={set('message')}
+            placeholder="Plant capacity, location details, anything else…" />
+        </div>
+      </div>
+
+      {error && (
+        <p style={{ color: 'var(--red)', fontSize: 13.5, margin: '14px 0 0' }}>{error}</p>
+      )}
+
+      <div style={{ display: 'flex', gap: 12, marginTop: 22, flexWrap: 'wrap' }}>
+        <button type="submit" style={{
+          flex: 1, minWidth: 160, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          padding: '14px 22px', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer', border: 'none',
+          background: 'linear-gradient(160deg,#f7c948,#e0a91f)', color: '#0a1322', fontFamily: 'inherit',
+        }}>Submit inquiry <ArrowRight size={16} /></button>
+        <button type="button" onClick={onClose} style={{
+          padding: '14px 22px', borderRadius: 12, fontWeight: 600, fontSize: 15, cursor: 'pointer',
+          background: 'rgba(255,255,255,.04)', color: 'var(--text)', border: '1px solid var(--line)', fontFamily: 'inherit',
+        }}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
 function Modal({ children, onClose, wide }: { children: React.ReactNode; onClose: () => void; wide?: boolean }) {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'grid', placeItems: 'center',
       background: 'rgba(4,9,18,.72)', backdropFilter: 'blur(6px)', padding: 24 }}>
-      <div onClick={(e) => e.stopPropagation()} className="ck ck-fade" style={{
+      <div onClick={(e) => e.stopPropagation()} className="ck ck-fade ck-no-scrollbar" style={{
         position: 'relative', width: '100%', maxWidth: wide ? 640 : 460,
+        maxHeight: 'calc(100vh - 48px)', overflowY: 'auto',
         background: 'linear-gradient(160deg, #122036, #0b1727)', border: '1px solid var(--line)',
         borderRadius: 20, padding: 28, boxShadow: '0 40px 90px -30px rgba(0,0,0,.9)' }}>
         <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, width: 34, height: 34, borderRadius: 10,
