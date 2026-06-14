@@ -240,6 +240,8 @@ export default function Landing() {
         )}
       </header>
 
+      <main id="main-content">
+
       {/* HERO */}
       <section style={{ position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0 }}>
@@ -395,6 +397,8 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      </main>
 
       {/* FOOTER */}
       <footer style={{ borderTop: '1px solid var(--line)', marginTop: 24 }}>
