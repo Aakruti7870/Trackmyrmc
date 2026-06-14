@@ -33,11 +33,11 @@ async function seed() {
     console.log('🌱 Seeding database...');
     const hash = (p) => hashPassword(p);
     await db.insert(schema.users).values([
-        { name: 'Rajesh Kumar', email: 'admin@aakruti.com', passwordHash: await hash('admin123'), role: 'admin' },
-        { name: 'Priya Sharma', email: 'dispatcher@aakruti.com', passwordHash: await hash('dispatch123'), role: 'dispatcher' },
-        { name: 'Suresh Patel', email: 'operator@aakruti.com', passwordHash: await hash('operator123'), role: 'plant_operator' },
-        { name: 'Arvind Builders', email: 'client@aakruti.com', passwordHash: await hash('client123'), role: 'client' },
-        { name: 'Ganesh More', email: 'driver@aakruti.com', passwordHash: await hash('driver123'), role: 'driver' },
+        { name: 'Rajesh Kumar', email: 'admin@concreteking.example', passwordHash: await hash('admin123'), role: 'admin' },
+        { name: 'Priya Sharma', email: 'dispatcher@concreteking.example', passwordHash: await hash('dispatch123'), role: 'dispatcher' },
+        { name: 'Suresh Patel', email: 'operator@concreteking.example', passwordHash: await hash('operator123'), role: 'plant_operator' },
+        { name: 'Arvind Builders', email: 'client@concreteking.example', passwordHash: await hash('client123'), role: 'client' },
+        { name: 'Ganesh More', email: 'driver@concreteking.example', passwordHash: await hash('driver123'), role: 'driver' },
     ]).onConflictDoNothing();
     // Marketplace plants — seeded ONLY for CONCRETE KING's live service areas:
     // Navi Mumbai, Thane, Vashi, Belapur, Pune, Pimpri Chinchwad, Lonavla, Karjat,
@@ -177,7 +177,7 @@ async function seed() {
     // otherwise raise 23505 on a populated DB where another user already owns the
     // link. Re-running on a clean seed is a self-no-op (link already points here).
     const [clientAccount] = await db.select({ id: schema.users.id, linkedClientId: schema.users.linkedClientId })
-        .from(schema.users).where(eq(schema.users.email, 'client@aakruti.com'));
+        .from(schema.users).where(eq(schema.users.email, 'client@concreteking.example'));
     if (clientAccount && clientAccount.linkedClientId !== clientRows[0].id) {
         const conflict = await db.select({ id: schema.users.id }).from(schema.users)
             .where(and(eq(schema.users.linkedClientId, clientRows[0].id), isNull(schema.users.deletedAt)));
@@ -188,7 +188,7 @@ async function seed() {
         }
     }
     const [driverAccount] = await db.select({ id: schema.users.id, linkedDriverId: schema.users.linkedDriverId })
-        .from(schema.users).where(eq(schema.users.email, 'driver@aakruti.com'));
+        .from(schema.users).where(eq(schema.users.email, 'driver@concreteking.example'));
     if (driverAccount && driverAccount.linkedDriverId !== driverRows[0].id) {
         const conflict = await db.select({ id: schema.users.id }).from(schema.users)
             .where(and(eq(schema.users.linkedDriverId, driverRows[0].id), isNull(schema.users.deletedAt)));
@@ -202,7 +202,7 @@ async function seed() {
     // marketplace cross-plant listing has a mapping row to read (mirrors what the
     // first marketplace order would create lazily via resolvePlantCustomer).
     const [clientUser] = await db.select({ id: schema.users.id })
-        .from(schema.users).where(eq(schema.users.email, 'client@aakruti.com'));
+        .from(schema.users).where(eq(schema.users.email, 'client@concreteking.example'));
     if (clientUser) {
         await db.insert(schema.plantCustomers)
             .values({ plantId: homePlant.id, userId: clientUser.id, clientId: clientRows[0].id })
@@ -210,11 +210,11 @@ async function seed() {
     }
     console.log('✅ Seed complete!');
     console.log('\n🔑 Demo Credentials:');
-    console.log('  Admin:    admin@aakruti.com / admin123');
-    console.log('  Dispatcher: dispatcher@aakruti.com / dispatch123');
-    console.log('  Operator: operator@aakruti.com / operator123');
-    console.log('  Client:   client@aakruti.com / client123');
-    console.log('  Driver:   driver@aakruti.com / driver123');
+    console.log('  Admin:    admin@concreteking.example / admin123');
+    console.log('  Dispatcher: dispatcher@concreteking.example / dispatch123');
+    console.log('  Operator: operator@concreteking.example / operator123');
+    console.log('  Client:   client@concreteking.example / client123');
+    console.log('  Driver:   driver@concreteking.example / driver123');
     await pool.end();
 }
 seed().catch(e => { console.error(e); process.exit(1); });

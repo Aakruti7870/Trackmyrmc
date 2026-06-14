@@ -46,11 +46,11 @@ async function linkSnapshot() {
     const [clientUser] = await db
         .select({ linkedClientId: users.linkedClientId })
         .from(users)
-        .where(eq(users.email, 'client@aakruti.com'));
+        .where(eq(users.email, 'client@concreteking.example'));
     const [driverUser] = await db
         .select({ linkedDriverId: users.linkedDriverId })
         .from(users)
-        .where(eq(users.email, 'driver@aakruti.com'));
+        .where(eq(users.email, 'driver@concreteking.example'));
     return { clientUser, driverUser };
 }
 let firstCounts;

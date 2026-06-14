@@ -10,11 +10,11 @@ import ClerkStaffLogin from '@/components/ClerkStaffLogin';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 
 const DEMO = [
-  { role: 'Admin', email: 'admin@aakruti.com', password: 'admin123', color: 'var(--gold)' },
-  { role: 'Dispatcher', email: 'dispatcher@aakruti.com', password: 'dispatch123', color: 'var(--blue)' },
-  { role: 'Plant Operator', email: 'operator@aakruti.com', password: 'operator123', color: 'var(--green)' },
-  { role: 'Client', email: 'client@aakruti.com', password: 'client123', color: '#a78bfa' },
-  { role: 'Driver', email: 'driver@aakruti.com', password: 'driver123', color: '#f97316' },
+  { role: 'Admin', email: 'admin@concreteking.example', password: 'admin123', color: 'var(--gold)' },
+  { role: 'Dispatcher', email: 'dispatcher@concreteking.example', password: 'dispatch123', color: 'var(--blue)' },
+  { role: 'Plant Operator', email: 'operator@concreteking.example', password: 'operator123', color: 'var(--green)' },
+  { role: 'Client', email: 'client@concreteking.example', password: 'client123', color: '#a78bfa' },
+  { role: 'Driver', email: 'driver@concreteking.example', password: 'driver123', color: '#f97316' },
 ];
 
 const inputStyle: React.CSSProperties = {
