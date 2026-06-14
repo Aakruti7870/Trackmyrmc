@@ -3,8 +3,8 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq, and, isNull, type SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
-import bcrypt from 'bcryptjs';
 import * as schema from './schema.js';
+import { hashPassword } from '../lib/password.js';
 
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -39,7 +39,7 @@ async function ensureSeeded<T extends PgTable>(
 async function seed() {
   console.log('🌱 Seeding database...');
 
-  const hash = (p: string) => bcrypt.hash(p, 10);
+  const hash = (p: string) => hashPassword(p);
 
   await db.insert(schema.users).values([
     { name: 'Rajesh Kumar', email: 'admin@aakruti.com', passwordHash: await hash('admin123'), role: 'admin' },

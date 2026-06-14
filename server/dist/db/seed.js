@@ -2,8 +2,8 @@ import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq, and, isNull } from 'drizzle-orm';
 import pg from 'pg';
-import bcrypt from 'bcryptjs';
 import * as schema from './schema.js';
+import { hashPassword } from '../lib/password.js';
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool, { schema });
@@ -31,7 +31,7 @@ async function ensureSeeded(table, values, match) {
 }
 async function seed() {
     console.log('🌱 Seeding database...');
-    const hash = (p) => bcrypt.hash(p, 10);
+    const hash = (p) => hashPassword(p);
     await db.insert(schema.users).values([
         { name: 'Rajesh Kumar', email: 'admin@aakruti.com', passwordHash: await hash('admin123'), role: 'admin' },
         { name: 'Priya Sharma', email: 'dispatcher@aakruti.com', passwordHash: await hash('dispatch123'), role: 'dispatcher' },
