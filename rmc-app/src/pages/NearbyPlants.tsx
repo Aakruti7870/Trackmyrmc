@@ -40,8 +40,8 @@ export interface DiscoveredPlant {
 
 // Customers can widen the search when their site is farther from the metro
 // cluster — the default 40 km only reaches the immediate plants.
-const RADIUS_OPTIONS = [40, 80, 150, 250] as const;
-const DEFAULT_RADIUS_KM = 40;
+const RADIUS_OPTIONS = [40, 80, 100, 150, 250] as const;
+const DEFAULT_RADIUS_KM = 100;
 // Single network-wide help line shown when a customer taps a plant.
 const HELP_CONTACT = '+91 74982 86760';
 const HELP_TEL = '+917498286760';
@@ -80,6 +80,7 @@ export default function NearbyPlants() {
   const [view, setView] = useState<'list' | 'map'>('list');
   const [manual, setManual] = useState<LatLng | null>(null);
   const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
+  const [query, setQuery] = useState('');
   const focusRef = useRef<number | null>(null);
   // Per-lead invite state, keyed by Google placeId, so a customer can flag a
   // discovered plant for onboarding without re-requesting it.
@@ -186,6 +187,14 @@ export default function NearbyPlants() {
       });
   }
 
+  // Client-side name/area filter over the loaded results, so a customer can jump
+  // to a known plant without re-querying the server.
+  const q = query.trim().toLowerCase();
+  const matchText = (...fields: (string | null | undefined)[]) =>
+    !q || fields.some(v => (v ?? '').toLowerCase().includes(q));
+  const shownPlants = (plants ?? []).filter(p => matchText(p.name, p.city, p.address));
+  const shownDiscovered = discovered.filter(p => matchText(p.name, p.address));
+
   const wrap: React.CSSProperties = { padding: '22px clamp(14px, 4vw, 34px)', maxWidth: 1100, margin: '0 auto' };
 
   return (
@@ -213,6 +222,23 @@ export default function NearbyPlants() {
           </div>
         )}
       </div>
+
+      {/* Search by name / city / area over the loaded plants */}
+      {phase === 'ready' && ((plants && plants.length > 0) || discovered.length > 0) && (
+        <div style={{ position: 'relative', marginTop: 14 }}>
+          <Search size={16} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search plants by name, city or area…"
+            style={{
+              width: '100%', boxSizing: 'border-box', padding: '11px 14px 11px 40px',
+              borderRadius: 12, background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)',
+              color: 'var(--text)', fontSize: 14, fontWeight: 600, outline: 'none',
+            }}
+          />
+        </div>
+      )}
 
       {/* Loading (locating or fetching) */}
       {(phase === 'locating' || phase === 'loading') && (
@@ -271,7 +297,7 @@ export default function NearbyPlants() {
           {/* Empty onboarded list but live leads exist: still surface the section header. */}
           {view === 'list' && (plants.length > 0 || discovered.length > 0 || discovering) && (
             <>
-              {plants.length > 0 && (
+              {shownPlants.length > 0 && (
                 <>
                   <SectionHeader
                     icon={<ShieldCheck size={16} style={{ color: 'var(--green)' }} />}
@@ -279,9 +305,15 @@ export default function NearbyPlants() {
                     sub="Approved on CONCRETE KING — order directly."
                   />
                   <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', marginTop: 12 }}>
-                    {plants.map(p => <PlantCard key={p.id} p={p} onOrder={() => placeOrder(p)} onMap={() => viewOnMap(p)} />)}
+                    {shownPlants.map(p => <PlantCard key={p.id} p={p} onOrder={() => placeOrder(p)} onMap={() => viewOnMap(p)} />)}
                   </div>
                 </>
+              )}
+
+              {q && shownPlants.length === 0 && shownDiscovered.length === 0 && (plants.length > 0 || discovered.length > 0) && (
+                <div style={{ ...softCard, marginTop: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 13.5 }}>
+                  No plants match “{query}”. Try a different name or clear the search.
+                </div>
               )}
 
               {discovering && discovered.length === 0 && (
@@ -291,7 +323,7 @@ export default function NearbyPlants() {
                 </div>
               )}
 
-              {discovered.length > 0 && (
+              {shownDiscovered.length > 0 && (
                 <>
                   <SectionHeader
                     icon={<Search size={16} style={{ color: 'var(--muted)' }} />}
@@ -299,7 +331,7 @@ export default function NearbyPlants() {
                     sub="Found live on the map — unverified, not yet onboarded."
                   />
                   <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', marginTop: 12 }}>
-                    {discovered.map(p => (
+                    {shownDiscovered.map(p => (
                       <LeadCard
                         key={p.placeId}
                         p={p}
@@ -323,9 +355,9 @@ export default function NearbyPlants() {
               </div>
               <MapContainer center={[coords.lat, coords.lng]} zoom={12} style={{ height: 'min(70vh, 560px)', width: '100%' }} scrollWheelZoom>
                 <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <FitAll points={[[coords.lat, coords.lng], ...plants.map(p => [p.latitude, p.longitude] as [number, number]), ...discovered.map(p => [p.latitude, p.longitude] as [number, number])]} />
+                <FitAll points={[[coords.lat, coords.lng], ...shownPlants.map(p => [p.latitude, p.longitude] as [number, number]), ...shownDiscovered.map(p => [p.latitude, p.longitude] as [number, number])]} />
                 <Marker position={[coords.lat, coords.lng]} icon={meIcon}><Popup>Your location</Popup></Marker>
-                {plants.map(p => (
+                {shownPlants.map(p => (
                   <Marker key={`v-${p.id}`} position={[p.latitude, p.longitude]} icon={plantIcon}>
                     <Popup>
                       <div style={{ minWidth: 180 }}>
@@ -339,7 +371,7 @@ export default function NearbyPlants() {
                     </Popup>
                   </Marker>
                 ))}
-                {discovered.map(p => (
+                {shownDiscovered.map(p => (
                   <Marker key={`d-${p.placeId}`} position={[p.latitude, p.longitude]} icon={leadIcon}>
                     <Popup>
                       <div style={{ minWidth: 180 }}>

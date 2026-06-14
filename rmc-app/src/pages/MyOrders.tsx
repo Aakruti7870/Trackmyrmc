@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useSearch } from 'wouter';
 import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type Site, type RecurringOrder, type FreshnessConfig, type IdleConfig, type PlantDirectoryEntry } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
@@ -146,13 +147,21 @@ function LiveTimeline({ status, hasLive }: { status: string; hasLive: boolean })
   );
 }
 
+const TAB_KEYS = ['overview', 'orders', 'challans', 'ledger', 'recurring'] as const;
+type TabKey = typeof TAB_KEYS[number];
+function readTab(search: string): TabKey {
+  const t = new URLSearchParams(search).get('tab');
+  return (TAB_KEYS as readonly string[]).includes(t ?? '') ? (t as TabKey) : 'overview';
+}
+
 export default function MyOrders() {
+  const search = useSearch();
   const [orders, setOrders] = useState<Order[]>([]);
   const [challans, setChallans] = useState<Challan[]>([]);
   const [ledger, setLedger] = useState<LedgerData>({ entries: [], outstanding: 0, creditLimit: 0 });
   const [sites, setSites] = useState<Site[]>([]);
   const [recurring, setRecurring] = useState<RecurringOrder[]>([]);
-  const [tab, setTab] = useState<'overview' | 'orders' | 'challans' | 'ledger' | 'recurring'>('overview');
+  const [tab, setTab] = useState<TabKey>(() => readTab(search));
   const [recModalOpen, setRecModalOpen] = useState(false);
   const [recEditing, setRecEditing] = useState<RecurringOrder | null>(null);
   const [recForm, setRecForm] = useState<RecurringForm>(EMPTY_RECURRING);
@@ -199,6 +208,18 @@ export default function MyOrders() {
   }, []);
 
   useEffect(() => { reloadAll(); }, [reloadAll]);
+
+  // Sidebar deep links to a tab (e.g. Deliveries → ?tab=challans) switch tabs
+  // even when the user is already on this page (no remount). The lazy initial
+  // state above covers arriving via a fresh deep link.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const t = (e as CustomEvent<string>).detail;
+      if ((TAB_KEYS as readonly string[]).includes(t)) setTab(t as TabKey);
+    };
+    window.addEventListener('myorders:set-tab', handler);
+    return () => window.removeEventListener('myorders:set-tab', handler);
+  }, []);
 
   // Approved plants the customer may order from. Best-effort: if it fails the
   // selector falls back to showing only the pre-selected plant (from the

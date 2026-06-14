@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'wouter';
+import { Link, useLocation, useSearch } from 'wouter';
 import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
@@ -39,6 +39,18 @@ const ALL_NAV_ITEMS = [
   { path: '/users',       label: 'Users',      icon: ShieldCheck },
   { path: '/activity-log', label: 'Activity Log', icon: History },
   { path: '/audit-log',   label: 'Audit Log',  icon: ScrollText },
+];
+
+// Clients get a curated, deep-linked menu. The rich "My Orders" page exposes
+// Deliveries (live tracking) and Statement (ledger) as internal tabs; we surface
+// them here as first-class sidebar entries via ?tab= deep links plus a window
+// event (so they switch even when the user is already on the page).
+const CLIENT_NAV: { path: string; label: string; icon: typeof LayoutDashboard; tab?: string }[] = [
+  { path: '/my-orders',     label: 'My Orders',   icon: PackageSearch, tab: 'overview' },
+  { path: '/my-orders',     label: 'Deliveries',  icon: Truck,         tab: 'challans' },
+  { path: '/my-orders',     label: 'Statement',   icon: FileText,      tab: 'ledger' },
+  { path: '/nearby-plants', label: 'Find Plants', icon: MapPin },
+  { path: '/profile',       label: 'Account',     icon: Settings },
 ];
 
 const ROLE_COLOR: Record<string, string> = {
@@ -83,6 +95,8 @@ function SSEDot({ status, onReconnect }: { status: SSEStatus; onReconnect: () =>
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const search = useSearch();
+  const currentTab = new URLSearchParams(search).get('tab') || 'overview';
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
@@ -153,7 +167,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
 
   const allowedPaths = user ? (ROLE_ALLOWED_PATHS[user.role as Role] ?? []) : [];
-  const navItems = ALL_NAV_ITEMS.filter(item => allowedPaths.includes(item.path));
+  const navItems: { path: string; label: string; icon: typeof LayoutDashboard; tab?: string }[] =
+    isClient ? CLIENT_NAV : ALL_NAV_ITEMS.filter(item => allowedPaths.includes(item.path));
 
   const SidebarContent = () => (
     <>
@@ -201,13 +216,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Nav */}
       <nav style={{ display: 'grid', gap: 3, flex: 1 }}>
-        {navItems.map(({ path, label, icon: Icon }) => {
-          const active = path === '/' ? location === '/' : location.startsWith(path);
+        {navItems.map(({ path, label, icon: Icon, tab }) => {
+          const active = tab
+            ? (location.startsWith('/my-orders') && currentTab === tab)
+            : (path === '/' ? location === '/' : location.startsWith(path));
+          const href = tab && tab !== 'overview' ? `${path}?tab=${tab}` : path;
           return (
             <Link
-              key={path}
-              href={path}
-              onClick={() => setMobileOpen(false)}
+              key={`${path}:${tab ?? ''}`}
+              href={href}
+              onClick={() => {
+                setMobileOpen(false);
+                if (tab) window.dispatchEvent(new CustomEvent('myorders:set-tab', { detail: tab }));
+              }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '10px 12px', borderRadius: 12, textDecoration: 'none',
