@@ -243,7 +243,11 @@ export default function Landing() {
       {/* HERO */}
       <section style={{ position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0 }}>
-          <img src={IMG('hero-truck.png')} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.32 }} />
+          <picture>
+            <source srcSet={IMG('hero-truck.webp')} type="image/webp" />
+            <img src={IMG('hero-truck.png')} alt="" fetchPriority="high"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.32 }} />
+          </picture>
           <div style={{ position: 'absolute', inset: 0,
             background: 'linear-gradient(180deg, rgba(8,17,31,.65) 0%, rgba(8,17,31,.82) 55%, var(--bg) 100%)' }} />
           <div style={{ position: 'absolute', inset: 0,
