@@ -22,3 +22,7 @@
 
 ## Dismissed categories
 - (None yet)
+
+## Implementation notes
+- Public homepage (`/`) is a Vite SPA route with a static prerendered marketing shell embedded directly in `rmc-app/index.html`, so core homepage copy and metadata are visible before JavaScript runs.
+- Utility auth routes (`/login`, `/register`, `/set-password`) have dedicated HTML entry points with `noindex,follow` and are intentionally not treated as marketing pages.
