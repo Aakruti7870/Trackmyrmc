@@ -134,7 +134,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       showToast(`WhatsApp update for ${ref}${phone} failed${code} — call the customer`, 'error');
     });
 
-    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); unsubInvite(); unsubWaFailed(); };
+    // A WhatsApp order/dispatch/delivery update was permanently abandoned for a
+    // customer (staff only, scoped server-side). Surfaced as an error toast so a
+    // dispatcher can phone the customer instead of finding the gap in the audit
+    // log later. Names the update type and recipient phone so staff know who to
+    // call.
+    const unsubGaveUp = subscribe('whatsapp.gave_up', (data: unknown) => {
+      const d = data as { event?: string; toPhone?: string };
+      if (!d?.toPhone) return;
+      const kind = d.event ? d.event.replace(/[._-]/g, ' ') : 'WhatsApp';
+      showToast(`No ${kind} WhatsApp update reached ${d.toPhone} — please call the customer`, 'error');
+    });
+
+    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); unsubInvite(); unsubWaFailed(); unsubGaveUp(); };
   }, [subscribe, showToast, isClient]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';

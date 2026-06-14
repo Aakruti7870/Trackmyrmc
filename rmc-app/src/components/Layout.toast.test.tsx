@@ -83,16 +83,30 @@ describe('Layout live status-change toasts', () => {
     expect(screen.getByText(/Order ORD-77/)).toBeInTheDocument();
   });
 
+  it('shows an error toast naming the update type and recipient when WhatsApp gives up', () => {
+    renderLayout();
+    emit('whatsapp.gave_up', { event: 'order.created', toPhone: '+919876543210', reason: 'attempts_exhausted' });
+    expect(screen.getByText(/No order created WhatsApp update reached \+919876543210 — please call the customer/i)).toBeInTheDocument();
+  });
+
+  it('ignores a whatsapp.gave_up event with no recipient phone', () => {
+    renderLayout();
+    emit('whatsapp.gave_up', { event: 'order.created' });
+    expect(screen.queryByText(/please call the customer/i)).not.toBeInTheDocument();
+  });
+
   it('removes its SSE handlers when Layout unmounts', () => {
     const { unmount } = renderLayout();
 
     expect(handlers.get('challan.created')?.size ?? 0).toBeGreaterThan(0);
     expect(handlers.get('challan.updated')?.size ?? 0).toBeGreaterThan(0);
+    expect(handlers.get('whatsapp.gave_up')?.size ?? 0).toBeGreaterThan(0);
 
     unmount();
 
     expect(handlers.get('challan.created')?.size ?? 0).toBe(0);
     expect(handlers.get('challan.updated')?.size ?? 0).toBe(0);
+    expect(handlers.get('whatsapp.gave_up')?.size ?? 0).toBe(0);
   });
 
   it('does not show a toast after unmount when events are emitted', () => {
