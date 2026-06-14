@@ -18,4 +18,4 @@ The isolation tests assert "own data present / other-tenant data absent" by insp
 
 ## Known sharp edges (MVP follow-ups, non-blocking)
 - `ai_conversations.session_id` has a **global unique** index but conversations are per-user. If user B reuses user A's sessionId, `getOrCreateConversation` 500s on the unique violation (fails safe — no leak). Proper fix = make the unique key `(session_id, user_id)`.
-- `batch_records` has no plant column → `get_plant_production` derives output from plant-scoped challans by design. `vehicles` are a shared global fleet pool by design (not plant-scoped).
+- FLEET (`vehicles`) and PRODUCTION (`batch_records`) are now plant-scoped: both carry a nullable `plantId`, every direct-enumeration read/write is scoped via `plantScope()` (null-plant legacy admin stays unscoped). `vehicles.ts` still has NO blanket staff-only read gate — clients/drivers keep redacted reads (diesel baselines hidden), blocked only from writes. Fuel logs have no own plantId; scoped through their vehicle's plant. `nextBatchNo` remains global.

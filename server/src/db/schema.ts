@@ -116,6 +116,10 @@ export const sites = pgTable('sites', {
 
 export const vehicles = pgTable('vehicles', {
   id: serial('id').primaryKey(),
+  // The plant that owns this vehicle. Fleet reads/writes are hard-scoped by it so
+  // no plant can see or mutate another plant's trucks. NULL only for legacy
+  // pre-backfill rows (visible solely to a null-plant global admin).
+  plantId: integer('plant_id').references(() => plants.id),
   vehicleNo: text('vehicle_no').notNull().unique(),
   type: text('type').notNull().default('Transit Mixer'),
   capacity: decimal('capacity', { precision: 6, scale: 2 }).notNull(),
@@ -263,6 +267,10 @@ export const vehicleAlerts = pgTable('vehicle_alerts', {
 
 export const batchRecords = pgTable('batch_records', {
   id: serial('id').primaryKey(),
+  // The producing plant. Production reads/writes are hard-scoped by it. NULL only
+  // for legacy pre-backfill rows — batch records carry no order/challan linkage,
+  // so legacy rows cannot be attributed and stay visible only to a global admin.
+  plantId: integer('plant_id').references(() => plants.id),
   batchNo: text('batch_no').notNull().unique(),
   grade: text('grade').notNull(),
   quantity: decimal('quantity', { precision: 8, scale: 2 }).notNull(),

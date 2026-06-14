@@ -189,12 +189,14 @@ async function computeFuelReconciliation(from?: Date, to?: Date, actorPlantId?: 
     .where(fuelFilters.length ? and(...fuelFilters) : undefined)
     .groupBy(fuelLogs.vehicleId);
 
+  // Only the actor's own vehicles drive the reconciliation table; foreign-plant
+  // fuel/challan aggregates are never matched because they aren't iterated here.
   const vehicleRows = await db.select({
     id: vehicles.id,
     vehicleNo: vehicles.vehicleNo,
     mileageKmpl: vehicles.mileageKmpl,
     idleBurnLph: vehicles.idleBurnLph,
-  }).from(vehicles);
+  }).from(vehicles).where(plantScope(actorPlantId, vehicles.plantId));
 
   const challanByVehicle = new Map(challanRows.filter(r => r.vehicleId != null).map(r => [r.vehicleId as number, r]));
   const fuelByVehicle = new Map(fuelRows.map(r => [r.vehicleId, r]));
@@ -260,6 +262,8 @@ router.get('/fuel-reconciliation', requireRole('admin', 'dispatcher', 'authority
 router.get('/production', async (req, res) => {
   const { from, to } = req.query;
   const filters = [];
+  const scope = plantScope(req.user?.plantId, batchRecords.plantId);
+  if (scope) filters.push(scope);
   if (from) filters.push(gte(batchRecords.createdAt, new Date(from as string)));
   if (to) filters.push(lte(batchRecords.createdAt, new Date(to as string)));
   const rows = await db.select({
@@ -309,6 +313,8 @@ router.get('/export', async (req, res) => {
     }).join('\n');
   } else if (report === 'production') {
     const bfilters = [];
+    const scope = plantScope(req.user?.plantId, batchRecords.plantId);
+    if (scope) bfilters.push(scope);
     if (from) bfilters.push(gte(batchRecords.createdAt, new Date(from as string)));
     if (to) bfilters.push(lte(batchRecords.createdAt, new Date(to as string)));
     const rows = await db.select().from(batchRecords)
@@ -416,10 +422,12 @@ router.get('/forecast', requireRole('admin', 'dispatcher', 'authority'), async (
     .map(t => ({ grade: t.grade, qty: Number(t.quantity) || 0 }));
 
   // Average mixer capacity across the active fleet (drives truck-load advice).
+  const capScope = plantScope(req.user?.plantId, vehicles.plantId);
+  const activeVehicles = eq(vehicles.status, 'active');
   const [cap] = await db
     .select({ avg: sql<number>`coalesce(avg(${vehicles.capacity}::numeric), 0)` })
     .from(vehicles)
-    .where(eq(vehicles.status, 'active'));
+    .where(capScope ? and(activeVehicles, capScope) : activeVehicles);
   const avgTruckCapacity = Number(cap?.avg) || 0;
 
   res.json(computeForecast({ history, targetDate: target, booked, recurring, avgTruckCapacity }));

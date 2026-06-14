@@ -200,17 +200,20 @@ const RETRIEVALS = [
     },
     {
         name: 'get_plant_fleet', topic: 'fleet', roles: PLANT_STAFF_ROLES,
-        // Vehicles are a shared global pool in this app (not plant-partitioned), so
-        // staff see the shared fleet and its status — consistent with the app design.
-        run: async () => {
+        // Fleet is plant-private. Scope to the actor's plant; a null-plant global
+        // admin gets no fleet context (return null) rather than every plant's trucks.
+        run: async ({ scopePlantId }) => {
+            const scope = plantScope(scopePlantId, vehicles.plantId);
+            if (!scope)
+                return null;
             const rows = await db.select({
                 vehicleNo: vehicles.vehicleNo, type: vehicles.type, status: vehicles.status,
-            }).from(vehicles).orderBy(desc(vehicles.id)).limit(20);
+            }).from(vehicles).where(scope).orderBy(desc(vehicles.id)).limit(20);
             if (rows.length === 0)
                 return null;
             const counts = rows.reduce((m, v) => { m[v.status] = (m[v.status] ?? 0) + 1; return m; }, {});
             const summary = Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(', ');
-            return `Fleet (shared transit-mixer pool) — ${summary}:\n` + rows.map(v => `- ${v.vehicleNo} (${v.type}): ${v.status}`).join('\n');
+            return `Your plant's fleet (transit-mixer pool) — ${summary}:\n` + rows.map(v => `- ${v.vehicleNo} (${v.type}): ${v.status}`).join('\n');
         },
     },
     // ----- everyone: public plant info -----

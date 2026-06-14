@@ -6,10 +6,10 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
 const router = Router();
 router.use(requireAuth);
-// KPI tiles aggregate plant-bound business data (challans/orders/clients), so the
-// endpoint is staff/owner-only and every tenant-scoped query is hard-filtered by
-// the actor's plantId. Fleet/production tiles (vehicles, batch records) have no
-// plant column yet and stay plant-agnostic this round (documented drift).
+// KPI tiles aggregate plant-bound data (challans/orders/clients/fleet/production),
+// so the endpoint is staff/owner-only and every tenant-scoped query is
+// hard-filtered by the actor's plantId. A null-plant legacy global admin stays
+// unscoped and sees the platform-wide totals.
 router.get('/kpis', requireRole('admin', 'dispatcher', 'authority', 'plant_operator'), async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -17,12 +17,15 @@ router.get('/kpis', requireRole('admin', 'dispatcher', 'authority', 'plant_opera
     const challanScope = plantScope(plantId, challans.plantId);
     const orderScope = plantScope(plantId, orders.plantId);
     const clientScope = plantScope(plantId, clients.plantId);
+    const batchScope = plantScope(plantId, batchRecords.plantId);
+    const vehicleScope = plantScope(plantId, vehicles.plantId);
     const todayChallans = challanScope ? and(gte(challans.createdAt, today), challanScope) : gte(challans.createdAt, today);
+    const todayBatches = batchScope ? and(gte(batchRecords.createdAt, today), batchScope) : gte(batchRecords.createdAt, today);
     const [[production], [dispatch], [activeOrders], [fleetStats], [outstanding], [totalClients]] = await Promise.all([
         db.select({
             todayQty: sql `coalesce(sum(${batchRecords.quantity}::numeric), 0)`,
             totalBatches: sql `count(*)::int`,
-        }).from(batchRecords).where(gte(batchRecords.createdAt, today)),
+        }).from(batchRecords).where(todayBatches),
         db.select({
             todayQty: sql `coalesce(sum(${challans.quantity}::numeric), 0)`,
             todayCount: sql `count(*)::int`,
@@ -35,7 +38,7 @@ router.get('/kpis', requireRole('admin', 'dispatcher', 'authority', 'plant_opera
             total: sql `count(*)::int`,
             active: sql `count(*) filter (where ${vehicles.status} = 'active')::int`,
             maintenance: sql `count(*) filter (where ${vehicles.status} = 'maintenance')::int`,
-        }).from(vehicles),
+        }).from(vehicles).where(vehicleScope),
         db.select({
             total: sql `coalesce(sum(${clients.outstandingAmount}::numeric), 0)`,
         }).from(clients).where(clientScope),

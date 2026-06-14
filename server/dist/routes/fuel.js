@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { fuelLogs, vehicles } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
+import { plantScope } from '../lib/tenancy.js';
 const router = Router();
 router.use(requireAuth);
 // Fuel logging is owner/staff-only — never exposed to clients or drivers.
@@ -24,6 +25,17 @@ const fuelSelect = {
     // The detail endpoint resolves a signed URL; the list only flags presence.
     hasBillPhoto: fuelLogs.billPhoto,
 };
+// Whether a fuel log belongs to the actor's plant (via its vehicle's plantId).
+// A null-plant legacy global admin is unscoped and always passes.
+async function fuelLogInScope(id, actorPlantId) {
+    const scope = plantScope(actorPlantId, vehicles.plantId);
+    if (!scope)
+        return true;
+    const [row] = await db.select({ id: fuelLogs.id }).from(fuelLogs)
+        .innerJoin(vehicles, eq(fuelLogs.vehicleId, vehicles.id))
+        .where(and(eq(fuelLogs.id, id), scope));
+    return !!row;
+}
 // Validates an optional bill-photo path. Only direct object-storage uploads are
 // accepted (the phone/browser uploads straight to storage and sends the path),
 // mirroring the proof-of-delivery flow. Existence is verified on store.
@@ -85,6 +97,10 @@ router.post('/bill-upload-url', async (_req, res) => {
 router.get('/', async (req, res) => {
     const { vehicleId, from, to } = req.query;
     const filters = [];
+    // Only fuel logs for the actor's own vehicles (joined below).
+    const scope = plantScope(req.user.plantId, vehicles.plantId);
+    if (scope)
+        filters.push(scope);
     if (vehicleId)
         filters.push(eq(fuelLogs.vehicleId, +vehicleId));
     if (from)
@@ -98,9 +114,11 @@ router.get('/', async (req, res) => {
     res.json(rows.map(r => ({ ...r, hasBillPhoto: !!r.hasBillPhoto })));
 });
 router.get('/:id', async (req, res) => {
+    const scope = plantScope(req.user.plantId, vehicles.plantId);
+    const idEq = eq(fuelLogs.id, +req.params.id);
     const [row] = await db.select({ ...fuelSelect, billPhoto: fuelLogs.billPhoto }).from(fuelLogs)
         .leftJoin(vehicles, eq(fuelLogs.vehicleId, vehicles.id))
-        .where(eq(fuelLogs.id, +req.params.id));
+        .where(scope ? and(idEq, scope) : idEq);
     if (!row) {
         res.status(404).json({ error: 'Not found' });
         return;
@@ -114,7 +132,9 @@ router.post('/', async (req, res) => {
         res.status(400).json({ error: 'Vehicle is required' });
         return;
     }
-    const [vehicle] = await db.select({ id: vehicles.id }).from(vehicles).where(eq(vehicles.id, +vehicleId));
+    const scope = plantScope(req.user.plantId, vehicles.plantId);
+    const vIdEq = eq(vehicles.id, +vehicleId);
+    const [vehicle] = await db.select({ id: vehicles.id }).from(vehicles).where(scope ? and(vIdEq, scope) : vIdEq);
     if (!vehicle) {
         res.status(400).json({ error: 'Vehicle not found' });
         return;
@@ -157,10 +177,17 @@ router.put('/:id', async (req, res) => {
         res.status(404).json({ error: 'Not found' });
         return;
     }
+    // The log must belong to the actor's plant, and any re-assignment target too.
+    if (!(await fuelLogInScope(id, req.user.plantId))) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
     const updateData = {};
     try {
         if (req.body.vehicleId !== undefined) {
-            const [vehicle] = await db.select({ id: vehicles.id }).from(vehicles).where(eq(vehicles.id, +req.body.vehicleId));
+            const scope = plantScope(req.user.plantId, vehicles.plantId);
+            const vIdEq = eq(vehicles.id, +req.body.vehicleId);
+            const [vehicle] = await db.select({ id: vehicles.id }).from(vehicles).where(scope ? and(vIdEq, scope) : vIdEq);
             if (!vehicle) {
                 res.status(400).json({ error: 'Vehicle not found' });
                 return;
@@ -200,6 +227,10 @@ router.put('/:id', async (req, res) => {
 });
 router.delete('/:id', async (req, res) => {
     const id = +req.params.id;
+    if (!(await fuelLogInScope(id, req.user.plantId))) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
     const [existing] = await db.select({ billPhoto: fuelLogs.billPhoto }).from(fuelLogs).where(eq(fuelLogs.id, id));
     await db.delete(fuelLogs).where(eq(fuelLogs.id, id));
     if (existing?.billPhoto)

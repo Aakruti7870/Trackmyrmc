@@ -11,6 +11,7 @@
     "db:migrate-proof-photos": "tsx src/db/migrate-proof-photos.ts",
     "db:migrate-multitenant": "tsx src/db/migrate-multitenant.ts",
     "db:migrate-ai-session-unique": "tsx src/db/migrate-ai-session-unique.ts",
+    "db:migrate-fleet-production-plant": "tsx src/db/migrate-fleet-production-plant.ts",
     "test": "node scripts/test.mjs"
   },
   "dependencies": {

@@ -7,7 +7,7 @@ import type { Express } from 'express';
 
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, clients, orders, challans, challanProofPhotos, plants, vehicles } from '../db/schema.js';
+import { users, clients, orders, challans, challanProofPhotos, plants, vehicles, batchRecords, fuelLogs } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
 
 let app: Express;
@@ -58,7 +58,7 @@ before(() => {
 
 beforeEach(async () => {
   await db.execute(
-    sql`TRUNCATE TABLE plant_customers, challans, orders, clients, audit_logs, users, login_attempts, vehicles, plants RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE TABLE plant_customers, challans, orders, clients, audit_logs, users, login_attempts, fuel_logs, batch_records, vehicles, plants RESTART IDENTITY CASCADE`,
   );
   plantSeq = 0;
 });
@@ -500,55 +500,271 @@ test('demand forecast is plant-scoped: plant A staff cannot see plant B\'s booke
   assert.equal(Number(fcG.body.totalBooked), 40, 'a legacy global admin still sees all plants');
 });
 
-test('fuel reconciliation is plant-scoped: challan-derived KM does not leak across plants', async () => {
+test('fuel reconciliation is plant-scoped: a plant only sees its own vehicles\' KM', async () => {
   const plantA = await createPlant();
   const plantB = await createPlant();
 
-  // A shared vehicle (vehicles carry no plantId — documented drift) records trips
-  // for both plants; the per-plant aggregate must only reflect the actor's plant.
-  const [vehicle] = await db.insert(vehicles).values({
-    vehicleNo: 'FR-SHARED-1', capacity: '6.00', mileageKmpl: '4.00',
+  // Each plant owns its own vehicle now; the reconciliation table only iterates
+  // the actor's own fleet, so a foreign plant's truck never appears.
+  const [vehicleA] = await db.insert(vehicles).values({
+    plantId: plantA.id, vehicleNo: 'FR-A-1', capacity: '6.00', mileageKmpl: '4.00',
+  }).returning();
+  const [vehicleB] = await db.insert(vehicles).values({
+    plantId: plantB.id, vehicleNo: 'FR-B-1', capacity: '6.00', mileageKmpl: '4.00',
   }).returning();
 
-  const seedTrip = async (plantId: number, plantCode: string, km: number) => {
+  const seedTrip = async (plantId: number, plantCode: string, vehicleId: number, km: number) => {
     const [client] = await db.insert(clients).values({
       plantId, customerCode: `${plantCode}-C0001`, name: `${plantCode}-C0001`,
       contactPerson: 'C', phone: '9990001111',
     }).returning();
     await db.insert(challans).values({
-      plantId, clientId: client.id, vehicleId: vehicle.id, challanNo: `${plantCode}-FR1`,
+      plantId, clientId: client.id, vehicleId, challanNo: `${plantCode}-FR1`,
       grade: 'M25', quantity: '10', status: 'delivered',
       odometerStart: 0, odometerEnd: km,
     });
   };
-  await seedTrip(plantA.id, plantA.plantCode!, 100);
-  await seedTrip(plantB.id, plantB.plantCode!, 500);
+  await seedTrip(plantA.id, plantA.plantCode!, vehicleA.id, 100);
+  await seedTrip(plantB.id, plantB.plantCode!, vehicleB.id, 500);
 
-  const kmFor = (body: { rows: { vehicleId: number; km: number }[] }) =>
-    Number(body.rows.find(r => r.vehicleId === vehicle.id)?.km ?? 0);
+  const kmFor = (body: { rows: { vehicleId: number; km: number }[] }, vid: number) =>
+    Number(body.rows.find(r => r.vehicleId === vid)?.km ?? 0);
+  const hasVehicle = (body: { rows: { vehicleId: number }[] }, vid: number) =>
+    body.rows.some(r => r.vehicleId === vid);
 
   const staffA = await createUser('admin', 'frA@test.com', { plantId: plantA.id });
   const frA = await request(app).get('/api/reports/fuel-reconciliation')
     .set('Authorization', `Bearer ${tokenFor(staffA)}`);
   assert.equal(frA.status, 200);
-  assert.equal(kmFor(frA.body), 100, 'plant A sees only its own challan KM, not plant B\'s');
+  assert.equal(kmFor(frA.body, vehicleA.id), 100, 'plant A sees its own vehicle\'s KM');
+  assert.equal(hasVehicle(frA.body, vehicleB.id), false, 'plant A never sees plant B\'s vehicle');
 
   const staffB = await createUser('admin', 'frB@test.com', { plantId: plantB.id });
   const frB = await request(app).get('/api/reports/fuel-reconciliation')
     .set('Authorization', `Bearer ${tokenFor(staffB)}`);
   assert.equal(frB.status, 200);
-  assert.equal(kmFor(frB.body), 500, 'plant B sees only its own challan KM');
+  assert.equal(kmFor(frB.body, vehicleB.id), 500, 'plant B sees its own vehicle\'s KM');
+  assert.equal(hasVehicle(frB.body, vehicleA.id), false, 'plant B never sees plant A\'s vehicle');
 
   const globalAdmin = await createUser('admin', 'frglobal@test.com', { plantId: null });
   const frG = await request(app).get('/api/reports/fuel-reconciliation')
     .set('Authorization', `Bearer ${tokenFor(globalAdmin)}`);
   assert.equal(frG.status, 200);
-  assert.equal(kmFor(frG.body), 600, 'a legacy global admin sees both plants combined');
+  assert.equal(kmFor(frG.body, vehicleA.id), 100, 'a legacy global admin sees plant A\'s vehicle');
+  assert.equal(kmFor(frG.body, vehicleB.id), 500, 'a legacy global admin sees plant B\'s vehicle');
 
   // The CSV export path must enforce the same scoping.
   const csvA = await request(app).get('/api/reports/export?report=fuel-reconciliation')
     .set('Authorization', `Bearer ${tokenFor(staffA)}`);
   assert.equal(csvA.status, 200);
-  assert.match(csvA.text, /FR-SHARED-1",100,/, 'plant A CSV reflects only its own KM');
-  assert.doesNotMatch(csvA.text, /FR-SHARED-1",600,/, 'plant A CSV never shows the combined KM');
+  assert.match(csvA.text, /FR-A-1",100,/, 'plant A CSV reflects its own vehicle\'s KM');
+  assert.doesNotMatch(csvA.text, /FR-B-1/, 'plant A CSV never shows plant B\'s vehicle');
+
+  const csvB = await request(app).get('/api/reports/export?report=fuel-reconciliation')
+    .set('Authorization', `Bearer ${tokenFor(staffB)}`);
+  assert.equal(csvB.status, 200);
+  assert.match(csvB.text, /FR-B-1",500,/, 'plant B CSV reflects its own vehicle\'s KM');
+  assert.doesNotMatch(csvB.text, /FR-A-1/, 'plant B CSV never shows plant A\'s vehicle');
+});
+
+// ----- FLEET (vehicles) isolation -----
+
+async function createVehicle(plantId: number | null, vehicleNo: string) {
+  const [row] = await db.insert(vehicles).values({
+    plantId, vehicleNo, capacity: '6.00',
+  }).returning();
+  return row;
+}
+
+test('plant-scoped staff only list their own plant\'s vehicles (fleet)', async () => {
+  const plantA = await createPlant();
+  const plantB = await createPlant();
+  const vA = await createVehicle(plantA.id, 'A-TRUCK-1');
+  await createVehicle(plantB.id, 'B-TRUCK-1');
+
+  const staffA = await createUser('admin', 'fleetA@test.com', { plantId: plantA.id });
+  const list = await request(app).get('/api/vehicles').set('Authorization', `Bearer ${tokenFor(staffA)}`);
+  assert.equal(list.status, 200);
+  assert.equal(list.body.length, 1, 'the fleet list is scoped to the actor\'s plant');
+  assert.equal(list.body[0].id, vA.id);
+  assert.equal(list.body[0].vehicleNo, 'A-TRUCK-1');
+});
+
+test('plant-scoped staff cannot read, edit or delete another plant\'s vehicle', async () => {
+  const plantA = await createPlant();
+  const plantB = await createPlant();
+  const vB = await createVehicle(plantB.id, 'B-TRUCK-9');
+
+  const staffA = await createUser('admin', 'fleetcrossA@test.com', { plantId: plantA.id });
+  const authA = `Bearer ${tokenFor(staffA)}`;
+
+  const detail = await request(app).get(`/api/vehicles/${vB.id}`).set('Authorization', authA);
+  assert.equal(detail.status, 404, 'a foreign vehicle detail is denied');
+
+  const edit = await request(app).put(`/api/vehicles/${vB.id}`).set('Authorization', authA)
+    .send({ vehicleNo: 'HACKED', capacity: '8.00', status: 'active' });
+  assert.equal(edit.status, 404, 'a foreign vehicle cannot be edited');
+
+  const del = await request(app).delete(`/api/vehicles/${vB.id}`).set('Authorization', authA);
+  assert.equal(del.status, 200);
+  assert.equal(del.body.ok, false, 'the scoped delete reports nothing was removed');
+
+  const [survivor] = await db.select({ vehicleNo: vehicles.vehicleNo }).from(vehicles);
+  assert.equal(survivor.vehicleNo, 'B-TRUCK-9', 'the foreign vehicle survives untouched');
+});
+
+test('creating a vehicle stamps the creating staff\'s plant', async () => {
+  const plantA = await createPlant();
+  const staffA = await createUser('admin', 'fleetcreate@test.com', { plantId: plantA.id });
+  const res = await request(app).post('/api/vehicles').set('Authorization', `Bearer ${tokenFor(staffA)}`)
+    .send({ vehicleNo: 'NEW-1', capacity: '7.00' });
+  assert.equal(res.status, 201);
+  const [row] = await db.select({ plantId: vehicles.plantId }).from(vehicles);
+  assert.equal(row.plantId, plantA.id, 'the new vehicle is private to the creating plant');
+});
+
+test('a customer gets a redacted fleet read and cannot write to it', async () => {
+  const plantA = await createPlant();
+  await createVehicle(plantA.id, 'CUST-VIEW-1');
+  const customer = await createUser('client', 'nofleet@test.com');
+  const auth = `Bearer ${tokenFor(customer)}`;
+
+  // Clients keep the long-standing redacted read access (diesel baselines hidden)
+  // — covered in detail by diesel-leak.test.ts — but the write surface is closed.
+  const list = await request(app).get('/api/vehicles').set('Authorization', auth);
+  assert.equal(list.status, 200);
+  assert.equal('mileageKmpl' in (list.body[0] ?? {}), false, 'diesel baselines are hidden from customers');
+
+  const write = await request(app).post('/api/vehicles').set('Authorization', auth)
+    .send({ vehicleNo: 'X-1', capacity: '6.00' });
+  assert.equal(write.status, 403, 'the fleet write surface is closed to customers');
+});
+
+test('a legacy global admin (null plantId) sees every plant\'s vehicles', async () => {
+  const plantA = await createPlant();
+  const plantB = await createPlant();
+  await createVehicle(plantA.id, 'GA-1');
+  await createVehicle(plantB.id, 'GB-1');
+  const globalAdmin = await createUser('admin', 'fleetglobal@test.com', { plantId: null });
+  const list = await request(app).get('/api/vehicles').set('Authorization', `Bearer ${tokenFor(globalAdmin)}`);
+  assert.equal(list.status, 200);
+  assert.equal(list.body.length, 2);
+});
+
+test('fuel logs are plant-scoped to the vehicle\'s owning plant', async () => {
+  const plantA = await createPlant();
+  const plantB = await createPlant();
+  const vA = await createVehicle(plantA.id, 'FUEL-A-1');
+  const vB = await createVehicle(plantB.id, 'FUEL-B-1');
+  await db.insert(fuelLogs).values({ vehicleId: vA.id, litres: '50', filledAt: new Date() });
+  const [logB] = await db.insert(fuelLogs).values({ vehicleId: vB.id, litres: '80', filledAt: new Date() }).returning();
+
+  const staffA = await createUser('admin', 'fuelA@test.com', { plantId: plantA.id });
+  const authA = `Bearer ${tokenFor(staffA)}`;
+
+  const list = await request(app).get('/api/fuel').set('Authorization', authA);
+  assert.equal(list.status, 200);
+  assert.equal(list.body.length, 1, 'fuel list shows only the actor plant\'s vehicle logs');
+  assert.equal(list.body[0].vehicleNo, 'FUEL-A-1');
+
+  const detail = await request(app).get(`/api/fuel/${logB.id}`).set('Authorization', authA);
+  assert.equal(detail.status, 404, 'a foreign fuel-log detail is denied');
+
+  const create = await request(app).post('/api/fuel').set('Authorization', authA)
+    .send({ vehicleId: vB.id, litres: 10 });
+  assert.equal(create.status, 400, 'cannot log fuel against another plant\'s vehicle');
+});
+
+// ----- PRODUCTION (batch records) isolation -----
+
+async function createBatch(plantId: number | null, batchNo: string, qty: number) {
+  const [row] = await db.insert(batchRecords).values({
+    plantId, batchNo, grade: 'M25', quantity: String(qty),
+  }).returning();
+  return row;
+}
+
+test('plant-scoped staff only list their own plant\'s batch records (production)', async () => {
+  const plantA = await createPlant();
+  const plantB = await createPlant();
+  const bA = await createBatch(plantA.id, 'A-BTH-1', 10);
+  await createBatch(plantB.id, 'B-BTH-1', 99);
+
+  const staffA = await createUser('admin', 'prodA@test.com', { plantId: plantA.id });
+  const authA = `Bearer ${tokenFor(staffA)}`;
+  const list = await request(app).get('/api/batches').set('Authorization', authA);
+  assert.equal(list.status, 200);
+  assert.equal(list.body.length, 1, 'the production list is scoped to the actor\'s plant');
+  assert.equal(list.body[0].id, bA.id);
+
+  const summary = await request(app).get('/api/batches/summary').set('Authorization', authA);
+  assert.equal(summary.status, 200);
+  assert.equal(Number(summary.body.totalQty), 10, 'the summary excludes the other plant\'s 99');
+});
+
+test('plant-scoped staff cannot read, edit or delete another plant\'s batch record', async () => {
+  const plantA = await createPlant();
+  const plantB = await createPlant();
+  const bB = await createBatch(plantB.id, 'B-BTH-9', 50);
+
+  const staffA = await createUser('admin', 'prodcrossA@test.com', { plantId: plantA.id });
+  const authA = `Bearer ${tokenFor(staffA)}`;
+
+  const detail = await request(app).get(`/api/batches/${bB.id}`).set('Authorization', authA);
+  assert.equal(detail.status, 404, 'a foreign batch detail is denied');
+
+  const edit = await request(app).put(`/api/batches/${bB.id}`).set('Authorization', authA)
+    .send({ grade: 'M40', quantity: '1' });
+  assert.equal(edit.status, 404, 'a foreign batch cannot be edited');
+
+  const del = await request(app).delete(`/api/batches/${bB.id}`).set('Authorization', authA);
+  assert.equal(del.status, 200);
+  assert.equal(del.body.ok, false, 'the scoped delete reports nothing was removed');
+
+  const [survivor] = await db.select({ batchNo: batchRecords.batchNo, quantity: batchRecords.quantity }).from(batchRecords);
+  assert.equal(survivor.batchNo, 'B-BTH-9');
+  assert.equal(Number(survivor.quantity), 50, 'the foreign batch is unmodified');
+});
+
+test('creating a batch stamps the creating staff\'s plant', async () => {
+  const plantA = await createPlant();
+  const operator = await createUser('plant_operator', 'prodcreate@test.com', { plantId: plantA.id });
+  const res = await request(app).post('/api/batches').set('Authorization', `Bearer ${tokenFor(operator)}`)
+    .send({ grade: 'M25', quantity: '12' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.plantId, plantA.id, 'the new batch is private to the creating plant');
+});
+
+test('a customer cannot reach the staff production surface', async () => {
+  await createPlant();
+  const customer = await createUser('client', 'noprod@test.com');
+  const res = await request(app).get('/api/batches').set('Authorization', `Bearer ${tokenFor(customer)}`);
+  assert.equal(res.status, 403, 'the staff /api/batches surface is closed to customers');
+});
+
+test('a legacy global admin (null plantId) sees every plant\'s batch records', async () => {
+  const plantA = await createPlant();
+  const plantB = await createPlant();
+  await createBatch(plantA.id, 'GA-BTH-1', 10);
+  await createBatch(plantB.id, 'GB-BTH-1', 20);
+  const globalAdmin = await createUser('admin', 'prodglobal@test.com', { plantId: null });
+  const list = await request(app).get('/api/batches').set('Authorization', `Bearer ${tokenFor(globalAdmin)}`);
+  assert.equal(list.status, 200);
+  assert.equal(list.body.length, 2);
+});
+
+test('dashboard fleet & production KPIs are plant-scoped', async () => {
+  const plantA = await createPlant();
+  const plantB = await createPlant();
+  await createVehicle(plantA.id, 'KA-1');
+  await createVehicle(plantB.id, 'KB-1');
+  await createVehicle(plantB.id, 'KB-2');
+  await createBatch(plantA.id, 'KA-BTH-1', 10);
+  await createBatch(plantB.id, 'KB-BTH-1', 99);
+
+  const staffA = await createUser('admin', 'kpifleetA@test.com', { plantId: plantA.id });
+  const kpis = await request(app).get('/api/dashboard/kpis').set('Authorization', `Bearer ${tokenFor(staffA)}`);
+  assert.equal(kpis.status, 200);
+  assert.equal(Number(kpis.body.totalVehicles), 1, 'the fleet KPI counts only the actor\'s plant');
+  assert.equal(Number(kpis.body.todayProduction), 10, 'the production KPI excludes the other plant');
 });
