@@ -8,6 +8,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { getAuthorityEmails, isAuthorityEmail } from '../lib/authority.js';
 import { sendPasswordResetNotification, sendWelcomeEmail } from '../lib/email.js';
 import { getLockoutInfo, resetAttempts } from '../lib/loginAttempts.js';
+import { isPlatformStaff } from '../lib/roleHierarchy.js';
 const router = Router();
 router.use(requireAuth, requireRole('admin', 'authority'));
 // The global user console is platform-staff territory: an authority, or a legacy
@@ -17,9 +18,7 @@ router.use(requireAuth, requireRole('admin', 'authority'));
 // per-plant role limits. Without this guard a plant-scoped admin would inherit
 // global, cross-tenant user administration. Legacy admins have plantId == null,
 // so this is backward-compatible for every pre-existing account.
-function isPlatformStaff(actor) {
-    return actor.role === 'authority' || (actor.role === 'admin' && actor.plantId == null);
-}
+// (isPlatformStaff is shared from lib/roleHierarchy.)
 router.use((req, res, next) => {
     if (!isPlatformStaff(req.user)) {
         res.status(403).json({

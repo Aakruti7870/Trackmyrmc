@@ -48,7 +48,25 @@ Heuristics for the failures that keep recurring in the test gate (server
   "Loading…" shown. Location correctly reaches `/my-trips`; only the leaf render
   is unresolved. Don't blame role/permissions changes for this one.
 
+## Frontend — the full-run failure set ROTATES (environmental, not real)
+- In the loaded dev environment the rmc-app `pnpm test` gate fails on a small
+  (~3-4 of 180) but DIFFERENT set of files each run — one run blames
+  MyOrders/App.cross-tab, the next blames Layout.toast/ClientsDrivers/
+  Reports.variance. The rotating set is the tell: these are CPU-starved
+  `userEvent`/`waitFor` timeouts (dev servers + other agents loading the box),
+  not deterministic bugs. Re-run the named file in ISOLATION to confirm it
+  passes before "fixing" it. See rmc-frontend-test-flakiness.md.
+
+## MyOrders.quick-actions receipt assertion (fixed)
+- `downloadDeliveryReceipt(challan, {freeMin, ratePerHour})` takes a SECOND
+  pricing arg since idle-charges landed on the receipt. `toHaveBeenCalledWith`
+  matches ALL args, so a single-arg assertion silently went stale and failed.
+  Assert the 2nd arg with `expect.anything()` (or update it). The feature was
+  never broken — only the test lagged the call signature.
+
 **Why:** every one of these breaks because a single-element query (role,
 top-level error field, default mock branch) silently assumed there was only one
 match; later UI/library growth added a second, turning the query ambiguous or
-the assertion stale. Prefer specific, intent-revealing selectors.
+the assertion stale — or, for the rotating set, the box was simply too loaded
+to meet the default timeout. Prefer specific, intent-revealing selectors and
+judge a "failure" by whether it reproduces in isolation.

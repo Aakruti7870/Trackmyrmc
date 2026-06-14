@@ -16,7 +16,7 @@ import { createInviteToken } from '../lib/inviteToken.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { discoverConcretePlants, isDiscoveryConfigured } from '../lib/places.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
-import { canCreateRole, roleLimit } from '../lib/roleHierarchy.js';
+import { canCreateRole, roleLimit, isPlatformStaff } from '../lib/roleHierarchy.js';
 
 // Build the public base URL the owner-invite link points at. Prefers an
 // explicit env override (so emails work behind a custom domain in production),
@@ -70,9 +70,7 @@ const OWNER_PROVISIONERS = requireRole('authority', 'admin', 'plant_owner');
 // plant) sit at the top of the chain: they onboard plants and may seed any owner
 // role. Plant-scoped callers (a plant_owner, or an admin bound to one plant) are
 // governed by the role hierarchy and may only act on their own plant.
-function isPlatformStaff(actor: { role: string; plantId?: number | null }): boolean {
-  return actor.role === 'authority' || (actor.role === 'admin' && actor.plantId == null);
-}
+// (isPlatformStaff is shared from lib/roleHierarchy.)
 
 // Global plant administration (the directory itself, invite queue, create / edit
 // / delete) is platform-staff territory. A plant-scoped admin (role `admin` bound

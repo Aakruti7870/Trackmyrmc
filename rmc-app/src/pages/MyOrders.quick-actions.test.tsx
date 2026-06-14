@@ -122,6 +122,7 @@ describe('MyOrders quick actions', () => {
     await waitFor(() => {
       expect(downloadDeliveryReceipt).toHaveBeenCalledWith(
         expect.objectContaining({ challanNo: 'CH-001' }),
+        expect.anything(),
       );
     });
   });

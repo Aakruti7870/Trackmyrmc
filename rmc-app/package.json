@@ -13,7 +13,6 @@
   "dependencies": {
     "@clerk/clerk-react": "^5.61.8",
     "@e965/xlsx": "^0.20.3",
-    "date-fns": "^4.4.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "leaflet": "^1.9.4",

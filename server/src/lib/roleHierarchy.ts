@@ -54,3 +54,13 @@ export function canCreateRole(actorRole: string, targetRole: string): boolean {
 export function creatableRoles(actorRole: string): StaffRole[] {
   return CREATABLE_BY[actorRole] ?? [];
 }
+
+// Platform staff sit above any single plant: the Super Owner (authority) or a
+// legacy global admin with no plant binding (plantId == null). Plant-scoped
+// staff (admin/plant_owner bound to one plant) are NOT platform staff and must
+// act through the plant owner console. Used to gate global, cross-tenant
+// endpoints (the global user console and global plant administration). Legacy
+// global admins have plantId == null, so this stays backward-compatible.
+export function isPlatformStaff(actor: { role: string; plantId?: number | null }): boolean {
+  return actor.role === 'authority' || (actor.role === 'admin' && actor.plantId == null);
+}
