@@ -104,3 +104,15 @@ export async function discoverConcretePlants(lat, lng, radiusKm) {
     }
     return data;
 }
+// Purge cached upstream responses whose TTL has already elapsed. discoverConcretePlants
+// cleans opportunistically, but only when a fresh upstream call happens; on a
+// low-traffic instance expired rows would linger indefinitely. A periodic
+// background call keeps response_cache bounded regardless of traffic. The DELETE
+// is idempotent and safe to run from multiple instances concurrently.
+export async function cleanupExpiredCache() {
+    const result = await db
+        .delete(responseCache)
+        .where(lt(responseCache.expiresAt, new Date()))
+        .returning({ key: responseCache.key });
+    return result.length;
+}

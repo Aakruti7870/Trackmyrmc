@@ -7,6 +7,11 @@ function clientMayReceive(client, audience) {
     // Identity-less observers (e.g. test capture clients) receive everything.
     if (!identity)
         return true;
+    // An explicit role allow-list takes precedence over the default routing so
+    // an alert can be scoped to exactly the named roles (including `authority`,
+    // which STAFF_ROLES does not cover).
+    if (audience.roles)
+        return audience.roles.includes(identity.role);
     // Staff see all order/trip activity.
     if (STAFF_ROLES.has(identity.role))
         return true;

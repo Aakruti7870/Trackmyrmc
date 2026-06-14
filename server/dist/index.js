@@ -24,6 +24,8 @@ import eventsRoutes from './routes/events.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
 import { tickFreshnessAlerts } from './lib/freshnessAlerts.js';
+import { cleanupExpiredRateLimits } from './lib/rateLimit.js';
+import { cleanupExpiredCache } from './lib/places.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
 const app = express();
@@ -95,6 +97,26 @@ async function tickFreshness() {
         freshnessRunning = false;
     }
 }
+// Purge expired plant-discovery rate-limit counters and cached Places responses
+// regardless of traffic. Both tables clean opportunistically on use, but a quiet
+// instance would never trigger that, so expired rows could accumulate. Each
+// DELETE is idempotent and safe under multiple instances. Guarded against
+// overlapping runs.
+let discoveryCleanupRunning = false;
+async function tickDiscoveryCleanup() {
+    if (discoveryCleanupRunning)
+        return;
+    discoveryCleanupRunning = true;
+    try {
+        await Promise.all([cleanupExpiredRateLimits(), cleanupExpiredCache()]);
+    }
+    catch (e) {
+        console.error('Discovery cleanup tick failed', e);
+    }
+    finally {
+        discoveryCleanupRunning = false;
+    }
+}
 app.listen(PORT, () => {
     console.log(`TrackMyRMC API running on port ${PORT}`);
     cleanupOldAttempts().catch(() => { });
@@ -102,5 +124,7 @@ app.listen(PORT, () => {
     tickRecurringOrders();
     setInterval(tickRecurringOrders, 60 * 60 * 1000);
     setInterval(tickFreshness, 60 * 1000);
+    tickDiscoveryCleanup();
+    setInterval(tickDiscoveryCleanup, 60 * 60 * 1000);
 });
 export default app;

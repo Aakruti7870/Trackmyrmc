@@ -1,15 +1,16 @@
 import { Router } from 'express';
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, isNull, sql, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { plants, users, auditLogs, plantInvites } from '../db/schema.js';
 import { randomBytes } from 'node:crypto';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { hashPassword } from '../lib/password.js';
-import { sendWelcomeEmail, sendOwnerInviteEmail } from '../lib/email.js';
+import { sendWelcomeEmail, sendOwnerInviteEmail, sendPlantInviteNotification } from '../lib/email.js';
 import { createInviteToken } from '../lib/inviteToken.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { discoverConcretePlants, isDiscoveryConfigured } from '../lib/places.js';
+import { emitSSEEvent } from '../lib/sseEmitter.js';
 // Build the public base URL the owner-invite link points at. Prefers an
 // explicit env override (so emails work behind a custom domain in production),
 // then the proxy-forwarded host, finally the request's own host. This matches
@@ -195,7 +196,42 @@ router.post('/invite', async (req, res) => {
         },
     })
         .returning();
-    res.status(201).json({ ...row, deduped: row.requestCount > 1 });
+    const deduped = row.requestCount > 1;
+    res.status(201).json({ ...row, deduped });
+    // Proactively alert admins about a genuinely NEW request so they don't have to
+    // sit watching the Onboarding-requests tab. Repeat/de-duplicated requests are
+    // intentionally silent to avoid spam. Fire-and-forget AFTER responding so a
+    // slow SMTP server never delays the customer's request.
+    if (!deduped) {
+        // In-app SSE toast for admins (incl. the `authority` super-admin, which is
+        // outside STAFF_ROLES — hence the explicit role allow-list).
+        emitSSEEvent('plant.invite', {
+            id: row.id,
+            name: row.name,
+            address: row.address,
+            requestedByName: row.lastRequestedByName,
+        }, { roles: ['admin', 'authority'] });
+        void (async () => {
+            try {
+                const admins = await db
+                    .select({ email: users.email })
+                    .from(users)
+                    .where(and(isNull(users.deletedAt), eq(users.isActive, true), inArray(users.role, ['admin', 'authority'])));
+                const emails = admins.map(a => a.email).filter(Boolean);
+                if (emails.length > 0) {
+                    await sendPlantInviteNotification(emails, {
+                        plantName: row.name,
+                        address: row.address,
+                        contactNumber: row.contactNumber,
+                        requestedByName: row.lastRequestedByName,
+                    });
+                }
+            }
+            catch (err) {
+                console.error('[plants] Failed to notify admins of a new plant request:', err);
+            }
+        })();
+    }
 });
 // Staff-only: the queue of submitted invites, most-requested / most-recent first.
 router.get('/invites', ADMIN, async (_req, res) => {

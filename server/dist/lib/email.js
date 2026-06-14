@@ -564,3 +564,93 @@ export async function sendPasswordResetNotification(toEmail, toName) {
     });
     return true;
 }
+export async function sendPlantInviteNotification(toEmails, details) {
+    const recipients = toEmails.map(e => e.trim()).filter(Boolean);
+    if (recipients.length === 0)
+        return false;
+    const cfg = await getSmtpConfig();
+    const transporter = transporterFor(cfg);
+    if (!transporter) {
+        console.warn('[email] SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing). ' +
+            'Skipping new plant-request notification email.');
+        return false;
+    }
+    const from = cfg.from || cfg.user || undefined;
+    const { plantName, address, contactNumber, requestedByName } = details;
+    const safe = (v) => String(v ?? '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    await transporter.sendMail({
+        from,
+        to: recipients,
+        subject: `New plant onboarding request: ${plantName}`,
+        text: [
+            'A customer has requested that a new plant be onboarded to the marketplace.',
+            '',
+            `  Plant:     ${plantName}`,
+            ...(address ? [`  Address:   ${address}`] : []),
+            ...(contactNumber ? [`  Contact:   ${contactNumber}`] : []),
+            ...(requestedByName ? [`  Requested by: ${requestedByName}`] : []),
+            '',
+            'Open the Plants page -> "Onboarding requests" tab to review and onboard it.',
+            '',
+            '— Aakruti Infra RMC Plant Management System',
+        ].join('\n'),
+        html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+        <tr>
+          <td style="background:#08111f;padding:24px 32px">
+            <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
+              Aakruti Infra RMC Plant
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px">
+            <h2 style="margin:0 0 16px;color:#1a1a1a;font-size:18px">
+              New Plant Onboarding Request
+            </h2>
+            <p style="color:#444;line-height:1.6;margin:0 0 16px">
+              A customer has requested that a new plant be onboarded to the marketplace.
+            </p>
+            <table cellpadding="0" cellspacing="0"
+                   style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;margin:0 0 24px;width:100%">
+              <tr>
+                <td style="color:#555;font-size:14px;padding:4px 0;width:110px">Plant</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${safe(plantName)}</td>
+              </tr>
+              ${address ? `<tr>
+                <td style="color:#555;font-size:14px;padding:4px 0">Address</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${safe(address)}</td>
+              </tr>` : ''}
+              ${contactNumber ? `<tr>
+                <td style="color:#555;font-size:14px;padding:4px 0">Contact</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${safe(contactNumber)}</td>
+              </tr>` : ''}
+              ${requestedByName ? `<tr>
+                <td style="color:#555;font-size:14px;padding:4px 0">Requested by</td>
+                <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${safe(requestedByName)}</td>
+              </tr>` : ''}
+            </table>
+            <p style="color:#444;line-height:1.6;margin:0 0 24px">
+              Open the <strong>Plants</strong> page -> <strong>Onboarding requests</strong> tab to review and onboard it.
+            </p>
+            <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
+            <p style="color:#888;font-size:13px;margin:0">
+              — Aakruti Infra RMC Plant Management System
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+    });
+    return true;
+}
