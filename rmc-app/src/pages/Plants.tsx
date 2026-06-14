@@ -64,6 +64,21 @@ const emptyForm: FormState = {
 // `verified`. Everything else is still an onboarding lead, even if approved/active.
 function isLead(p: Plant): boolean { return !p.verified; }
 
+// Marking a plant verified publishes it to the customer-facing directory, so the
+// key company details that customers (and challans) rely on must be filled in
+// first. Returns the human-readable labels of whatever is still missing.
+function missingVerifyFields(src: {
+  legalName: string | null; gstNo: string | null; contactNumber: string | null; email: string | null;
+}): string[] {
+  const checks: [string | null, string][] = [
+    [src.legalName, 'legal / company name'],
+    [src.gstNo, 'GST number'],
+    [src.contactNumber, 'contact number'],
+    [src.email, 'email'],
+  ];
+  return checks.filter(([v]) => !v || !String(v).trim()).map(([, label]) => label);
+}
+
 const ownerEmpty = { name: '', email: '', password: '', role: 'admin' as OwnerRole, setOwnPassword: true };
 
 export default function Plants() {
@@ -210,6 +225,19 @@ export default function Plants() {
       setError('Name and map location are required.');
       return;
     }
+    // Verifying publishes to the customer-facing directory — warn if onboarding
+    // details are still missing before saving the verified flag.
+    if (form.verified) {
+      const missing = missingVerifyFields(form);
+      if (missing.length > 0) {
+        const ok = confirm(
+          `This plant is missing ${missing.join(', ')}.\n\n` +
+          `Verified plants are published to the customer-facing marketplace. ` +
+          `Save it as verified anyway?`,
+        );
+        if (!ok) return;
+      }
+    }
     setSaving(true);
     setError('');
     const payload = { ...form, deliveryRadiusKm: Number(form.deliveryRadiusKm) || 0 };
@@ -223,6 +251,22 @@ export default function Plants() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function toggleVerified(p: Plant) {
+    // Only guard the publish direction — un-verifying always needs no warning.
+    if (!p.verified) {
+      const missing = missingVerifyFields(p);
+      if (missing.length > 0) {
+        const ok = confirm(
+          `"${p.name}" is missing ${missing.join(', ')}.\n\n` +
+          `Verified plants are published to the customer-facing marketplace. ` +
+          `Mark it verified anyway?`,
+        );
+        if (!ok) return;
+      }
+    }
+    patch(p, { verified: !p.verified });
   }
 
   async function patch(p: Plant, changes: Partial<Plant>) {
@@ -313,7 +357,7 @@ export default function Plants() {
                 </div>
 
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button onClick={() => patch(p, { verified: !p.verified })} title="Toggle partner verification" style={chip(p.verified, 'var(--green)')}>
+                  <button onClick={() => toggleVerified(p)} title="Toggle partner verification" style={chip(p.verified, 'var(--green)')}>
                     <BadgeCheck size={13} /> {p.verified ? 'Verified' : 'Mark verified'}
                   </button>
                   <select value={p.plantStatus} onChange={e => patch(p, { plantStatus: e.target.value as PlantStatus })} style={pill(p.plantStatus === 'approved' ? 'var(--green)' : p.plantStatus === 'rejected' ? 'var(--red)' : 'var(--muted)')}>
@@ -403,6 +447,16 @@ export default function Plants() {
                 <label style={checkRow}><input type="checkbox" checked={form.locationVerified} onChange={e => setForm(f => ({ ...f, locationVerified: e.target.checked }))} /> Map pin verified</label>
                 <label style={{ ...checkRow, color: 'var(--green)' }}><input type="checkbox" checked={form.verified} onChange={e => setForm(f => ({ ...f, verified: e.target.checked }))} /> Verified partner (visible to customers)</label>
               </div>
+
+              {form.verified && missingVerifyFields(form).length > 0 && (
+                <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--gold) 50%, transparent)', color: 'var(--gold)', fontSize: 13, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <ShieldAlert size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>
+                    Missing {missingVerifyFields(form).join(', ')}. Verified plants are published to the
+                    customer-facing marketplace — you'll be asked to confirm before saving.
+                  </span>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
