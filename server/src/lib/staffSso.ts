@@ -7,7 +7,7 @@ import { isAuthorityEmail } from './authority.js';
 // deliberately excluded — they keep the legacy email/password flow — so an
 // outsider who authenticates a Google/GitHub identity can never be mapped onto
 // a client or driver account.
-export const SSO_ROLES = ['admin', 'dispatcher', 'plant_operator', 'authority'] as const;
+export const SSO_ROLES = ['admin', 'dispatcher', 'plant_operator', 'authority', 'plant_owner', 'supervisor'] as const;
 
 type UserRow = typeof users.$inferSelect;
 

@@ -9,6 +9,7 @@ import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
+import { PERMANENT_AUTHORITY_EMAILS } from '../lib/authority.js';
 
 let app: Express;
 
@@ -63,7 +64,11 @@ test('GET /users/authority-emails returns the env allow-list, normalised (trimme
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
 
   assert.equal(res.status, 200);
-  assert.deepEqual(res.body.emails, ['boss@aakruti.com', 'vip@aakruti.com']);
+  assert.deepEqual(res.body.emails, [
+    ...PERMANENT_AUTHORITY_EMAILS,
+    'boss@aakruti.com',
+    'vip@aakruti.com',
+  ]);
 });
 
 test('GET /users/authority-emails requires authentication', async () => {

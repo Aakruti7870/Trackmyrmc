@@ -1,6 +1,11 @@
 import { pgTable, serial, text, integer, decimal, boolean, timestamp, date, time, pgEnum, uniqueIndex, jsonb, index } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
-export const userRoleEnum = pgEnum('user_role', ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver']);
+// Role hierarchy (high → low): authority (Super Owner) → plant_owner → admin →
+// supervisor / dispatcher / plant_operator / driver, plus the marketplace
+// `client`. `plant_owner` and `supervisor` were added for the owner-onboarding
+// hierarchy; the original six are kept in place (additive) so existing rows and
+// the enum's stored order are untouched.
+export const userRoleEnum = pgEnum('user_role', ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor']);
 export const orderStatusEnum = pgEnum('order_status', ['pending', 'in_progress', 'completed', 'cancelled']);
 export const challanStatusEnum = pgEnum('challan_status', ['pending', 'dispatched', 'delivered', 'cancelled']);
 export const vehicleStatusEnum = pgEnum('vehicle_status', ['active', 'maintenance', 'inactive']);
@@ -58,6 +63,18 @@ export const users = pgTable('users', {
     plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
     linkedClientId: integer('linked_client_id').references(() => clients.id, { onDelete: 'set null' }),
     linkedDriverId: integer('linked_driver_id').references(() => drivers.id, { onDelete: 'set null' }),
+    // --- Role-hierarchy / onboarding fields (all nullable & additive) ----------
+    // Who provisioned this account (the actor in the creation chain). NULL for
+    // legacy rows and self-service registrations. Self-reference, ON DELETE SET
+    // NULL so purging the creator never cascades to their staff.
+    createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+    // Who suspended this account, and why — captured when isActive flips to false
+    // and cleared on reactivation. Surfaced on the suspended-login error message.
+    suspendedBy: integer('suspended_by').references(() => users.id, { onDelete: 'set null' }),
+    suspensionReason: text('suspension_reason'),
+    // Optional per-account permission overrides (reserved for fine-grained grants
+    // on top of the role). NULL means "use the role defaults".
+    permissions: jsonb('permissions'),
     deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [

@@ -38,6 +38,16 @@ Heuristics for the failures that keep recurring in the test gate (server
   "Vehicle odometer reading"). Never use `getByRole('spinbutton')` — it matches
   both. Target the delivered-qty field by its `Planned: … m³` placeholder.
 
+## Frontend — App.cross-tab (pre-existing, fails even in isolation)
+- `App.cross-tab.test.tsx > re-gates routes by the new role …` is a STANDING
+  baseline failure (reproduces on a clean `HEAD` checkout of `permissions.ts`,
+  not caused by role/permission edits). Pages are `lazy()`-loaded with a
+  "Loading…" Suspense fallback; the test fires a SYNC storage event
+  (`fireStorage`) then asserts `getByTestId('page-my-trips')` synchronously
+  without awaiting, so the redirected MyTrips lazy chunk hasn't resolved →
+  "Loading…" shown. Location correctly reaches `/my-trips`; only the leaf render
+  is unresolved. Don't blame role/permissions changes for this one.
+
 **Why:** every one of these breaks because a single-element query (role,
 top-level error field, default mock branch) silently assumed there was only one
 match; later UI/library growth added a second, turning the query ambiguous or

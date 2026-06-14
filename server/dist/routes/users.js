@@ -10,7 +10,26 @@ import { sendPasswordResetNotification, sendWelcomeEmail } from '../lib/email.js
 import { getLockoutInfo, resetAttempts } from '../lib/loginAttempts.js';
 const router = Router();
 router.use(requireAuth, requireRole('admin', 'authority'));
-const ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver'];
+// The global user console is platform-staff territory: an authority, or a legacy
+// global admin (no plant binding). Plant-scoped staff (e.g. a plant_owner's own
+// admin) must manage their team through the plant owner console
+// (POST /api/plants/:id/owner), which enforces own-plant scope, hierarchy and
+// per-plant role limits. Without this guard a plant-scoped admin would inherit
+// global, cross-tenant user administration. Legacy admins have plantId == null,
+// so this is backward-compatible for every pre-existing account.
+function isPlatformStaff(actor) {
+    return actor.role === 'authority' || (actor.role === 'admin' && actor.plantId == null);
+}
+router.use((req, res, next) => {
+    if (!isPlatformStaff(req.user)) {
+        res.status(403).json({
+            error: 'The global user console is restricted to platform staff. Manage your plant\u2019s team from the plant owner console.',
+        });
+        return;
+    }
+    next();
+});
+const ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor'];
 const createSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     email: z.string().email('Invalid email'),
@@ -23,6 +42,9 @@ const updateSchema = z.object({
     name: z.string().min(1).optional(),
     role: z.enum(ROLES).optional(),
     isActive: z.boolean().optional(),
+    // Optional human reason captured when an account is suspended (isActive→false).
+    // Stored on the row and surfaced on the suspended-login message.
+    suspensionReason: z.string().max(500).optional(),
     linkedClientId: z.number().int().positive().nullable().optional(),
     linkedDriverId: z.number().int().positive().nullable().optional(),
     password: z.string().min(6, 'Password must be at least 6 characters').optional(),
@@ -98,6 +120,8 @@ function safeUser(u) {
         linkedDriverId: u.linkedDriverId,
         createdAt: u.createdAt,
         deletedAt: u.deletedAt ?? null,
+        suspensionReason: u.suspensionReason ?? null,
+        suspendedBy: u.suspendedBy ?? null,
     };
 }
 router.get('/', async (req, res) => {
@@ -109,6 +133,8 @@ router.get('/', async (req, res) => {
         linkedDriverId: users.linkedDriverId,
         createdAt: users.createdAt,
         deletedAt: users.deletedAt,
+        suspensionReason: users.suspensionReason,
+        suspendedBy: users.suspendedBy,
     }).from(users)
         .where(deletedOnly ? isNotNull(users.deletedAt) : isNull(users.deletedAt))
         .orderBy(deletedOnly ? desc(users.deletedAt) : asc(users.createdAt));
@@ -180,6 +206,12 @@ router.post('/', async (req, res) => {
         res.status(403).json({ error: 'This email is not on the AUTHORITY allow-list, so it cannot be granted the AUTHORITY role.' });
         return;
     }
+    // The Plant Owner sits directly below the Super Owner in the hierarchy, so only
+    // an authority may mint one from the global user console.
+    if (role === 'plant_owner' && req.user.role !== 'authority') {
+        res.status(403).json({ error: 'Only a Super Owner can create a Plant Owner account.' });
+        return;
+    }
     const [existing] = await db.select({ id: users.id, name: users.name, deletedAt: users.deletedAt })
         .from(users).where(eq(users.email, email));
     if (existing) {
@@ -208,6 +240,7 @@ router.post('/', async (req, res) => {
             name, email, passwordHash, role,
             linkedClientId: linkedClientId ?? null,
             linkedDriverId: linkedDriverId ?? null,
+            createdBy: req.user.id,
         }).returning();
     }
     catch (err) {
@@ -278,7 +311,7 @@ router.put('/:id', async (req, res) => {
         res.status(400).json({ error: parse.error.flatten().fieldErrors });
         return;
     }
-    const { password, ...rest } = parse.data;
+    const { password, suspensionReason, ...rest } = parse.data;
     const updateData = { ...rest };
     if (password) {
         updateData.passwordHash = await hashPassword(password);
@@ -295,6 +328,23 @@ router.put('/:id', async (req, res) => {
     if (rest.role === 'authority' && !isAuthorityEmail(before.email)) {
         res.status(403).json({ error: 'This email is not on the AUTHORITY allow-list, so it cannot be granted the AUTHORITY role.' });
         return;
+    }
+    // Granting the Plant Owner role is reserved for the Super Owner.
+    if (rest.role === 'plant_owner' && req.user.role !== 'authority') {
+        res.status(403).json({ error: 'Only a Super Owner can grant the Plant Owner role.' });
+        return;
+    }
+    // Capture who/why on suspension, and clear both on reactivation, so the reason
+    // can be surfaced at the suspended-login screen. Only acts on a real
+    // active→inactive (or back) transition so unrelated edits don't touch it.
+    const trimmedReason = suspensionReason?.trim() || null;
+    if (rest.isActive === false && before.isActive === true) {
+        updateData.suspendedBy = req.user.id;
+        updateData.suspensionReason = trimmedReason;
+    }
+    else if (rest.isActive === true && before.isActive === false) {
+        updateData.suspendedBy = null;
+        updateData.suspensionReason = null;
     }
     const effectiveClientId = rest.linkedClientId !== undefined ? (rest.linkedClientId ?? null) : before.linkedClientId;
     const effectiveDriverId = rest.linkedDriverId !== undefined ? (rest.linkedDriverId ?? null) : before.linkedDriverId;
@@ -341,7 +391,9 @@ router.put('/:id', async (req, res) => {
     if (rest.isActive !== undefined && rest.isActive !== before.isActive) {
         changeEntries.push({
             action: rest.isActive ? 'account_activated' : 'account_deactivated',
-            detail: rest.isActive ? 'Account reactivated' : 'Account deactivated',
+            detail: rest.isActive
+                ? 'Account reactivated'
+                : `Account deactivated${trimmedReason ? `: ${trimmedReason}` : ''}`,
         });
     }
     const clientNameCache = new Map();

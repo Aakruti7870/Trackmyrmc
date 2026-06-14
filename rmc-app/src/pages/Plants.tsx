@@ -28,7 +28,7 @@ interface Plant {
   ownerCount: number;
 }
 
-type OwnerRole = 'admin' | 'dispatcher' | 'plant_operator';
+type OwnerRole = 'plant_owner' | 'admin' | 'supervisor' | 'dispatcher' | 'plant_operator' | 'driver';
 
 interface PlantLogin {
   id: number;
@@ -60,9 +60,12 @@ interface PlantInvite {
 }
 
 const ROLE_LABELS: Record<string, string> = {
+  plant_owner: 'Plant Owner',
   admin: 'Owner',
+  supervisor: 'Supervisor',
   dispatcher: 'Dispatcher',
   plant_operator: 'Plant operator',
+  driver: 'Driver',
 };
 
 const ALL_GRADES = ['M-15', 'M-20', 'M-25', 'M-30', 'M-35', 'M-40', 'M-45', 'M-50', 'M-55', 'M-60'];
@@ -602,9 +605,12 @@ export default function Plants() {
                   <Field label="Email *"><input type="email" value={ownerForm.email} onChange={e => setOwnerForm(f => ({ ...f, email: e.target.value }))} style={input} /></Field>
                   <Field label="Access level">
                     <select value={ownerForm.role} onChange={e => setOwnerForm(f => ({ ...f, role: e.target.value as OwnerRole }))} style={input}>
+                      <option value="plant_owner">Plant Owner</option>
                       <option value="admin">Owner (full plant access)</option>
+                      <option value="supervisor">Supervisor</option>
                       <option value="dispatcher">Dispatcher</option>
                       <option value="plant_operator">Plant operator</option>
+                      <option value="driver">Driver</option>
                     </select>
                   </Field>
 

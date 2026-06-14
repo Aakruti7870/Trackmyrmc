@@ -6,7 +6,7 @@ import { isAuthorityEmail } from './authority.js';
 // deliberately excluded — they keep the legacy email/password flow — so an
 // outsider who authenticates a Google/GitHub identity can never be mapped onto
 // a client or driver account.
-export const SSO_ROLES = ['admin', 'dispatcher', 'plant_operator', 'authority'];
+export const SSO_ROLES = ['admin', 'dispatcher', 'plant_operator', 'authority', 'plant_owner', 'supervisor'];
 /**
  * Given the verified primary email of a Clerk identity, find the staff/authority
  * user it maps to and decide whether single sign-on is allowed. This is the

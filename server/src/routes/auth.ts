@@ -35,7 +35,9 @@ router.post('/login', async (req, res) => {
   }
 
   const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
-  if (!user || !user.isActive || user.deletedAt) {
+  // A non-existent or soft-deleted account stays an opaque "invalid credentials"
+  // so the endpoint can't be used to enumerate accounts.
+  if (!user || user.deletedAt) {
     await recordFailure(lockoutKey);
     res.status(401).json({ error: 'Invalid credentials' });
     return;
@@ -52,6 +54,21 @@ router.post('/login', async (req, res) => {
       return;
     }
     res.status(401).json({ error: 'Invalid credentials' });
+    return;
+  }
+
+  // The password is correct, so it is safe to tell a suspended user *why* they
+  // can't get in (no enumeration risk). Surface the reason captured at
+  // suspension time when present, so staff know who to contact.
+  if (!user.isActive) {
+    await resetAttempts(lockoutKey);
+    const reason = user.suspensionReason?.trim();
+    res.status(403).json({
+      error: reason
+        ? `Your account has been suspended: ${reason}. Please contact your administrator.`
+        : 'Your account has been suspended. Please contact your administrator.',
+      suspended: true,
+    });
     return;
   }
 

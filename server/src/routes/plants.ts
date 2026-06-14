@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { eq, and, isNull, sql, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
@@ -16,6 +16,7 @@ import { createInviteToken } from '../lib/inviteToken.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { discoverConcretePlants, isDiscoveryConfigured } from '../lib/places.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
+import { canCreateRole, roleLimit } from '../lib/roleHierarchy.js';
 
 // Build the public base URL the owner-invite link points at. Prefers an
 // explicit env override (so emails work behind a custom domain in production),
@@ -60,6 +61,32 @@ function isOpenNow(openTime: string | null, closeTime: string | null): boolean {
 }
 
 const ADMIN = requireRole('authority', 'admin');
+// Who may view/provision a plant's logins. Adds plant_owner to the platform
+// staff so an owner can manage their own plant's team. Plant-scoped callers are
+// further restricted to their own plant inside each handler.
+const OWNER_PROVISIONERS = requireRole('authority', 'admin', 'plant_owner');
+
+// Platform staff (the Super Owner, or a global admin not bound to a single
+// plant) sit at the top of the chain: they onboard plants and may seed any owner
+// role. Plant-scoped callers (a plant_owner, or an admin bound to one plant) are
+// governed by the role hierarchy and may only act on their own plant.
+function isPlatformStaff(actor: { role: string; plantId?: number | null }): boolean {
+  return actor.role === 'authority' || (actor.role === 'admin' && actor.plantId == null);
+}
+
+// Global plant administration (the directory itself, invite queue, create / edit
+// / delete) is platform-staff territory. A plant-scoped admin (role `admin` bound
+// to one plant) satisfies `requireRole('admin')` but must NOT reach across
+// tenants to list, edit or delete every plant — they manage their own plant's
+// team through the owner console (/:id/owner). Legacy global admins have
+// plantId == null, so this stays backward-compatible for pre-existing accounts.
+const platformStaffOnly: RequestHandler = (req, res, next) => {
+  if (!isPlatformStaff(req.user!)) {
+    res.status(403).json({ error: 'Global plant administration is restricted to platform staff. Manage your plant from the owner console.' });
+    return;
+  }
+  next();
+};
 
 // Customer-facing: approved + active + location-verified plants within radius km,
 // nearest first. Never exposes status/verification internals. Login-only — only a
@@ -296,7 +323,7 @@ router.post('/invite', async (req, res) => {
 });
 
 // Staff-only: the queue of submitted invites, most-requested / most-recent first.
-router.get('/invites', ADMIN, async (_req, res) => {
+router.get('/invites', ADMIN, platformStaffOnly, async (_req, res) => {
   const rows = await db
     .select()
     .from(plantInvites)
@@ -309,7 +336,7 @@ router.get('/invites', ADMIN, async (_req, res) => {
 const inviteStatusSchema = z.object({
   status: z.enum(['pending', 'onboarded', 'dismissed']),
 });
-router.patch('/invites/:id', ADMIN, async (req, res) => {
+router.patch('/invites/:id', ADMIN, platformStaffOnly, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
   const parse = inviteStatusSchema.safeParse(req.body);
@@ -323,7 +350,7 @@ router.patch('/invites/:id', ADMIN, async (req, res) => {
   res.json(row);
 });
 
-router.get('/', ADMIN, async (_req, res) => {
+router.get('/', ADMIN, platformStaffOnly, async (_req, res) => {
   const rows = await db.select().from(plants).orderBy(plants.createdAt);
   // Count the live (non-soft-deleted) login accounts bound to each plant so the
   // onboarding UI can show whether an owner has already been provisioned.
@@ -359,7 +386,7 @@ function parseBody(body: Record<string, unknown>) {
   return out;
 }
 
-router.post('/', ADMIN, async (req, res) => {
+router.post('/', ADMIN, platformStaffOnly, async (req, res) => {
   const data = parseBody(req.body ?? {});
   if (!data.name || data.latitude === undefined || data.longitude === undefined) {
     res.status(400).json({ error: 'name, latitude and longitude are required' });
@@ -387,7 +414,7 @@ function missingVerifyFields(src: {
   return checks.filter(([v]) => v == null || !String(v).trim()).map(([, label]) => label);
 }
 
-router.put('/:id', ADMIN, async (req, res) => {
+router.put('/:id', ADMIN, platformStaffOnly, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
   const data = parseBody(req.body ?? {});
@@ -417,7 +444,7 @@ router.put('/:id', ADMIN, async (req, res) => {
   res.json(row);
 });
 
-router.delete('/:id', ADMIN, async (req, res) => {
+router.delete('/:id', ADMIN, platformStaffOnly, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
   const [row] = await db.delete(plants).where(eq(plants.id, id)).returning();
@@ -428,9 +455,15 @@ router.delete('/:id', ADMIN, async (req, res) => {
 // List the live (non-soft-deleted) login accounts bound to a plant so staff can
 // see who can sign in for it and manage them (deactivate / resend invite) via
 // the existing /api/users endpoints. Scoped strictly by plantId.
-router.get('/:id/owner', ADMIN, async (req, res) => {
+router.get('/:id/owner', OWNER_PROVISIONERS, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  // A plant-scoped caller (plant_owner, or an admin bound to one plant) may only
+  // see their own plant's team. Platform staff may view any plant.
+  if (!isPlatformStaff(req.user!) && req.user!.plantId !== id) {
+    res.status(403).json({ error: 'You can only manage your own plant.' });
+    return;
+  }
 
   const [plant] = await db.select({ id: plants.id }).from(plants).where(eq(plants.id, id));
   if (!plant) { res.status(404).json({ error: 'Plant not found' }); return; }
@@ -453,7 +486,7 @@ router.get('/:id/owner', ADMIN, async (req, res) => {
 
 // Plant-owner roles a staff member may provision at onboarding. An owner account
 // is hard-scoped to its plant (plantId) so it only ever sees its own tenant data.
-const OWNER_ROLES = ['admin', 'dispatcher', 'plant_operator'] as const;
+const OWNER_ROLES = ['plant_owner', 'admin', 'supervisor', 'dispatcher', 'plant_operator', 'driver'] as const;
 // password is optional: when omitted (the default, recommended flow) the owner
 // receives a single-use invite link to set their own password, instead of staff
 // typing and sharing one. A password may still be passed for the legacy
@@ -467,7 +500,7 @@ const ownerSchema = z.object({
 
 // Provision a login for an onboarded plant. Creates a plant-scoped staff account
 // (default role: admin = plant owner) bound to this plant via plantId.
-router.post('/:id/owner', ADMIN, async (req, res) => {
+router.post('/:id/owner', OWNER_PROVISIONERS, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
 
@@ -481,27 +514,76 @@ router.post('/:id/owner', ADMIN, async (req, res) => {
   // No typed password => the owner sets their own via an emailed invite link.
   const useInvite = !password;
 
-  const [plant] = await db.select({ id: plants.id, name: plants.name }).from(plants).where(eq(plants.id, id));
-  if (!plant) { res.status(404).json({ error: 'Plant not found' }); return; }
-
-  const [existing] = await db.select({ id: users.id, name: users.name, deletedAt: users.deletedAt })
-    .from(users).where(eq(users.email, email));
-  if (existing) {
-    if (existing.deletedAt) {
-      res.status(409).json({ error: `An account with this email was previously deleted (${existing.name}). Restore it instead of creating a new one.` });
-    } else {
-      res.status(409).json({ error: 'Email already in use' });
+  const actor = req.user!;
+  // Plant-scoped callers (a plant_owner, or an admin bound to one plant) are
+  // governed by the role hierarchy: they may only provision into their OWN plant
+  // and only the roles strictly below them. Platform staff (the Super Owner or a
+  // global admin) keep the original behaviour — they onboard plants and may seed
+  // any owner role for any plant.
+  if (!isPlatformStaff(actor)) {
+    if (actor.plantId !== id) {
+      res.status(403).json({ error: 'You can only provision logins for your own plant.' });
+      return;
     }
-    return;
+    if (!canCreateRole(actor.role, role)) {
+      res.status(403).json({ error: `Your role is not permitted to create a "${role}" account.` });
+      return;
+    }
   }
 
   // For the invite flow the account has no usable password yet, so we seed it
   // with an un-guessable random hash. The owner can't log in until they redeem
   // the invite (which overwrites this hash with the password they choose).
+  // Hash before the transaction so the per-plant lock below is held only for the
+  // count + insert, never during the (slow) bcrypt work.
   const passwordHash = await hashPassword(password ?? randomBytes(32).toString('base64url'));
-  const [user] = await db.insert(users).values({
-    name, email, passwordHash, role, plantId: id,
-  }).returning();
+
+  // The role-cap check (count) and the insert must be atomic per plant, or two
+  // concurrent requests could both read held < limit and both insert, busting
+  // the cap. We serialize provisioning for a given plant by taking a row lock on
+  // the plant inside a transaction (FOR UPDATE); concurrent provisioners for the
+  // same plant queue behind it, so the count each one sees already reflects the
+  // other's insert.
+  const limit = roleLimit(role);
+  const result = await db.transaction(async (tx) => {
+    const [plant] = await tx.select({ id: plants.id, name: plants.name })
+      .from(plants).where(eq(plants.id, id)).for('update');
+    if (!plant) return { kind: 'not_found' as const };
+
+    if (Number.isFinite(limit)) {
+      const [{ count: held }] = await tx.select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(and(eq(users.plantId, id), eq(users.role, role), isNull(users.deletedAt)));
+      if (held >= limit) return { kind: 'limit' as const };
+    }
+
+    const [existing] = await tx.select({ id: users.id, name: users.name, deletedAt: users.deletedAt })
+      .from(users).where(eq(users.email, email));
+    if (existing) return { kind: 'exists' as const, existing };
+
+    const [created] = await tx.insert(users).values({
+      name, email, passwordHash, role, plantId: id,
+      createdBy: actor.id,
+    }).returning();
+    return { kind: 'ok' as const, plant, user: created };
+  });
+
+  if (result.kind === 'not_found') { res.status(404).json({ error: 'Plant not found' }); return; }
+  if (result.kind === 'limit') {
+    res.status(409).json({
+      error: `This plant already has the maximum number of "${role}" accounts (${limit}).`,
+    });
+    return;
+  }
+  if (result.kind === 'exists') {
+    if (result.existing.deletedAt) {
+      res.status(409).json({ error: `An account with this email was previously deleted (${result.existing.name}). Restore it instead of creating a new one.` });
+    } else {
+      res.status(409).json({ error: 'Email already in use' });
+    }
+    return;
+  }
+  const { plant, user } = result;
 
   let emailSent: boolean | undefined;
   let inviteUrl: string | undefined;
@@ -523,7 +605,6 @@ router.post('/:id/owner', ADMIN, async (req, res) => {
     }
   }
 
-  const actor = req.user!;
   await db.insert(auditLogs).values({
     actorId: actor.id,
     actorName: actor.name,

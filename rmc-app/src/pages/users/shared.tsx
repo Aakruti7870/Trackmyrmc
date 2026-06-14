@@ -28,6 +28,8 @@ export type UserRecord = {
   createdAt: string;
   deletedAt: string | null;
   auditCount: number;
+  suspensionReason?: string | null;
+  suspendedBy?: number | null;
 };
 
 export type AuditEntry = {
@@ -49,12 +51,14 @@ export type AuditPage = {
 
 export type LinkOption = { id: number; name: string };
 
-export const ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver'] as const;
+export const ROLES = ['authority', 'plant_owner', 'admin', 'supervisor', 'dispatcher', 'plant_operator', 'client', 'driver'] as const;
 export type Role = typeof ROLES[number];
 
 export const ROLE_LABEL: Record<Role, string> = {
   authority: 'Authority',
+  plant_owner: 'Plant Owner',
   admin: 'Admin',
+  supervisor: 'Supervisor',
   dispatcher: 'Dispatcher',
   plant_operator: 'Plant Operator',
   client: 'Client',
@@ -63,7 +67,9 @@ export const ROLE_LABEL: Record<Role, string> = {
 
 export const ROLE_COLOR: Record<Role, string> = {
   authority: '#e879f9',
+  plant_owner: '#f59e0b',
   admin: 'var(--gold)',
+  supervisor: '#14b8a6',
   dispatcher: 'var(--blue)',
   plant_operator: 'var(--green)',
   client: '#a78bfa',

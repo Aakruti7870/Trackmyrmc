@@ -41,7 +41,10 @@ const ALL_NAV_ITEMS = [
 ];
 
 const ROLE_COLOR: Record<string, string> = {
+  authority: '#e879f9',
+  plant_owner: '#f59e0b',
   admin: 'var(--gold)',
+  supervisor: '#14b8a6',
   dispatcher: 'var(--blue)',
   plant_operator: 'var(--green)',
   client: '#a78bfa',
