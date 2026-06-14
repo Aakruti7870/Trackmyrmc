@@ -208,3 +208,104 @@ async function recordGiveUp(
     console.error('[whatsapp] failed to emit give-up SSE alert:', err);
   }
 }
+
+// A queued retry as surfaced to admins. Mirrors the table row but is the shape
+// the admin panel reads (and excludes nothing sensitive beyond what staff
+// already see: the customer's number, the event, and the last provider error).
+export interface PendingWhatsAppRetry {
+  id: number;
+  toPhone: string;
+  event: string | null;
+  attempts: number;
+  lastError: string | null;
+  nextAttemptAt: Date;
+  createdAt: Date;
+}
+
+// List the queued retries, soonest-due first, so an admin can see which customer
+// updates are still pending, how many attempts they've taken, and why. Capped so
+// a runaway queue can't return an unbounded payload.
+export async function listPendingWhatsAppRetries(limit = 200): Promise<PendingWhatsAppRetry[]> {
+  const rows = await db
+    .select({
+      id: whatsappRetries.id,
+      toPhone: whatsappRetries.toPhone,
+      event: whatsappRetries.event,
+      attempts: whatsappRetries.attempts,
+      lastError: whatsappRetries.lastError,
+      nextAttemptAt: whatsappRetries.nextAttemptAt,
+      createdAt: whatsappRetries.createdAt,
+    })
+    .from(whatsappRetries)
+    .orderBy(whatsappRetries.nextAttemptAt)
+    .limit(limit);
+  return rows;
+}
+
+// Permanently drop a queued retry (admin "cancel"). Returns true if a row was
+// removed, false if the id was already gone (sent/dropped by the background tick
+// in the meantime). Never throws on a missing row.
+export async function cancelWhatsAppRetry(id: number): Promise<boolean> {
+  const deleted = await db
+    .delete(whatsappRetries)
+    .where(eq(whatsappRetries.id, id))
+    .returning({ id: whatsappRetries.id });
+  return deleted.length > 0;
+}
+
+// Outcome of an admin-forced immediate re-send of a single queued retry.
+//  - 'sent'     : the re-send succeeded; the row was removed.
+//  - 'retried'  : it failed transiently again and was rescheduled with backoff.
+//  - 'gaveUp'   : it failed permanently / out of attempts and was dropped.
+//  - 'notFound' : the id no longer exists, or is currently leased by a tick.
+export type ForceRetryOutcome = 'sent' | 'retried' | 'gaveUp' | 'notFound';
+
+// Force one queued retry to be attempted right now, bypassing its backoff. Uses
+// the same crash-safe two-phase claim as the background tick (lease the row in a
+// short tx, then do the network send with no lock held) so a concurrent tick and
+// this manual trigger can never double-process the same row. If the row is
+// already leased/claimed by a running tick we report 'notFound' rather than wait.
+export async function retryWhatsAppNow(id: number, now = new Date()): Promise<ForceRetryOutcome> {
+  const claimed = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(whatsappRetries)
+      .where(eq(whatsappRetries.id, id))
+      .limit(1)
+      .for('update', { skipLocked: true });
+    if (!row) return null;
+    await tx
+      .update(whatsappRetries)
+      .set({ nextAttemptAt: new Date(now.getTime() + LEASE_MS) })
+      .where(eq(whatsappRetries.id, row.id));
+    return row;
+  });
+  if (!claimed) return 'notFound';
+
+  const res = await sendWhatsAppTemplate(
+    claimed.toPhone,
+    claimed.templateSid,
+    claimed.variables as Record<string, string>,
+  );
+
+  if (res.ok) {
+    await db.delete(whatsappRetries).where(eq(whatsappRetries.id, claimed.id));
+    return 'sent';
+  }
+  if (res.retryable && claimed.attempts + 1 < MAX_ATTEMPTS) {
+    const attempts = claimed.attempts + 1;
+    await db
+      .update(whatsappRetries)
+      .set({
+        attempts,
+        lastError: res.error ?? null,
+        nextAttemptAt: new Date(now.getTime() + backoffDelayMs(attempts)),
+      })
+      .where(eq(whatsappRetries.id, claimed.id));
+    return 'retried';
+  }
+  const reason = res.retryable ? 'attempts_exhausted' : 'permanent_failure';
+  await recordGiveUp(claimed, reason, res.error ?? null);
+  await db.delete(whatsappRetries).where(eq(whatsappRetries.id, claimed.id));
+  return 'gaveUp';
+}

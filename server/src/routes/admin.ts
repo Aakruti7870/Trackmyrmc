@@ -35,6 +35,11 @@ import {
 } from '../lib/fuelConfig.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 import { findStuckPhotos, retryFailedPhotos } from '../db/migrate-proof-photos.js';
+import {
+  listPendingWhatsAppRetries,
+  cancelWhatsAppRetry,
+  retryWhatsAppNow,
+} from '../lib/whatsappRetry.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('admin', 'authority'));
@@ -771,6 +776,87 @@ router.post('/proof-photos/retry', async (req, res) => {
     failed: result.failed,
     failures: result.failures,
   });
+});
+
+// ---------------------------------------------------------------------------
+// WhatsApp retry queue
+//
+// Transient WhatsApp notification failures (provider unreachable / 5xx / 429)
+// are queued and re-sent in the background with exponential backoff. These
+// endpoints make that otherwise-invisible queue observable and operable from
+// the admin panel: list what's pending, cancel a queued message, or force an
+// immediate re-send instead of waiting for the next backoff window.
+// ---------------------------------------------------------------------------
+
+router.get('/whatsapp-retries', async (_req, res) => {
+  const retries = await listPendingWhatsAppRetries();
+  res.json({ count: retries.length, retries });
+});
+
+const whatsappRetryIdSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+router.post('/whatsapp-retries/:id/cancel', async (req, res) => {
+  const parse = whatsappRetryIdSchema.safeParse(req.params);
+  if (!parse.success) {
+    res.status(400).json({ error: 'A valid retry id is required.' });
+    return;
+  }
+
+  const { id } = parse.data;
+  const cancelled = await cancelWhatsAppRetry(id);
+  if (!cancelled) {
+    res.status(404).json({ error: 'No queued WhatsApp retry found for that id.' });
+    return;
+  }
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'whatsapp_retry_cancelled',
+      status: 'success',
+      detail: `Cancelled queued WhatsApp retry #${id} from the admin panel.`,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write WhatsApp retry cancel audit log:', err);
+  }
+
+  res.json({ ok: true });
+});
+
+router.post('/whatsapp-retries/:id/retry', async (req, res) => {
+  const parse = whatsappRetryIdSchema.safeParse(req.params);
+  if (!parse.success) {
+    res.status(400).json({ error: 'A valid retry id is required.' });
+    return;
+  }
+
+  const { id } = parse.data;
+  const outcome = await retryWhatsAppNow(id);
+  if (outcome === 'notFound') {
+    res.status(404).json({ error: 'No queued WhatsApp retry found for that id.' });
+    return;
+  }
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'whatsapp_retry_forced',
+      status: outcome === 'sent' ? 'success' : 'failure',
+      detail: `Forced an immediate re-send of WhatsApp retry #${id} from the admin panel. Outcome: ${outcome}.`,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write WhatsApp retry force audit log:', err);
+  }
+
+  res.json({ ok: true, outcome });
 });
 
 export default router;

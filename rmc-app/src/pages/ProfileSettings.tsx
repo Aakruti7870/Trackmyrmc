@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle } from 'lucide-react';
-import { api, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse } from '@/lib/api';
+import { api, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { ThemeSwitcher } from '@/lib/theme-providers';
@@ -143,6 +143,15 @@ function lockoutLabel(key: string): string {
   return key.startsWith('login:') ? key.slice('login:'.length) : key;
 }
 
+// Friendly labels for the WhatsApp event behind a queued retry. Mirrors the
+// WhatsAppEvent union on the server; an unknown/missing value falls back at the
+// call site to a generic "WhatsApp message".
+const EVENT_LABEL: Record<string, string> = {
+  order: 'Order confirmation',
+  dispatch: 'Dispatch update',
+  delivery: 'Delivery confirmation',
+};
+
 function formatRemaining(ms: number): string {
   if (ms <= 0) return 'expired';
   const totalSeconds = Math.ceil(ms / 1000);
@@ -253,6 +262,11 @@ export default function ProfileSettings() {
   const [whatsappMessages, setWhatsappMessages] = useState<WhatsAppMessage[]>([]);
   const [whatsappMessagesLoading, setWhatsappMessagesLoading] = useState(false);
   const [whatsappMessagesReload, setWhatsappMessagesReload] = useState(0);
+  const [retries, setRetries] = useState<WhatsAppRetry[]>([]);
+  const [retriesLoading, setRetriesLoading] = useState(false);
+  const [retriesReload, setRetriesReload] = useState(0);
+  // Id of the row whose cancel/retry request is currently in flight.
+  const [retryActingId, setRetryActingId] = useState<number | null>(null);
 
   const [idleForm, setIdleForm] = useState({ freeMin: '', ratePerHour: '' });
   const [idleDefaults, setIdleDefaults] = useState<{ freeMin: number; ratePerHour: number | null }>({ freeMin: 45, ratePerHour: null });
@@ -435,6 +449,24 @@ export default function ProfileSettings() {
   useEffect(() => {
     if (!isAdmin) return;
     let cancelled = false;
+    async function loadRetries() {
+      setRetriesLoading(true);
+      try {
+        const v = await api.get<WhatsAppRetriesResponse>('/admin/whatsapp-retries');
+        if (!cancelled) setRetries(Array.isArray(v?.retries) ? v.retries : []);
+      } catch {
+        /* non-fatal — leave the queue empty */
+      } finally {
+        if (!cancelled) setRetriesLoading(false);
+      }
+    }
+    loadRetries();
+    return () => { cancelled = true; };
+  }, [isAdmin, retriesReload]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
     async function loadIdle() {
       setIdleLoading(true);
       try {
@@ -558,6 +590,41 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setRetrying(false);
+    }
+  }
+
+  async function handleCancelRetry(id: number) {
+    setRetryActingId(id);
+    try {
+      await api.post(`/admin/whatsapp-retries/${id}/cancel`, {});
+      setRetries(rs => rs.filter(r => r.id !== id));
+      showToast('Queued message cancelled.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to cancel the queued message';
+      showToast(msg, 'error');
+      setRetriesReload(n => n + 1);
+    } finally {
+      setRetryActingId(null);
+    }
+  }
+
+  async function handleForceRetry(id: number) {
+    setRetryActingId(id);
+    try {
+      const res = await api.post<WhatsAppForceRetryResult>(`/admin/whatsapp-retries/${id}/retry`, {});
+      if (res.outcome === 'sent') {
+        showToast('Message sent.', 'success');
+      } else if (res.outcome === 'retried') {
+        showToast('Still failing — re-queued for another retry.', 'error');
+      } else {
+        showToast('Send failed permanently — removed from the queue.', 'error');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to re-send the message';
+      showToast(msg, 'error');
+    } finally {
+      setRetryActingId(null);
+      setRetriesReload(n => n + 1);
     }
   }
 
@@ -1597,6 +1664,103 @@ export default function ProfileSettings() {
               </button>
             </form>
           )}
+
+          {/* Pending-retry queue — transient failures waiting to re-send */}
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,.07)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Messages waiting to retry</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                  Customer updates whose send failed temporarily and will be re-sent automatically
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRetriesReload(n => n + 1)}
+                disabled={retriesLoading || retryActingId !== null}
+                title="Refresh"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 12px', borderRadius: 9,
+                  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+                  cursor: (retriesLoading || retryActingId !== null) ? 'not-allowed' : 'pointer',
+                  color: 'var(--muted)', fontWeight: 700, fontSize: 12,
+                }}
+              >
+                <RefreshCw size={13} style={{ animation: retriesLoading ? 'spin 1s linear infinite' : undefined }} />
+                Refresh
+              </button>
+            </div>
+
+            {retries.length === 0 ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '14px 16px', borderRadius: 10,
+                background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.2)',
+                color: 'var(--muted)', fontSize: 13, fontWeight: 600,
+              }}>
+                <CheckCircle size={15} style={{ color: 'var(--green)', flexShrink: 0 }} />
+                {retriesLoading ? 'Checking the retry queue…' : 'No messages are waiting to retry.'}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {retries.map(r => {
+                  const acting = retryActingId === r.id;
+                  const due = new Date(r.nextAttemptAt).getTime();
+                  const dueLabel = due <= now
+                    ? 'due now'
+                    : `next try in ${formatRemaining(due - now)}`;
+                  return (
+                    <div key={r.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 14px', borderRadius: 12,
+                      background: 'rgba(247,201,72,.06)', border: '1px solid rgba(247,201,72,.18)',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                          {EVENT_LABEL[r.event ?? ''] ?? 'WhatsApp message'} · {r.toPhone}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          Attempt {r.attempts} · {dueLabel}
+                          {r.lastError ? ` · ${r.lastError}` : ''}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleForceRetry(r.id)}
+                        disabled={retryActingId !== null}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                          padding: '7px 12px', borderRadius: 9,
+                          background: acting ? 'rgba(34,197,94,.35)' : 'linear-gradient(135deg,var(--green),#16a34a)',
+                          border: 'none', cursor: retryActingId !== null ? 'not-allowed' : 'pointer',
+                          color: '#fff', fontWeight: 700, fontSize: 12,
+                        }}
+                      >
+                        <Send size={12} />
+                        Retry now
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCancelRetry(r.id)}
+                        disabled={retryActingId !== null}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                          padding: '7px 12px', borderRadius: 9,
+                          background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.3)',
+                          cursor: retryActingId !== null ? 'not-allowed' : 'pointer',
+                          color: 'var(--red)', fontWeight: 700, fontSize: 12,
+                        }}
+                      >
+                        <XCircle size={12} />
+                        Cancel
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -165,6 +165,30 @@ export interface ProofPhotoRetryResult {
   failures: ProofPhotoRetryFailure[];
 }
 
+// A WhatsApp customer notification whose first send failed transiently and is
+// waiting in the background retry queue.
+export interface WhatsAppRetry {
+  id: number;
+  toPhone: string;
+  event: string | null;
+  attempts: number;
+  lastError: string | null;
+  nextAttemptAt: string;
+  createdAt: string;
+}
+
+export interface WhatsAppRetriesResponse {
+  count: number;
+  retries: WhatsAppRetry[];
+}
+
+export type WhatsAppForceRetryOutcome = 'sent' | 'retried' | 'gaveUp';
+
+export interface WhatsAppForceRetryResult {
+  ok: boolean;
+  outcome: WhatsAppForceRetryOutcome;
+}
+
 export interface Vehicle {
   id: number; vehicleNo: string; type: string; capacity: string;
   driverId?: number; insuranceExpiry?: string; lastService?: string;
