@@ -44,6 +44,43 @@ interface WhatsAppSettings extends WhatsAppForm {
   configured: boolean;
 }
 
+// A single outbound WhatsApp notification + its latest Twilio delivery state,
+// joined to the order/challan it was sent for (GET /whatsapp/messages).
+interface WhatsAppMessage {
+  id: number;
+  messageSid: string | null;
+  event: string;
+  status: string;
+  errorCode: string | null;
+  toPhone: string | null;
+  channel: string;
+  createdAt: string;
+  updatedAt: string;
+  orderId: number | null;
+  orderNo: string | null;
+  challanId: number | null;
+  challanNo: string | null;
+}
+
+// Twilio delivery states → badge colour + customer-readable label. Unknown
+// states fall back to a neutral grey badge showing the raw status.
+const WA_STATUS_BADGE: Record<string, { color: string; label: string }> = {
+  queued: { color: 'var(--muted)', label: 'Queued' },
+  sending: { color: '#38bdf8', label: 'Sending' },
+  sent: { color: '#38bdf8', label: 'Sent' },
+  delivered: { color: '#22c55e', label: 'Delivered' },
+  read: { color: '#22c55e', label: 'Read' },
+  undelivered: { color: '#ef4444', label: 'Undelivered' },
+  failed: { color: '#ef4444', label: 'Failed' },
+  dev: { color: 'var(--muted)', label: 'Dev (not sent)' },
+};
+
+const WA_EVENT_LABEL: Record<string, string> = {
+  order: 'Order confirmation',
+  dispatch: 'Dispatch update',
+  delivery: 'Delivery confirmation',
+};
+
 const card: React.CSSProperties = {
   background: 'linear-gradient(135deg,rgba(17,30,55,.85),rgba(10,20,40,.9))',
   border: '1px solid rgba(255,255,255,.07)',
@@ -213,6 +250,10 @@ export default function ProfileSettings() {
   const [whatsappLoading, setWhatsappLoading] = useState(false);
   const [whatsappSaving, setWhatsappSaving] = useState(false);
 
+  const [whatsappMessages, setWhatsappMessages] = useState<WhatsAppMessage[]>([]);
+  const [whatsappMessagesLoading, setWhatsappMessagesLoading] = useState(false);
+  const [whatsappMessagesReload, setWhatsappMessagesReload] = useState(0);
+
   const [idleForm, setIdleForm] = useState({ freeMin: '', ratePerHour: '' });
   const [idleDefaults, setIdleDefaults] = useState<{ freeMin: number; ratePerHour: number | null }>({ freeMin: 45, ratePerHour: null });
   const [idleLoading, setIdleLoading] = useState(false);
@@ -376,6 +417,20 @@ export default function ProfileSettings() {
     loadWhatsapp();
     return () => { cancelled = true; };
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    function loadWhatsappMessages() {
+      setWhatsappMessagesLoading(true);
+      api.get<WhatsAppMessage[]>('/whatsapp/messages?limit=25')
+        .then(rows => { if (!cancelled) setWhatsappMessages(rows); })
+        .catch(() => { /* non-fatal — leave the panel empty */ })
+        .finally(() => { if (!cancelled) setWhatsappMessagesLoading(false); });
+    }
+    loadWhatsappMessages();
+    return () => { cancelled = true; };
+  }, [isAdmin, whatsappMessagesReload]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -1541,6 +1596,87 @@ export default function ProfileSettings() {
                 {whatsappSaving ? 'Saving…' : 'Save WhatsApp settings'}
               </button>
             </form>
+          )}
+        </div>
+      )}
+
+      {/* WhatsApp delivery-status panel — admins only */}
+      {isAdmin && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, #22c55e 13%, transparent)', border: '1px solid color-mix(in srgb, #22c55e 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Send size={15} style={{ color: '#22c55e' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>WhatsApp Delivery Status</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Whether each customer notification was actually delivered</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWhatsappMessagesReload(n => n + 1)}
+              disabled={whatsappMessagesLoading}
+              title="Refresh"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '7px 12px', borderRadius: 9, fontSize: 12, fontWeight: 700,
+                background: 'color-mix(in srgb, var(--gold) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)',
+                color: 'var(--gold)', cursor: whatsappMessagesLoading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <RefreshCw size={13} style={{ animation: whatsappMessagesLoading ? 'spin 1s linear infinite' : undefined }} />
+              Refresh
+            </button>
+          </div>
+
+          {whatsappMessagesLoading && whatsappMessages.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading recent notifications…</div>
+          ) : whatsappMessages.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+              No WhatsApp notifications have been sent yet. Once notifications are enabled and a customer order is placed or
+              dispatched, delivery status will appear here.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,.06)' }}>
+              {whatsappMessages.map(m => {
+                const badge = WA_STATUS_BADGE[m.status] ?? { color: 'var(--muted)', label: m.status };
+                const ref = m.orderNo ? `Order ${m.orderNo}` : m.challanNo ? `Challan ${m.challanNo}` : '—';
+                const eventLabel = WA_EVENT_LABEL[m.event] ?? m.event;
+                return (
+                  <div key={m.id} style={{
+                    display: 'grid', gridTemplateColumns: 'minmax(120px,1.2fr) 1fr 1fr auto',
+                    gap: 12, alignItems: 'center', padding: '12px 14px',
+                    background: 'rgba(255,255,255,.015)',
+                  }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ref}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{eventLabel}</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.toPhone ?? '—'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{new Date(m.updatedAt).toLocaleString()}</div>
+                    <div style={{ justifySelf: 'end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                        background: `color-mix(in srgb, ${badge.color} 14%, transparent)`,
+                        border: `1px solid color-mix(in srgb, ${badge.color} 35%, transparent)`,
+                        color: badge.color, textTransform: 'capitalize',
+                      }}>
+                        <span style={{ width: 6, height: 6, borderRadius: 999, background: badge.color }} />
+                        {badge.label}
+                      </span>
+                      {m.errorCode && (
+                        <span style={{ fontSize: 10, color: '#ef4444' }}>Twilio error {m.errorCode}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

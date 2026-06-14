@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { getSettings } from './settings.js';
 import { normalizePhone } from './otp.js';
 // WhatsApp business-notification sender (Twilio Programmable Messaging).
@@ -77,6 +78,17 @@ function senderAddress() {
     const from = process.env.TWILIO_WHATSAPP_FROM.trim();
     return from.startsWith('whatsapp:') ? from : `whatsapp:${from}`;
 }
+// The public URL Twilio should POST delivery-status updates to. Derived from the
+// same APP_URL/PUBLIC_URL override used for owner-invite links so it lines up
+// with the domain staff actually run on. Returns null when no base URL is known
+// (e.g. local dev with no override): we then skip the StatusCallback entirely
+// rather than register a bad one. The path must match the mounted webhook route.
+export function whatsAppStatusCallbackUrl() {
+    const base = (process.env.APP_URL || process.env.PUBLIC_URL || '').trim();
+    if (!base)
+        return null;
+    return `${base.replace(/\/+$/, '')}/api/whatsapp/status`;
+}
 // Send one approved WhatsApp template to a recipient. `variables` maps the
 // template's numbered placeholders ("1", "2", …) to their values. Never throws:
 // callers fire-and-forget and any failure is returned, not raised.
@@ -88,18 +100,24 @@ export async function sendWhatsAppTemplate(toPhone, templateSid, variables) {
         return { ok: false, channel: 'dev', error: 'No template configured for this message.', retryable: false };
     if (isWhatsAppMessagingConfigured()) {
         try {
+            const params = new URLSearchParams({
+                From: senderAddress(),
+                To: `whatsapp:${to}`,
+                ContentSid: templateSid,
+                ContentVariables: JSON.stringify(variables),
+            });
+            // Ask Twilio to call us back with delivery-status updates. Only when we
+            // know our own public URL — otherwise the callback would 404.
+            const callback = whatsAppStatusCallbackUrl();
+            if (callback)
+                params.set('StatusCallback', callback);
             const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`, {
                 method: 'POST',
                 headers: {
                     Authorization: twilioAuthHeader(),
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: new URLSearchParams({
-                    From: senderAddress(),
-                    To: `whatsapp:${to}`,
-                    ContentSid: templateSid,
-                    ContentVariables: JSON.stringify(variables),
-                }),
+                body: params,
             });
             if (!res.ok) {
                 const detail = await res.text().catch(() => '');
@@ -109,7 +127,11 @@ export async function sendWhatsAppTemplate(toPhone, templateSid, variables) {
                 const retryable = res.status >= 500 || res.status === 429;
                 return { ok: false, channel: 'whatsapp', error: `WhatsApp provider error (${res.status}). ${detail.slice(0, 200)}`, retryable };
             }
-            return { ok: true, channel: 'whatsapp' };
+            // Capture the SID + initial status so the caller can persist and the webhook
+            // can later match. A malformed body must not turn a successful send into a
+            // failure, so parse defensively.
+            const body = (await res.json().catch(() => ({})));
+            return { ok: true, channel: 'whatsapp', sid: body.sid, status: body.status ?? 'queued' };
         }
         catch {
             // Network-level failure (DNS, connection, timeout) — the provider was
@@ -126,5 +148,33 @@ export async function sendWhatsAppTemplate(toPhone, templateSid, variables) {
         return { ok: false, channel: 'dev', error: 'WhatsApp messaging is not configured.', retryable: false };
     }
     console.info(`[whatsapp:dev] → ${to} template=${templateSid} vars=${JSON.stringify(variables)}`);
-    return { ok: true, channel: 'dev' };
+    return { ok: true, channel: 'dev', status: 'dev' };
+}
+// Recompute Twilio's X-Twilio-Signature for an incoming status-callback POST and
+// constant-time compare it to the header. The algorithm (per Twilio's docs): take
+// the exact callback URL, append every POST param sorted by key as key+value
+// (no separators), HMAC-SHA1 with the account auth token, base64-encode.
+//
+// `url` MUST be the URL Twilio was told to call (our whatsAppStatusCallbackUrl),
+// not a proxy-rewritten request URL, or the signature won't match.
+export function validateTwilioSignature(authToken, signature, url, params) {
+    if (!signature)
+        return false;
+    let data = url;
+    for (const key of Object.keys(params).sort()) {
+        data += key + params[key];
+    }
+    const expected = crypto.createHmac('sha1', authToken).update(Buffer.from(data, 'utf-8')).digest('base64');
+    const a = Buffer.from(expected);
+    const b = Buffer.from(signature);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+// Webhook-level gate for the status callback. Verifies the request really came
+// from Twilio. With no auth token configured we can't verify: accept in dev so
+// the flow is exercisable, but fail CLOSED in production (reject unsigned posts).
+export function verifyWhatsAppWebhookSignature(signature, url, params) {
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    if (!authToken)
+        return !isProd();
+    return validateTwilioSignature(authToken, signature, url, params);
 }

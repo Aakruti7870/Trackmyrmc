@@ -175,6 +175,42 @@ export const challanProofPhotos = pgTable('challan_proof_photos', {
     photo: text('photo').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+// One row per WhatsApp business notification we hand to Twilio (order/dispatch/
+// delivery update). Lets staff see whether a customer's message was actually
+// queued/sent/delivered/read or silently failed (wrong number, no WhatsApp,
+// opt-out), instead of the old fire-and-forget behaviour. `messageSid` is the
+// Twilio SID returned by the send (NULL when delivery wasn't possible, e.g. dev
+// fallback or a send error); `status` starts at the send-time state and is later
+// advanced by Twilio's status-callback webhook. Linked to the originating order
+// or challan (one of them set) and plant-scoped for the staff list.
+export const whatsappMessages = pgTable('whatsapp_messages', {
+    id: serial('id').primaryKey(),
+    messageSid: text('message_sid'),
+    // 'order' | 'dispatch' | 'delivery'
+    event: text('event').notNull(),
+    orderId: integer('order_id').references(() => orders.id, { onDelete: 'set null' }),
+    challanId: integer('challan_id').references(() => challans.id, { onDelete: 'set null' }),
+    plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
+    toPhone: text('to_phone').notNull(),
+    // Twilio MessageStatus: queued/sent/delivered/read/failed/undelivered, plus our
+    // synthetic 'error' (send rejected before a SID existed) and 'dev' (logged-only
+    // dev fallback). Advanced in place by the status-callback webhook.
+    status: text('status').notNull().default('queued'),
+    // Twilio error code (e.g. 63016 "no WhatsApp account") when a message fails.
+    errorCode: text('error_code'),
+    // 'whatsapp' (handed to Twilio) | 'dev' (console-logged dev fallback).
+    channel: text('channel').notNull().default('whatsapp'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+    // The webhook looks a message up by its Twilio SID, so it must be unique. NULL
+    // SIDs (dev/error sends Twilio never callbacks for) never collide.
+    uniqueIndex('whatsapp_messages_sid_unique')
+        .on(t.messageSid)
+        .where(sql `${t.messageSid} IS NOT NULL`),
+    index('whatsapp_messages_plant_idx').on(t.plantId),
+    index('whatsapp_messages_created_at_idx').on(t.createdAt),
+]);
 // Every refuel/diesel fill for a vehicle. Litres + optional cost and odometer
 // reading; an optional photo of the fuel bill or odometer is stored exactly
 // like proof-of-delivery photos (object-storage entity path, signed on read).

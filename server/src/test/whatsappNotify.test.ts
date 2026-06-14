@@ -31,6 +31,7 @@ let cfg: WhatsAppConfig = fullConfig();
 type WaCall = { to: string | null | undefined; sid: string | null | undefined; vars: Record<string, string> };
 let waSent: WaCall[] = [];
 let waBehavior: 'record' | 'throw' = 'record';
+let sidSeq = 0;
 
 mock.module('../lib/email.js', {
   namedExports: {
@@ -59,7 +60,10 @@ mock.module('../lib/whatsapp.js', {
     sendWhatsAppTemplate: async (to: string | null, sid: string | null, vars: Record<string, string>) => {
       if (waBehavior === 'throw') throw new Error('provider exploded (stubbed)');
       waSent.push({ to, sid, vars });
-      return { ok: true, channel: 'dev' };
+      // Mirror a real Twilio-accepted send so deliveryNotify can persist the SID
+      // + initial status the way it does in production.
+      sidSeq += 1;
+      return { ok: true, channel: 'whatsapp', sid: `SM${String(sidSeq).padStart(6, '0')}`, status: 'queued' };
     },
     WHATSAPP_KEYS: {},
     DEFAULT_WHATSAPP_ENABLED: true,
@@ -67,8 +71,9 @@ mock.module('../lib/whatsapp.js', {
 });
 
 const { db, pool } = await import('../db/index.js');
-const { clients, sites, challans, orders } = await import('../db/schema.js');
+const { clients, sites, challans, orders, whatsappMessages } = await import('../db/schema.js');
 const { notifyChallanStatus, notifyOrderPlaced } = await import('../lib/deliveryNotify.js');
+const { eq } = await import('drizzle-orm');
 
 let seq = 0;
 async function seedChallan(opts: { phone?: string | null; withSite?: boolean } = {}) {
@@ -108,8 +113,9 @@ async function seedOrder(opts: { phone?: string | null } = {}) {
 beforeEach(async () => {
   waSent = [];
   waBehavior = 'record';
+  sidSeq = 0;
   cfg = fullConfig();
-  await db.execute(sql`TRUNCATE TABLE challans, orders, sites, clients RESTART IDENTITY CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE whatsapp_messages, challans, orders, sites, clients RESTART IDENTITY CASCADE`);
 });
 
 after(async () => { await pool.end(); });
@@ -138,6 +144,36 @@ test('order placement sends the order template', async () => {
   assert.equal(waSent.length, 1);
   assert.equal(waSent[0].sid, 'HXorder');
   assert.equal(waSent[0].vars['2'], order.orderNo);
+});
+
+test('persists a whatsapp_messages row with the SID + initial status for a dispatch', async () => {
+  const challan = await seedChallan({ withSite: true });
+  await notifyChallanStatus(challan.id, 'dispatched');
+  const rows = await db.select().from(whatsappMessages).where(eq(whatsappMessages.challanId, challan.id));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].event, 'dispatch');
+  assert.equal(rows[0].status, 'queued');
+  assert.equal(rows[0].channel, 'whatsapp');
+  assert.ok(rows[0].messageSid?.startsWith('SM'));
+  assert.equal(rows[0].orderId, null);
+});
+
+test('persists a whatsapp_messages row linked to the order for a placement', async () => {
+  const order = await seedOrder();
+  await notifyOrderPlaced(order.id);
+  const rows = await db.select().from(whatsappMessages).where(eq(whatsappMessages.orderId, order.id));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].event, 'order');
+  assert.ok(rows[0].messageSid?.startsWith('SM'));
+  assert.equal(rows[0].challanId, null);
+});
+
+test('records no message when the event is gated off (nothing sent, nothing logged)', async () => {
+  cfg = fullConfig({ dispatchEnabled: false });
+  const challan = await seedChallan();
+  await notifyChallanStatus(challan.id, 'dispatched');
+  const rows = await db.select().from(whatsappMessages);
+  assert.equal(rows.length, 0);
 });
 
 test('skips when the global switch is off', async () => {

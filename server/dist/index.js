@@ -21,6 +21,7 @@ import recurringRoutes from './routes/recurring.js';
 import fuelRoutes from './routes/fuel.js';
 import plantRoutes from './routes/plants.js';
 import eventsRoutes from './routes/events.js';
+import whatsappRoutes from './routes/whatsapp.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
 import { runDueWhatsAppRetries } from './lib/whatsappRetry.js';
@@ -52,6 +53,7 @@ app.use('/api/positions', positionRoutes);
 app.use('/api/recurring', recurringRoutes);
 app.use('/api/fuel', fuelRoutes);
 app.use('/api/plants', plantRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

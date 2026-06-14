@@ -16,6 +16,7 @@ import dashboardRoutes from '../routes/dashboard.js';
 import fuelRoutes from '../routes/fuel.js';
 import vehicleRoutes from '../routes/vehicles.js';
 import plantRoutes from '../routes/plants.js';
+import whatsappRoutes from '../routes/whatsapp.js';
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
 // app.listen and registers background intervals).
@@ -41,5 +42,6 @@ export function buildTestApp() {
     app.use('/api/fuel', fuelRoutes);
     app.use('/api/vehicles', vehicleRoutes);
     app.use('/api/plants', plantRoutes);
+    app.use('/api/whatsapp', whatsappRoutes);
     return app;
 }

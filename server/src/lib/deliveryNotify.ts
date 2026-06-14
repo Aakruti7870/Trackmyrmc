@@ -1,8 +1,14 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { challans, clients, sites, orders, plants } from '../db/schema.js';
+import { challans, clients, sites, orders, plants, whatsappMessages } from '../db/schema.js';
+import { normalizePhone } from './otp.js';
 import { sendDeliveryNotificationEmail } from './email.js';
-import { getWhatsAppConfig, eventEnabled } from './whatsapp.js';
+import {
+  getWhatsAppConfig,
+  eventEnabled,
+  type WhatsAppEvent,
+  type WhatsAppSendResult,
+} from './whatsapp.js';
 import { sendWhatsAppWithRetry } from './whatsappRetry.js';
 
 // Best-effort customer notifications for order/challan lifecycle events. Each
@@ -11,11 +17,41 @@ import { sendWhatsAppWithRetry } from './whatsappRetry.js';
 // effects, so any failure (missing contact, SMTP/WhatsApp down) is swallowed and
 // logged so the originating request can never fail because of it.
 
+// Persist one WhatsApp notification attempt so staff can later see whether it was
+// actually queued/sent/delivered/read or silently failed. The send-time status
+// is recorded here; Twilio's status-callback webhook advances it in place by
+// matching messageSid. Best-effort: a logging failure must never break notify.
+async function recordWhatsAppMessage(
+  event: WhatsAppEvent,
+  link: { orderId?: number | null; challanId?: number | null; plantId?: number | null },
+  toPhone: string | null,
+  result: WhatsAppSendResult,
+): Promise<void> {
+  try {
+    // Map the send result to a stored status: a real send carries Twilio's
+    // initial state, the dev fallback is 'dev', and a rejected send is 'error'.
+    const status = result.ok ? (result.status ?? (result.channel === 'dev' ? 'dev' : 'queued')) : 'error';
+    await db.insert(whatsappMessages).values({
+      messageSid: result.sid ?? null,
+      event,
+      orderId: link.orderId ?? null,
+      challanId: link.challanId ?? null,
+      plantId: link.plantId ?? null,
+      toPhone: normalizePhone(toPhone) ?? (toPhone ?? ''),
+      status,
+      errorCode: result.error ? result.error.slice(0, 200) : null,
+      channel: result.channel,
+    });
+  } catch (err) {
+    console.warn('[notify] Failed to record WhatsApp message status:', err);
+  }
+}
+
 // Send the WhatsApp update for a challan status change. Gated by the global +
 // per-event toggle and the presence of an approved template. Best-effort.
 async function notifyChallanWhatsApp(
   status: 'dispatched' | 'delivered',
-  row: { challanNo: string; grade: string; quantity: string; clientName: string | null; phone: string | null; siteName: string | null },
+  row: { challanId: number; plantId: number | null; challanNo: string; grade: string; quantity: string; clientName: string | null; phone: string | null; siteName: string | null },
 ): Promise<void> {
   try {
     if (!row.phone) return;
@@ -25,13 +61,14 @@ async function notifyChallanWhatsApp(
     const templateSid = event === 'dispatch' ? cfg.dispatchTemplateSid : cfg.deliveryTemplateSid;
     // Variables map to the template's numbered placeholders in this order:
     //   {{1}} customer  {{2}} challan no  {{3}} grade  {{4}} quantity  {{5}} site
-    await sendWhatsAppWithRetry(row.phone, templateSid, {
+    const result = await sendWhatsAppWithRetry(row.phone, templateSid, {
       '1': row.clientName ?? 'Customer',
       '2': row.challanNo,
       '3': row.grade,
       '4': row.quantity,
       '5': row.siteName ?? '—',
     }, event);
+    await recordWhatsAppMessage(event, { challanId: row.challanId, plantId: row.plantId }, row.phone, result);
   } catch (err) {
     console.warn(`[notify] WhatsApp ${status} notification failed:`, err);
   }
@@ -46,6 +83,7 @@ export async function notifyChallanStatus(
   try {
     const [row] = await db
       .select({
+        plantId: challans.plantId,
         challanNo: challans.challanNo,
         grade: challans.grade,
         quantity: challans.quantity,
@@ -71,7 +109,7 @@ export async function notifyChallanStatus(
       });
     }
 
-    await notifyChallanWhatsApp(status, row);
+    await notifyChallanWhatsApp(status, { challanId, ...row });
   } catch (err) {
     console.warn(`[notify] Failed to send ${status} notification for challan ${challanId}:`, err);
   }
@@ -87,6 +125,7 @@ export async function notifyOrderPlaced(orderId: number): Promise<void> {
 
     const [row] = await db
       .select({
+        plantId: orders.plantId,
         orderNo: orders.orderNo,
         grade: orders.grade,
         quantity: orders.quantity,
@@ -105,7 +144,7 @@ export async function notifyOrderPlaced(orderId: number): Promise<void> {
     // Variables map to the template's numbered placeholders in this order:
     //   {{1}} customer  {{2}} order no  {{3}} grade  {{4}} quantity
     //   {{5}} delivery date  {{6}} plant
-    await sendWhatsAppWithRetry(row.phone, cfg.orderTemplateSid, {
+    const result = await sendWhatsAppWithRetry(row.phone, cfg.orderTemplateSid, {
       '1': row.clientName ?? 'Customer',
       '2': row.orderNo,
       '3': row.grade,
@@ -113,6 +152,7 @@ export async function notifyOrderPlaced(orderId: number): Promise<void> {
       '5': row.deliveryDate ?? 'to be scheduled',
       '6': row.plantName ?? 'the plant',
     }, 'order');
+    await recordWhatsAppMessage('order', { orderId, plantId: row.plantId }, row.phone, result);
   } catch (err) {
     console.warn(`[notify] Failed to send order-placed notification for order ${orderId}:`, err);
   }
