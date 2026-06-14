@@ -57,8 +57,47 @@ app.use('/api/events', eventsRoutes);
 if (isProd) {
     const staticDir = path.resolve(__dirname, '../../rmc-app/dist');
     app.use(express.static(staticDir));
-    app.get('*', (_req, res) => {
-        res.sendFile(path.join(staticDir, 'index.html'));
+    // Known client-side routes that the SPA handles. Any other path gets a real
+    // 404 so crawlers don't treat unknown URLs as soft-404 200 responses.
+    const SPA_ROUTES = new Set([
+        '/',
+        '/login',
+        '/register',
+        '/set-password',
+        '/kiosk',
+        '/my-orders',
+        '/nearby-plants',
+        '/plants',
+        '/my-trips',
+        '/orders',
+        '/dispatch',
+        '/clients',
+        '/vehicles',
+        '/drivers',
+        '/batch-report',
+        '/mix-design',
+        '/reports',
+        '/freshness',
+        '/forecast',
+        '/shift-report',
+        '/recurring',
+        '/fuel-log',
+        '/users',
+        '/activity-log',
+        '/audit-log',
+        '/profile',
+    ]);
+    // Dynamic SPA routes (e.g. /challans/:id/print)
+    const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/];
+    app.get('*', (req, res) => {
+        const p = req.path;
+        const isSpaRoute = SPA_ROUTES.has(p) || SPA_PATTERNS.some((re) => re.test(p));
+        if (isSpaRoute) {
+            res.sendFile(path.join(staticDir, 'index.html'));
+        }
+        else {
+            res.status(404).sendFile(path.join(staticDir, 'index.html'));
+        }
     });
 }
 // Materialise any due recurring orders, guarding against overlapping runs so a

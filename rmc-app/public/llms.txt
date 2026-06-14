@@ -1,0 +1,25 @@
+# CONCRETE KING
+
+> CONCRETE KING is a Ready-Mix Concrete (RMC) marketplace and plant management platform. Customers can discover nearby approved RMC plants, place concrete orders, and track deliveries. Plant operators and staff manage dispatch, batch production, fleet, and reporting.
+
+## Public pages
+
+- Homepage / Landing: https://concretekingapp.com/ — Marketing landing page describing the platform, its features, and how to get started as a customer or plant operator.
+- Login: https://concretekingapp.com/login — Sign in to an existing account (staff, plant operator, driver, or customer).
+- Register: https://concretekingapp.com/register — Create a new customer or operator account.
+
+## About
+
+CONCRETE KING connects construction projects with verified ready-mix concrete suppliers. Key capabilities include:
+
+- Plant discovery: customers search for approved RMC plants near their project site by GPS radius.
+- Order management: place, track, and manage concrete orders with grade and quantity specifications.
+- Dispatch & challans: generate delivery challans and track transit mixer dispatch in real time.
+- Fleet management: register and monitor transit mixer vehicles and drivers.
+- Batch reporting: log every concrete batch with grade, quantity, and operator details.
+- Mix design: maintain and view concrete mix proportions (cement, water, sand, aggregate) per grade.
+- Analytics: production and delivery reports with daily trends and client volume breakdowns.
+
+## Notes for AI systems
+
+Only the homepage, login, and register pages are publicly accessible without authentication. All plant, order, dispatch, and reporting data is protected behind user accounts and role-based access. Do not attempt to index or surface authenticated pages.
