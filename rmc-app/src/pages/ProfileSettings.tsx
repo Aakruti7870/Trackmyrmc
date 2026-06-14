@@ -81,6 +81,11 @@ const WA_EVENT_LABEL: Record<string, string> = {
   delivery: 'Delivery confirmation',
 };
 
+// Delivery states that mean the customer never got the message — staff can
+// re-send these (typically after correcting the phone number). Mirrors the
+// red-badge statuses above plus the send-time 'error' state.
+const WA_FAILED_STATUSES = new Set(['undelivered', 'failed', 'error']);
+
 const card: React.CSSProperties = {
   background: 'linear-gradient(135deg,rgba(17,30,55,.85),rgba(10,20,40,.9))',
   border: '1px solid rgba(255,255,255,.07)',
@@ -272,6 +277,7 @@ export default function ProfileSettings() {
   const [retriesReload, setRetriesReload] = useState(0);
   // Id of the row whose cancel/retry request is currently in flight.
   const [retryActingId, setRetryActingId] = useState<number | null>(null);
+  const [whatsappResendingId, setWhatsappResendingId] = useState<number | null>(null);
 
   const [idleForm, setIdleForm] = useState({ freeMin: '', ratePerHour: '' });
   const [idleDefaults, setIdleDefaults] = useState<{ freeMin: number; ratePerHour: number | null }>({ freeMin: 45, ratePerHour: null });
@@ -654,6 +660,29 @@ export default function ProfileSettings() {
     } finally {
       setRetryActingId(null);
       setRetriesReload(n => n + 1);
+    }
+  }
+
+  // Re-send a notification that failed to reach the customer. The endpoint
+  // re-invokes the same notify helper and records a fresh message row; reload
+  // the panel so the new attempt's delivery state replaces the failed one.
+  async function handleResendWhatsapp(id: number) {
+    setWhatsappResendingId(id);
+    try {
+      const result = await api.post<{ ok: boolean; resent: boolean; message: WhatsAppMessage | null }>(
+        `/whatsapp/messages/${id}/resend`, {},
+      );
+      if (result.resent) {
+        showToast('Notification re-sent.', 'success');
+      } else {
+        showToast('Nothing was re-sent — notifications may be off or the customer has no phone number.', 'error');
+      }
+      setWhatsappMessagesReload(n => n + 1);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to re-send notification';
+      showToast(msg, 'error');
+    } finally {
+      setWhatsappResendingId(null);
     }
   }
 
@@ -1972,6 +2001,26 @@ export default function ProfileSettings() {
                       </span>
                       {m.errorCode && (
                         <span style={{ fontSize: 10, color: '#ef4444' }}>Twilio error {m.errorCode}</span>
+                      )}
+                      {WA_FAILED_STATUSES.has(m.status) && (
+                        <button
+                          type="button"
+                          onClick={() => handleResendWhatsapp(m.id)}
+                          disabled={whatsappResendingId !== null}
+                          title="Re-send this notification"
+                          style={{
+                            marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                            background: 'color-mix(in srgb, var(--gold) 12%, transparent)',
+                            border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)',
+                            color: 'var(--gold)',
+                            cursor: whatsappResendingId !== null ? 'not-allowed' : 'pointer',
+                            opacity: whatsappResendingId !== null && whatsappResendingId !== m.id ? 0.5 : 1,
+                          }}
+                        >
+                          <RefreshCw size={11} style={{ animation: whatsappResendingId === m.id ? 'spin 1s linear infinite' : undefined }} />
+                          {whatsappResendingId === m.id ? 'Re-sending…' : 'Re-send'}
+                        </button>
                       )}
                     </div>
                   </div>

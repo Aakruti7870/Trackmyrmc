@@ -6,12 +6,30 @@ import { whatsappMessages, orders, challans } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
 import { verifyWhatsAppWebhookSignature, whatsAppStatusCallbackUrl } from '../lib/whatsapp.js';
-import { notifyStaffOfWhatsAppFailure } from '../lib/deliveryNotify.js';
+import { notifyChallanStatus, notifyOrderPlaced, notifyStaffOfWhatsAppFailure } from '../lib/deliveryNotify.js';
 
 const router = Router();
 
 // Twilio MessageStatus values meaning the customer never received the message.
 const FAILURE_STATUSES = new Set(['failed', 'undelivered']);
+
+// Column shape shared by the list and re-send endpoints so both return an
+// identical message record (latest delivery state joined to its order/challan).
+const messageColumns = {
+  id: whatsappMessages.id,
+  messageSid: whatsappMessages.messageSid,
+  event: whatsappMessages.event,
+  status: whatsappMessages.status,
+  errorCode: whatsappMessages.errorCode,
+  channel: whatsappMessages.channel,
+  toPhone: whatsappMessages.toPhone,
+  orderId: whatsappMessages.orderId,
+  challanId: whatsappMessages.challanId,
+  createdAt: whatsappMessages.createdAt,
+  updatedAt: whatsappMessages.updatedAt,
+  orderNo: orders.orderNo,
+  challanNo: challans.challanNo,
+} as const;
 
 // Roles allowed to read the WhatsApp delivery-status surface. Mirrors the staff
 // challan/report readers; customers and drivers never see other people's
@@ -105,21 +123,7 @@ router.get('/messages', requireAuth, requireRole(...READ_ROLES), async (req, res
   const where = filters.length ? and(...filters) : undefined;
 
   const rows = await db
-    .select({
-      id: whatsappMessages.id,
-      messageSid: whatsappMessages.messageSid,
-      event: whatsappMessages.event,
-      status: whatsappMessages.status,
-      errorCode: whatsappMessages.errorCode,
-      channel: whatsappMessages.channel,
-      toPhone: whatsappMessages.toPhone,
-      orderId: whatsappMessages.orderId,
-      challanId: whatsappMessages.challanId,
-      createdAt: whatsappMessages.createdAt,
-      updatedAt: whatsappMessages.updatedAt,
-      orderNo: orders.orderNo,
-      challanNo: challans.challanNo,
-    })
+    .select(messageColumns)
     .from(whatsappMessages)
     .leftJoin(orders, eq(whatsappMessages.orderId, orders.id))
     .leftJoin(challans, eq(whatsappMessages.challanId, challans.id))
@@ -128,6 +132,74 @@ router.get('/messages', requireAuth, requireRole(...READ_ROLES), async (req, res
     .limit(limit);
 
   res.json(rows);
+});
+
+// --- Staff re-send action ----------------------------------------------------
+// Re-send a notification that failed to reach the customer (wrong number, no
+// WhatsApp, opt-out — typically after staff have corrected the phone number).
+// Mirrors the proof-photo retry pattern: it simply re-invokes the same notify*
+// helper that originally fired, which sends afresh and records a brand-new
+// whatsapp_messages row. Plant-scoped and role-gated identically to the list:
+// a plant-bound actor can only re-send their own plant's notifications.
+router.post('/messages/:id/resend', requireAuth, requireRole(...READ_ROLES), async (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: 'Invalid message id' });
+    return;
+  }
+
+  // Load the original notification within the actor's plant scope so a
+  // plant-bound user can never re-send (and reveal) another plant's message.
+  const scope = plantScope(req.user!.plantId, whatsappMessages.plantId);
+  const idFilter = eq(whatsappMessages.id, id);
+  const [msg] = await db
+    .select()
+    .from(whatsappMessages)
+    .where(scope ? and(idFilter, scope) : idFilter)
+    .limit(1);
+
+  if (!msg) {
+    res.status(404).json({ error: 'Notification not found' });
+    return;
+  }
+
+  // Re-invoke the helper that maps to the original event + linked record. Each
+  // helper is best-effort (never throws) and inserts a fresh message row when it
+  // actually sends; a re-send for an event that is now gated off (notifications
+  // disabled, no template, or the customer has no phone) inserts nothing.
+  let linkFilter: SQL;
+  if (msg.event === 'order') {
+    if (!msg.orderId) {
+      res.status(400).json({ error: 'Notification has no linked order to re-send' });
+      return;
+    }
+    await notifyOrderPlaced(msg.orderId);
+    linkFilter = and(eq(whatsappMessages.event, 'order'), eq(whatsappMessages.orderId, msg.orderId))!;
+  } else if (msg.event === 'dispatch' || msg.event === 'delivery') {
+    if (!msg.challanId) {
+      res.status(400).json({ error: 'Notification has no linked dispatch to re-send' });
+      return;
+    }
+    await notifyChallanStatus(msg.challanId, msg.event === 'dispatch' ? 'dispatched' : 'delivered');
+    linkFilter = and(eq(whatsappMessages.event, msg.event), eq(whatsappMessages.challanId, msg.challanId))!;
+  } else {
+    res.status(400).json({ error: 'Unknown notification type' });
+    return;
+  }
+
+  // A real re-send inserts a NEW row (higher id) for the same event + link. If
+  // the newest row is still the one we re-sent, nothing went out (gated off).
+  const [newest] = await db
+    .select(messageColumns)
+    .from(whatsappMessages)
+    .leftJoin(orders, eq(whatsappMessages.orderId, orders.id))
+    .leftJoin(challans, eq(whatsappMessages.challanId, challans.id))
+    .where(linkFilter)
+    .orderBy(desc(whatsappMessages.id))
+    .limit(1);
+
+  const resent = !!newest && newest.id !== msg.id;
+  res.json({ ok: true, resent, message: resent ? newest : null });
 });
 
 export default router;
