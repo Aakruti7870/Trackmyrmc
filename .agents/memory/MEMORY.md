@@ -28,3 +28,4 @@
 - [drizzle error wrapping](drizzle-error-wrapping.md) — drizzle-orm 0.45 wraps query errors; PG `code`/`constraint` live on `err.cause`, not top-level — read both or 23505 checks silently no-op.
 - [seed.ts is fresh-DB-only](seed-fresh-db-only.md) — full seed breaks on a populated DB (onConflictDoNothing → empty returning → homePlant undefined); add row deltas via direct INSERT…ON CONFLICT, not by re-seeding.
 - [RMC nearby radius](rmc-nearby-radius.md) — customer plant discovery is gated by a UI search radius (default 40km, options up to 250km); backend /plants/nearby clamps radius to 250km max on the public route.
+- [Google Maps short-link coords](gmaps-shortlink-coords.md) — maps.app.goo.gl → CID → webFetch `?cid=` page; exact GPS is the `!1x<lat×1e7>!2x<lng×1e7>` tile params, not the HTML/Nominatim fallback.
