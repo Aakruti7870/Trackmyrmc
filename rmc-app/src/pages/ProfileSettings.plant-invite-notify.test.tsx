@@ -13,7 +13,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
 });
 
 import ProfileSettings from '@/pages/ProfileSettings';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { AuthContext, type AuthCtx } from '@/lib/auth';
 import { ToastProvider } from '@/lib/toast-provider';
 import { ThemeProvider } from '@/lib/theme-providers';
@@ -164,5 +164,37 @@ describe('ProfileSettings — New Plant-Request Notifications', () => {
         recipients: '',
       }),
     );
+  });
+
+  it('surfaces the server error and re-enables Save when the save fails', async () => {
+    const user = userEvent.setup();
+    mockReads({ emailEnabled: true, recipients: [] });
+    vi.mocked(api.post).mockRejectedValue(
+      new ApiError('Recipients could not be saved', 500, {}),
+    );
+
+    renderPage();
+
+    const recipients = await screen.findByLabelText(/Recipients/i);
+    await user.type(recipients, 'ops@aakruti.com');
+
+    await user.click(screen.getByRole('button', { name: /Save notifications/i }));
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/admin/plant-invite-notify', {
+        emailEnabled: true,
+        recipients: 'ops@aakruti.com',
+      }),
+    );
+
+    // The rejected error's message is shown as an error toast.
+    expect(await screen.findByText('Recipients could not be saved')).toBeInTheDocument();
+
+    // The form is not cleared by the failure.
+    expect(screen.getByLabelText(/Recipients/i)).toHaveValue('ops@aakruti.com');
+
+    // The Save button leaves the "Saving…" state and is interactive again.
+    const saveBtn = await screen.findByRole('button', { name: /Save notifications/i });
+    expect(saveBtn).toBeEnabled();
   });
 });
