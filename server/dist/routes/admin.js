@@ -12,6 +12,7 @@ import { getFreshnessConfig, FRESHNESS_KEYS, DEFAULT_WORKING_LIFE_MIN, DEFAULT_W
 import { getIdleConfig, IDLE_KEYS, DEFAULT_IDLE_FREE_MIN } from '../lib/idle.js';
 import { getWhatsAppConfig, WHATSAPP_KEYS, DEFAULT_WHATSAPP_ENABLED } from '../lib/whatsapp.js';
 import { getFuelConfig, FUEL_KEYS, DEFAULT_RECON_VARIANCE_PCT, DEFAULT_IDLE_BURN_LPH, DEFAULT_UNSCHEDULED_STOP_MIN, DEFAULT_ROUTE_DEVIATION_M, } from '../lib/fuelConfig.js';
+import { getAiSettings, setAiSettings, DEFAULT_AI_PERSONA, DEFAULT_AI_GREETING } from '../lib/aiSettings.js';
 import { getActiveLockouts, clearLockout } from '../lib/loginAttempts.js';
 import { findStuckPhotos, retryFailedPhotos } from '../db/migrate-proof-photos.js';
 import { listPendingWhatsAppRetries, cancelWhatsAppRetry, retryWhatsAppNow, } from '../lib/whatsappRetry.js';
@@ -763,5 +764,49 @@ router.post('/whatsapp-retries/:id/retry', async (req, res) => {
         console.error('[admin] Failed to write WhatsApp retry force audit log:', err);
     }
     res.json({ ok: true, outcome });
+});
+// ---- AI Help Agent settings ------------------------------------------------
+router.get('/ai-settings', async (_req, res) => {
+    res.json({ ...(await getAiSettings()), defaults: { persona: DEFAULT_AI_PERSONA, greeting: DEFAULT_AI_GREETING } });
+});
+// enabled toggles the whole agent. persona/greeting are optional overrides; an
+// empty string clears the override (reverting to the built-in default).
+const aiSettingsSchema = z.object({
+    enabled: z.boolean().optional(),
+    persona: z.string().max(4000).optional(),
+    greeting: z.string().max(1000).optional(),
+});
+router.post('/ai-settings', async (req, res) => {
+    const parse = aiSettingsSchema.safeParse(req.body);
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.flatten().fieldErrors });
+        return;
+    }
+    const before = await getAiSettings();
+    const after = await setAiSettings(parse.data);
+    const changed = [];
+    if (before.enabled !== after.enabled)
+        changed.push(`enabled ${before.enabled} → ${after.enabled}`);
+    if (before.persona !== after.persona)
+        changed.push('persona updated');
+    if (before.greeting !== after.greeting)
+        changed.push('greeting updated');
+    const actor = req.user;
+    try {
+        await db.insert(auditLogs).values({
+            actorId: actor.id,
+            actorName: actor.name,
+            action: 'ai_settings_updated',
+            status: 'success',
+            detail: changed.length
+                ? `AI Help Agent settings updated. Changed: ${changed.join('; ')}.`
+                : 'AI Help Agent settings saved. No values were changed.',
+            emailSent: null,
+        });
+    }
+    catch (err) {
+        console.error('[admin] Failed to write AI settings audit log:', err);
+    }
+    res.json({ ...after, defaults: { persona: DEFAULT_AI_PERSONA, greeting: DEFAULT_AI_GREETING } });
 });
 export default router;

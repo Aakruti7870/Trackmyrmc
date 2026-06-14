@@ -344,3 +344,44 @@ export interface ForecastResult {
   recommendedBatches: number;
   assumptions: string[];
 }
+
+// ---- AI Help Agent ---------------------------------------------------------
+
+export interface AiPlantOption { id: number; name: string; plantCode: string | null }
+
+export interface AiConfig {
+  enabled: boolean;
+  greeting: string;
+  requiresPlantSelection: boolean;
+  plants?: AiPlantOption[];
+}
+
+export interface AiChatResponse {
+  reply: string;
+  refused: boolean;
+  source: 'gemini' | 'fallback' | 'policy';
+  functionsUsed?: string[];
+  outputType: string;
+}
+
+export interface AiSettings {
+  enabled: boolean;
+  persona: string;
+  greeting: string;
+  defaults: { persona: string; greeting: string };
+}
+
+export const aiApi = {
+  config: () => api.get<AiConfig>('/ai/config'),
+  chat: (body: {
+    message: string; sessionId: string;
+    inputType?: 'text' | 'voice'; outputType?: 'text' | 'audio';
+    selectedPlantId?: number | null;
+  }) => api.post<AiChatResponse>('/ai/chat', body),
+  supportTicket: (body: {
+    subject?: string; message: string; contactInfo?: string; selectedPlantId?: number | null;
+  }) => api.post<{ id: number; status: string }>('/ai/support-ticket', body),
+  getSettings: () => api.get<AiSettings>('/admin/ai-settings'),
+  saveSettings: (body: { enabled?: boolean; persona?: string; greeting?: string }) =>
+    api.post<AiSettings>('/admin/ai-settings', body),
+};

@@ -15,6 +15,7 @@ import { formatNotification } from '@/lib/notifications';
 import { PLATFORM_NAME } from '@/lib/brand';
 import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
+import AIHelpAgent from '@/components/ai/AIHelpAgent';
 
 const ALL_NAV_ITEMS = [
   { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },
@@ -315,6 +316,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <CommandPalette />
+      <AIHelpAgent />
       {/* Mobile header */}
       <div style={{
         display: 'none', background: 'rgba(8,17,31,.96)',

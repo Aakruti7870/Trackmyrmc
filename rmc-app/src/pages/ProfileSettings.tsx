@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle } from 'lucide-react';
-import { api, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult } from '@/lib/api';
+import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { ThemeSwitcher } from '@/lib/theme-providers';
@@ -247,6 +247,11 @@ export default function ProfileSettings() {
   const [varianceLoading, setVarianceLoading] = useState(false);
   const [varianceSaving, setVarianceSaving] = useState(false);
 
+  const [aiForm, setAiForm] = useState({ enabled: false, persona: '', greeting: '' });
+  const [aiDefaults, setAiDefaults] = useState({ persona: '', greeting: '' });
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSaving, setAiSaving] = useState(false);
+
   const [inviteNotifyForm, setInviteNotifyForm] = useState<{ emailEnabled: boolean; roles: string[]; recipients: string }>({ emailEnabled: true, roles: ['admin', 'authority'], recipients: '' });
   const [inviteNotifyLoading, setInviteNotifyLoading] = useState(false);
   const [inviteNotifySaving, setInviteNotifySaving] = useState(false);
@@ -384,6 +389,30 @@ export default function ProfileSettings() {
       }
     }
     loadVariance();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function loadAi() {
+      setAiLoading(true);
+      try {
+        const v = await aiApi.getSettings();
+        if (cancelled) return;
+        setAiForm({
+          enabled: v.enabled,
+          persona: v.persona === v.defaults.persona ? '' : v.persona,
+          greeting: v.greeting === v.defaults.greeting ? '' : v.greeting,
+        });
+        setAiDefaults(v.defaults);
+      } catch {
+        /* non-fatal — keep defaults */
+      } finally {
+        if (!cancelled) setAiLoading(false);
+      }
+    }
+    loadAi();
     return () => { cancelled = true; };
   }, [isAdmin]);
 
@@ -793,6 +822,31 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setVarianceSaving(false);
+    }
+  }
+
+  async function handleAiSave(e: React.FormEvent) {
+    e.preventDefault();
+    setAiSaving(true);
+    try {
+      // Empty persona/greeting clears the override, reverting to the default.
+      const updated = await aiApi.saveSettings({
+        enabled: aiForm.enabled,
+        persona: aiForm.persona.trim(),
+        greeting: aiForm.greeting.trim(),
+      });
+      setAiForm({
+        enabled: updated.enabled,
+        persona: updated.persona === updated.defaults.persona ? '' : updated.persona,
+        greeting: updated.greeting === updated.defaults.greeting ? '' : updated.greeting,
+      });
+      setAiDefaults(updated.defaults);
+      showToast('AI assistant settings saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save AI assistant settings';
+      showToast(msg, 'error');
+    } finally {
+      setAiSaving(false);
     }
   }
 
@@ -1391,6 +1445,89 @@ export default function ProfileSettings() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* AI Help Assistant card — admins only */}
+      {isAdmin && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <MessageCircle size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>AI Help Assistant</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>The floating in-app assistant. It only ever answers from each user's own plant-scoped data.</div>
+            </div>
+          </div>
+
+          {aiLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
+          ) : (
+            <form onSubmit={handleAiSave}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 16 }}>
+                <input
+                  type="checkbox"
+                  checked={aiForm.enabled}
+                  onChange={e => setAiForm(f => ({ ...f, enabled: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: 'var(--gold)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+                  Enable the AI help assistant for all users
+                </span>
+              </label>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={label}>Greeting message</label>
+                <textarea
+                  value={aiForm.greeting}
+                  onChange={e => setAiForm(f => ({ ...f, greeting: e.target.value }))}
+                  placeholder={aiDefaults.greeting}
+                  rows={2}
+                  style={{
+                    width: '100%', boxSizing: 'border-box', marginTop: 4, padding: '9px 12px', borderRadius: 10, fontSize: 13,
+                    background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', fontFamily: 'inherit', resize: 'vertical',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={label}>Persona &amp; guardrails</label>
+                <textarea
+                  value={aiForm.persona}
+                  onChange={e => setAiForm(f => ({ ...f, persona: e.target.value }))}
+                  placeholder={aiDefaults.persona}
+                  rows={4}
+                  style={{
+                    width: '100%', boxSizing: 'border-box', marginTop: 4, padding: '9px 12px', borderRadius: 10, fontSize: 13,
+                    background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', fontFamily: 'inherit', resize: 'vertical',
+                  }}
+                />
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+                Leave a field blank to use the built-in default. The persona shapes the assistant's tone; data scoping
+                and secret protection are enforced by the server and cannot be overridden here.
+              </div>
+
+              <button
+                type="submit"
+                disabled={aiSaving}
+                style={{
+                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
+                  background: aiSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: aiSaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14, transition: 'opacity .15s',
+                }}
+              >
+                {aiSaving ? 'Saving…' : 'Save assistant settings'}
+              </button>
+            </form>
+          )}
         </div>
       )}
 

@@ -568,3 +568,78 @@ export const otpCodes = pgTable('otp_codes', {
 }, (t) => [
   uniqueIndex('otp_codes_phone_unique').on(t.phone),
 ]);
+
+// ---- AI Virtual Help Agent -------------------------------------------------
+
+// Singleton configuration for the AI Help Agent (one row, id = 1). The agent is
+// OFF unless `enabled` is true — the feature must be explicitly turned on by an
+// admin. `persona` seeds the system-prompt personality and `greeting` is the
+// opening line shown when the popup first opens. Kept as its own typed table
+// (rather than the key/value app_settings) per the feature spec.
+export const aiSettings = pgTable('ai_settings', {
+  id: integer('id').primaryKey().default(1),
+  enabled: boolean('enabled').notNull().default(false),
+  persona: text('persona'),
+  greeting: text('greeting'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// One row per chat session opened from the Help popup. `plantId` is the plant
+// scope the conversation ran under (NULL for a marketplace customer not bound to
+// a plant, or platform staff with no plant selected); `userId` is the owning
+// account; `sessionId` is the client-generated session key. Conversations are
+// always tied to the server-derived identity — never a plant_id from the body.
+export const aiConversations = pgTable('ai_conversations', {
+  id: serial('id').primaryKey(),
+  sessionId: text('session_id').notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
+  role: text('role'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('ai_conversations_session_unique').on(t.sessionId),
+  index('ai_conversations_user_idx').on(t.userId),
+]);
+
+// Each message turn: the user's `message` and the assistant's `response`, with
+// the input/output modality and the scoped retrieval functions invoked (for the
+// audit trail). Scoped by `plantId` + `userId`, mirroring the conversation.
+export const aiMessages = pgTable('ai_messages', {
+  id: serial('id').primaryKey(),
+  conversationId: integer('conversation_id').references(() => aiConversations.id, { onDelete: 'cascade' }).notNull(),
+  sessionId: text('session_id').notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
+  message: text('message').notNull(),
+  response: text('response'),
+  // Modality of the turn. inputType: 'text' | 'voice'. outputType: 'text' |
+  // 'audio' | 'video' (video reserved for the deferred talking-avatar phase).
+  inputType: text('input_type').notNull().default('text'),
+  outputType: text('output_type').notNull().default('text'),
+  // Comma-separated list of the scoped retrieval functions used to ground this
+  // answer; recorded so every AI data access is auditable.
+  functionsUsed: text('functions_used'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('ai_messages_conversation_idx').on(t.conversationId),
+]);
+
+// A support ticket raised from the agent when it can't answer or the user asks
+// for a human. `plantId` + `userId` scope it; `clientId` ties it to the
+// customer's per-plant client row when known. Plant-scoped so a plant only ever
+// sees tickets raised against it.
+export const supportTickets = pgTable('support_tickets', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
+  clientId: integer('client_id').references(() => clients.id, { onDelete: 'set null' }),
+  subject: text('subject'),
+  message: text('message').notNull(),
+  contactInfo: text('contact_info'),
+  status: text('status').notNull().default('open'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('support_tickets_plant_idx').on(t.plantId),
+  index('support_tickets_user_idx').on(t.userId),
+]);
