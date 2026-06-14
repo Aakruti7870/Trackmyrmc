@@ -260,6 +260,9 @@ export default function Landing() {
             <h1 className="ck-h1" style={{ fontSize: 58, lineHeight: 1.03, fontWeight: 800, letterSpacing: -1.5, margin: '20px 0 0' }}>
               <span style={{ color: '#fff' }}>CONCRETE</span><br />
               <span style={{ color: 'var(--gold)' }}>KING</span>
+              <span style={{ display: 'block', fontSize: 22, fontWeight: 600, letterSpacing: 0, color: 'var(--muted)', marginTop: 10 }}>
+                Ready-Mix Concrete Tracking &amp; RMC Plant Discovery
+              </span>
             </h1>
             <p style={{ fontSize: 18.5, color: 'var(--muted)', lineHeight: 1.55, margin: '18px 0 0', maxWidth: 520 }}>
               Track every cubic metre — from plant to pour, in real time. Find approved RMC plants
