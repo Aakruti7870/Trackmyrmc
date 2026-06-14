@@ -43,12 +43,12 @@ const FEATURES = [
 ];
 
 const FEED = [
-  { video: 'ck-plant.mp4' },
-  { video: 'ck-batching.mp4' },
-  { video: 'ck-transit.mp4' },
-  { video: 'ck-arrival.mp4' },
-  { video: 'ck-pouring.mp4' },
-  { video: 'ck-quality.mp4' },
+  { video: 'ck-plant.mp4',    label: 'Concrete Plant',   desc: 'Modern RMC batching plant' },
+  { video: 'ck-batching.mp4', label: 'Batching Process',  desc: 'Precision mix batching' },
+  { video: 'ck-transit.mp4',  label: 'Transit Mixer',     desc: 'En-route to your site' },
+  { video: 'ck-arrival.mp4',  label: 'Site Arrival',      desc: 'On-time delivery' },
+  { video: 'ck-pouring.mp4',  label: 'Concrete Pouring',  desc: 'Pour in progress' },
+  { video: 'ck-quality.mp4',  label: 'Quality Testing',   desc: 'Slump & cube tests' },
 ];
 
 function Logo({ size = 1 }: { size?: number }) {
@@ -323,8 +323,22 @@ export default function Landing() {
             <button key={f.video} onClick={() => setOpenFeed(i)} className="ck-feed ck-card-hover"
               style={{ position: 'relative', height: 220, borderRadius: 18, overflow: 'hidden', cursor: 'pointer',
                 border: '1px solid var(--line)', padding: 0, background: '#0a1525' }}>
-              <video className="ck-feed-img" src={VID(f.video)} autoPlay muted loop playsInline
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+              {/* Static thumbnail — video loads only when the modal opens */}
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: 10,
+                background: 'linear-gradient(160deg, #13243c 0%, #0a1525 60%, #070f1c 100%)' }}>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', display: 'grid', placeItems: 'center',
+                  background: 'rgba(247,201,72,.15)', border: '1px solid rgba(247,201,72,.35)',
+                  boxShadow: '0 0 24px -8px rgba(247,201,72,.5)' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(247,201,72,.9)">
+                    <polygon points="5,3 19,12 5,21" />
+                  </svg>
+                </div>
+                <div style={{ textAlign: 'center', padding: '0 16px' }}>
+                  <div style={{ fontWeight: 700, fontSize: 14.5, color: 'var(--text)' }}>{f.label}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>{f.desc}</div>
+                </div>
+              </div>
             </button>
           ))}
         </div>
@@ -411,14 +425,14 @@ export default function Landing() {
         </Modal>
       )}
 
-      {/* FEED MODAL */}
+      {/* FEED MODAL — video loads on demand only when the modal opens */}
       {openFeed !== null && (
         <Modal onClose={() => setOpenFeed(null)} wide>
           {(() => {
             const f = FEED[openFeed];
             return (
               <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', aspectRatio: '16/9', background: '#0a1525' }}>
-                <video src={VID(f.video)} autoPlay muted loop playsInline
+                <video src={VID(f.video)} autoPlay muted loop playsInline preload="none"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
             );

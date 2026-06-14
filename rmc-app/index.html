@@ -11,10 +11,10 @@
       rel="stylesheet"
     />
     <title>Concrete King | Ready-Mix Concrete Tracking &amp; RMC Plant Discovery</title>
-    <meta
-      name="description"
-      content="Track ready-mix concrete deliveries live, discover approved RMC plants near you, and manage ordering from plant to pour with Concrete King."
-    />
+
+    <!-- Primary SEO -->
+    <meta name="description" content="Track ready-mix concrete deliveries live, discover approved RMC plants near you, and manage ordering from plant to pour with Concrete King." />
+    <meta name="keywords" content="ready mix concrete, RMC plant, concrete delivery, M20 M25 M30 M35 M40 M50, concrete order tracking, batching plant" />
     <link rel="canonical" href="https://concreteking.app/" />
 
     <!-- Open Graph -->
@@ -30,9 +30,145 @@
     <meta name="twitter:title" content="Concrete King | Ready-Mix Concrete Tracking &amp; RMC Plant Discovery" />
     <meta name="twitter:description" content="Track ready-mix concrete deliveries live, discover approved RMC plants near you, and manage every pour in real time." />
     <meta name="twitter:image" content="https://concreteking.app/social-preview.png" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Concrete King",
+      "description": "Real-time Ready-Mix Concrete marketplace. Find approved RMC plants, order the right grade, and track every cubic metre from plant to pour.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+      "provider": {
+        "@type": "Organization",
+        "name": "GOLD-e Tech",
+        "email": "support@goldetechapp.com",
+        "telephone": "+917498286760"
+      }
+    }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      Static prerendered landing content for crawlers and social bots.
+      React mounts into #root and replaces this markup for interactive users.
+    -->
+    <div id="root">
+      <div id="ck-static-shell" style="font-family:system-ui,sans-serif;background:#08111f;color:#e7ecf3;min-height:100vh">
+        <!-- NAV -->
+        <header style="padding:16px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.07)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <strong style="font-size:20px"><span style="color:#fff">CONCRETE </span><span style="color:#f7c948">KING</span></strong>
+          </div>
+          <nav style="display:flex;gap:16px;align-items:center">
+            <a href="#why"     style="color:#94a3b8;text-decoration:none;font-size:14px">Why Us</a>
+            <a href="#feed"    style="color:#94a3b8;text-decoration:none;font-size:14px">Live Feed</a>
+            <a href="#contact" style="color:#94a3b8;text-decoration:none;font-size:14px">Contact</a>
+            <a href="/login"    style="color:#94a3b8;text-decoration:none;font-size:14px">Login</a>
+            <a href="/register" style="color:#f7c948;text-decoration:none;font-size:14px;font-weight:700;padding:8px 18px;border:1px solid #f7c948;border-radius:8px">Get Started</a>
+          </nav>
+        </header>
+
+        <!-- HERO -->
+        <section style="max-width:1180px;margin:0 auto;padding:72px 24px 80px">
+          <span style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#f7c948">Real-time Ready-Mix Concrete</span>
+          <h1 style="font-size:54px;font-weight:800;line-height:1.05;margin:16px 0 0;letter-spacing:-1px">
+            <span style="color:#fff">CONCRETE</span><br>
+            <span style="color:#f7c948">KING</span>
+          </h1>
+          <p style="font-size:18px;color:#94a3b8;line-height:1.6;margin:20px 0 0;max-width:540px">
+            Track every cubic metre — from plant to pour, in real time. Find approved RMC plants
+            near you, order the right grade, and watch it arrive live.
+          </p>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:30px">
+            <a href="/register" style="background:#f7c948;color:#0a1322;font-weight:700;padding:13px 26px;border-radius:10px;text-decoration:none;font-size:15px">Get Started →</a>
+            <a href="#why"      style="color:#e7ecf3;font-weight:600;padding:13px 26px;border-radius:10px;text-decoration:none;font-size:15px;border:1px solid rgba(255,255,255,.12)">See How It Works</a>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:24px">
+            <span style="padding:5px 12px;border-radius:999px;font-size:13px;font-weight:700;color:#38bdf8;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25)">M20</span>
+            <span style="padding:5px 12px;border-radius:999px;font-size:13px;font-weight:700;color:#38bdf8;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25)">M25</span>
+            <span style="padding:5px 12px;border-radius:999px;font-size:13px;font-weight:700;color:#38bdf8;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25)">M30</span>
+            <span style="padding:5px 12px;border-radius:999px;font-size:13px;font-weight:700;color:#38bdf8;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25)">M35</span>
+            <span style="padding:5px 12px;border-radius:999px;font-size:13px;font-weight:700;color:#38bdf8;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25)">M40</span>
+            <span style="padding:5px 12px;border-radius:999px;font-size:13px;font-weight:700;color:#38bdf8;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25)">M50</span>
+          </div>
+        </section>
+
+        <!-- WHY -->
+        <section id="why" style="max-width:1180px;margin:0 auto;padding:32px 24px 24px">
+          <h2 style="font-size:34px;font-weight:800;margin:0 0 8px">Built for every pour, end to end</h2>
+          <p style="color:#94a3b8;font-size:15px;margin:0 0 32px">Tap any card to learn more about what you get.</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px">
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+              <h3 style="font-size:16px;font-weight:700;margin:0 0 6px;color:#f7c948">Live GPS Tracking</h3>
+              <p style="color:#94a3b8;font-size:13.5px;margin:0;line-height:1.5">Real-time location of every order from batching plant to your site.</p>
+            </div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+              <h3 style="font-size:16px;font-weight:700;margin:0 0 6px;color:#38bdf8">Smart Ordering</h3>
+              <p style="color:#94a3b8;font-size:13.5px;margin:0;line-height:1.5">Order the right mix in seconds with a built-in volume calculator.</p>
+            </div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+              <h3 style="font-size:16px;font-weight:700;margin:0 0 6px;color:#22c55e">Transparent Process</h3>
+              <p style="color:#94a3b8;font-size:13.5px;margin:0;line-height:1.5">Every stage from batch to pour is recorded and visible in real time.</p>
+            </div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+              <h3 style="font-size:16px;font-weight:700;margin:0 0 6px;color:#f7c948">Fleet Management</h3>
+              <p style="color:#94a3b8;font-size:13.5px;margin:0;line-height:1.5">Live status of every transit mixer and driver across the network.</p>
+            </div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+              <h3 style="font-size:16px;font-weight:700;margin:0 0 6px;color:#38bdf8">Quality Assurance</h3>
+              <p style="color:#94a3b8;font-size:13.5px;margin:0;line-height:1.5">Approved mix designs with logged slump and cube-test results for every batch.</p>
+            </div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+              <h3 style="font-size:16px;font-weight:700;margin:0 0 6px;color:#22c55e">Digital Documents</h3>
+              <p style="color:#94a3b8;font-size:13.5px;margin:0;line-height:1.5">Auto-generated challans, delivery receipts, and invoices — fully searchable.</p>
+            </div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+              <h3 style="font-size:16px;font-weight:700;margin:0 0 6px;color:#f7c948">Instant Notifications</h3>
+              <p style="color:#94a3b8;font-size:13.5px;margin:0;line-height:1.5">Alerts at every milestone — dispatch, near arrival, and pour complete.</p>
+            </div>
+            <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+              <h3 style="font-size:16px;font-weight:700;margin:0 0 6px;color:#38bdf8">24/7 Support</h3>
+              <p style="color:#94a3b8;font-size:13.5px;margin:0;line-height:1.5">Dedicated support available around the clock by phone or email.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- LIVE FEED -->
+        <section id="feed" style="max-width:1180px;margin:0 auto;padding:56px 24px 24px">
+          <h2 style="font-size:28px;font-weight:800;margin:0 0 8px">Live Feed</h2>
+          <p style="color:#94a3b8;font-size:14px;margin:0">Watch our plants in action — concrete plant, batching, transit, arrival, pouring, and quality testing.</p>
+        </section>
+
+        <!-- CONTACT -->
+        <section id="contact" style="max-width:1180px;margin:0 auto;padding:56px 24px 40px">
+          <h2 style="font-size:30px;font-weight:800;margin:0 0 12px">Run a plant? Get listed on Concrete King.</h2>
+          <p style="color:#94a3b8;font-size:15px;line-height:1.6;margin:0 0 24px;max-width:480px">
+            Join the network and reach customers searching for approved RMC plants nearby.
+            Our team will help you onboard, verify, and go live.
+          </p>
+          <a href="mailto:support@goldetechapp.com?subject=Onboard%20my%20RMC%20plant"
+             style="display:inline-flex;align-items:center;gap:8px;background:#f7c948;color:#0a1322;font-weight:700;padding:13px 26px;border-radius:10px;text-decoration:none;font-size:15px">
+            Onboard Your Plant →
+          </a>
+          <div style="display:flex;flex-direction:column;gap:12px;margin-top:32px">
+            <a href="mailto:support@goldetechapp.com" style="color:#f7c948;text-decoration:none;font-size:15px">
+              ✉ support@goldetechapp.com
+            </a>
+            <a href="tel:+917498286760" style="color:#22c55e;text-decoration:none;font-size:15px">
+              ☎ +91 74982 86760
+            </a>
+          </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer style="border-top:1px solid rgba(255,255,255,.07);margin-top:16px;padding:28px 24px;text-align:center;color:#94a3b8;font-size:13px">
+          © 2025 Concrete King · Powered by GOLD-e Tech
+        </footer>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

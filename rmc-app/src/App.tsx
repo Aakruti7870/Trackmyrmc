@@ -1,5 +1,5 @@
 import { Route, Switch, Redirect } from 'wouter';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth-provider';
 import { useToast } from '@/lib/toast';
@@ -10,31 +10,41 @@ import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import SetPassword from '@/pages/SetPassword';
 import Landing from '@/pages/Landing';
-import Dashboard from '@/pages/Dashboard';
-import Orders from '@/pages/Orders';
-import Dispatch from '@/pages/Dispatch';
-import Clients from '@/pages/Clients';
-import Vehicles from '@/pages/Vehicles';
-import Drivers from '@/pages/Drivers';
-import BatchReport from '@/pages/BatchReport';
-import MixDesign from '@/pages/MixDesign';
-import Reports from '@/pages/Reports';
-import FreshnessGuard from '@/pages/FreshnessGuard';
-import DemandForecast from '@/pages/DemandForecast';
-import ShiftReport from '@/pages/ShiftReport';
-import ChallanPrint from '@/pages/ChallanPrint';
-import MyOrders from '@/pages/MyOrders';
-import MyTrips from '@/pages/MyTrips';
-import NearbyPlants from '@/pages/NearbyPlants';
-import Plants from '@/pages/Plants';
-import RecurringAdmin from '@/pages/RecurringAdmin';
-import FuelLog from '@/pages/FuelLog';
-import Users from '@/pages/Users';
-import ActivityLog from '@/pages/ActivityLog';
-import AuditLog from '@/pages/AuditLog';
-import ProfileSettings from '@/pages/ProfileSettings';
-import Kiosk from '@/pages/Kiosk';
 import { canAccess, defaultPath } from '@/lib/permissions';
+
+const Dashboard      = lazy(() => import('@/pages/Dashboard'));
+const Orders         = lazy(() => import('@/pages/Orders'));
+const Dispatch       = lazy(() => import('@/pages/Dispatch'));
+const Clients        = lazy(() => import('@/pages/Clients'));
+const Vehicles       = lazy(() => import('@/pages/Vehicles'));
+const Drivers        = lazy(() => import('@/pages/Drivers'));
+const BatchReport    = lazy(() => import('@/pages/BatchReport'));
+const MixDesign      = lazy(() => import('@/pages/MixDesign'));
+const Reports        = lazy(() => import('@/pages/Reports'));
+const FreshnessGuard = lazy(() => import('@/pages/FreshnessGuard'));
+const DemandForecast = lazy(() => import('@/pages/DemandForecast'));
+const ShiftReport    = lazy(() => import('@/pages/ShiftReport'));
+const ChallanPrint   = lazy(() => import('@/pages/ChallanPrint'));
+const MyOrders       = lazy(() => import('@/pages/MyOrders'));
+const MyTrips        = lazy(() => import('@/pages/MyTrips'));
+const NearbyPlants   = lazy(() => import('@/pages/NearbyPlants'));
+const Plants         = lazy(() => import('@/pages/Plants'));
+const RecurringAdmin = lazy(() => import('@/pages/RecurringAdmin'));
+const FuelLog        = lazy(() => import('@/pages/FuelLog'));
+const Users          = lazy(() => import('@/pages/Users'));
+const ActivityLog    = lazy(() => import('@/pages/ActivityLog'));
+const AuditLog       = lazy(() => import('@/pages/AuditLog'));
+const ProfileSettings = lazy(() => import('@/pages/ProfileSettings'));
+const Kiosk          = lazy(() => import('@/pages/Kiosk'));
+
+const PageSpinner = (
+  <div style={{
+    minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'var(--bg)', color: 'var(--muted)', fontSize: 14,
+  }}>
+    Loading…
+  </div>
+);
 
 function GuardedRoute({
   path,
@@ -62,14 +72,7 @@ function ProtectedRoutes() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--bg)', color: 'var(--muted)', fontSize: 14,
-      }}>
-        Loading…
-      </div>
-    );
+    return PageSpinner;
   }
 
   if (!user) {
@@ -91,7 +94,8 @@ function ProtectedRoutes() {
       <Route path="/kiosk" component={() => <GuardedRoute path="/kiosk" component={Kiosk} />} />
       <Route>
         <Layout>
-          <Switch>
+          <Suspense fallback={PageSpinner}>
+            <Switch>
         <Route path="/"             component={() => <GuardedRoute path="/"             component={Dashboard}   />} />
         <Route path="/my-orders"    component={() => <GuardedRoute path="/my-orders"    component={MyOrders}    />} />
         <Route path="/nearby-plants" component={() => <GuardedRoute path="/nearby-plants" component={NearbyPlants} />} />
@@ -116,7 +120,8 @@ function ProtectedRoutes() {
         <Route path="/profile"      component={() => <GuardedRoute path="/profile"      component={ProfileSettings} />} />
         <Route path="/challans/:id/print" component={() => <GuardedRoute path="/challans" component={ChallanPrint} />} />
         <Route><Redirect to={defaultPath(user.role)} /></Route>
-          </Switch>
+            </Switch>
+          </Suspense>
         </Layout>
       </Route>
     </Switch>
