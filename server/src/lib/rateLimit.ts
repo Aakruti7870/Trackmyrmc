@@ -21,8 +21,6 @@ export function rateLimit({
   max: number;
   name?: string;
 }) {
-  let lastCleanup = 0;
-
   return async (req: Request, res: Response, next: NextFunction) => {
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     const key = `${name}:${ip}`;
@@ -54,16 +52,9 @@ export function rateLimit({
         return;
       }
 
-      // Opportunistic cleanup of expired windows so the table can't grow
-      // unbounded under IP churn. Throttled to at most once per window.
-      const now = Date.now();
-      if (now - lastCleanup > windowMs) {
-        lastCleanup = now;
-        db.delete(rateLimitHits)
-          .where(lt(rateLimitHits.resetAt, new Date()))
-          .catch(() => {});
-      }
-
+      // Expired windows are purged by the scheduled background job
+      // (cleanupExpiredRateLimits) rather than inline on the hot request path,
+      // so a customer's discovery request never issues an extra DELETE.
       next();
     } catch (err) {
       // Fail open: a transient DB error must not take the protected route fully
@@ -74,11 +65,10 @@ export function rateLimit({
   };
 }
 
-// Purge rate-limit windows whose reset time has already passed. The middleware
-// also cleans opportunistically, but that only fires when a request comes in;
-// on a low-traffic instance expired rows would otherwise linger forever. A
-// periodic background call keeps the table bounded regardless of traffic. The
-// DELETE is idempotent and safe to run from multiple instances concurrently.
+// Purge rate-limit windows whose reset time has already passed. The middleware no
+// longer cleans inline, so this periodic background call is the sole mechanism
+// that keeps the table bounded regardless of traffic. The DELETE is idempotent
+// and safe to run from multiple instances concurrently.
 export async function cleanupExpiredRateLimits(): Promise<number> {
   const result = await db
     .delete(rateLimitHits)

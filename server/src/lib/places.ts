@@ -58,8 +58,6 @@ export function isDiscoveryConfigured(): boolean {
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_PREFIX = 'places:';
 
-let lastCacheCleanup = 0;
-
 export async function discoverConcretePlants(
   lat: number,
   lng: number,
@@ -127,12 +125,9 @@ export async function discoverConcretePlants(
         set: { value: data, expiresAt },
       });
 
-    // Opportunistic cleanup of expired rows, throttled to once per TTL window.
-    const now = Date.now();
-    if (now - lastCacheCleanup > CACHE_TTL_MS) {
-      lastCacheCleanup = now;
-      db.delete(responseCache).where(lt(responseCache.expiresAt, new Date())).catch(() => {});
-    }
+    // Expired rows are purged by the scheduled background job
+    // (cleanupExpiredCache) rather than inline on the discovery path, so a
+    // customer's search never issues an extra DELETE.
   } catch (err) {
     // A cache write failure is non-fatal: still return the fresh upstream data.
     console.error('places cache write error, returning uncached', err);
@@ -142,10 +137,9 @@ export async function discoverConcretePlants(
 }
 
 // Purge cached upstream responses whose TTL has already elapsed. discoverConcretePlants
-// cleans opportunistically, but only when a fresh upstream call happens; on a
-// low-traffic instance expired rows would linger indefinitely. A periodic
-// background call keeps response_cache bounded regardless of traffic. The DELETE
-// is idempotent and safe to run from multiple instances concurrently.
+// no longer cleans inline, so this periodic background call is the sole mechanism
+// that keeps response_cache bounded regardless of traffic. The DELETE is
+// idempotent and safe to run from multiple instances concurrently.
 export async function cleanupExpiredCache(): Promise<number> {
   const result = await db
     .delete(responseCache)

@@ -31,7 +31,6 @@ export function isDiscoveryConfigured() {
 // re-billing Places for the same nearby query under horizontal scaling.
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_PREFIX = 'places:';
-let lastCacheCleanup = 0;
 export async function discoverConcretePlants(lat, lng, radiusKm) {
     const key = placesApiKey();
     if (!key)
@@ -91,12 +90,9 @@ export async function discoverConcretePlants(lat, lng, radiusKm) {
             target: responseCache.key,
             set: { value: data, expiresAt },
         });
-        // Opportunistic cleanup of expired rows, throttled to once per TTL window.
-        const now = Date.now();
-        if (now - lastCacheCleanup > CACHE_TTL_MS) {
-            lastCacheCleanup = now;
-            db.delete(responseCache).where(lt(responseCache.expiresAt, new Date())).catch(() => { });
-        }
+        // Expired rows are purged by the scheduled background job
+        // (cleanupExpiredCache) rather than inline on the discovery path, so a
+        // customer's search never issues an extra DELETE.
     }
     catch (err) {
         // A cache write failure is non-fatal: still return the fresh upstream data.

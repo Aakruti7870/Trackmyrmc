@@ -99,9 +99,9 @@ async function tickFreshness() {
   }
 }
 
-// Purge expired plant-discovery rate-limit counters and cached Places responses
-// regardless of traffic. Both tables clean opportunistically on use, but a quiet
-// instance would never trigger that, so expired rows could accumulate. Each
+// Purge expired plant-discovery rate-limit counters and cached Places responses.
+// This scheduled job is the sole owner of cleanup — the discovery request path no
+// longer cleans inline, so without this tick expired rows would accumulate. Each
 // DELETE is idempotent and safe under multiple instances. Guarded against
 // overlapping runs.
 let discoveryCleanupRunning = false;

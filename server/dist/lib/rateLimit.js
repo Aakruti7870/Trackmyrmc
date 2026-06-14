@@ -11,7 +11,6 @@ import { rateLimitHits } from '../db/schema.js';
 // `name` namespaces the counter so independent limiters never collide on the
 // same IP key.
 export function rateLimit({ windowMs, max, name = 'default', }) {
-    let lastCleanup = 0;
     return async (req, res, next) => {
         const ip = req.ip || req.socket.remoteAddress || 'unknown';
         const key = `${name}:${ip}`;
@@ -40,15 +39,9 @@ export function rateLimit({ windowMs, max, name = 'default', }) {
                 res.status(429).json({ error: 'Too many requests, please slow down and try again shortly.' });
                 return;
             }
-            // Opportunistic cleanup of expired windows so the table can't grow
-            // unbounded under IP churn. Throttled to at most once per window.
-            const now = Date.now();
-            if (now - lastCleanup > windowMs) {
-                lastCleanup = now;
-                db.delete(rateLimitHits)
-                    .where(lt(rateLimitHits.resetAt, new Date()))
-                    .catch(() => { });
-            }
+            // Expired windows are purged by the scheduled background job
+            // (cleanupExpiredRateLimits) rather than inline on the hot request path,
+            // so a customer's discovery request never issues an extra DELETE.
             next();
         }
         catch (err) {
