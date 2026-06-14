@@ -326,6 +326,10 @@ export default function Landing() {
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)', animation: 'ck-pulse-red 1.6s ease infinite' }} />
             Live Feed
           </span>
+          <h2 style={h2}>Live Feed</h2>
+          <p style={{ color: 'var(--muted)', fontSize: 15, marginTop: 8, lineHeight: 1.55 }}>
+            Watch our plants in action — concrete plant, batching, transit, arrival, pouring, and quality testing.
+          </p>
         </div>
         <div className="ck-no-scrollbar ck-feed-grid" style={{ ...section, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           {FEED.map((f, i) => (
