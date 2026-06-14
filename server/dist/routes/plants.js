@@ -50,8 +50,10 @@ function isOpenNow(openTime, closeTime) {
 }
 const ADMIN = requireRole('authority', 'admin');
 // Customer-facing: approved + active + location-verified plants within radius km,
-// nearest first. Never exposes status/verification internals.
-router.get('/nearby', async (req, res) => {
+// nearest first. Never exposes status/verification internals. Login-only — only a
+// signed-in user (customers reach it via the post-login GPS discovery screen) may
+// query nearby plants; logged-out visitors cannot enumerate the directory.
+router.get('/nearby', requireAuth, async (req, res) => {
     const lat = parseFloat(String(req.query.lat));
     const lng = parseFloat(String(req.query.lng));
     const radius = req.query.radius != null ? parseFloat(String(req.query.radius)) : 40;
@@ -59,8 +61,8 @@ router.get('/nearby', async (req, res) => {
         res.status(400).json({ error: 'lat and lng are required' });
         return;
     }
-    // Clamp to a sane ceiling: this is a public route, so an unbounded radius would
-    // let a caller enumerate the whole plant directory. 250km is the widest the UI offers.
+    // Clamp to a sane ceiling: an unbounded radius would let a caller enumerate the
+    // whole plant directory in one shot. 250km is the widest the UI offers.
     const MAX_RADIUS_KM = 250;
     const effRadius = Math.min(Number.isFinite(radius) && radius > 0 ? radius : 40, MAX_RADIUS_KM);
     const rows = await db.select().from(plants);
@@ -92,9 +94,8 @@ router.get('/nearby', async (req, res) => {
     res.json(nearby);
 });
 // ---- Admin onboarding / management ----
-// The public /nearby route above is intentionally reachable by logged-out
-// marketplace visitors (the landing-page "Find Nearby Plants" flow). Everything
-// below this guard requires authentication.
+// The /nearby route above gates itself with requireAuth (customer discovery).
+// Everything below this guard additionally requires authentication.
 router.use(requireAuth);
 router.get('/', ADMIN, async (_req, res) => {
     const rows = await db.select().from(plants).orderBy(plants.createdAt);
@@ -188,6 +189,34 @@ router.delete('/:id', ADMIN, async (req, res) => {
         return;
     }
     res.json({ ok: true });
+});
+// List the live (non-soft-deleted) login accounts bound to a plant so staff can
+// see who can sign in for it and manage them (deactivate / resend invite) via
+// the existing /api/users endpoints. Scoped strictly by plantId.
+router.get('/:id/owner', ADMIN, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+        res.status(400).json({ error: 'Invalid id' });
+        return;
+    }
+    const [plant] = await db.select({ id: plants.id }).from(plants).where(eq(plants.id, id));
+    if (!plant) {
+        res.status(404).json({ error: 'Plant not found' });
+        return;
+    }
+    const rows = await db
+        .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+        isActive: users.isActive,
+        createdAt: users.createdAt,
+    })
+        .from(users)
+        .where(and(eq(users.plantId, id), isNull(users.deletedAt)))
+        .orderBy(users.createdAt);
+    res.json(rows);
 });
 // Plant-owner roles a staff member may provision at onboarding. An owner account
 // is hard-scoped to its plant (plantId) so it only ever sees its own tenant data.
