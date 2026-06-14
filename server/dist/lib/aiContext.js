@@ -299,7 +299,14 @@ export async function buildAiContext(user, message, scopePlantId) {
     // "disallowed call returns the refusal string and is never sent to the model"
     // rule (e.g. a customer asking for internal reports or the full client list).
     if (detected.length > 0) {
+        const isStaff = PLANT_STAFF_ROLES.includes(role);
         for (const topic of detected) {
+            // A non-staff user (customer/driver) explicitly asking for reports,
+            // analytics, or cross-plant aggregates is always refused: that topic has
+            // no retrieval function at all and is the classic cross-tenant red flag.
+            if (topic === 'reports' && !isStaff) {
+                return { refused: true, context: '', functionsUsed: [] };
+            }
             if (topicExistsForAnyRole(topic) && allowedRetrievalsForTopic(role, topic).length === 0) {
                 return { refused: true, context: '', functionsUsed: [] };
             }
