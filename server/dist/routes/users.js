@@ -66,12 +66,14 @@ async function findLinkConflict(linkedClientId, linkedDriverId, excludeUserId) {
  */
 function linkUniqueViolationMessage(err) {
     const e = err;
-    if (e?.code !== '23505')
+    const code = e?.code ?? e?.cause?.code;
+    const constraint = e?.constraint ?? e?.cause?.constraint;
+    if (code !== '23505')
         return null;
-    if (e.constraint === 'users_linked_client_unique') {
+    if (constraint === 'users_linked_client_unique') {
         return 'This client is already linked to another account. Each client can be linked to only one user.';
     }
-    if (e.constraint === 'users_linked_driver_unique') {
+    if (constraint === 'users_linked_driver_unique') {
         return 'This driver is already linked to another account. Each driver can be linked to only one user.';
     }
     return null;

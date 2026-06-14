@@ -9,9 +9,9 @@ Running the `test` validation (server `pnpm test` then rmc-app `pnpm test`) curr
 has failures that exist independent of feature work. Do NOT assume your change caused
 them — verify they touch your changed surface first.
 
-## Server (7 failures)
-- `src/test/users.linkUnique.db.test.ts` — 6 tests expect a 23505 unique-violation that the DB no longer raises (partial-index expectations drifted from schema).
+## Server (1 failure remaining)
 - `src/test/users.welcome-email.test.ts` — module load fails: `email.js` does not export `sendDeliveryNotificationEmail` (imported by `deliveryNotify.ts`).
+- FIXED (no longer baseline): `src/test/users.linkUnique.db.test.ts` — the partial unique indexes DO exist and DO raise 23505; the 6 failures were a drizzle error-wrapping mismatch (see [drizzle error wrapping](drizzle-error-wrapping.md)), now resolved.
 
 ## Frontend (6 failures, 2 files)
 - `src/pages/MyOrders.place-order.test.tsx` and `src/pages/MyOrders.quick-actions.test.tsx`.

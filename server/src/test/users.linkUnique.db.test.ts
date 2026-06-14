@@ -54,9 +54,15 @@ async function insertUser(opts: {
 // these two values to turn the raw DB error into a friendly 409, so the tests
 // assert both — if the index were renamed or dropped, this would catch it.
 function assertUniqueViolation(err: unknown, constraint: string) {
-  const e = err as { code?: string; constraint?: string };
-  assert.equal(e?.code, '23505', 'DB should reject with a unique-violation (23505)');
-  assert.equal(e?.constraint, constraint, `violation should name the ${constraint} index`);
+  // drizzle-orm wraps the driver error in a DrizzleQueryError; the raw Postgres
+  // error (carrying `code` and `constraint`) is on `.cause`. Read both levels so
+  // the assertion sees the real 23505/constraint regardless of wrapping.
+  type PgFields = { code?: string; constraint?: string; cause?: PgFields };
+  const e = err as PgFields;
+  const code = e?.code ?? e?.cause?.code;
+  const actualConstraint = e?.constraint ?? e?.cause?.constraint;
+  assert.equal(code, '23505', 'DB should reject with a unique-violation (23505)');
+  assert.equal(actualConstraint, constraint, `violation should name the ${constraint} index`);
 }
 
 before(() => { /* db pool is created on import */ });

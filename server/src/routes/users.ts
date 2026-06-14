@@ -87,12 +87,19 @@ async function findLinkConflict(
  * than a raw DB error. Returns null for any other error so callers can rethrow.
  */
 function linkUniqueViolationMessage(err: unknown): string | null {
-  const e = err as { code?: string; constraint?: string };
-  if (e?.code !== '23505') return null;
-  if (e.constraint === 'users_linked_client_unique') {
+  // drizzle-orm wraps a failed query in a DrizzleQueryError and keeps the raw
+  // Postgres error (where `code` and `constraint` actually live) on `.cause`.
+  // Read both the thrown value and its cause so the 409 fallback still fires
+  // whether the caller hands us the wrapped or the unwrapped error.
+  type PgFields = { code?: string; constraint?: string; cause?: PgFields };
+  const e = err as PgFields;
+  const code = e?.code ?? e?.cause?.code;
+  const constraint = e?.constraint ?? e?.cause?.constraint;
+  if (code !== '23505') return null;
+  if (constraint === 'users_linked_client_unique') {
     return 'This client is already linked to another account. Each client can be linked to only one user.';
   }
-  if (e.constraint === 'users_linked_driver_unique') {
+  if (constraint === 'users_linked_driver_unique') {
     return 'This driver is already linked to another account. Each driver can be linked to only one user.';
   }
   return null;

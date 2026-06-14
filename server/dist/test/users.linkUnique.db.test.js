@@ -40,8 +40,10 @@ async function insertUser(opts) {
 // assert both — if the index were renamed or dropped, this would catch it.
 function assertUniqueViolation(err, constraint) {
     const e = err;
-    assert.equal(e?.code, '23505', 'DB should reject with a unique-violation (23505)');
-    assert.equal(e?.constraint, constraint, `violation should name the ${constraint} index`);
+    const code = e?.code ?? e?.cause?.code;
+    const actualConstraint = e?.constraint ?? e?.cause?.constraint;
+    assert.equal(code, '23505', 'DB should reject with a unique-violation (23505)');
+    assert.equal(actualConstraint, constraint, `violation should name the ${constraint} index`);
 }
 before(() => { });
 beforeEach(async () => {
