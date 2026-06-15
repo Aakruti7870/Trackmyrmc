@@ -46,3 +46,4 @@
 - [Testing WhatsApp send outcomes](whatsapp-send-test-seam.md) — in a full-app supertest, don't mock.module whatsapp.js (tsx makes .ts/.js the same module, pre-import poisons the mock); set TWILIO_* env + stub global.fetch by status code.
 - [WhatsApp resend action](whatsapp-resend.md) — staff re-send re-invokes the same notify* helper (which inserts a fresh row); detect success by newest-row-id != original-id, resent:false means gated off (no template/phone/disabled).
 - [AI chat streaming + shared prep](ai-chat-streaming.md) — /ai/chat (JSON) & /ai/chat/stream (SSE) MUST share prepareChat() for the whole security boundary; stream uses chatCompleteStream generator + aiApi.chatStream reader.
+- [RMC Nearby remembered location](rmc-nearby-remembered-location.md) — NearbyPlants persists last coords+radius in localStorage; mount bootstrap must defer setState (no sync set-state-in-effect).

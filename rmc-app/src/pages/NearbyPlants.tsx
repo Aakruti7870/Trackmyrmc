@@ -46,6 +46,41 @@ const DEFAULT_RADIUS_KM = 100;
 const HELP_CONTACT = '+91 74982 86760';
 const HELP_TEL = '+917498286760';
 
+// Returning customers usually order from the same site repeatedly, so we
+// remember their last confirmed location + chosen radius in localStorage and
+// reuse it on the next visit — the list loads instantly without re-prompting
+// for GPS or resetting the search width. First-time visitors (no saved value)
+// still get the live GPS prompt / manual fallback.
+const SAVED_LOCATION_KEY = 'rmc_nearby_location';
+
+interface SavedLocation { coords: LatLng; radius: number }
+
+function readSavedLocation(): SavedLocation | null {
+  try {
+    const raw = localStorage.getItem(SAVED_LOCATION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { lat?: unknown; lng?: unknown; radius?: unknown };
+    const lat = Number(parsed.lat);
+    const lng = Number(parsed.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const r = Number(parsed.radius);
+    // Only honour a radius we still offer; otherwise fall back to the default
+    // so a stale/legacy value can't leave the dropdown out of sync.
+    const radius = (RADIUS_OPTIONS as readonly number[]).includes(r) ? r : DEFAULT_RADIUS_KM;
+    return { coords: { lat, lng }, radius };
+  } catch {
+    return null;
+  }
+}
+
+function saveLocation(coords: LatLng, radius: number) {
+  try {
+    localStorage.setItem(SAVED_LOCATION_KEY, JSON.stringify({ lat: coords.lat, lng: coords.lng, radius }));
+  } catch {
+    // Persistence is best-effort (private mode / quota) — never block the page.
+  }
+}
+
 function dot(color: string, glyph: string) {
   return L.divIcon({
     className: '',
@@ -83,7 +118,9 @@ export default function NearbyPlants() {
   const [fetchError, setFetchError] = useState('');
   const [view, setView] = useState<'list' | 'map'>('list');
   const [manual, setManual] = useState<LatLng | null>(null);
-  const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
+  // Seed the radius from the customer's last visit so the dropdown and the
+  // initial query reflect their previous choice rather than the default.
+  const [radiusKm, setRadiusKm] = useState<number>(() => readSavedLocation()?.radius ?? DEFAULT_RADIUS_KM);
   const [query, setQuery] = useState('');
   const focusRef = useRef<number | null>(null);
   // Per-lead invite state, keyed by Google placeId, so a customer can flag a
@@ -119,6 +156,11 @@ export default function NearbyPlants() {
   }, []);
 
   const loadPlants = useCallback(async (c: LatLng, radius: number) => {
+    // Remember this confirmed location + radius so the next visit loads it
+    // instantly. The coords are user-confirmed (GPS fix or manual pick) so we
+    // persist even if the fetch below fails — that's a transient network issue,
+    // not a bad location.
+    saveLocation(c, radius);
     setPhase('loading');
     setFetchError('');
     setDiscovered([]);
@@ -149,7 +191,21 @@ export default function NearbyPlants() {
       .catch(() => setPhase('geoerror'));
   }, [loadPlants]);
 
-  useEffect(() => { requestLocation(); }, [requestLocation]);
+  // On mount, prefer the customer's last confirmed location so returning
+  // visitors get results instantly without re-granting GPS. The setState is
+  // deferred through a resolved promise (matching requestLocation) so the
+  // effect itself never sets state synchronously. First-timers fall back to the
+  // live GPS prompt exactly as before.
+  const bootstrap = useCallback(() => {
+    const saved = readSavedLocation();
+    if (!saved) return requestLocation();
+    return Promise.resolve().then(() => {
+      setCoords(saved.coords);
+      return loadPlants(saved.coords, saved.radius);
+    });
+  }, [loadPlants, requestLocation]);
+
+  useEffect(() => { bootstrap(); }, [bootstrap]);
 
   function retryLocation() {
     setPhase('locating');
