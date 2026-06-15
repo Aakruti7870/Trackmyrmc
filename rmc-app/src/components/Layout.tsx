@@ -16,6 +16,8 @@ import { PLATFORM_NAME } from '@/lib/brand';
 import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
 import AIHelpAgent from '@/components/ai/AIHelpAgent';
+import InstallAppButton from '@/components/InstallAppButton';
+import logoCk from '@/assets/logo-ck.png';
 
 const ALL_NAV_ITEMS = [
   { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },
@@ -177,12 +179,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
           <div style={{
             width: 44, height: 44, borderRadius: 14, flexShrink: 0,
-            background: 'linear-gradient(145deg,var(--gold-hi),var(--gold-mid) 42%,var(--gold-dark))',
+            background: '#fff', padding: 5,
             display: 'grid', placeItems: 'center',
-            fontWeight: 900, color: '#111827', fontSize: 13,
             boxShadow: '0 18px 38px color-mix(in srgb, var(--gold) 22%, transparent),inset 0 2px 2px rgba(255,255,255,.7)',
           }}>
-            RMC
+            <img src={logoCk} alt="CONCRETE KING" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div>
             <div style={{
@@ -252,6 +253,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
+
+      {/* Install app (PWA) */}
+      <div style={{ margin: '12px 0 2px' }}>
+        <InstallAppButton variant="sidebar" />
+      </div>
 
       {/* User profile */}
       <div style={{ marginTop: 16, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
@@ -360,10 +366,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 12,
-            background: 'linear-gradient(145deg,var(--gold-hi),var(--gold-mid) 42%,var(--gold-dark))',
+            background: '#fff', padding: 4,
             display: 'grid', placeItems: 'center',
-            fontWeight: 900, color: '#111827', fontSize: 13,
-          }}>RMC</div>
+          }}>
+            <img src={logoCk} alt="CONCRETE KING" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
           <span style={{ fontWeight: 700, fontSize: 14 }}>TrackMyRMC</span>
           <SSEDot status={sseStatus} onReconnect={reconnect} />
         </div>

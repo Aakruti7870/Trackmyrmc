@@ -4,6 +4,8 @@ import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
 import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
+import logoCk from '@/assets/logo-ck.png';
+import InstallAppButton from '@/components/InstallAppButton';
 import { clerkEnabled } from '@/lib/clerk';
 import { defaultPath } from '@/lib/permissions';
 import ClerkStaffLogin from '@/components/ClerkStaffLogin';
@@ -119,11 +121,11 @@ export default function Login() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
             <div style={{
               width: 52, height: 52, borderRadius: 16,
-              background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+              background: '#fff', padding: 6,
               display: 'grid', placeItems: 'center',
               boxShadow: '0 8px 24px color-mix(in srgb, var(--gold) 30%, transparent)',
             }}>
-              <Building2 size={24} color="#111" />
+              <img src={logoCk} alt="CONCRETE KING" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
               <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>
@@ -139,9 +141,13 @@ export default function Login() {
             Ready Mix Concrete<br />
             <span style={{ color: 'var(--gold)' }}>Management Platform</span>
           </h1>
-          <p style={{ color: 'var(--muted)', lineHeight: 1.7, marginBottom: 32, fontSize: 14 }}>
+          <p style={{ color: 'var(--muted)', lineHeight: 1.7, marginBottom: 20, fontSize: 14 }}>
             End-to-end RMC plant operations — orders, dispatch, production, fleet & financials in one premium dashboard.
           </p>
+
+          <div style={{ marginBottom: 28, maxWidth: 260 }}>
+            <InstallAppButton />
+          </div>
 
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '1px', marginBottom: 10, textTransform: 'uppercase' }}>
