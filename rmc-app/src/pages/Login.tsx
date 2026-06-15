@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
-import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle, Phone, MessageCircle, ArrowLeft } from 'lucide-react';
+import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 import { clerkEnabled } from '@/lib/clerk';
 import { defaultPath } from '@/lib/permissions';
 import ClerkStaffLogin from '@/components/ClerkStaffLogin';
+import ClerkCustomerLogin from '@/components/ClerkCustomerLogin';
+import { inputStyle } from '@/components/loginStyles';
+import { ErrorBox, SubmitButton } from '@/components/loginUi';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 
 const DEMO = [
@@ -16,13 +19,6 @@ const DEMO = [
   { role: 'Client', email: 'client@concreteking.example', password: 'client123', color: '#a78bfa' },
   { role: 'Driver', email: 'driver@concreteking.example', password: 'driver123', color: '#f97316' },
 ];
-
-const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '11px 14px 11px 38px',
-  background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
-  borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
-  boxSizing: 'border-box',
-};
 
 export default function Login() {
   const { login, updateUser } = useAuth();
@@ -177,6 +173,10 @@ export default function Login() {
         }}>
           {mode === 'phone' ? (
             <>
+              {clerkEnabled ? (
+              <ClerkCustomerLogin />
+              ) : (
+              <>
               <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Sign in with your phone</h2>
               <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>
                 {otpStep === 'phone'
@@ -259,6 +259,8 @@ export default function Login() {
                   </button>
                 </form>
               )}
+              </>
+              )}
 
               <div style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
                 Staff member?{' '}
@@ -333,32 +335,3 @@ const linkBtnStyle: React.CSSProperties = {
   background: 'none', border: 'none', padding: 0, cursor: 'pointer',
   color: 'var(--gold)', fontWeight: 700, fontSize: 13, textDecoration: 'underline',
 };
-
-function ErrorBox({ message }: { message: string }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)',
-      borderRadius: 10, padding: '10px 14px', marginBottom: 18,
-    }}>
-      <AlertCircle size={14} style={{ color: 'var(--red)' }} />
-      <span style={{ color: 'var(--red)', fontSize: 13 }}>{message}</span>
-    </div>
-  );
-}
-
-function SubmitButton({ loading, label, icon }: { loading: boolean; label: string; icon?: React.ReactNode }) {
-  return (
-    <button type="submit" disabled={loading} style={{
-      width: '100%', padding: '12px', borderRadius: 12,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-      background: loading ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
-      color: '#111827', fontWeight: 800, fontSize: 15,
-      boxShadow: '0 12px 30px color-mix(in srgb, var(--gold) 20%, transparent)',
-      cursor: loading ? 'not-allowed' : 'pointer', border: 'none',
-      transition: 'all .15s',
-    }}>
-      {icon}{label}
-    </button>
-  );
-}
