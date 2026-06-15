@@ -4,12 +4,19 @@ import { api, type Order, type Challan, type LedgerEntry, type LivePosition, typ
 import { useSSE } from '@/lib/useSSE';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 import FreshnessCountdown from '@/components/FreshnessCountdown';
-import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle, Info } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
 import SitePicker from '@/components/SitePicker';
 import LiveDeliveryMap, { type DeliveryMarker } from '@/components/LiveDeliveryMap';
 
 const GRADES = ['M10', 'M15', 'M20', 'M25', 'M30', 'M35', 'M40', 'M45', 'M50', 'M55', 'M60'];
+
+// Soft single-order volume guidance (cubic metres). Below the minimum is an
+// uneconomical partial truckload; above the maximum is a large pour that usually
+// needs to be scheduled/split across the day. Neither blocks the order — they
+// only nudge the customer toward what a plant can realistically deliver at once.
+const TYPICAL_MIN_M3 = 3;
+const TYPICAL_MAX_M3 = 150;
 
 interface OrderForm {
   grade: string;
@@ -576,6 +583,26 @@ export default function MyOrders() {
 
   const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  // Grades the chosen plant actually offers (from the directory), used to limit
+  // the grade dropdown and softly warn if a pre-filled grade isn't on their menu.
+  const selectedPlantEntry = plantDir.find(p => p.id === selectedPlantId) ?? null;
+  const plantGrades = (selectedPlantEntry?.grades ?? []).filter(Boolean);
+  // Order the plant's grades by the canonical scale for a tidy dropdown; if the
+  // plant lists none, fall back to the full grade list so ordering still works.
+  const gradeOptions = plantGrades.length
+    ? [...GRADES.filter(g => plantGrades.includes(g)), ...plantGrades.filter(g => !GRADES.includes(g))]
+    : GRADES;
+  // A soft warning only: the customer keeps their choice, the plant confirms.
+  const gradeNotOffered = !!form.grade && plantGrades.length > 0 && !plantGrades.includes(form.grade);
+  // Sensible single-order volume guidance. There is no per-plant capacity field,
+  // so these are soft, non-blocking hints about what a plant can realistically
+  // deliver in one go — the order still submits at any positive quantity.
+  const qtyNum = Number(form.quantity);
+  const qtyHasValue = form.quantity !== '' && Number.isFinite(qtyNum) && qtyNum > 0;
+  const qtyWarning: 'small' | 'large' | null = qtyHasValue
+    ? (qtyNum < TYPICAL_MIN_M3 ? 'small' : qtyNum > TYPICAL_MAX_M3 ? 'large' : null)
+    : null;
+
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
@@ -1019,14 +1046,32 @@ export default function MyOrders() {
                 <label style={labelStyle}>Concrete Grade</label>
                 <select value={form.grade} onChange={e => { setForm(f => ({ ...f, grade: e.target.value })); if (e.target.value) setFieldErrors(fe => ({ ...fe, grade: undefined })); }} style={fieldErrors.grade ? inputErrorStyle : inputStyle}>
                   <option value="">Select grade…</option>
-                  {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                  {gradeOptions.map(g => <option key={g} value={g}>{g}</option>)}
+                  {/* Keep a pre-filled (e.g. reordered) grade selectable even if
+                      this plant no longer lists it, paired with a soft warning. */}
+                  {gradeNotOffered && <option value={form.grade}>{form.grade}</option>}
                 </select>
                 <FieldError msg={fieldErrors.grade} />
+                {!fieldErrors.grade && plantGrades.length > 0 && !gradeNotOffered && (
+                  <FieldHint text={`Offered here: ${plantGrades.join(', ')}`} />
+                )}
+                {gradeNotOffered && (
+                  <FieldHint tone="warn" text={`${selectedPlant ?? 'This plant'} may not offer ${form.grade} — they'll confirm availability.`} />
+                )}
               </div>
               <div>
                 <label style={labelStyle}>Quantity (m³)</label>
                 <input type="number" min="0" step="0.5" value={form.quantity} onChange={e => { setForm(f => ({ ...f, quantity: e.target.value })); if (Number(e.target.value) > 0) setFieldErrors(fe => ({ ...fe, quantity: undefined })); }} placeholder="e.g. 10" style={fieldErrors.quantity ? inputErrorStyle : inputStyle} />
                 <FieldError msg={fieldErrors.quantity} />
+                {!fieldErrors.quantity && qtyWarning === 'small' && (
+                  <FieldHint tone="warn" text={`Below ${TYPICAL_MIN_M3} m³ is a partial truckload — minimum-load charges may apply.`} />
+                )}
+                {!fieldErrors.quantity && qtyWarning === 'large' && (
+                  <FieldHint tone="warn" text={`Over ${TYPICAL_MAX_M3} m³ is a large pour — the plant may split it across the day and will confirm scheduling.`} />
+                )}
+                {!fieldErrors.quantity && qtyHasValue && qtyWarning === null && (
+                  <FieldHint text={`Typical single order: ${TYPICAL_MIN_M3}–${TYPICAL_MAX_M3} m³.`} />
+                )}
               </div>
               <div>
                 <label style={labelStyle}>Delivery Date</label>
@@ -1475,6 +1520,20 @@ function FieldError({ msg }: { msg?: string }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5, fontSize: 12, color: 'var(--red)' }}>
       <AlertCircle size={12} />
       <span>{msg}</span>
+    </div>
+  );
+}
+
+// Non-blocking guidance under a field: a neutral muted hint, or an amber soft
+// warning. Unlike FieldError it never gates submission — it only informs.
+function FieldHint({ text, tone = 'info' }: { text: string; tone?: 'info' | 'warn' }) {
+  const color = tone === 'warn' ? 'var(--gold)' : 'var(--muted)';
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginTop: 5, fontSize: 11.5, color, lineHeight: 1.35 }}>
+      {tone === 'warn'
+        ? <AlertTriangle size={12} style={{ flexShrink: 0, marginTop: 1 }} />
+        : <Info size={12} style={{ flexShrink: 0, marginTop: 1 }} />}
+      <span>{text}</span>
     </div>
   );
 }

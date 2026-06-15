@@ -94,6 +94,76 @@ describe('MyOrders place order', () => {
     expect(await screen.findByText('ORD-007')).toBeInTheDocument();
   });
 
+  // Mock the directory with a single grade-limited plant so the modal
+  // auto-selects it and the grade/quantity guidance has data to work with.
+  function mockGradeLimitedPlant(grades: string[], orders: Order[] = []) {
+    vi.mocked(api.get).mockImplementation((path: string) => {
+      if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
+      if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
+      if (path === '/plants/directory') return Promise.resolve([{ id: 3, plantCode: 'P3', name: 'Acme RMC', city: 'Pune', grades }] as never);
+      if (path === '/me/orders') return Promise.resolve(orders as never);
+      return Promise.resolve([] as never);
+    });
+  }
+
+  it('limits the grade dropdown to the plant’s offered grades and lists them', async () => {
+    mockGradeLimitedPlant(['M20', 'M25', 'M30']);
+    const user = userEvent.setup();
+    render(<MyOrders />);
+
+    await user.click(await screen.findByRole('button', { name: /place order/i }));
+    await screen.findByRole('heading', { name: /place new order/i });
+    await waitFor(() => expect(plantSelect()).toHaveValue('3'));
+
+    const grade = gradeSelect();
+    expect(within(grade).getByRole('option', { name: 'M20' })).toBeInTheDocument();
+    expect(within(grade).getByRole('option', { name: 'M30' })).toBeInTheDocument();
+    // A grade the plant does NOT offer is absent from the dropdown.
+    expect(within(grade).queryByRole('option', { name: 'M40' })).not.toBeInTheDocument();
+    // The offered grades are also spelled out as a hint under the field.
+    expect(screen.getByText(/offered here: m20, m25, m30/i)).toBeInTheDocument();
+  });
+
+  it('softly warns when a pre-filled grade isn’t on the plant’s menu', async () => {
+    // Reordering a past M40 order pre-fills a grade this plant doesn't list.
+    mockGradeLimitedPlant(['M20', 'M25'], [makeOrder({ id: 7, orderNo: 'ORD-007', grade: 'M40', quantity: '10.00', plantId: 3, plantName: 'Acme RMC' })]);
+    const user = userEvent.setup();
+    render(<MyOrders />);
+
+    // The reorder button lives in the Orders tab; switch to it first.
+    await user.click(await screen.findByRole('button', { name: /^orders \(/i }));
+    await user.click(await screen.findByRole('button', { name: /reorder/i }));
+    await screen.findByRole('heading', { name: /place new order/i });
+
+    expect(await screen.findByText(/may not offer m40/i)).toBeInTheDocument();
+    // The pre-filled grade is still selectable (the order isn't blocked).
+    expect(gradeSelect()).toHaveValue('M40');
+  });
+
+  it('softly warns when the quantity is far above a typical single order', async () => {
+    mockGradeLimitedPlant(['M20', 'M25', 'M30']);
+    const user = userEvent.setup();
+    render(<MyOrders />);
+
+    await user.click(await screen.findByRole('button', { name: /place order/i }));
+    await screen.findByRole('heading', { name: /place new order/i });
+
+    await user.type(screen.getByPlaceholderText(/e\.g\. 10/i), '300');
+    expect(await screen.findByText(/over 150 m³ is a large pour/i)).toBeInTheDocument();
+  });
+
+  it('softly warns when the quantity is a small partial truckload', async () => {
+    mockGradeLimitedPlant(['M20']);
+    const user = userEvent.setup();
+    render(<MyOrders />);
+
+    await user.click(await screen.findByRole('button', { name: /place order/i }));
+    await screen.findByRole('heading', { name: /place new order/i });
+
+    await user.type(screen.getByPlaceholderText(/e\.g\. 10/i), '1');
+    expect(await screen.findByText(/below 3 m³ is a partial truckload/i)).toBeInTheDocument();
+  });
+
   it('pre-selects the plant from the most recent order when several are available', async () => {
     vi.mocked(api.get).mockImplementation((path: string) => {
       if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);

@@ -187,6 +187,42 @@ router.get('/discover', discoverLimiter, async (req, res) => {
 // Everything below this guard additionally requires authentication.
 router.use(requireAuth);
 
+// Lightweight directory of plants a signed-in customer may order from, used to
+// populate the Place Order plant selector (and to surface each plant's offered
+// grades). Mirrors the customer-facing visibility filter of /nearby (approved +
+// active + location-verified + verified partner) but without distance — it is a
+// flat list keyed by the plant's public identity. Any authed user may read it.
+router.get('/directory', async (_req, res) => {
+  const rows = await db.select({
+    id: plants.id,
+    plantCode: plants.plantCode,
+    name: plants.name,
+    city: plants.city,
+    grades: plants.grades,
+    openTime: plants.openTime,
+    closeTime: plants.closeTime,
+    plantStatus: plants.plantStatus,
+    isActive: plants.isActive,
+    locationVerified: plants.locationVerified,
+    verified: plants.verified,
+  }).from(plants);
+
+  const directory = rows
+    .filter(p => p.plantStatus === 'approved' && p.isActive && p.locationVerified && p.verified)
+    .map(p => ({
+      id: p.id,
+      plantCode: p.plantCode,
+      name: p.name,
+      city: p.city,
+      grades: p.grades,
+      openTime: p.openTime,
+      closeTime: p.closeTime,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  res.json(directory);
+});
+
 // A customer (or staff) flags a discovered, not-yet-onboarded plant so the
 // business can reach out and onboard it. De-duplicated by Google placeId: a
 // repeat request for the same plant bumps requestCount + records the latest
