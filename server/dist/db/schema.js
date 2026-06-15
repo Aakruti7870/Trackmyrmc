@@ -63,6 +63,11 @@ export const users = pgTable('users', {
     plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
     linkedClientId: integer('linked_client_id').references(() => clients.id, { onDelete: 'set null' }),
     linkedDriverId: integer('linked_driver_id').references(() => drivers.id, { onDelete: 'set null' }),
+    // A customer's explicitly pinned default plant for the Place Order modal. NULL
+    // means "no pin" — the modal then falls back to the last-ordered heuristic.
+    // ON DELETE SET NULL so removing a plant simply clears the pin (and the
+    // customer falls back to the heuristic) rather than blocking the delete.
+    preferredPlantId: integer('preferred_plant_id').references(() => plants.id, { onDelete: 'set null' }),
     // --- Role-hierarchy / onboarding fields (all nullable & additive) ----------
     // Who provisioned this account (the actor in the creation chain). NULL for
     // legacy rows and self-service registrations. Self-reference, ON DELETE SET

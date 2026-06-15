@@ -355,6 +355,38 @@ router.get('/challans/:id', requireRole('client'), async (req, res) => {
 router.get('/idle-config', requireRole('client'), async (_req, res) => {
     res.json(await getIdleConfig());
 });
+// ---- Preferred / pinned default plant -------------------------------------
+// The customer's explicitly pinned default plant (or null when none is set).
+// The Place Order modal pre-selects it ahead of the last-ordered heuristic.
+router.get('/preferred-plant', requireRole('client'), async (req, res) => {
+    const [row] = await db.select({ preferredPlantId: users.preferredPlantId })
+        .from(users).where(eq(users.id, req.user.id));
+    res.json({ plantId: row?.preferredPlantId ?? null });
+});
+// Pin (or clear) the customer's default plant. Sending a null/empty plantId
+// clears the pin. A non-null plant must be one the customer may actually order
+// from (approved + active + location-verified + verified) — pinning anything
+// else is rejected so a saved default can never strand the order modal.
+router.put('/preferred-plant', requireRole('client'), async (req, res) => {
+    const { plantId } = req.body;
+    if (plantId === null || plantId === undefined || plantId === '') {
+        await db.update(users).set({ preferredPlantId: null }).where(eq(users.id, req.user.id));
+        res.json({ plantId: null });
+        return;
+    }
+    const id = Number(plantId);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid plant.' });
+        return;
+    }
+    const [plant] = await db.select({ id: plants.id }).from(plants).where(and(eq(plants.id, id), eq(plants.plantStatus, 'approved'), eq(plants.isActive, true), eq(plants.locationVerified, true), eq(plants.verified, true)));
+    if (!plant) {
+        res.status(400).json({ error: 'This plant is not available to set as your default.' });
+        return;
+    }
+    await db.update(users).set({ preferredPlantId: id }).where(eq(users.id, req.user.id));
+    res.json({ plantId: id });
+});
 router.get('/ledger', requireRole('client'), async (req, res) => {
     const clientId = await getLinkedClientId(req.user.id);
     if (!clientId) {

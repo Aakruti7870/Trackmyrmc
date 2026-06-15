@@ -4,7 +4,7 @@ import { api, type Order, type Challan, type LedgerEntry, type LivePosition, typ
 import { useSSE } from '@/lib/useSSE';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 import FreshnessCountdown from '@/components/FreshnessCountdown';
-import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle, Info } from 'lucide-react';
+import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle, Info, Star } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
 import SitePicker from '@/components/SitePicker';
 import LiveDeliveryMap, { type DeliveryMarker } from '@/components/LiveDeliveryMap';
@@ -185,6 +185,9 @@ export default function MyOrders() {
   const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<number | null>(null);
   const [plantDir, setPlantDir] = useState<PlantDirectoryEntry[]>([]);
+  const [preferredPlantId, setPreferredPlantId] = useState<number | null>(null);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinError, setPinError] = useState('');
   const [livePositions, setLivePositions] = useState<Record<number, LivePosition>>({});
   const [freshnessConfig, setFreshnessConfig] = useState<FreshnessConfig | null>(null);
   const [idleConfig, setIdleConfig] = useState<IdleConfig | undefined>(undefined);
@@ -237,6 +240,17 @@ export default function MyOrders() {
     api.get<PlantDirectoryEntry[]>('/plants/directory')
       .then(list => { if (!cancelled) setPlantDir(list); })
       .catch(() => { /* directory is best-effort */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  // The customer's explicitly pinned default plant, if any. Drives defaultPlant()
+  // ahead of the last-ordered heuristic. Best-effort: a failure just leaves the
+  // heuristic in charge.
+  useEffect(() => {
+    let cancelled = false;
+    api.get<{ plantId: number | null }>('/me/preferred-plant')
+      .then(r => { if (!cancelled) setPreferredPlantId(r?.plantId ?? null); })
+      .catch(() => { /* pin is best-effort */ });
     return () => { cancelled = true; };
   }, []);
 
@@ -368,13 +382,21 @@ export default function MyOrders() {
     }
   }
 
-  // The plant to pre-select when the customer opens a fresh order modal:
+  // The plant to pre-select when the customer opens a fresh order modal, in
+  // priority order:
+  // - their explicitly pinned default plant, if it is still orderable; otherwise
   // - the only option, when they can order from exactly one plant; otherwise
   // - the plant they most recently ordered from, if it is still orderable.
   // Orders arrive newest-first, so the first directory match wins. Returns null
-  // when there is no prior plant or it is no longer in the approved directory.
+  // when none of the above apply (no pin, no prior plant, or it is no longer in
+  // the approved directory). Marketplace handoff and reorder set the plant
+  // directly and bypass this helper, so they still take priority over the pin.
   const defaultPlant = useCallback((): PlantDirectoryEntry | null => {
     if (plantDir.length === 0) return null;
+    if (preferredPlantId != null) {
+      const pinned = plantDir.find(p => p.id === preferredPlantId);
+      if (pinned) return pinned;
+    }
     if (plantDir.length === 1) return plantDir[0];
     for (const o of orders) {
       if (o.plantId == null) continue;
@@ -382,7 +404,25 @@ export default function MyOrders() {
       if (match) return match;
     }
     return null;
-  }, [plantDir, orders]);
+  }, [plantDir, orders, preferredPlantId]);
+
+  // Pin (or unpin) the currently-selected plant as the customer's default.
+  // Persists across sessions/devices via /me/preferred-plant. Optimistic on
+  // success; surfaces a small inline error otherwise.
+  async function togglePin() {
+    if (selectedPlantId == null) return;
+    const next = preferredPlantId === selectedPlantId ? null : selectedPlantId;
+    setPinBusy(true);
+    setPinError('');
+    try {
+      const r = await api.put<{ plantId: number | null }>('/me/preferred-plant', { plantId: next });
+      setPreferredPlantId(r?.plantId ?? null);
+    } catch (e) {
+      setPinError(e instanceof Error ? e.message : 'Could not update your default plant.');
+    } finally {
+      setPinBusy(false);
+    }
+  }
 
   // Guards the auto-default so it applies at most once per modal open — once the
   // customer has cleared or changed the selection we must not silently re-fill it.
@@ -405,6 +445,7 @@ export default function MyOrders() {
     setForm(EMPTY_FORM);
     setFormError('');
     setFieldErrors({});
+    setPinError('');
     setModalOpen(true);
   }
 
@@ -1039,6 +1080,29 @@ export default function MyOrders() {
                 ))}
               </select>
               <FieldError msg={fieldErrors.plant} />
+              {/* Pin the selected plant as the customer's default, so it
+                  pre-selects next time (ahead of the last-ordered heuristic).
+                  Only offered for orderable directory plants. */}
+              {selectedPlantId != null && plantDir.some(p => p.id === selectedPlantId) && (
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={togglePin}
+                    disabled={pinBusy}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      background: 'none', border: 'none', padding: 0,
+                      cursor: pinBusy ? 'default' : 'pointer',
+                      fontSize: 12.5, fontWeight: 600,
+                      color: preferredPlantId === selectedPlantId ? 'var(--gold)' : 'var(--muted)',
+                    }}
+                  >
+                    <Star size={14} fill={preferredPlantId === selectedPlantId ? 'var(--gold)' : 'none'} />
+                    {preferredPlantId === selectedPlantId ? 'Default plant — tap to unpin' : 'Pin as my default plant'}
+                  </button>
+                  {pinError && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 4 }}>{pinError}</div>}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>

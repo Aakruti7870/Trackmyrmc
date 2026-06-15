@@ -161,6 +161,20 @@ router.get('/discover', discoverLimiter, async (req, res) => {
         res.status(502).json({ error: 'Could not reach the live plant directory right now.' });
     }
 });
+// Customer-facing: every plant a signed-in customer may place an order at — the
+// approved, active, location-verified, verified marketplace partners. Powers the
+// Place Order plant picker and its remembered/pinned default. Unlike /nearby this
+// is NOT distance-filtered: a customer can order from any partner plant, near or
+// far. Exposes only public listing fields, never status/verification internals.
+router.get('/directory', requireAuth, requireRole('client'), async (_req, res) => {
+    const rows = await db.select({
+        id: plants.id, plantCode: plants.plantCode, name: plants.name, city: plants.city,
+        grades: plants.grades, openTime: plants.openTime, closeTime: plants.closeTime,
+    }).from(plants)
+        .where(and(eq(plants.plantStatus, 'approved'), eq(plants.isActive, true), eq(plants.locationVerified, true), eq(plants.verified, true)))
+        .orderBy(plants.name);
+    res.json(rows);
+});
 // ---- Admin onboarding / management ----
 // The /nearby route above gates itself with requireAuth (customer discovery).
 // Everything below this guard additionally requires authentication.
