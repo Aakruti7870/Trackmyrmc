@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users, HandHeart, Inbox, Sparkles, Upload, AlertTriangle, CheckCircle2, Copy } from 'lucide-react';
+import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users, HandHeart, Inbox, Sparkles, Upload, AlertTriangle, CheckCircle2, Copy, Download } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
@@ -1190,9 +1190,18 @@ function ImportPanel({
         <Upload size={15} style={{ color: 'var(--blue)' }} />
         <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text)' }}>Bulk-import plants from CSV</span>
       </div>
-      <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+      <p style={{ margin: '0 0 10px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
         Upload a spreadsheet to add many onboarding leads at once. Required columns: <strong style={{ color: 'var(--text)' }}>name, latitude, longitude</strong>. Optional: address, city, contactNumber, email, legalName, gstNo. Each valid row is added as an un-verified lead; invalid rows are skipped with a reason.
       </p>
+
+      <button
+        type="button"
+        onClick={downloadCsvTemplate}
+        style={{ ...ghostBtn, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 13px', fontSize: 12.5, marginBottom: 12 }}
+        title="Download a sample CSV with the exact headers and one example row"
+      >
+        <Download size={14} /> Download CSV template
+      </button>
 
       <input
         ref={inputRef}
@@ -1275,6 +1284,23 @@ function ImportPanel({
       )}
     </div>
   );
+}
+
+const CSV_TEMPLATE = [
+  'name,latitude,longitude,address,city,contactNumber,email,legalName,gstNo',
+  'Sunrise Ready-Mix,19.0760,72.8777,"12 Industrial Estate, MIDC",Mumbai,9876543210,contact@sunrisermc.in,Sunrise Concrete Pvt Ltd,27ABCDE1234F1Z5',
+].join('\r\n') + '\r\n';
+
+function downloadCsvTemplate() {
+  const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'plant-import-template.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 const importTh: React.CSSProperties = {
