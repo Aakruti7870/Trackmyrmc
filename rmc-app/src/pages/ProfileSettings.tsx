@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle } from 'lucide-react';
-import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult } from '@/lib/api';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin } from 'lucide-react';
+import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult, type PlantDirectoryEntry } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { ThemeSwitcher } from '@/lib/theme-providers';
@@ -228,6 +228,16 @@ export default function ProfileSettings() {
   const [plantForm, setPlantForm] = useState({ name: '', legalName: '', gstNo: '', email: '', address: '', city: '', contactNumber: '' });
   const [plantSaving, setPlantSaving] = useState(false);
 
+  // Customer "default plant" — the orderable plants this account can pick from
+  // (GET /plants/directory) and the currently-pinned one (GET /me/preferred-plant).
+  // prefPlantSelected is the in-flight selection ('' = none); persisted via PUT.
+  const [prefPlantDir, setPrefPlantDir] = useState<PlantDirectoryEntry[]>([]);
+  const [prefPlantId, setPrefPlantId] = useState<number | null>(null);
+  const [prefPlantSelected, setPrefPlantSelected] = useState<string>('');
+  const [prefPlantLoading, setPrefPlantLoading] = useState(false);
+  const [prefPlantSaving, setPrefPlantSaving] = useState(false);
+  const [prefPlantError, setPrefPlantError] = useState(false);
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -301,6 +311,7 @@ export default function ProfileSettings() {
   const [syncedUserId, setSyncedUserId] = useState(user?.id);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'authority';
+  const isClient = user?.role === 'client';
 
   // Populate the editable profile fields when the signed-in user loads/changes.
   // Done during render (React's documented adjust-on-change pattern) so it does
@@ -339,6 +350,32 @@ export default function ProfileSettings() {
     loadPlant();
     return () => { cancelled = true; };
   }, [isAdmin]);
+
+  // Customers only: load the orderable plant directory and the currently-pinned
+  // default plant so the selector can show + change it. Best-effort; failures
+  // simply leave the control empty/unset.
+  useEffect(() => {
+    if (!isClient) return;
+    let cancelled = false;
+    function loadPreferredPlant() {
+      setPrefPlantLoading(true);
+      setPrefPlantError(false);
+      Promise.all([
+        api.get<PlantDirectoryEntry[]>('/plants/directory'),
+        api.get<{ plantId: number | null }>('/me/preferred-plant'),
+      ])
+        .then(([dir, pref]) => {
+          if (cancelled) return;
+          setPrefPlantDir(dir);
+          setPrefPlantId(pref?.plantId ?? null);
+          setPrefPlantSelected(pref?.plantId != null ? String(pref.plantId) : '');
+        })
+        .catch(() => { if (!cancelled) setPrefPlantError(true); })
+        .finally(() => { if (!cancelled) setPrefPlantLoading(false); });
+    }
+    loadPreferredPlant();
+    return () => { cancelled = true; };
+  }, [isClient, user?.id]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -714,6 +751,25 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setProfileSaving(false);
+    }
+  }
+
+  // Persist the customer's default plant. An empty selection sends plantId:null,
+  // which unpins. The response is the source of truth for the saved value.
+  async function handlePreferredPlantSave() {
+    const next = prefPlantSelected === '' ? null : Number(prefPlantSelected);
+    setPrefPlantSaving(true);
+    try {
+      const r = await api.put<{ plantId: number | null }>('/me/preferred-plant', { plantId: next });
+      const saved = r?.plantId ?? null;
+      setPrefPlantId(saved);
+      setPrefPlantSelected(saved != null ? String(saved) : '');
+      showToast(saved == null ? 'Default plant cleared.' : 'Default plant saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not update your default plant.';
+      showToast(msg, 'error');
+    } finally {
+      setPrefPlantSaving(false);
     }
   }
 
@@ -1181,6 +1237,69 @@ export default function ProfileSettings() {
           </button>
         </form>
       </div>
+
+      {/* Default plant card — customers only */}
+      {isClient && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <MapPin size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Default Plant</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Pre-selected when you place a new order</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gap: 16 }}>
+            <div>
+              <label style={label}>Preferred Plant</label>
+              <select
+                value={prefPlantSelected}
+                onChange={e => setPrefPlantSelected(e.target.value)}
+                disabled={prefPlantLoading || prefPlantSaving}
+                style={{ ...inputStyle, padding: '10px 12px', cursor: prefPlantLoading ? 'wait' : 'pointer' }}
+              >
+                <option value="">{prefPlantLoading ? 'Loading…' : 'No default plant'}</option>
+                {prefPlantDir.map(p => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.name}{p.city ? ` · ${p.city}` : ''}{p.plantCode ? ` (${p.plantCode})` : ''}
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                Choose “No default plant” to clear your selection.
+              </div>
+              {prefPlantError && (
+                <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6 }}>
+                  Couldn’t load your plants. Refresh the page to try again.
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePreferredPlantSave}
+              disabled={prefPlantLoading || prefPlantSaving || prefPlantSelected === (prefPlantId != null ? String(prefPlantId) : '')}
+              style={{
+                marginTop: 4, padding: '11px 22px', borderRadius: 10,
+                background: prefPlantSaving ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+                border: 'none',
+                cursor: (prefPlantLoading || prefPlantSaving || prefPlantSelected === (prefPlantId != null ? String(prefPlantId) : '')) ? 'not-allowed' : 'pointer',
+                color: '#111827', fontWeight: 800, fontSize: 14,
+                opacity: prefPlantSelected === (prefPlantId != null ? String(prefPlantId) : '') ? 0.5 : 1,
+                transition: 'opacity .15s',
+              }}
+            >
+              {prefPlantSaving ? 'Saving…' : 'Save Default Plant'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Plant identity card — only for an account bound to a plant (owner) */}
       {plantProfile && (
