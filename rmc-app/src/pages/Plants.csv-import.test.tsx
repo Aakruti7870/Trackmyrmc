@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -61,6 +61,18 @@ function csvFile(name = 'plants.csv'): File {
   // Content is irrelevant — the mocked /plants/import drives the response — but
   // it must be non-empty (runImport rejects an empty file before posting).
   return new File(['name,latitude,longitude\nFoo,1,2\n'], name, { type: 'text/csv' });
+}
+
+// The drop zone is the element that wires up onDrop — the text label sits one
+// level inside it, so step up to its parent to reach the element with onDrop.
+function dropZone(): HTMLElement {
+  return screen.getByText(/Drag a .csv here/i).parentElement as HTMLElement;
+}
+
+// fireEvent.drop won't synthesise a DataTransfer for us — hand it one carrying
+// the dropped file(s) so onImportDrop can read e.dataTransfer.files[0].
+function dropFile(zone: HTMLElement, file: File): void {
+  fireEvent.drop(zone, { dataTransfer: { files: [file] } });
 }
 
 beforeEach(() => {
@@ -126,5 +138,58 @@ describe('Plants — bulk CSV import panel', () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.queryByText(/created$/)).not.toBeInTheDocument();
+  });
+
+  it('imports a CSV dropped onto the drop zone, just like picking one', async () => {
+    const result: ImportResult = {
+      created: 1,
+      skipped: 0,
+      results: [{ row: 2, name: 'Dropped RMC', status: 'created' }],
+    };
+    vi.mocked(api.post).mockResolvedValue(result as never);
+
+    const u = userEvent.setup();
+    render(<Plants />);
+    await openImportPanel(u);
+
+    dropFile(dropZone(), csvFile('dropped.csv'));
+
+    // Dropping a file runs the same import as choosing one — it posts the CSV…
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/plants/import', { csv: expect.any(String) }));
+
+    // …and renders the result summary + per-row table.
+    expect(await screen.findByText('1 created')).toBeInTheDocument();
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('Dropped RMC')).toBeInTheDocument();
+    expect(within(table).getByText('Created')).toBeInTheDocument();
+  });
+
+  it('warns on a non-CSV file and never posts', async () => {
+    const u = userEvent.setup();
+    render(<Plants />);
+    const input = await openImportPanel(u);
+
+    // userEvent.upload honours the input's accept=".csv" filter and would drop a
+    // non-matching file, so fire a raw change event to exercise the guard.
+    const png = new File(['not a csv'], 'logo.png', { type: 'image/png' });
+    fireEvent.change(input, { target: { files: [png] } });
+
+    expect(await screen.findByText('Please choose a .csv file.')).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('warns on an empty file and never posts', async () => {
+    const u = userEvent.setup();
+    render(<Plants />);
+    const input = await openImportPanel(u);
+
+    // A .csv with no content passes the type guard but fails the empty check.
+    const empty = new File([''], 'empty.csv', { type: 'text/csv' });
+    fireEvent.change(input, { target: { files: [empty] } });
+
+    expect(await screen.findByText('That file is empty.')).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });
