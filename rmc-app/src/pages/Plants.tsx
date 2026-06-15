@@ -209,6 +209,7 @@ export default function Plants() {
   const [importError, setImportError] = useState('');
   const [importFileName, setImportFileName] = useState('');
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importCsv, setImportCsv] = useState('');
   const importInputRef = useRef<HTMLInputElement>(null);
 
   function load() {
@@ -251,6 +252,7 @@ export default function Plants() {
 
   function resetImport() {
     setImportResult(null);
+    setImportCsv('');
     setImportError('');
     setImportFileName('');
     setImportDragOver(false);
@@ -272,6 +274,7 @@ export default function Plants() {
       if (!csv.trim()) { setImportError('That file is empty.'); return; }
       const res = await api.post<ImportResult>('/plants/import', { csv });
       setImportResult(res);
+      setImportCsv(csv);
       if (res.created > 0) load();
     } catch (err) {
       setImportError((err as Error).message || 'Could not import the CSV.');
@@ -691,6 +694,7 @@ export default function Plants() {
               onDragOver={e => { e.preventDefault(); setImportDragOver(true); }}
               onDragLeave={() => setImportDragOver(false)}
               onReset={resetImport}
+              onDownloadSkipped={() => importResult && downloadSkippedRows(importCsv, importResult)}
             />
           )}
 
@@ -1169,7 +1173,7 @@ const INVITE_STATUS_COLORS: Record<InviteStatus, string> = {
 
 function ImportPanel({
   dragOver, importing, error, fileName, result, inputRef,
-  onPick, onFileChange, onDrop, onDragOver, onDragLeave, onReset,
+  onPick, onFileChange, onDrop, onDragOver, onDragLeave, onReset, onDownloadSkipped,
 }: {
   dragOver: boolean;
   importing: boolean;
@@ -1183,6 +1187,7 @@ function ImportPanel({
   onDragOver: (e: React.DragEvent) => void;
   onDragLeave: () => void;
   onReset: () => void;
+  onDownloadSkipped: () => void;
 }) {
   return (
     <div style={{ ...softCard, marginBottom: 14, borderColor: 'color-mix(in srgb, var(--blue) 32%, transparent)', background: 'color-mix(in srgb, var(--blue) 4%, transparent)' }}>
@@ -1248,7 +1253,16 @@ function ImportPanel({
             <span style={badge(result.skipped > 0 ? 'var(--gold)' : 'var(--muted)')}>
               <AlertTriangle size={11} /> {result.skipped} skipped
             </span>
-            <button onClick={onReset} style={{ ...ghostBtn, marginLeft: 'auto', padding: '6px 12px', fontSize: 12.5 }}>
+            {result.skipped > 0 && (
+              <button
+                onClick={onDownloadSkipped}
+                style={{ ...ghostBtn, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', fontSize: 12.5 }}
+                title="Download just the skipped rows (original columns + a reason column) to fix and re-upload"
+              >
+                <Download size={13} /> Download skipped rows
+              </button>
+            )}
+            <button onClick={onReset} style={{ ...ghostBtn, marginLeft: result.skipped > 0 ? 0 : 'auto', padding: '6px 12px', fontSize: 12.5 }}>
               Import another
             </button>
           </div>
@@ -1297,6 +1311,77 @@ function downloadCsvTemplate() {
   const a = document.createElement('a');
   a.href = url;
   a.download = 'plant-import-template.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Mirrors the server's CSV parser so skipped-row numbers line up exactly with
+// the original file (quoted fields, escaped quotes, \r\n all handled the same).
+function parseImportCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let field = '';
+  let row: string[] = [];
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      row.push(field); field = '';
+    } else if (c === '\r') {
+      // ignore; the paired \n closes the row
+    } else if (c === '\n') {
+      row.push(field); rows.push(row); row = []; field = '';
+    } else {
+      field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function toCsvField(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+function toCsvLine(cells: string[]): string {
+  return cells.map(toCsvField).join(',');
+}
+
+// Builds a CSV of just the skipped rows (original columns + a trailing "reason"),
+// so staff can fix and re-upload only the problem rows. Returns null if there is
+// nothing to download. Row numbers from the server are 1-based incl. the header
+// and refer to the blank-line-filtered grid, so we filter the same way here.
+function buildSkippedRowsCsv(csv: string, result: ImportResult): string | null {
+  const grid = parseImportCsv(csv).filter(r => r.some(cell => cell.trim() !== ''));
+  if (grid.length === 0) return null;
+  const header = grid[0];
+  const lines = [toCsvLine([...header, 'reason'])];
+  for (const r of result.results) {
+    if (r.status !== 'skipped') continue;
+    const cells = grid[r.row - 1];
+    if (!cells) continue;
+    lines.push(toCsvLine([...cells, r.reason || '']));
+  }
+  if (lines.length === 1) return null;
+  return lines.join('\r\n') + '\r\n';
+}
+
+function downloadSkippedRows(csv: string, result: ImportResult) {
+  const out = buildSkippedRowsCsv(csv, result);
+  if (!out) return;
+  const blob = new Blob([out], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'skipped-rows.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
