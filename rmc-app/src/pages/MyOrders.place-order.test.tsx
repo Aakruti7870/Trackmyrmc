@@ -23,7 +23,7 @@ function plantSelect(): HTMLElement {
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
-  return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn() } };
+  return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn(), put: vi.fn() } };
 });
 
 import MyOrders from '@/pages/MyOrders';
@@ -235,6 +235,60 @@ describe('MyOrders place order', () => {
     // The handoff opens the modal automatically and pre-selects plant 7.
     await screen.findByRole('heading', { name: /place new order/i });
     await waitFor(() => expect(plantSelect()).toHaveValue('7'));
+  });
+
+  it('pre-selects the pinned default plant ahead of the last-ordered plant', async () => {
+    vi.mocked(api.get).mockImplementation((path: string) => {
+      if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
+      if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
+      if (path === '/plants/directory') return Promise.resolve([
+        { id: 3, plantCode: 'P3', name: 'Acme RMC', city: 'Pune' },
+        { id: 7, plantCode: 'P7', name: 'Bharat Mix', city: 'Mumbai' },
+      ] as never);
+      // Last-ordered would otherwise pre-select plant 7…
+      if (path === '/me/orders') return Promise.resolve([
+        makeOrder({ id: 20, orderNo: 'ORD-020', plantId: 7, createdAt: '2026-06-12T06:00:00.000Z' }),
+      ] as never);
+      // …but the customer has pinned plant 3 as their default.
+      if (path === '/me/preferred-plant') return Promise.resolve({ plantId: 3 } as never);
+      return Promise.resolve([] as never);
+    });
+
+    const user = userEvent.setup();
+    render(<MyOrders />);
+
+    await user.click(await screen.findByRole('button', { name: /place order/i }));
+    await screen.findByRole('heading', { name: /place new order/i });
+
+    // The pinned default (plant 3) wins over the last-ordered plant (7).
+    await waitFor(() => expect(plantSelect()).toHaveValue('3'));
+  });
+
+  it('pins the selected plant via PUT /me/preferred-plant when the button is clicked', async () => {
+    vi.mocked(api.get).mockImplementation((path: string) => {
+      if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
+      if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
+      if (path === '/plants/directory') return Promise.resolve([{ id: 3, plantCode: 'P3', name: 'Acme RMC', city: 'Pune' }] as never);
+      if (path === '/me/preferred-plant') return Promise.resolve({ plantId: null } as never);
+      return Promise.resolve([] as never);
+    });
+    vi.mocked(api.put).mockResolvedValue({ plantId: 3 } as never);
+
+    const user = userEvent.setup();
+    render(<MyOrders />);
+
+    await user.click(await screen.findByRole('button', { name: /place order/i }));
+    await screen.findByRole('heading', { name: /place new order/i });
+    // The only available plant is auto-selected, so the pin button shows.
+    await waitFor(() => expect(plantSelect()).toHaveValue('3'));
+
+    await user.click(await screen.findByRole('button', { name: /pin as my default plant/i }));
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith('/me/preferred-plant', { plantId: 3 });
+    });
+    // After pinning, the button flips to the unpin label.
+    expect(await screen.findByRole('button', { name: /default plant — tap to unpin/i })).toBeInTheDocument();
   });
 
   it('blocks submission and shows an error when grade is missing', async () => {
