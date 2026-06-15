@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { useSearch } from 'wouter';
 import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type Site, type RecurringOrder, type FreshnessConfig, type IdleConfig, type PlantDirectoryEntry } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
@@ -361,13 +361,36 @@ export default function MyOrders() {
     }
   }
 
+  // The plant to pre-select when the customer opens a fresh order modal:
+  // - the only option, when they can order from exactly one plant; otherwise
+  // - the plant they most recently ordered from, if it is still orderable.
+  // Orders arrive newest-first, so the first directory match wins. Returns null
+  // when there is no prior plant or it is no longer in the approved directory.
+  const defaultPlant = useCallback((): PlantDirectoryEntry | null => {
+    if (plantDir.length === 0) return null;
+    if (plantDir.length === 1) return plantDir[0];
+    for (const o of orders) {
+      if (o.plantId == null) continue;
+      const match = plantDir.find(p => p.id === o.plantId);
+      if (match) return match;
+    }
+    return null;
+  }, [plantDir, orders]);
+
+  // Guards the auto-default so it applies at most once per modal open — once the
+  // customer has cleared or changed the selection we must not silently re-fill it.
+  const autoPlantAppliedRef = useRef(false);
+
   function openModal() {
-    // Pre-select when the customer can only order from a single plant, so the
-    // selector doesn't make them pick the only option. Otherwise start blank
-    // and let the auto-select effect fill in once the directory loads.
-    if (plantDir.length === 1) {
-      setSelectedPlantId(plantDir[0].id);
-      setSelectedPlant(plantDir[0].name);
+    // Pre-select the remembered/only plant so re-ordering from the same plant is
+    // one tap. Falls back to blank; the effect below fills in if the directory
+    // (or orders) finish loading after the modal is already open.
+    autoPlantAppliedRef.current = false;
+    const def = defaultPlant();
+    if (def) {
+      setSelectedPlantId(def.id);
+      setSelectedPlant(def.name);
+      autoPlantAppliedRef.current = true;
     } else {
       setSelectedPlant(null);
       setSelectedPlantId(null);
@@ -378,17 +401,20 @@ export default function MyOrders() {
     setModalOpen(true);
   }
 
-  // When the order modal is open and the customer can order from exactly one
-  // plant, pre-select it (covers the case where the directory finishes loading
-  // after the modal is already open). Deferred to avoid set-state-in-effect.
+  // Covers the case where the directory/orders finish loading after a fresh
+  // modal is already open: apply the auto-default exactly once. Skipped when a
+  // plant is already chosen (marketplace handoff / reorder take priority).
+  // Deferred to avoid set-state-in-effect.
   useEffect(() => {
-    if (!modalOpen || selectedPlantId != null || plantDir.length !== 1) return;
-    const only = plantDir[0];
+    if (!modalOpen || autoPlantAppliedRef.current || selectedPlantId != null) return;
+    const def = defaultPlant();
+    if (!def) return;
+    autoPlantAppliedRef.current = true;
     Promise.resolve().then(() => {
-      setSelectedPlantId(only.id);
-      setSelectedPlant(only.name);
+      setSelectedPlantId(def.id);
+      setSelectedPlant(def.name);
     });
-  }, [modalOpen, selectedPlantId, plantDir]);
+  }, [modalOpen, selectedPlantId, defaultPlant]);
 
   // Handoff from the "Find Plants" marketplace: if the customer tapped Place
   // Order on a plant card, open the order modal pre-noting the chosen plant.

@@ -94,6 +94,79 @@ describe('MyOrders place order', () => {
     expect(await screen.findByText('ORD-007')).toBeInTheDocument();
   });
 
+  it('pre-selects the plant from the most recent order when several are available', async () => {
+    vi.mocked(api.get).mockImplementation((path: string) => {
+      if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
+      if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
+      if (path === '/plants/directory') return Promise.resolve([
+        { id: 3, plantCode: 'P3', name: 'Acme RMC', city: 'Pune' },
+        { id: 7, plantCode: 'P7', name: 'Bharat Mix', city: 'Mumbai' },
+      ] as never);
+      // Newest-first: the customer last ordered from plant 7.
+      if (path === '/me/orders') return Promise.resolve([
+        makeOrder({ id: 20, orderNo: 'ORD-020', plantId: 7, createdAt: '2026-06-12T06:00:00.000Z' }),
+        makeOrder({ id: 10, orderNo: 'ORD-010', plantId: 3, createdAt: '2026-06-09T06:00:00.000Z' }),
+      ] as never);
+      return Promise.resolve([] as never);
+    });
+
+    const user = userEvent.setup();
+    render(<MyOrders />);
+
+    await user.click(await screen.findByRole('button', { name: /place order/i }));
+    await screen.findByRole('heading', { name: /place new order/i });
+
+    await waitFor(() => expect(plantSelect()).toHaveValue('7'));
+  });
+
+  it('leaves the plant blank when the last-ordered plant is no longer available', async () => {
+    vi.mocked(api.get).mockImplementation((path: string) => {
+      if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
+      if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
+      if (path === '/plants/directory') return Promise.resolve([
+        { id: 3, plantCode: 'P3', name: 'Acme RMC', city: 'Pune' },
+        { id: 7, plantCode: 'P7', name: 'Bharat Mix', city: 'Mumbai' },
+      ] as never);
+      // Last order was at plant 99, which is no longer in the directory.
+      if (path === '/me/orders') return Promise.resolve([
+        makeOrder({ id: 20, orderNo: 'ORD-020', plantId: 99, createdAt: '2026-06-12T06:00:00.000Z' }),
+      ] as never);
+      return Promise.resolve([] as never);
+    });
+
+    const user = userEvent.setup();
+    render(<MyOrders />);
+
+    await user.click(await screen.findByRole('button', { name: /place order/i }));
+    await screen.findByRole('heading', { name: /place new order/i });
+
+    expect(plantSelect()).toHaveValue('');
+  });
+
+  it('lets a marketplace handoff override the remembered default plant', async () => {
+    vi.mocked(api.get).mockImplementation((path: string) => {
+      if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
+      if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
+      if (path === '/plants/directory') return Promise.resolve([
+        { id: 3, plantCode: 'P3', name: 'Acme RMC', city: 'Pune' },
+        { id: 7, plantCode: 'P7', name: 'Bharat Mix', city: 'Mumbai' },
+      ] as never);
+      // Remembered default would be plant 3 (the last order)…
+      if (path === '/me/orders') return Promise.resolve([
+        makeOrder({ id: 20, orderNo: 'ORD-020', plantId: 3, createdAt: '2026-06-12T06:00:00.000Z' }),
+      ] as never);
+      return Promise.resolve([] as never);
+    });
+    // …but the customer arrived from the marketplace having tapped plant 7.
+    sessionStorage.setItem('rmc_selected_plant', JSON.stringify({ id: 7, name: 'Bharat Mix' }));
+
+    render(<MyOrders />);
+
+    // The handoff opens the modal automatically and pre-selects plant 7.
+    await screen.findByRole('heading', { name: /place new order/i });
+    await waitFor(() => expect(plantSelect()).toHaveValue('7'));
+  });
+
   it('blocks submission and shows an error when grade is missing', async () => {
     const user = userEvent.setup();
     render(<MyOrders />);
