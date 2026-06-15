@@ -191,6 +191,56 @@ function saveTimings(measured) {
   }
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Count live sessions attached to `dbName` (excluding our own backend).
+async function sessionCount(admin, dbName) {
+  const { rows } = await admin.query(
+    `SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
+    [dbName],
+  );
+  return rows[0]?.n ?? 0;
+}
+
+// Terminate every straggler backend on `dbName` and then poll until it truly
+// has zero sessions. CREATE DATABASE ... TEMPLATE requires the source to have
+// no other sessions; a backend from drizzle-kit push can linger briefly after
+// that process exits, so we wait it out instead of racing it.
+async function terminateAndWaitForIdle(admin, dbName, { tries = 50, delayMs = 100 } = {}) {
+  for (let attempt = 0; attempt < tries; attempt++) {
+    await admin.query(
+      `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
+      [dbName],
+    );
+    if ((await sessionCount(admin, dbName)) === 0) return;
+    await sleep(delayMs);
+  }
+  console.error(
+    `[test] Warning: template "${dbName}" still has sessions after waiting; attempting clone anyway.`,
+  );
+}
+
+// Clone `dbName` from `templateName`, retrying on Postgres error 55006
+// ("source database is being accessed by other users"). Even after polling to
+// zero sessions there's an inherent race where a new backend attaches in the
+// gap before CREATE DATABASE acquires its lock, so re-terminate and retry with
+// a short backoff rather than failing the whole run.
+async function createDbFromTemplate(admin, dbName, templateName, { tries = 8, delayMs = 250 } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await admin.query(`CREATE DATABASE "${dbName}" TEMPLATE "${templateName}"`);
+      return;
+    } catch (err) {
+      if (err?.code !== '55006' || attempt >= tries) throw err;
+      console.error(
+        `[test] CREATE DATABASE "${dbName}" hit 55006 (attempt ${attempt}/${tries}); re-terminating template sessions and retrying...`,
+      );
+      await terminateAndWaitForIdle(admin, templateName);
+      await sleep(delayMs);
+    }
+  }
+}
+
 // Run a SINGLE test file as its own `node --test` process against `dbName`.
 // Output is buffered and flushed as one contiguous block on close so the
 // parallel workers' spec reporters never interleave into unreadable noise.
@@ -316,15 +366,17 @@ try {
         // CREATE DATABASE ... TEMPLATE requires zero sessions on the source.
         // drizzle-kit push runs in its own (already-exited) process, but its
         // backend can linger briefly on the server; terminate any stragglers
-        // so the copy never trips error 55006 ("source database is being
-        // accessed by other users").
-        await admin.query(
-          `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
-          [templateName],
-        );
+        // and then poll pg_stat_activity until the template truly has zero
+        // sessions before cloning, so the copy never trips error 55006
+        // ("source database is being accessed by other users").
+        await terminateAndWaitForIdle(admin, templateName);
         for (let i = 0; i < workerCount; i++) {
           const dbName = makeDbName(`w${i}`);
-          await admin.query(`CREATE DATABASE "${dbName}" TEMPLATE "${templateName}"`);
+          // Even after polling to zero sessions there's an inherent race: a new
+          // backend can attach in the gap before CREATE DATABASE acquires its
+          // lock. Retry a few times with a short backoff, re-terminating each
+          // time, instead of failing the entire run on a transient 55006.
+          await createDbFromTemplate(admin, dbName, templateName);
           createdDbs.push(dbName);
           workerDbs.push(dbName);
         }
