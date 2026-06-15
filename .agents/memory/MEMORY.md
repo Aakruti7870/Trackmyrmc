@@ -48,3 +48,4 @@
 - [AI chat streaming + shared prep](ai-chat-streaming.md) — /ai/chat (JSON) & /ai/chat/stream (SSE) MUST share prepareChat() for the whole security boundary; stream uses chatCompleteStream generator + aiApi.chatStream reader.
 - [RMC Nearby remembered location](rmc-nearby-remembered-location.md) — NearbyPlants persists last coords+radius in localStorage; mount bootstrap must defer setState (no sync set-state-in-effect).
 - [RMC place-order plant default](rmc-plant-default-priority.md) — Place Order pre-select priority: marketplace handoff/reorder (set plant directly) > pinned default > single-option > last-ordered > blank; /plants/directory + /me/preferred-plant back it.
+- [Test-harness helper importable](test-harness-helper-importable.md) — to unit-test pure helpers in scripts/*.mjs from src/test/*.test.ts, pair the .mjs with a sibling .d.mts so tsc resolves types without a rootDir/build error.
