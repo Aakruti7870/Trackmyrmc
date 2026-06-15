@@ -1,8 +1,7 @@
 import { Router } from 'express';
-import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { hashPassword } from '../lib/password.js';
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { users, clients, auditLogs } from '../db/schema.js';
@@ -10,6 +9,7 @@ import { verifyToken as clerkVerifyToken, createClerkClient } from '@clerk/backe
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { isAuthorityEmail } from '../lib/authority.js';
 import { resolveStaffSsoUser } from '../lib/staffSso.js';
+import { resolveCustomerByPhone } from '../lib/customerAccount.js';
 import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.js';
 import { peekInviteToken, redeemInviteToken } from '../lib/inviteToken.js';
 import { rateLimit } from '../lib/rateLimit.js';
@@ -259,6 +259,94 @@ router.post('/clerk', async (req, res) => {
         },
     });
 });
+// Customer token exchange: the mirror of POST /auth/clerk for the *phone* side.
+// Clerk verifies the customer's mobile number with an SMS one-time code in the
+// browser; the client posts the resulting Clerk session token here. We verify it
+// server-side, read the identity's *verified primary phone number*, and resolve
+// (or transparently create) the matching 'client' account — exactly the same
+// mapping the Twilio OTP flow uses, so a number resolves to the same account no
+// matter which provider verified it.
+//
+// Security boundary: this path keys on the verified PHONE only and always yields
+// a client account; it never reads email and never maps onto a staff role. The
+// staff /auth/clerk path keys on the verified EMAIL only. The two are kept
+// separate so a phone-only identity can't reach a staff account and an
+// email/Google identity can't reach a customer account.
+const clerkCustomerSchema = z.object({
+    token: z.string().min(1, 'A Clerk session token is required'),
+    name: z.string().trim().max(120).optional(),
+});
+router.post('/clerk/customer', async (req, res) => {
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) {
+        res.status(503).json({ error: 'Phone sign-in is not configured on this server.' });
+        return;
+    }
+    const parse = clerkCustomerSchema.safeParse(req.body ?? {});
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.issues[0]?.message ?? 'A Clerk session token is required' });
+        return;
+    }
+    let clerkUserId;
+    try {
+        const claims = await clerkVerifyToken(parse.data.token, { secretKey });
+        clerkUserId = claims.sub;
+    }
+    catch {
+        res.status(401).json({ error: 'Invalid or expired sign-in session' });
+        return;
+    }
+    if (!clerkUserId) {
+        res.status(401).json({ error: 'Invalid or expired sign-in session' });
+        return;
+    }
+    // The session token only carries the Clerk user id (sub); fetch the profile to
+    // read the *verified primary* phone number. Never fall back to an unverified or
+    // secondary number, so a customer can only sign into the account for a number
+    // they have actually proven they control.
+    let rawPhone = null;
+    try {
+        const clerk = createClerkClient({ secretKey });
+        const cu = await clerk.users.getUser(clerkUserId);
+        const primary = cu.primaryPhoneNumberId
+            ? cu.phoneNumbers.find((p) => p.id === cu.primaryPhoneNumberId)
+            : undefined;
+        if (primary && primary.verification?.status === 'verified') {
+            rawPhone = primary.phoneNumber;
+        }
+    }
+    catch {
+        res.status(502).json({ error: 'Could not read your sign-in profile' });
+        return;
+    }
+    const phone = normalizePhone(rawPhone);
+    if (!phone) {
+        res.status(403).json({ error: 'A verified mobile number is required to sign in.' });
+        return;
+    }
+    const resolved = await resolveCustomerByPhone(phone, parse.data.name);
+    if (!resolved.ok) {
+        res.status(resolved.status).json({ error: resolved.error });
+        return;
+    }
+    const { user } = resolved;
+    const appToken = signToken({
+        id: user.id, email: user.email, role: user.role, name: user.name,
+        plantId: user.plantId,
+        linkedClientId: user.linkedClientId,
+        linkedDriverId: user.linkedDriverId,
+    });
+    res.json({
+        token: appToken,
+        user: {
+            id: user.id, name: user.name, email: user.email, role: user.role,
+            phone: user.phone,
+            plantId: user.plantId,
+            linkedClientId: user.linkedClientId,
+            linkedDriverId: user.linkedDriverId,
+        },
+    });
+});
 // --- Password-setup invite (plant-owner onboarding) ------------------------
 // A newly provisioned account is emailed a single-use link; these two public
 // endpoints back the "set your password" page. GET validates the token so the
@@ -424,12 +512,6 @@ const otpVerifySchema = z.object({
     code: z.string().trim().min(4, 'Enter the code you received').max(10),
     name: z.string().trim().max(120).optional(),
 });
-// Reserved placeholder email for OTP-only accounts (the users table requires a
-// unique email). Derived deterministically from the number so it never collides
-// with a real address and stays stable across re-sends.
-function placeholderEmailFor(phone) {
-    return `otp_${phone.replace(/\D/g, '')}@otp.local`;
-}
 // 5 sends per 10 minutes per IP — enough for a fat-fingered retry, not enough to
 // run up a WhatsApp bill or enumerate numbers.
 const otpSendLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 5 });
@@ -478,71 +560,12 @@ router.post('/otp/verify', otpVerifyLimiter, async (req, res) => {
         return;
     }
     // Find the live account for this number, or create one on first verified login.
-    let [user] = await db
-        .select()
-        .from(users)
-        .where(and(eq(users.phone, phone), isNull(users.deletedAt)));
-    if (!user) {
-        const displayName = parse.data.name?.trim() || `Customer ${phone.slice(-4)}`;
-        const placeholderEmail = placeholderEmailFor(phone);
-        // Random, unusable password — these accounts authenticate only by OTP.
-        const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
-        try {
-            user = await db.transaction(async (tx) => {
-                const [client] = await tx.insert(clients).values({
-                    name: displayName,
-                    contactPerson: displayName,
-                    phone,
-                }).returning();
-                const [created] = await tx.insert(users).values({
-                    name: displayName,
-                    email: placeholderEmail,
-                    phone,
-                    passwordHash,
-                    role: 'client',
-                    isActive: true,
-                    linkedClientId: client.id,
-                }).returning();
-                await tx.insert(auditLogs).values({
-                    actorId: null,
-                    actorName: displayName,
-                    action: 'account_registered',
-                    targetUserId: created.id,
-                    targetUserEmail: created.email,
-                    status: 'success',
-                    detail: `Phone-OTP customer (${phone}) — account active`,
-                });
-                return created;
-            });
-        }
-        catch (err) {
-            // A unique violation here means two verifies for the same number raced, or
-            // the placeholder email/phone was already taken. Re-read the live account
-            // and continue; if there genuinely isn't one, surface a clean error
-            // instead of a 500.
-            if (err && typeof err === 'object' && err.code === '23505') {
-                [user] = await db
-                    .select()
-                    .from(users)
-                    .where(and(eq(users.phone, phone), isNull(users.deletedAt)));
-                if (!user) {
-                    res.status(409).json({ error: 'This number could not be registered. Please contact support.' });
-                    return;
-                }
-            }
-            else {
-                throw err;
-            }
-        }
-    }
-    if (!user) {
-        res.status(500).json({ error: 'Could not complete sign-in. Please try again.' });
+    const resolved = await resolveCustomerByPhone(phone, parse.data.name);
+    if (!resolved.ok) {
+        res.status(resolved.status).json({ error: resolved.error });
         return;
     }
-    else if (!user.isActive) {
-        res.status(403).json({ error: 'This account has been disabled. Please contact support.' });
-        return;
-    }
+    const { user } = resolved;
     const token = signToken({
         id: user.id, email: user.email, role: user.role, name: user.name,
         plantId: user.plantId,
