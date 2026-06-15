@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, List, Map as MapIcon, Phone, Clock, Navigation, PackagePlus, Loader2, LocateFixed, RefreshCw, Headphones, Search, ShieldCheck, ShieldAlert, HandHeart, Check } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 
@@ -75,6 +75,10 @@ export default function NearbyPlants() {
   const [plants, setPlants] = useState<NearbyPlant[] | null>(null);
   const [discovered, setDiscovered] = useState<DiscoveredPlant[]>([]);
   const [discovering, setDiscovering] = useState(false);
+  // Live discovery is best-effort, but a failure must NOT be silently swallowed
+  // into an empty list — surface a friendly message so the customer understands
+  // why the wider map search came back empty (vs. genuinely no plants nearby).
+  const [discoverError, setDiscoverError] = useState('');
   const [phase, setPhase] = useState<'locating' | 'loading' | 'ready' | 'geoerror'>('locating');
   const [fetchError, setFetchError] = useState('');
   const [view, setView] = useState<'list' | 'map'>('list');
@@ -92,13 +96,25 @@ export default function NearbyPlants() {
 
   // Live discovery is best-effort: a failure (key missing, upstream down, rate
   // limited) must never block the onboarded results, so it owns its own state and
-  // swallows errors into an empty list.
+  // records the failure in discoverError instead of silently emptying the list.
   const loadDiscovered = useCallback((c: LatLng, radius: number) => {
     setDiscovering(true);
+    setDiscoverError('');
     return api
       .get<DiscoveredPlant[]>(`/plants/discover?lat=${c.lat}&lng=${c.lng}&radius=${radius}`)
-      .then(data => setDiscovered(data))
-      .catch(() => setDiscovered([]))
+      .then(data => { setDiscovered(data); setDiscoverError(''); })
+      .catch((e: unknown) => {
+        setDiscovered([]);
+        // A 503 means the live directory is intentionally not configured; any
+        // other failure is a transient upstream/network error the customer can
+        // retry. Either way we say so plainly rather than showing an empty list.
+        const status = e instanceof ApiError ? e.status : 0;
+        setDiscoverError(
+          status === 503
+            ? 'Live map search isn’t available right now, so this list shows only our onboarded partner plants.'
+            : 'We couldn’t search the wider map directory just now — showing our onboarded partner plants. Refresh to try again.',
+        );
+      })
       .finally(() => setDiscovering(false));
   }, []);
 
@@ -140,10 +156,12 @@ export default function NearbyPlants() {
     requestLocation();
   }
 
-  function useManualLocation() {
-    if (!manual) return;
-    setCoords(manual);
-    loadPlants(manual, radiusRef.current);
+  // Picking a location in the manual fallback (drop a pin, search a place, or
+  // "my location") fetches nearby plants immediately — no second button press.
+  function handleManualChange(p: LatLng) {
+    setManual(p);
+    setCoords(p);
+    loadPlants(p, radiusRef.current);
   }
 
   function changeRadius(r: number) {
@@ -194,6 +212,11 @@ export default function NearbyPlants() {
     !q || fields.some(v => (v ?? '').toLowerCase().includes(q));
   const shownPlants = (plants ?? []).filter(p => matchText(p.name, p.city, p.address));
   const shownDiscovered = discovered.filter(p => matchText(p.name, p.address));
+
+  // Radius ceiling helpers for the dead-end guidance: the widest range we offer
+  // and the next step up from the current selection (undefined once at the max).
+  const maxRadius = RADIUS_OPTIONS[RADIUS_OPTIONS.length - 1];
+  const nextRadius = RADIUS_OPTIONS.find(r => r > radiusKm);
 
   const wrap: React.CSSProperties = { padding: '22px clamp(14px, 4vw, 34px)', maxWidth: 1100, margin: '0 auto' };
 
@@ -261,10 +284,10 @@ export default function NearbyPlants() {
             <LocateFixed size={16} /> Try location again
           </button>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>Or set your site location:</div>
-          <LocationPicker value={manual} onChange={setManual} />
-          <button onClick={useManualLocation} disabled={!manual} style={{ ...primaryBtn, marginTop: 12, opacity: manual ? 1 : 0.5, cursor: manual ? 'pointer' : 'not-allowed' }}>
-            <MapPin size={16} /> Find plants near this location
-          </button>
+          <LocationPicker value={manual} onChange={handleManualChange} />
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
+            <MapPin size={14} style={{ flexShrink: 0 }} /> Search an address, tap the map, or use your location — we’ll find nearby plants automatically.
+          </div>
         </div>
       )}
 
@@ -280,17 +303,31 @@ export default function NearbyPlants() {
           {plants.length === 0 && !fetchError && (
             <div style={centerCard}>
               <MapPin size={30} style={{ color: 'var(--muted)' }} />
-              <div style={{ marginTop: 12, fontWeight: 700, color: 'var(--text)' }}>No approved RMC plants found within {radiusKm} km.</div>
+              <div style={{ marginTop: 12, fontWeight: 700, color: 'var(--text)' }}>No approved partner plants within {radiusKm} km.</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: 'var(--muted)', maxWidth: 420 }}>
+                {nextRadius
+                  ? `We search up to ${maxRadius} km — widen the search to look for plants farther from your site.`
+                  : `That’s the widest area we can search (${maxRadius} km). Try a different location${discovered.length > 0 ? ', or see the other concrete plants listed below' : ''}.`}
+              </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {radiusKm < RADIUS_OPTIONS[RADIUS_OPTIONS.length - 1] && (
-                  <button onClick={() => changeRadius(RADIUS_OPTIONS.find(r => r > radiusKm) ?? radiusKm)} style={primaryBtn}>
-                    <Navigation size={15} /> Widen search
+                {nextRadius && (
+                  <button onClick={() => changeRadius(nextRadius)} style={primaryBtn}>
+                    <Navigation size={15} /> Widen to {nextRadius} km
                   </button>
                 )}
                 <button onClick={() => setPhase('geoerror')} style={ghostBtn}>
                   <Navigation size={15} /> Change location
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Live discovery failed/unconfigured: say so instead of leaving the
+              customer to assume there simply are no other plants nearby. */}
+          {discoverError && !discovering && (
+            <div style={{ ...softCard, marginTop: 14, display: 'flex', gap: 10, alignItems: 'flex-start', borderColor: 'color-mix(in srgb, #f59e0b 40%, transparent)', background: 'color-mix(in srgb, #f59e0b 8%, transparent)', fontSize: 13.5 }}>
+              <ShieldAlert size={18} style={{ color: '#f59e0b', flexShrink: 0, marginTop: 1 }} />
+              <span style={{ color: 'var(--text)' }}>{discoverError}</span>
             </div>
           )}
 
@@ -347,7 +384,7 @@ export default function NearbyPlants() {
             </>
           )}
 
-          {view === 'map' && coords && (plants.length > 0 || discovered.length > 0) && (
+          {view === 'map' && coords && (
             <div style={{ marginTop: 16, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(255,255,255,.03)', borderBottom: '1px solid var(--line)', fontSize: 12.5, fontWeight: 700 }}>
                 <span style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text)' }}><span style={{ width: 11, height: 11, borderRadius: '50%', background: 'var(--gold)' }} /> Verified partner</span>

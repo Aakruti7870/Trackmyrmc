@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Crosshair, Search, Loader2 } from 'lucide-react';
+import { Crosshair, Search, Loader2, MapPin } from 'lucide-react';
 
 // Leaflet's default marker images are resolved relative to the CSS and break
 // under bundlers. Point them at the CDN copies once, globally.
@@ -35,6 +35,8 @@ function Recenter({ center }: { center: LatLng }) {
   return null;
 }
 
+interface GeoResult { lat: string; lon: string; display_name: string }
+
 export default function LocationPicker({
   value, onChange,
 }: {
@@ -46,9 +48,20 @@ export default function LocationPicker({
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
   const [note, setNote] = useState('');
+  // Geocoder matches the customer can pick from. We show a short list rather
+  // than silently snapping to the first hit, so an ambiguous address (several
+  // towns with the same name) is resolvable instead of landing on the wrong pin.
+  const [results, setResults] = useState<GeoResult[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Centralise pin updates so every path (search pick, map click, my-location,
+  // drag) also clears the open results list.
+  function pick(p: LatLng) {
+    setResults([]);
+    onChange(p);
+  }
 
   async function search(e: React.FormEvent) {
     e.preventDefault();
@@ -56,17 +69,21 @@ export default function LocationPicker({
     if (!q) return;
     setSearching(true);
     setNote('');
+    setResults([]);
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
       // Free Nominatim geocoder — no API key. Bias results to India.
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=${encodeURIComponent(q)}`;
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=in&q=${encodeURIComponent(q)}`;
       const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
       if (!res.ok) throw new Error('Search failed');
-      const data = (await res.json()) as { lat: string; lon: string }[];
+      const data = (await res.json()) as GeoResult[];
       if (!data.length) { setNote('No match found — try a nearby landmark or drop a pin.'); return; }
-      onChange({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+      // A single confident hit applies straight away; multiple matches are
+      // listed so the customer disambiguates.
+      if (data.length === 1) { pick({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }); }
+      else { setResults(data); }
     } catch (err) {
       if ((err as Error).name !== 'AbortError') setNote('Could not search right now — drop a pin instead.');
     } finally {
@@ -79,7 +96,7 @@ export default function LocationPicker({
     setLocating(true);
     setNote('');
     navigator.geolocation.getCurrentPosition(
-      pos => { onChange({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false); },
+      pos => { pick({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false); },
       () => { setNote('Could not get your location — drop a pin instead.'); setLocating(false); },
       { enableHighAccuracy: true, timeout: 10000 },
     );
@@ -114,6 +131,26 @@ export default function LocationPicker({
         </button>
       </div>
 
+      {results.length > 0 && (
+        <div style={{ marginBottom: 8, border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,.03)' }}>
+          {results.map((r, i) => (
+            <button
+              key={`${r.lat},${r.lon},${i}`}
+              type="button"
+              onClick={() => pick({ lat: parseFloat(r.lat), lng: parseFloat(r.lon) })}
+              style={{
+                display: 'flex', gap: 8, alignItems: 'flex-start', width: '100%', textAlign: 'left',
+                padding: '9px 11px', background: 'transparent', cursor: 'pointer', color: 'var(--text)',
+                border: 'none', borderTop: i ? '1px solid var(--line)' : 'none', fontSize: 12.5, fontWeight: 600,
+              }}
+            >
+              <MapPin size={14} style={{ flexShrink: 0, marginTop: 1, color: 'var(--gold)' }} />
+              <span>{r.display_name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)' }}>
         <MapContainer
           center={[center.lat, center.lng]}
@@ -125,7 +162,7 @@ export default function LocationPicker({
             attribution='&copy; OpenStreetMap contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <ClickCapture onPick={onChange} />
+          <ClickCapture onPick={pick} />
           <Recenter center={center} />
           {value && (
             <Marker
@@ -136,7 +173,7 @@ export default function LocationPicker({
                 dragend(e) {
                   const m = e.target as L.Marker;
                   const ll = m.getLatLng();
-                  onChange({ lat: ll.lat, lng: ll.lng });
+                  pick({ lat: ll.lat, lng: ll.lng });
                 },
               }}
             />
