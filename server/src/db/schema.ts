@@ -400,6 +400,10 @@ export const plants = pgTable('plants', {
   // details (contact, GST, legal name) and flip this true. Customers only ever
   // see verified partners — a lead is never exposed by /nearby.
   verified: boolean('verified').notNull().default(false),
+  // Google Places placeId for plants that entered via the discovery/invite pipeline.
+  // Null for plants added directly by staff without a Places origin.
+  // Used as a first-class duplicate guard on top of coordinate proximity.
+  placeId: text('place_id'),
   deliveryRadiusKm: integer('delivery_radius_km').notNull().default(25),
   grades: text('grades').array().notNull().default(sql`ARRAY[]::text[]`),
   openTime: text('open_time'),   // 'HH:MM' 24h local

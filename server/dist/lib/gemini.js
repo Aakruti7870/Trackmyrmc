@@ -127,6 +127,97 @@ export async function chatComplete(req) {
     }
     return { text: content.trim(), source: 'gemini' };
 }
+const EXTRACT_SYSTEM_PROMPT = `You are a document parser for Indian business registration certificates and GST certificates.
+Extract the following fields from the document and return ONLY a JSON object with no markdown, no explanation:
+{
+  "legalName": "Full legal company / business name or null",
+  "gstNo": "15-character Indian GST number (format: 2 digits + 5 letters + 4 digits + 1 letter + 1 alphanumeric + Z + 1 alphanumeric) or null",
+  "contactNumber": "Primary contact/mobile number including country code if present, digits only, or null",
+  "email": "Primary business email address or null",
+  "confidence": "high if you are confident the document is a GST/registration certificate and data is clearly readable, low if partially readable or uncertain, none if no relevant data found"
+}
+Return ONLY valid JSON. No prose. No code block markers.`;
+export async function extractDocumentFields(input) {
+    const base = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+    const key = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+    const fallback = {
+        legalName: null, gstNo: null, contactNumber: null, email: null,
+        confidence: 'none', warning: 'AI extraction is not available in this environment.',
+    };
+    if (!base || !key)
+        return fallback;
+    let responseText;
+    if (input.type === 'image') {
+        // Use the multimodal generateContent endpoint (same as STT).
+        const url = `${base.replace(/\/$/, '')}/models/${GEMINI_MODEL}:generateContent`;
+        const payload = {
+            contents: [{
+                    role: 'user',
+                    parts: [
+                        { text: EXTRACT_SYSTEM_PROMPT },
+                        { inlineData: { mimeType: input.mimeType, data: input.data } },
+                    ],
+                }],
+            generationConfig: { temperature: 0, maxOutputTokens: 500 },
+        };
+        let res;
+        try {
+            res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+                body: JSON.stringify(payload),
+            });
+        }
+        catch (err) {
+            throw new GeminiError(`Could not reach the extraction service: ${err.message}`, 502);
+        }
+        if (!res.ok)
+            throw new GeminiError(`Extraction service returned an error (${res.status}).`, res.status);
+        const data = (await res.json());
+        responseText = (data?.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('').trim();
+    }
+    else {
+        // Plain-text document — use the OpenAI-compatible chat/completions endpoint.
+        let res;
+        try {
+            res = await fetch(`${base.replace(/\/$/, '')}/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+                body: JSON.stringify({
+                    model: GEMINI_MODEL,
+                    messages: [
+                        { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
+                        { role: 'user', content: input.data.slice(0, 8000) },
+                    ],
+                    temperature: 0,
+                    max_tokens: 500,
+                }),
+            });
+        }
+        catch (err) {
+            throw new GeminiError(`Could not reach the extraction service: ${err.message}`, 502);
+        }
+        if (!res.ok)
+            throw new GeminiError(`Extraction service returned an error (${res.status}).`, res.status);
+        const data = (await res.json());
+        responseText = (data?.choices?.[0]?.message?.content ?? '').trim();
+    }
+    // Strip any accidental markdown fences the model may add.
+    const cleaned = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+    try {
+        const parsed = JSON.parse(cleaned);
+        return {
+            legalName: typeof parsed.legalName === 'string' && parsed.legalName.trim() ? parsed.legalName.trim() : null,
+            gstNo: typeof parsed.gstNo === 'string' && parsed.gstNo.trim() ? parsed.gstNo.trim().toUpperCase() : null,
+            contactNumber: typeof parsed.contactNumber === 'string' && parsed.contactNumber.trim() ? parsed.contactNumber.trim() : null,
+            email: typeof parsed.email === 'string' && parsed.email.trim() ? parsed.email.trim().toLowerCase() : null,
+            confidence: ['high', 'low', 'none'].includes(parsed.confidence) ? parsed.confidence : 'low',
+        };
+    }
+    catch {
+        throw new GeminiError('The AI service returned an unreadable response. Please try again.', 502);
+    }
+}
 // Streaming variant of chatComplete. Yields incremental text deltas as they
 // arrive from the model and returns the final ChatResult when complete. When the
 // integration is not configured it yields the deterministic fallback as a single

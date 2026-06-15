@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users, HandHeart, Inbox } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users, HandHeart, Inbox, Sparkles, Upload, AlertTriangle, CheckCircle2, Copy } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
@@ -73,16 +73,46 @@ const ALL_GRADES = ['M-15', 'M-20', 'M-25', 'M-30', 'M-35', 'M-40', 'M-45', 'M-5
 interface FormState {
   name: string; legalName: string; gstNo: string; email: string;
   address: string; city: string; contactNumber: string;
-  latitude: string; longitude: string; plantStatus: PlantStatus;
+  latitude: string; longitude: string;
+  // Google Places placeId — populated when onboarding via a customer invite.
+  // Persisted on the plant for de-duplication on the server.
+  placeId: string;
+  plantStatus: PlantStatus;
   isActive: boolean; locationVerified: boolean; verified: boolean; deliveryRadiusKm: number;
   grades: string[]; openTime: string; closeTime: string;
 }
 
 const emptyForm: FormState = {
   name: '', legalName: '', gstNo: '', email: '', address: '', city: '', contactNumber: '', latitude: '', longitude: '',
+  placeId: '',
   plantStatus: 'pending', isActive: true, locationVerified: false, verified: false, deliveryRadiusKm: 25,
   grades: [], openTime: '06:00', closeTime: '20:00',
 };
+
+const GST_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+function isValidGst(gst: string): boolean {
+  return GST_RE.test(gst.trim().toUpperCase());
+}
+
+interface AutoInviteLink {
+  name: string;
+  email: string;
+  inviteUrl?: string;
+}
+
+interface AutoInviteError {
+  email: string;
+  reason: string;
+}
+
+interface ExtractedFields {
+  legalName: string | null;
+  gstNo: string | null;
+  contactNumber: string | null;
+  email: string | null;
+  confidence: 'high' | 'low' | 'none';
+  warning?: string;
+}
 
 // A plant is a verified partner once company details are confirmed and staff flip
 // `verified`. Everything else is still an onboarding lead, even if approved/active.
@@ -135,6 +165,16 @@ export default function Plants() {
   const [busyLoginId, setBusyLoginId] = useState<number | null>(null);
   // Fallback link shown when an invite was created but the email couldn't be sent.
   const [ownerInviteUrl, setOwnerInviteUrl] = useState('');
+  // AI document extraction state.
+  const [showDocPanel, setShowDocPanel] = useState(false);
+  const [docText, setDocText] = useState('');
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState('');
+  const [extractWarning, setExtractWarning] = useState('');
+  const [autoFilled, setAutoFilled] = useState<Set<string>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Auto-invite notification shown after verification.
+  const [autoInviteResult, setAutoInviteResult] = useState<{ sent: number; links: AutoInviteLink[]; errors?: AutoInviteError[] } | null>(null);
 
   function load() {
     api.get<Plant[]>('/plants')
@@ -178,7 +218,8 @@ export default function Plants() {
   }
 
   // Prefill the Add-Plant form from a customer's onboarding request so staff can
-  // turn the lead into a real plant in one step.
+  // turn the lead into a real plant in one step. The placeId is carried over so
+  // the server can enforce the per-placeId duplicate guard on verify.
   function onboardInvite(inv: PlantInvite) {
     setForm({
       ...emptyForm,
@@ -187,22 +228,117 @@ export default function Plants() {
       contactNumber: inv.contactNumber ?? '',
       latitude: inv.latitude ?? '',
       longitude: inv.longitude ?? '',
+      placeId: inv.placeId ?? '',
     });
     setEditId(null);
+    resetExtractionState();
+    setAutoInviteResult(null);
     setShowForm(true);
   }
 
-  function openCreate() { setForm(emptyForm); setEditId(null); setShowForm(true); }
+  function resetExtractionState() {
+    setShowDocPanel(false);
+    setDocText('');
+    setExtractError('');
+    setExtractWarning('');
+    setAutoFilled(new Set());
+  }
+
+  function openCreate() {
+    setForm(emptyForm);
+    setEditId(null);
+    resetExtractionState();
+    setAutoInviteResult(null);
+    setShowForm(true);
+  }
+
   function openEdit(p: Plant) {
     setForm({
       name: p.name, legalName: p.legalName ?? '', gstNo: p.gstNo ?? '', email: p.email ?? '',
       address: p.address ?? '', city: p.city ?? '', contactNumber: p.contactNumber ?? '',
-      latitude: p.latitude, longitude: p.longitude, plantStatus: p.plantStatus,
+      latitude: p.latitude, longitude: p.longitude,
+      placeId: (p as Plant & { placeId?: string }).placeId ?? '',
+      plantStatus: p.plantStatus,
       isActive: p.isActive, locationVerified: p.locationVerified, verified: p.verified, deliveryRadiusKm: p.deliveryRadiusKm,
       grades: p.grades, openTime: p.openTime ?? '', closeTime: p.closeTime ?? '',
     });
     setEditId(p.id);
+    resetExtractionState();
+    setAutoInviteResult(null);
     setShowForm(true);
+  }
+
+  // AI document extraction: upload an image, reference an object-storage path, or paste text to auto-fill form fields.
+  async function extractDocument(input: { type: 'image'; data: string; mimeType: string } | { type: 'text'; data: string } | { type: 'object'; objectPath: string; mimeType: string }) {
+    setExtracting(true);
+    setExtractError('');
+    setExtractWarning('');
+    try {
+      const result = await api.post<ExtractedFields>('/plants/extract-doc', input);
+      if (result.confidence === 'none') {
+        setExtractError('No registration or GST data found in the document. Please try a clearer image or paste the text instead.');
+        return;
+      }
+      // Map extracted fields onto the form, only overwriting empty fields or all
+      // fields depending on what was found. Track which keys were auto-populated.
+      const filled = new Set<string>();
+      setForm(f => {
+        const next = { ...f };
+        if (result.legalName && !f.legalName.trim()) { next.legalName = result.legalName; filled.add('legalName'); }
+        if (result.gstNo && !f.gstNo.trim()) { next.gstNo = result.gstNo; filled.add('gstNo'); }
+        if (result.contactNumber && !f.contactNumber.trim()) { next.contactNumber = result.contactNumber; filled.add('contactNumber'); }
+        if (result.email && !f.email.trim()) { next.email = result.email; filled.add('email'); }
+        return next;
+      });
+      setAutoFilled(prev => new Set([...prev, ...filled]));
+      if (result.confidence === 'low') {
+        setExtractWarning(result.warning ?? 'Some fields may be inaccurate — the document was partially readable. Please verify the auto-filled values.');
+      }
+      if (filled.size === 0) {
+        setExtractWarning('All fields were already filled. No changes were made from the document.');
+      }
+      setShowDocPanel(false);
+      setDocText('');
+    } catch (err) {
+      setExtractError((err as Error).message || 'Document extraction failed. Please try again.');
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset the input so the same file can be re-selected.
+    e.target.value = '';
+
+    const mimeType = file.type || 'application/octet-stream';
+    setExtracting(true);
+    setExtractError('');
+    setExtractWarning('');
+
+    try {
+      // 1. Get a presigned PUT URL from the server.
+      const { uploadURL, objectPath } = await api.post<{ uploadURL: string; objectPath: string }>(
+        '/plants/extract-doc/upload-url', {},
+      );
+
+      // 2. Upload the file directly to object storage via the presigned URL.
+      const uploadRes = await fetch(uploadURL, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: file,
+      });
+      if (!uploadRes.ok) {
+        throw new Error(`Upload failed (${uploadRes.status}). Please try again.`);
+      }
+
+      // 3. Ask the server to extract fields from the stored object.
+      await extractDocument({ type: 'object', objectPath, mimeType });
+    } catch (err) {
+      setExtractError((err as Error).message || 'File upload failed. Please try again.');
+      setExtracting(false);
+    }
   }
 
   function openOwner(p: Plant) {
@@ -306,6 +442,11 @@ export default function Plants() {
       setError('Name and map location are required.');
       return;
     }
+    // Client-side GST format validation when about to verify.
+    if (form.verified && form.gstNo.trim() && !isValidGst(form.gstNo)) {
+      setError(`"${form.gstNo.trim()}" is not a valid Indian GST number (format: 29ABCDE1234F1Z5).`);
+      return;
+    }
     // Verifying publishes to the customer-facing directory — warn if onboarding
     // details are still missing before saving the verified flag.
     if (form.verified) {
@@ -323,9 +464,18 @@ export default function Plants() {
     setError('');
     const payload = { ...form, deliveryRadiusKm: Number(form.deliveryRadiusKm) || 0 };
     try {
-      if (editId != null) await api.put(`/plants/${editId}`, payload);
-      else await api.post('/plants', payload);
+      let res: Plant & { autoInvitesSent?: number; autoInviteLinks?: AutoInviteLink[]; autoInviteErrors?: AutoInviteError[] };
+      if (editId != null) {
+        res = await api.put<typeof res>(`/plants/${editId}`, payload);
+      } else {
+        res = await api.post<typeof res>('/plants', payload);
+      }
       setShowForm(false);
+      resetExtractionState();
+      // Show auto-invite notification whenever the server processed invites (sent or failed).
+      if ((res.autoInvitesSent && res.autoInvitesSent > 0) || res.autoInviteErrors?.length) {
+        setAutoInviteResult({ sent: res.autoInvitesSent ?? 0, links: res.autoInviteLinks ?? [], errors: res.autoInviteErrors });
+      }
       load();
     } catch (err) {
       setError((err as Error).message || 'Could not save plant.');
@@ -353,7 +503,10 @@ export default function Plants() {
   async function patch(p: Plant, changes: Partial<Plant>) {
     setError('');
     try {
-      await api.put(`/plants/${p.id}`, changes);
+      const res = await api.put<Plant & { autoInvitesSent?: number; autoInviteLinks?: AutoInviteLink[]; autoInviteErrors?: AutoInviteError[] }>(`/plants/${p.id}`, changes);
+      if ((res.autoInvitesSent && res.autoInvitesSent > 0) || res.autoInviteErrors?.length) {
+        setAutoInviteResult({ sent: res.autoInvitesSent ?? 0, links: res.autoInviteLinks ?? [], errors: res.autoInviteErrors });
+      }
       load();
     } catch (err) { setError((err as Error).message); }
   }
@@ -491,22 +644,128 @@ export default function Plants() {
 
       {showForm && (
         <div onClick={() => setShowForm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 14px', zIndex: 1000, overflowY: 'auto' }}>
-          <form onClick={e => e.stopPropagation()} onSubmit={save} style={{ width: 'min(620px, 100%)', background: 'var(--card, #0d1828)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
+          <form onClick={e => e.stopPropagation()} onSubmit={save} style={{ width: 'min(660px, 100%)', background: 'var(--card, #0d1828)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--text)' }}>{editId != null ? 'Edit Plant' : 'Add Plant'}</h2>
-              <button type="button" onClick={() => setShowForm(false)} style={iconBtn}><X size={18} /></button>
+              <button type="button" onClick={() => { setShowForm(false); resetExtractionState(); }} style={iconBtn}><X size={18} /></button>
+            </div>
+
+            {/* AI Document Extraction Panel */}
+            <div style={{ ...softCard, marginBottom: 16, borderColor: showDocPanel ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'var(--line)', background: showDocPanel ? 'rgba(247,201,72,.04)' : 'rgba(255,255,255,.02)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Sparkles size={15} style={{ color: 'var(--gold)' }} />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Extract from GST/registration document</span>
+                  {autoFilled.size > 0 && (
+                    <span style={{ ...badge('var(--green)'), fontSize: 10 }}>
+                      <CheckCircle2 size={10} /> {autoFilled.size} field{autoFilled.size > 1 ? 's' : ''} auto-filled
+                    </span>
+                  )}
+                </div>
+                <button type="button" onClick={() => setShowDocPanel(v => !v)} style={{ ...chip(showDocPanel, 'var(--gold)'), fontSize: 12, padding: '4px 10px' }}>
+                  {showDocPanel ? 'Hide' : 'Open'}
+                </button>
+              </div>
+
+              {showDocPanel && (
+                <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
+                  <p style={{ margin: 0, fontSize: 12.5, color: 'var(--muted)' }}>
+                    Upload a photo/scan of the GST certificate, or paste the document text below. AI will extract the legal name, GST number, contact, and email automatically. Only empty fields are overwritten — verify the filled values.
+                  </p>
+
+                  {/* File upload */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
+                      style={{ display: 'none' }}
+                      onChange={handleFileUpload}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={extracting}
+                      style={{ ...chip(false, 'var(--blue)'), opacity: extracting ? 0.6 : 1 }}
+                    >
+                      <Upload size={13} /> Upload image / PDF
+                    </button>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>or paste text below</span>
+                  </div>
+
+                  {/* Paste text */}
+                  <textarea
+                    value={docText}
+                    onChange={e => setDocText(e.target.value)}
+                    placeholder="Paste the text content of the document here…"
+                    rows={5}
+                    style={{ ...input, resize: 'vertical', fontFamily: 'inherit', fontSize: 12.5 }}
+                  />
+
+                  {extractError && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, color: 'var(--red)', fontSize: 12.5 }}>
+                      <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} /> {extractError}
+                    </div>
+                  )}
+                  {extractWarning && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, color: 'var(--gold)', fontSize: 12.5 }}>
+                      <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} /> {extractWarning}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      disabled={!docText.trim() || extracting}
+                      onClick={() => extractDocument({ type: 'text', data: docText })}
+                      style={{ ...primaryBtn, opacity: (!docText.trim() || extracting) ? 0.5 : 1, fontSize: 12.5, padding: '7px 13px' }}
+                    >
+                      <Sparkles size={13} /> {extracting ? 'Extracting…' : 'Extract fields'}
+                    </button>
+                    {(docText || extractError || extractWarning) && (
+                      <button type="button" onClick={() => { setDocText(''); setExtractError(''); setExtractWarning(''); }} style={{ ...ghostBtn, fontSize: 12.5, padding: '7px 13px' }}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gap: 12 }}>
               <Field label="Plant name *"><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={input} /></Field>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <Field label="Legal / company name"><input value={form.legalName} onChange={e => setForm(f => ({ ...f, legalName: e.target.value }))} style={input} placeholder="Printed on challans" /></Field>
-                <Field label="GST number"><input value={form.gstNo} onChange={e => setForm(f => ({ ...f, gstNo: e.target.value }))} style={input} /></Field>
+                <AiField label="Legal / company name" aiField="legalName" autoFilled={autoFilled} onClearAi={k => setAutoFilled(s => { const n = new Set(s); n.delete(k); return n; })}>
+                  <input value={form.legalName} onChange={e => { setForm(f => ({ ...f, legalName: e.target.value })); setAutoFilled(s => { const n = new Set(s); n.delete('legalName'); return n; }); }} style={input} placeholder="Printed on challans" />
+                </AiField>
+                <AiField label="GST number" aiField="gstNo" autoFilled={autoFilled} onClearAi={k => setAutoFilled(s => { const n = new Set(s); n.delete(k); return n; })}>
+                  <div>
+                    <input
+                      value={form.gstNo}
+                      onChange={e => { setForm(f => ({ ...f, gstNo: e.target.value.toUpperCase() })); setAutoFilled(s => { const n = new Set(s); n.delete('gstNo'); return n; }); }}
+                      style={{ ...input, borderColor: form.gstNo.trim() && !isValidGst(form.gstNo) ? 'color-mix(in srgb, var(--red) 60%, transparent)' : undefined }}
+                      placeholder="e.g. 29ABCDE1234F1Z5"
+                      maxLength={15}
+                    />
+                    {form.gstNo.trim() && !isValidGst(form.gstNo) && (
+                      <span style={{ display: 'block', fontSize: 11.5, color: 'var(--red)', marginTop: 4 }}>
+                        Invalid GST format — must be 15 characters (e.g. 29ABCDE1234F1Z5)
+                      </span>
+                    )}
+                    {form.gstNo.trim() && isValidGst(form.gstNo) && (
+                      <span style={{ display: 'block', fontSize: 11.5, color: 'var(--green)', marginTop: 4 }}>✓ Valid GST format</span>
+                    )}
+                  </div>
+                </AiField>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                 <Field label="City"><input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} style={input} /></Field>
-                <Field label="Contact number"><input value={form.contactNumber} onChange={e => setForm(f => ({ ...f, contactNumber: e.target.value }))} style={input} /></Field>
-                <Field label="Email"><input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={input} /></Field>
+                <AiField label="Contact number" aiField="contactNumber" autoFilled={autoFilled} onClearAi={k => setAutoFilled(s => { const n = new Set(s); n.delete(k); return n; })}>
+                  <input value={form.contactNumber} onChange={e => { setForm(f => ({ ...f, contactNumber: e.target.value })); setAutoFilled(s => { const n = new Set(s); n.delete('contactNumber'); return n; }); }} style={input} />
+                </AiField>
+                <AiField label="Email" aiField="email" autoFilled={autoFilled} onClearAi={k => setAutoFilled(s => { const n = new Set(s); n.delete(k); return n; })}>
+                  <input type="email" value={form.email} onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setAutoFilled(s => { const n = new Set(s); n.delete('email'); return n; }); }} style={input} />
+                </AiField>
               </div>
               <Field label="Address"><input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} style={input} /></Field>
 
@@ -558,12 +817,69 @@ export default function Plants() {
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-              <button type="button" onClick={() => setShowForm(false)} style={ghostBtn}>Cancel</button>
+              <button type="button" onClick={() => { setShowForm(false); resetExtractionState(); }} style={ghostBtn}>Cancel</button>
               <button type="submit" disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
                 <MapPin size={15} /> {saving ? 'Saving…' : editId != null ? 'Save changes' : 'Add plant'}
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Auto-invite notification shown after a plant is verified and invites are processed */}
+      {autoInviteResult && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '8vh 14px', zIndex: 1100 }}>
+          <div style={{ width: 'min(480px, 100%)', background: 'var(--card, #0d1828)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle2 size={18} style={{ color: 'var(--green)' }} /> Plant verified
+              </h2>
+              <button type="button" onClick={() => setAutoInviteResult(null)} style={iconBtn}><X size={16} /></button>
+            </div>
+            <p style={{ margin: '0 0 14px', fontSize: 13.5, color: 'var(--muted)' }}>
+              The plant is now published to the customer-facing marketplace.{' '}
+              {autoInviteResult.sent === 0 ? (
+                <>No pending-invite accounts found — owners already have passwords or none are provisioned.</>
+              ) : autoInviteResult.sent === 1 ? (
+                <>A password-setup invite was automatically sent to <strong style={{ color: 'var(--text)' }}>1 owner</strong>.</>
+              ) : (
+                <>Password-setup invites were automatically sent to <strong style={{ color: 'var(--text)' }}>{autoInviteResult.sent} owners</strong>.</>
+              )}
+            </p>
+            {autoInviteResult.links.some(l => l.inviteUrl) && (
+              <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--gold)', fontWeight: 700 }}>
+                  Email could not be sent — share the secure link manually:
+                </p>
+                {autoInviteResult.links.filter(l => l.inviteUrl).map((l, i) => (
+                  <div key={i} style={{ ...softCard, padding: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{l.name} — {l.email}</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input readOnly value={l.inviteUrl} onFocus={e => e.currentTarget.select()} style={{ ...input, fontSize: 11.5 }} />
+                      <button type="button" onClick={() => navigator.clipboard?.writeText(l.inviteUrl!)} style={{ ...ghostBtn, padding: '6px 10px', fontSize: 12 }}>
+                        <Copy size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {autoInviteResult.errors && autoInviteResult.errors.length > 0 && (
+              <div style={{ display: 'grid', gap: 8, marginBottom: 14, padding: 12, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.3)', borderRadius: 10 }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#ef4444', fontWeight: 700 }}>
+                  Invite failed for {autoInviteResult.errors.length === 1 ? '1 account' : `${autoInviteResult.errors.length} accounts`} — action required:
+                </p>
+                {autoInviteResult.errors.map((e, i) => (
+                  <div key={i} style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                    <span style={{ color: 'var(--text)', fontWeight: 600 }}>{e.email}</span> — {e.reason}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+              <button type="button" onClick={() => setAutoInviteResult(null)} style={primaryBtn}>Done</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -787,6 +1103,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>{label}</span>
       {children}
     </label>
+  );
+}
+
+function AiField({ label, aiField, autoFilled, onClearAi, children }: {
+  label: string; aiField: string; autoFilled: Set<string>;
+  onClearAi: (key: string) => void; children: React.ReactNode;
+}) {
+  const isFilled = autoFilled.has(aiField);
+  return (
+    <div style={{ display: 'block' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: isFilled ? 'var(--gold)' : 'var(--muted)' }}>{label}</span>
+        {isFilled && (
+          <span
+            title="Auto-filled by AI — verify this value"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 800, letterSpacing: '0.3px', color: 'var(--gold)', background: 'color-mix(in srgb, var(--gold) 14%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', borderRadius: 20, padding: '1px 7px', cursor: 'default' }}>
+            <Sparkles size={9} /> AI
+          </span>
+        )}
+        {isFilled && (
+          <button type="button" onClick={() => onClearAi(aiField)}
+            title="Clear AI badge"
+            style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', lineHeight: 1, fontSize: 10 }}>
+            ×
+          </button>
+        )}
+      </div>
+      {children}
+    </div>
   );
 }
 

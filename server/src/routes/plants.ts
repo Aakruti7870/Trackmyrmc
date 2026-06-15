@@ -1,8 +1,8 @@
 import { Router, type RequestHandler } from 'express';
-import { eq, and, isNull, sql, inArray } from 'drizzle-orm';
+import { eq, and, isNull, sql, inArray, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { plants, users, auditLogs, plantInvites } from '../db/schema.js';
+import { plants, users, auditLogs, plantInvites, passwordSetupTokens } from '../db/schema.js';
 import { randomBytes } from 'node:crypto';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { hashPassword } from '../lib/password.js';
@@ -17,6 +17,8 @@ import { rateLimit } from '../lib/rateLimit.js';
 import { discoverConcretePlants, isDiscoveryConfigured } from '../lib/places.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { canCreateRole, roleLimit, isPlatformStaff } from '../lib/roleHierarchy.js';
+import { extractDocumentFields, isGeminiConfigured } from '../lib/gemini.js';
+import { ObjectStorageService } from '../replit_integrations/object_storage/index.js';
 
 // Build the public base URL the owner-invite link points at. Prefers an
 // explicit env override (so emails work behind a custom domain in production),
@@ -377,6 +379,121 @@ router.post('/invite', async (req, res) => {
 });
 
 // Staff-only: the queue of submitted invites, most-requested / most-recent first.
+// ---------------------------------------------------------------------------
+// AI document extraction — staff upload a GST / registration certificate image
+// (base64) or paste raw text; Gemini extracts the key onboarding fields and
+// returns them so the form can be pre-filled without retyping.
+// ---------------------------------------------------------------------------
+
+const EXTRACT_DOC_MIME_WHITELIST = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/heic',
+  'application/pdf',
+]);
+
+const extractDocSchema = z.union([
+  z.object({
+    type: z.literal('image'),
+    data: z.string().min(1, 'image data is required'),
+    mimeType: z.string().min(1, 'mimeType is required'),
+  }),
+  z.object({
+    type: z.literal('text'),
+    data: z.string().min(1, 'text content is required').max(20_000),
+  }),
+  z.object({
+    // Client uploads the file to object storage via presigned URL (from
+    // /extract-doc/upload-url) then sends the returned objectPath here.
+    // Server reads the bytes from storage and passes them to Gemini — avoids
+    // large base64 payloads transiting the API server.
+    type: z.literal('object'),
+    objectPath: z.string().min(1, 'objectPath is required').startsWith('/objects/'),
+    mimeType: z.string().min(1, 'mimeType is required'),
+  }),
+]);
+
+// Mints a presigned PUT URL for direct client → object-storage upload of a
+// GST/registration document. The client uploads the file there, then sends the
+// returned objectPath to POST /extract-doc for AI extraction.
+router.post('/extract-doc/upload-url', ADMIN, platformStaffOnly, async (_req, res) => {
+  try {
+    const svc = new ObjectStorageService();
+    const uploadURL = await svc.getObjectEntityUploadURL();
+    const objectPath = svc.normalizeObjectEntityPath(uploadURL);
+    res.json({ uploadURL, objectPath });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create document upload URL.' });
+    console.error('[plants] extract-doc upload URL error:', err);
+  }
+});
+
+router.post('/extract-doc', ADMIN, platformStaffOnly, async (req, res) => {
+  const parse = extractDocSchema.safeParse(req.body);
+  if (!parse.success) {
+    res.status(400).json({ error: parse.error.flatten().fieldErrors });
+    return;
+  }
+
+  if (!isGeminiConfigured()) {
+    res.status(503).json({
+      error: 'AI document extraction is not configured. Please contact your platform administrator.',
+      configured: false,
+    });
+    return;
+  }
+
+  const input = parse.data;
+
+  if (input.type === 'image') {
+    if (!EXTRACT_DOC_MIME_WHITELIST.has(input.mimeType)) {
+      res.status(400).json({ error: `Unsupported file type "${input.mimeType}". Please upload a JPEG, PNG, WebP, HEIC, or PDF.` });
+      return;
+    }
+    // Cap at ~9MB of base64 (≈ 6.7MB binary).
+    if (input.data.length > 9_000_000) {
+      res.status(400).json({ error: 'Document is too large. Please upload a file under ~6 MB.' });
+      return;
+    }
+  }
+
+  if (input.type === 'object') {
+    if (!EXTRACT_DOC_MIME_WHITELIST.has(input.mimeType)) {
+      res.status(400).json({ error: `Unsupported file type "${input.mimeType}". Please upload a JPEG, PNG, WebP, HEIC, or PDF.` });
+      return;
+    }
+    // Resolve the object-storage path to bytes via the GCS File handle, then
+    // re-invoke extraction as an image input.
+    try {
+      const svc = new ObjectStorageService();
+      const gcsFile = await svc.getObjectEntityFile(input.objectPath);
+      // .download() resolves the GCS File handle into raw bytes ([Buffer]).
+      const [buffer] = await gcsFile.download();
+      if (buffer.length > 9_000_000) {
+        res.status(400).json({ error: 'Document is too large. Please upload a file under ~6 MB.' });
+        return;
+      }
+      const imageInput = { type: 'image' as const, data: buffer.toString('base64'), mimeType: input.mimeType };
+      const fields = await extractDocumentFields(imageInput);
+      res.json(fields);
+    } catch (err) {
+      if ((err as { code?: string }).code === 'NOT_FOUND') {
+        res.status(404).json({ error: 'Uploaded document not found. Please try uploading again.' });
+      } else {
+        const status = (err as { status?: number }).status ?? 502;
+        res.status(status).json({ error: (err as Error).message ?? 'Document extraction failed.' });
+      }
+    }
+    return;
+  }
+
+  try {
+    const fields = await extractDocumentFields(input);
+    res.json(fields);
+  } catch (err) {
+    const status = (err as { status?: number }).status ?? 502;
+    res.status(status).json({ error: (err as Error).message ?? 'Document extraction failed.' });
+  }
+});
+
 router.get('/invites', ADMIN, platformStaffOnly, async (_req, res) => {
   const rows = await db
     .select()
@@ -429,6 +546,7 @@ function parseBody(body: Record<string, unknown>) {
   if (body.contactNumber !== undefined) out.contactNumber = body.contactNumber === null ? null : String(body.contactNumber);
   if (body.latitude !== undefined) out.latitude = String(body.latitude);
   if (body.longitude !== undefined) out.longitude = String(body.longitude);
+  if (body.placeId !== undefined) out.placeId = optStr(body.placeId);
   if (body.plantStatus !== undefined) out.plantStatus = body.plantStatus;
   if (body.isActive !== undefined) out.isActive = Boolean(body.isActive);
   if (body.locationVerified !== undefined) out.locationVerified = Boolean(body.locationVerified);
@@ -440,18 +558,197 @@ function parseBody(body: Record<string, unknown>) {
   return out;
 }
 
+// Shared verify-time checks (GST format, placeId dupe, near-coordinate dupe)
+// and auto-invite dispatch. Both POST / (create-with-verified=true) and
+// PUT /:id (flip verified false→true) must pass through this helper.
+// Returns null on success or an already-sent error response (caller should return).
+async function runVerifyChecks(
+  req: import('express').Request,
+  res: import('express').Response,
+  data: Record<string, unknown>,
+  currentPlantId: number | null,   // null when creating
+): Promise<{ autoInvitesSent: number; autoInviteLinks: { name: string; email: string; inviteUrl?: string }[] } | false> {
+  // 1. GST format validation (only when gstNo is provided).
+  if (data.gstNo && typeof data.gstNo === 'string' && !validateGst(data.gstNo)) {
+    res.status(422).json({ error: `"${data.gstNo}" is not a valid Indian GST number (format: 29ABCDE1234F1Z5).` });
+    return false;
+  }
+
+  // 2. Duplicate guard by placeId (if this plant has a placeId and another
+  //    verified plant already claims the same one).
+  if (data.placeId && typeof data.placeId === 'string') {
+    const existingById = await db
+      .select({ id: plants.id, name: plants.name })
+      .from(plants)
+      .where(and(
+        eq(plants.placeId, data.placeId),
+        eq(plants.verified, true),
+        ...(currentPlantId ? [ne(plants.id, currentPlantId)] : []),
+      ));
+    if (existingById.length > 0) {
+      res.status(409).json({
+        error: `Another verified plant ("${existingById[0].name}") is already registered for this Google Places location. Did you mean to edit it instead?`,
+        duplicatePlantId: existingById[0].id,
+        duplicatePlantName: existingById[0].name,
+      });
+      return false;
+    }
+  }
+
+  // 3. Near-coordinate duplicate guard (< 0.3 km vs any other verified plant).
+  const DUPE_KM = 0.3;
+  if (data.latitude !== undefined && data.longitude !== undefined) {
+    const effLat = parseFloat(String(data.latitude));
+    const effLng = parseFloat(String(data.longitude));
+    const verifiedOthers = await db
+      .select({ id: plants.id, name: plants.name, latitude: plants.latitude, longitude: plants.longitude })
+      .from(plants)
+      .where(and(
+        eq(plants.verified, true),
+        ...(currentPlantId ? [ne(plants.id, currentPlantId)] : []),
+      ));
+    const dupe = verifiedOthers.find(o =>
+      haversineKm(effLat, effLng, parseFloat(o.latitude), parseFloat(o.longitude)) < DUPE_KM,
+    );
+    if (dupe) {
+      res.status(409).json({
+        error: `Another verified plant ("${dupe.name}") is already registered at a very similar location (< ${DUPE_KM * 1000} m away). ` +
+          `Please confirm this is a different physical plant before verifying.`,
+        duplicatePlantId: dupe.id,
+        duplicatePlantName: dupe.name,
+      });
+      return false;
+    }
+  }
+
+  return { autoInvitesSent: 0, autoInviteLinks: [] };
+}
+
+// Shared auto-invite logic: send (or re-send) a password-setup invite to every
+// active plant_owner or plant-scoped admin account provisioned for this plant
+// who was created via the invite flow (has a pending passwordSetupTokens row).
+// Users with no token row have a direct password — they must not receive an invite.
+// Idempotent: createInviteToken replaces any previously unused token.
+interface AutoInviteResult {
+  autoInvitesSent: number;
+  autoInviteLinks: { name: string; email: string; inviteUrl?: string }[];
+  // Populated when one or more invite preparations fail; each entry carries the
+  // user's email and a human-readable reason so the UI can surface fallback
+  // instructions rather than silently dropping an owner.
+  autoInviteErrors?: { email: string; reason: string }[];
+}
+
+async function runAutoInvite(
+  req: import('express').Request,
+  plantId: number,
+): Promise<AutoInviteResult> {
+  const autoInviteLinks: AutoInviteResult['autoInviteLinks'] = [];
+  const autoInviteErrors: { email: string; reason: string }[] = [];
+  let autoInvitesSent = 0;
+
+  let ownerUsers: { id: number; name: string; email: string; role: string }[] = [];
+  try {
+    // Target plant_owner and plant-scoped admin accounts (provisioning UI defaults to admin).
+    ownerUsers = await db
+      .select({ id: users.id, name: users.name, email: users.email, role: users.role })
+      .from(users)
+      .where(and(
+        eq(users.plantId, plantId),
+        inArray(users.role, ['plant_owner', 'admin']),
+        isNull(users.deletedAt),
+        eq(users.isActive, true),
+      ));
+  } catch (err) {
+    // DB query failure — surface as a structured error so the caller can include
+    // it in the response and staff know auto-invite didn't run.
+    console.error('[plants] Auto-invite: owner query failed:', err);
+    return {
+      autoInvitesSent: 0,
+      autoInviteLinks: [],
+      autoInviteErrors: [{ email: '(all)', reason: 'Could not query plant users. Please send invites manually.' }],
+    };
+  }
+
+  for (const u of ownerUsers) {
+    try {
+      // Only invite users who have a pending (not-yet-redeemed) token row.
+      // No token row = account was created with a direct password → skip.
+      // Used token = already set their password → skip.
+      const [pendingToken] = await db
+        .select({ id: passwordSetupTokens.id })
+        .from(passwordSetupTokens)
+        .where(and(
+          eq(passwordSetupTokens.userId, u.id),
+          isNull(passwordSetupTokens.usedAt),
+        ));
+      if (!pendingToken) continue;
+
+      const { token, expiresAt } = await createInviteToken(u.id);
+      const inviteUrl = `${appBaseUrl(req)}/set-password?token=${token}`;
+      let emailSent = false;
+      try {
+        emailSent = await sendOwnerInviteEmail(u.email, u.name, u.role, inviteUrl, expiresAt);
+      } catch { /* Non-fatal: fallback invite link is returned in the response */ }
+      autoInvitesSent++;
+      // When email delivery fails, include the raw invite URL so staff can copy
+      // and forward it manually without needing to re-trigger the flow.
+      autoInviteLinks.push({ name: u.name, email: u.email, ...(emailSent ? {} : { inviteUrl }) });
+    } catch (err) {
+      console.error(`[plants] Auto-invite: token creation failed for ${u.email}:`, err);
+      autoInviteErrors.push({ email: u.email, reason: 'Token generation failed. Use "Resend invite" to retry.' });
+    }
+  }
+
+  return {
+    autoInvitesSent,
+    autoInviteLinks,
+    ...(autoInviteErrors.length > 0 ? { autoInviteErrors } : {}),
+  };
+}
+
 router.post('/', ADMIN, platformStaffOnly, async (req, res) => {
   const data = parseBody(req.body ?? {});
   if (!data.name || data.latitude === undefined || data.longitude === undefined) {
     res.status(400).json({ error: 'name, latitude and longitude are required' });
     return;
   }
+
+  // When creating as already-verified, enforce the same field completeness and
+  // duplicate guards that the PUT endpoint uses on a false→true transition.
+  if (data.verified === true) {
+    const missing = missingVerifyFields(data);
+    if (missing.length > 0) {
+      res.status(422).json({ error: `Cannot verify plant: missing required field(s): ${missing.join(', ')}.` });
+      return;
+    }
+    const guardResult = await runVerifyChecks(req, res, data, null);
+    if (guardResult === false) return;
+  }
+
+  let row: typeof plants.$inferSelect;
   try {
-    const [row] = await db.insert(plants).values(data as typeof plants.$inferInsert).returning();
-    res.status(201).json(row);
+    [row] = await db.insert(plants).values(data as typeof plants.$inferInsert).returning();
   } catch {
     res.status(409).json({ error: 'A plant with this name already exists' });
+    return;
   }
+
+  // Auto-invite plant_owner / admin accounts if the plant was created as verified.
+  let autoInvitesSent = 0;
+  let autoInviteLinks: { name: string; email: string; inviteUrl?: string }[] = [];
+  let autoInviteErrors: { email: string; reason: string }[] | undefined;
+  if (data.verified === true) {
+    const inviteResult = await runAutoInvite(req, row.id);
+    autoInvitesSent = inviteResult.autoInvitesSent;
+    autoInviteLinks = inviteResult.autoInviteLinks;
+    autoInviteErrors = inviteResult.autoInviteErrors;
+  }
+
+  res.status(201).json({
+    ...row,
+    ...(autoInvitesSent > 0 ? { autoInvitesSent, autoInviteLinks } : {}),
+    ...(autoInviteErrors?.length ? { autoInviteErrors } : {}),
+  });
 });
 
 // The company details that must be present before a plant can be published to
@@ -468,19 +765,31 @@ function missingVerifyFields(src: {
   return checks.filter(([v]) => v == null || !String(v).trim()).map(([, label]) => label);
 }
 
+// Indian GST number: 2-digit state code + 5-char PAN + 4 digits + entity type
+// + Z + checksum character.
+const GST_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+
+function validateGst(gst: string): boolean {
+  return GST_RE.test(gst.trim().toUpperCase());
+}
+
 router.put('/:id', ADMIN, platformStaffOnly, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
   const data = parseBody(req.body ?? {});
   data.updatedAt = new Date();
-  // Authoritatively block publishing a half-onboarded plant: setting verified=true
-  // requires the key company details to be present. A partial PUT (e.g. just
-  // { verified: true }) is merged against the stored row before checking.
+
+  // When setting verified=true, fetch the stored row so we can merge the
+  // partial-PUT payload against it for field completeness checks.
+  let existing: (typeof plants.$inferSelect) | undefined;
   if (data.verified === true) {
-    const [existing] = await db.select().from(plants).where(eq(plants.id, id));
+    [existing] = await db.select().from(plants).where(eq(plants.id, id));
     if (!existing) { res.status(404).json({ error: 'Plant not found' }); return; }
-    const pick = (key: 'legalName' | 'gstNo' | 'contactNumber' | 'email') =>
-      key in data ? data[key] : existing[key];
+
+    const pick = (key: 'legalName' | 'gstNo' | 'contactNumber' | 'email' | 'placeId') =>
+      key in data ? data[key] : existing![key];
+
+    // --- Missing-fields guard ---
     const missing = missingVerifyFields({
       legalName: pick('legalName'), gstNo: pick('gstNo'),
       contactNumber: pick('contactNumber'), email: pick('email'),
@@ -492,10 +801,43 @@ router.put('/:id', ADMIN, platformStaffOnly, async (req, res) => {
       });
       return;
     }
+
+    // Merge effective coordinates and placeId for dupe guards.
+    const merged: Record<string, unknown> = {
+      ...data,
+      latitude: 'latitude' in data ? data.latitude : existing.latitude,
+      longitude: 'longitude' in data ? data.longitude : existing.longitude,
+      gstNo: pick('gstNo'),
+      placeId: pick('placeId'),
+    };
+
+    const guardResult = await runVerifyChecks(req, res, merged, id);
+    if (guardResult === false) return;
   }
+
+  // Capture whether verification is being newly turned on (false → true transition).
+  const isNewVerification = data.verified === true && (existing ? !existing.verified : false);
+
   const [row] = await db.update(plants).set(data).where(eq(plants.id, id)).returning();
   if (!row) { res.status(404).json({ error: 'Plant not found' }); return; }
-  res.json(row);
+
+  let autoInvitesSent = 0;
+  let autoInviteLinks: { name: string; email: string; inviteUrl?: string }[] = [];
+  let autoInviteErrors: { email: string; reason: string }[] | undefined;
+  if (isNewVerification) {
+    const result = await runAutoInvite(req, id);
+    autoInvitesSent = result.autoInvitesSent;
+    autoInviteLinks = result.autoInviteLinks;
+    autoInviteErrors = result.autoInviteErrors;
+  }
+
+  res.json({
+    ...row,
+    ...(isNewVerification && autoInvitesSent > 0
+      ? { autoInvitesSent, autoInviteLinks }
+      : {}),
+    ...(autoInviteErrors?.length ? { autoInviteErrors } : {}),
+  });
 });
 
 router.delete('/:id', ADMIN, platformStaffOnly, async (req, res) => {
