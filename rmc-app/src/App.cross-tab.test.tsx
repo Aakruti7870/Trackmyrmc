@@ -112,8 +112,12 @@ describe('App cross-tab auth routing', () => {
     setSession(2, 'driver');
     fireStorage('rmc_user');
 
+    // The account switch keys a full remount (key={user.id}) of the protected
+    // tree, so the lazy-loaded MyTrips page suspends for a microtask behind the
+    // PageSpinner fallback before it resolves. Await that settling rather than
+    // asserting synchronously against the "Loading…" frame.
+    expect(await screen.findByTestId('page-my-trips')).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/my-trips');
-    expect(screen.getByTestId('page-my-trips')).toBeInTheDocument();
     expect(screen.queryByTestId('page-orders')).not.toBeInTheDocument();
   });
 });
