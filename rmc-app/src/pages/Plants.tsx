@@ -105,6 +105,14 @@ interface AutoInviteError {
   reason: string;
 }
 
+// Minimal shape of a /plants/nearby row we use for the inline duplicate warning.
+interface NearbyDupe {
+  id: number;
+  name: string;
+  city: string | null;
+  distanceKm: number;
+}
+
 interface ExtractedFields {
   legalName: string | null;
   gstNo: string | null;
@@ -142,6 +150,11 @@ export default function Plants() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  // Async near-duplicate check fired as the map pin moves (debounced). Surfaces a
+  // soft inline warning while the form is still open; the server 409 remains the
+  // authoritative hard stop on save.
+  const [dupeNearby, setDupeNearby] = useState<NearbyDupe | null>(null);
+  const [dupeDismissed, setDupeDismissed] = useState(false);
   const [tab, setTab] = useState<'leads' | 'verified' | 'invites'>('leads');
   // Customer-submitted onboarding requests for discovered plants.
   const [invites, setInvites] = useState<PlantInvite[] | null>(null);
@@ -187,6 +200,32 @@ export default function Plants() {
       .catch(e => { setInvitesError((e as Error).message); setInvites([]); });
   }
   useEffect(() => { load(); loadInvites(); }, []);
+
+  // Debounced near-duplicate check: as the map pin is dropped/dragged while the
+  // form is open, ask the server which verified plants sit within 0.3 km and warn
+  // inline. Purely advisory — the POST/PUT 409 guard is the real enforcement.
+  useEffect(() => {
+    if (!showForm) return;
+    const lat = parseFloat(form.latitude);
+    const lng = parseFloat(form.longitude);
+    const t = setTimeout(() => {
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        setDupeNearby(null);
+        return;
+      }
+      api
+        .get<NearbyDupe[]>(`/plants/nearby?lat=${lat}&lng=${lng}&radius=0.3`)
+        // Exclude the plant being edited so it never flags itself.
+        .then(rows => rows.filter(r => r.id !== editId))
+        .then(rows => {
+          setDupeNearby(rows[0] ?? null);
+          setDupeDismissed(false);
+        })
+        // Soft feature — a failed lookup must never block the form.
+        .catch(() => setDupeNearby(null));
+    }, 500);
+    return () => clearTimeout(t);
+  }, [showForm, form.latitude, form.longitude, editId]);
 
   // Keep the queue live: a streamed-in request refreshes the list and, unless
   // the admin is already on the tab, lights up an unread marker on it.
@@ -242,6 +281,8 @@ export default function Plants() {
     setExtractError('');
     setExtractWarning('');
     setAutoFilled(new Set());
+    setDupeNearby(null);
+    setDupeDismissed(false);
   }
 
   function openCreate() {
@@ -772,6 +813,18 @@ export default function Plants() {
               <Field label="Location (search, drop or drag a pin) *">
                 <LocationPicker value={pin} onChange={p => setForm(f => ({ ...f, latitude: p.lat.toFixed(7), longitude: p.lng.toFixed(7) }))} />
               </Field>
+
+              {dupeNearby && !dupeDismissed && (
+                <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--gold) 50%, transparent)', background: 'rgba(247,201,72,.04)', color: 'var(--gold)', fontSize: 13, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span style={{ flex: 1 }}>
+                    Another verified plant (<strong style={{ color: 'var(--text)' }}>{dupeNearby.name}</strong>
+                    {dupeNearby.city ? `, ${dupeNearby.city}` : ''}) is <strong style={{ color: 'var(--text)' }}>{dupeNearby.distanceKm} km</strong> away.
+                    Adjust the pin if this is a different site, or continue if it's intentional.
+                  </span>
+                  <button type="button" onClick={() => setDupeDismissed(true)} style={{ ...iconBtn, flexShrink: 0 }} aria-label="Dismiss warning"><X size={14} /></button>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                 <Field label="Delivery radius (km)"><input type="number" min={1} value={form.deliveryRadiusKm} onChange={e => setForm(f => ({ ...f, deliveryRadiusKm: Number(e.target.value) }))} style={input} /></Field>
