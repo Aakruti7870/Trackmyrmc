@@ -62,8 +62,8 @@ beforeEach(() => {
 });
 
 describe('MyOrders quick actions', () => {
-  it('reorder pre-fills the order modal from a past order', async () => {
-    mockLists([makeOrder({ grade: 'M30', quantity: '8.00' })], []);
+  it('reorder pre-fills the order modal (incl. the plant) from a past order', async () => {
+    mockLists([makeOrder({ grade: 'M30', quantity: '8.00', plantId: 42, plantName: 'Riverside RMC' })], []);
     const user = userEvent.setup();
     render(<MyOrders />);
 
@@ -76,6 +76,37 @@ describe('MyOrders quick actions', () => {
     )!;
     expect(gradeSelect).toHaveValue('M30');
     expect(screen.getByPlaceholderText(/e\.g\. 10/i)).toHaveValue(8);
+
+    // The previous order's plant carries over so the customer can submit in one
+    // tap — this is the bug fix (reorder used to drop the plant).
+    const plantSelect = screen.getAllByRole('combobox').find(
+      c => within(c).queryByRole('option', { name: /select a plant/i }),
+    )!;
+    expect(plantSelect).toHaveValue('42');
+    expect(screen.getByText(/from riverside rmc/i)).toBeInTheDocument();
+  });
+
+  it('reorder lets the customer submit in one tap without a plant error', async () => {
+    mockLists([makeOrder({ id: 5, grade: 'M30', quantity: '8.00', plantId: 42, plantName: 'Riverside RMC' })], []);
+    vi.mocked(api.post).mockResolvedValue(
+      makeOrder({ id: 99, orderNo: 'ORD-099', grade: 'M30', quantity: '8.00', plantId: 42 }) as never,
+    );
+    const user = userEvent.setup();
+    render(<MyOrders />);
+
+    await user.click(await screen.findByRole('button', { name: /^orders \(/i }));
+    await user.click(await screen.findByRole('button', { name: /reorder/i }));
+    await screen.findByRole('heading', { name: /place new order/i });
+
+    const submitBtns = screen.getAllByRole('button', { name: /place order/i });
+    await user.click(submitBtns[submitBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/me/orders', expect.objectContaining({
+        plantId: 42, grade: 'M30', quantity: '8',
+      }));
+    });
+    expect(screen.queryByText(/please choose a plant/i)).not.toBeInTheDocument();
   });
 
   it('cancel calls PATCH and flips the order to cancelled', async () => {

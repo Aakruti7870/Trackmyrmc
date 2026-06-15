@@ -174,6 +174,7 @@ export default function MyOrders() {
   const [form, setForm] = useState<OrderForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ plant?: string; grade?: string; quantity?: string }>({});
   const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<number | null>(null);
   const [plantDir, setPlantDir] = useState<PlantDirectoryEntry[]>([]);
@@ -310,6 +311,16 @@ export default function MyOrders() {
   // delivery date/time are intentionally left blank so the customer picks a
   // fresh slot rather than re-submitting an old date.
   function reorder(o: Order) {
+    // Carry the plant the previous order was placed at so the customer can
+    // re-submit in one tap — without this the modal opens with no plant and
+    // submit fails with "please choose a plant".
+    if (o.plantId != null) {
+      setSelectedPlantId(o.plantId);
+      setSelectedPlant(o.plantName ?? plantDir.find(p => p.id === o.plantId)?.name ?? null);
+    } else {
+      setSelectedPlantId(null);
+      setSelectedPlant(null);
+    }
     setForm({
       grade: o.grade,
       quantity: parseFloat(o.quantity).toString(),
@@ -320,6 +331,7 @@ export default function MyOrders() {
       siteId: o.siteId ? String(o.siteId) : '',
     });
     setFormError('');
+    setFieldErrors({});
     setModalOpen(true);
   }
 
@@ -350,12 +362,33 @@ export default function MyOrders() {
   }
 
   function openModal() {
-    setSelectedPlant(null);
-    setSelectedPlantId(null);
+    // Pre-select when the customer can only order from a single plant, so the
+    // selector doesn't make them pick the only option. Otherwise start blank
+    // and let the auto-select effect fill in once the directory loads.
+    if (plantDir.length === 1) {
+      setSelectedPlantId(plantDir[0].id);
+      setSelectedPlant(plantDir[0].name);
+    } else {
+      setSelectedPlant(null);
+      setSelectedPlantId(null);
+    }
     setForm(EMPTY_FORM);
     setFormError('');
+    setFieldErrors({});
     setModalOpen(true);
   }
+
+  // When the order modal is open and the customer can order from exactly one
+  // plant, pre-select it (covers the case where the directory finishes loading
+  // after the modal is already open). Deferred to avoid set-state-in-effect.
+  useEffect(() => {
+    if (!modalOpen || selectedPlantId != null || plantDir.length !== 1) return;
+    const only = plantDir[0];
+    Promise.resolve().then(() => {
+      setSelectedPlantId(only.id);
+      setSelectedPlant(only.name);
+    });
+  }, [modalOpen, selectedPlantId, plantDir]);
 
   // Handoff from the "Find Plants" marketplace: if the customer tapped Place
   // Order on a plant card, open the order modal pre-noting the chosen plant.
@@ -378,6 +411,7 @@ export default function MyOrders() {
       setSelectedPlantId(plantId);
       setForm(EMPTY_FORM);
       setFormError('');
+      setFieldErrors({});
       setModalOpen(true);
     });
   }, []);
@@ -385,9 +419,12 @@ export default function MyOrders() {
   async function submitOrder(e: React.FormEvent) {
     e.preventDefault();
     setFormError('');
-    if (!selectedPlantId) { setFormError('Please choose a plant to order from.'); return; }
-    if (!form.grade) { setFormError('Please select a concrete grade.'); return; }
-    if (!(Number(form.quantity) > 0)) { setFormError('Please enter a quantity greater than zero.'); return; }
+    const fe: { plant?: string; grade?: string; quantity?: string } = {};
+    if (!selectedPlantId) fe.plant = 'Please choose a plant to order from.';
+    if (!form.grade) fe.grade = 'Please select a concrete grade.';
+    if (!(Number(form.quantity) > 0)) fe.quantity = 'Please enter a quantity greater than zero.';
+    setFieldErrors(fe);
+    if (fe.plant || fe.grade || fe.quantity) return;
     setSaving(true);
     try {
       const created = await api.post<Order>('/me/orders', {
@@ -934,8 +971,9 @@ export default function MyOrders() {
                   const id = e.target.value ? Number(e.target.value) : null;
                   setSelectedPlantId(id);
                   setSelectedPlant(id ? (plantDir.find(p => p.id === id)?.name ?? null) : null);
+                  if (id) setFieldErrors(fe => ({ ...fe, plant: undefined }));
                 }}
-                style={inputStyle}
+                style={fieldErrors.plant ? inputErrorStyle : inputStyle}
               >
                 <option value="">Select a plant…</option>
                 {/* Keep the handoff-selected plant available even if the
@@ -947,19 +985,22 @@ export default function MyOrders() {
                   <option key={p.id} value={p.id}>{p.name}{p.city ? ` · ${p.city}` : ''}{p.plantCode ? ` (${p.plantCode})` : ''}</option>
                 ))}
               </select>
+              <FieldError msg={fieldErrors.plant} />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
                 <label style={labelStyle}>Concrete Grade</label>
-                <select value={form.grade} onChange={e => setForm(f => ({ ...f, grade: e.target.value }))} style={inputStyle}>
+                <select value={form.grade} onChange={e => { setForm(f => ({ ...f, grade: e.target.value })); if (e.target.value) setFieldErrors(fe => ({ ...fe, grade: undefined })); }} style={fieldErrors.grade ? inputErrorStyle : inputStyle}>
                   <option value="">Select grade…</option>
                   {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
+                <FieldError msg={fieldErrors.grade} />
               </div>
               <div>
                 <label style={labelStyle}>Quantity (m³)</label>
-                <input type="number" min="0" step="0.5" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} placeholder="e.g. 10" style={inputStyle} />
+                <input type="number" min="0" step="0.5" value={form.quantity} onChange={e => { setForm(f => ({ ...f, quantity: e.target.value })); if (Number(e.target.value) > 0) setFieldErrors(fe => ({ ...fe, quantity: undefined })); }} placeholder="e.g. 10" style={fieldErrors.quantity ? inputErrorStyle : inputStyle} />
+                <FieldError msg={fieldErrors.quantity} />
               </div>
               <div>
                 <label style={labelStyle}>Delivery Date</label>
@@ -1397,3 +1438,17 @@ const inputStyle: React.CSSProperties = {
   border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: 'var(--text)',
   fontSize: 14, outline: 'none', boxSizing: 'border-box',
 };
+
+const inputErrorStyle: React.CSSProperties = {
+  ...inputStyle, border: '1px solid color-mix(in srgb, var(--red) 55%, transparent)',
+};
+
+function FieldError({ msg }: { msg?: string }) {
+  if (!msg) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5, fontSize: 12, color: 'var(--red)' }}>
+      <AlertCircle size={12} />
+      <span>{msg}</span>
+    </div>
+  );
+}

@@ -12,6 +12,15 @@ function gradeSelect(): HTMLElement {
   return el;
 }
 
+// The plant <select> is the one carrying the "Select a plant…" placeholder.
+function plantSelect(): HTMLElement {
+  const el = screen.getAllByRole('combobox').find(
+    c => within(c).queryByRole('option', { name: /select a plant/i }),
+  );
+  if (!el) throw new Error('plant <select> not found');
+  return el;
+}
+
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
   return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn() } };
@@ -43,6 +52,9 @@ beforeEach(() => {
     // loops throw.
     if (path === '/me/ledger') return Promise.resolve({ entries: [], outstanding: 0, creditLimit: 0 } as never);
     if (path === '/positions/freshness-config' || path === '/me/idle-config') return Promise.resolve({} as never);
+    // A single available plant so the modal auto-selects it (the customer
+    // doesn't have to pick the only option they can order from).
+    if (path === '/plants/directory') return Promise.resolve([{ id: 3, plantCode: 'P3', name: 'Acme RMC', city: 'Pune' }] as never);
     return Promise.resolve([] as never);
   });
 });
@@ -60,6 +72,11 @@ describe('MyOrders place order', () => {
     const dialog = await screen.findByRole('heading', { name: /place new order/i });
     expect(dialog).toBeInTheDocument();
 
+    // The only available plant is pre-selected for the customer, and the modal
+    // header names the plant the order is for.
+    await waitFor(() => expect(plantSelect()).toHaveValue('3'));
+    expect(screen.getByText(/from acme rmc/i)).toBeInTheDocument();
+
     await user.selectOptions(gradeSelect(), 'M30');
     await user.type(screen.getByPlaceholderText(/e\.g\. 10/i), '8');
 
@@ -68,6 +85,7 @@ describe('MyOrders place order', () => {
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/me/orders', expect.objectContaining({
+        plantId: 3,
         grade: 'M30',
         quantity: '8',
       }));
