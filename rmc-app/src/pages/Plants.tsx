@@ -113,6 +113,19 @@ interface NearbyDupe {
   distanceKm: number;
 }
 
+interface ImportRowResult {
+  row: number;
+  name: string;
+  status: 'created' | 'skipped';
+  reason?: string;
+}
+
+interface ImportResult {
+  created: number;
+  skipped: number;
+  results: ImportRowResult[];
+}
+
 interface ExtractedFields {
   legalName: string | null;
   gstNo: string | null;
@@ -189,6 +202,15 @@ export default function Plants() {
   // Auto-invite notification shown after verification.
   const [autoInviteResult, setAutoInviteResult] = useState<{ sent: number; links: AutoInviteLink[]; errors?: AutoInviteError[] } | null>(null);
 
+  // Bulk CSV import (Leads tab).
+  const [showImport, setShowImport] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importDragOver, setImportDragOver] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importFileName, setImportFileName] = useState('');
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
   function load() {
     api.get<Plant[]>('/plants')
       .then(p => { setPlants(p); setError(''); })
@@ -226,6 +248,49 @@ export default function Plants() {
     }, 500);
     return () => clearTimeout(t);
   }, [showForm, form.latitude, form.longitude, editId]);
+
+  function resetImport() {
+    setImportResult(null);
+    setImportError('');
+    setImportFileName('');
+    setImportDragOver(false);
+    if (importInputRef.current) importInputRef.current.value = '';
+  }
+
+  async function runImport(file: File) {
+    setImportError('');
+    setImportResult(null);
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith('.csv') && file.type && !/csv|text\/plain|excel|spreadsheet/.test(file.type)) {
+      setImportError('Please choose a .csv file.');
+      return;
+    }
+    setImportFileName(file.name);
+    setImporting(true);
+    try {
+      const csv = await file.text();
+      if (!csv.trim()) { setImportError('That file is empty.'); return; }
+      const res = await api.post<ImportResult>('/plants/import', { csv });
+      setImportResult(res);
+      if (res.created > 0) load();
+    } catch (err) {
+      setImportError((err as Error).message || 'Could not import the CSV.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function onImportDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setImportDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void runImport(file);
+  }
+
+  function onImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) void runImport(file);
+  }
 
   // Keep the queue live: a streamed-in request refreshes the list and, unless
   // the admin is already on the tab, lights up an unread marker on it.
@@ -601,7 +666,33 @@ export default function Plants() {
                 </span>
               )}
             </button>
+            {tab === 'leads' && (
+              <button
+                onClick={() => { setShowImport(v => !v); if (showImport) resetImport(); }}
+                style={{ ...tabBtn(showImport, 'var(--blue)'), marginLeft: 'auto' }}
+                title="Bulk-import a spreadsheet of new plants as leads"
+              >
+                <Upload size={14} /> Import CSV
+              </button>
+            )}
           </div>
+
+          {tab === 'leads' && showImport && (
+            <ImportPanel
+              dragOver={importDragOver}
+              importing={importing}
+              error={importError}
+              fileName={importFileName}
+              result={importResult}
+              inputRef={importInputRef}
+              onPick={() => importInputRef.current?.click()}
+              onFileChange={onImportFileChange}
+              onDrop={onImportDrop}
+              onDragOver={e => { e.preventDefault(); setImportDragOver(true); }}
+              onDragLeave={() => setImportDragOver(false)}
+              onReset={resetImport}
+            />
+          )}
 
           {tab === 'invites' ? (
             <InvitesPanel
@@ -1075,6 +1166,122 @@ const INVITE_STATUS_COLORS: Record<InviteStatus, string> = {
   onboarded: 'var(--green)',
   dismissed: 'var(--muted)',
 };
+
+function ImportPanel({
+  dragOver, importing, error, fileName, result, inputRef,
+  onPick, onFileChange, onDrop, onDragOver, onDragLeave, onReset,
+}: {
+  dragOver: boolean;
+  importing: boolean;
+  error: string;
+  fileName: string;
+  result: ImportResult | null;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onPick: () => void;
+  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onDrop: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <div style={{ ...softCard, marginBottom: 14, borderColor: 'color-mix(in srgb, var(--blue) 32%, transparent)', background: 'color-mix(in srgb, var(--blue) 4%, transparent)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <Upload size={15} style={{ color: 'var(--blue)' }} />
+        <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text)' }}>Bulk-import plants from CSV</span>
+      </div>
+      <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+        Upload a spreadsheet to add many onboarding leads at once. Required columns: <strong style={{ color: 'var(--text)' }}>name, latitude, longitude</strong>. Optional: address, city, contactNumber, email, legalName, gstNo. Each valid row is added as an un-verified lead; invalid rows are skipped with a reason.
+      </p>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,text/csv,text/plain"
+        style={{ display: 'none' }}
+        onChange={onFileChange}
+      />
+
+      <div
+        onClick={importing ? undefined : onPick}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        style={{
+          border: `1.5px dashed ${dragOver ? 'var(--blue)' : 'var(--line)'}`,
+          borderRadius: 12,
+          padding: '26px 16px',
+          textAlign: 'center',
+          cursor: importing ? 'default' : 'pointer',
+          background: dragOver ? 'color-mix(in srgb, var(--blue) 10%, transparent)' : 'rgba(255,255,255,.02)',
+          transition: 'background .15s, border-color .15s',
+        }}
+      >
+        <Upload size={22} style={{ color: dragOver ? 'var(--blue)' : 'var(--muted)' }} />
+        <div style={{ marginTop: 8, fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+          {importing ? 'Importing…' : 'Drag a .csv here, or click to choose a file'}
+        </div>
+        {fileName && !importing && (
+          <div style={{ marginTop: 4, fontSize: 12, color: 'var(--muted)' }}>{fileName}</div>
+        )}
+      </div>
+
+      {error && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, color: 'var(--red)', fontSize: 12.5, marginTop: 12 }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} /> {error}
+        </div>
+      )}
+
+      {result && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+            <span style={badge('var(--green)')}><CheckCircle2 size={11} /> {result.created} created</span>
+            <span style={badge(result.skipped > 0 ? 'var(--gold)' : 'var(--muted)')}>
+              <AlertTriangle size={11} /> {result.skipped} skipped
+            </span>
+            <button onClick={onReset} style={{ ...ghostBtn, marginLeft: 'auto', padding: '6px 12px', fontSize: 12.5 }}>
+              Import another
+            </button>
+          </div>
+          <div style={{ ...softCard, padding: 0, overflow: 'hidden' }}>
+            <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                <thead>
+                  <tr style={{ position: 'sticky', top: 0, background: 'var(--card, #0d1828)' }}>
+                    <th style={importTh}>Row</th>
+                    <th style={importTh}>Plant</th>
+                    <th style={importTh}>Status</th>
+                    <th style={importTh}>Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.results.map((r, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--line)' }}>
+                      <td style={importTd}>{r.row}</td>
+                      <td style={{ ...importTd, color: 'var(--text)', fontWeight: 600 }}>{r.name || '—'}</td>
+                      <td style={importTd}>
+                        {r.status === 'created'
+                          ? <span style={badge('var(--green)')}><Check size={10} /> Created</span>
+                          : <span style={badge('var(--gold)')}><X size={10} /> Skipped</span>}
+                      </td>
+                      <td style={{ ...importTd, color: 'var(--muted)' }}>{r.reason || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const importTh: React.CSSProperties = {
+  textAlign: 'left', padding: '8px 12px', fontSize: 11.5, fontWeight: 800,
+  color: 'var(--muted)', letterSpacing: '0.3px', textTransform: 'uppercase',
+};
+const importTd: React.CSSProperties = { padding: '8px 12px', verticalAlign: 'top', color: 'var(--muted)' };
 
 function InvitesPanel({ invites, error, busyId, onOnboard, onSetStatus }: {
   invites: PlantInvite[] | null;

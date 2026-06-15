@@ -751,6 +751,212 @@ router.post('/', ADMIN, platformStaffOnly, async (req, res) => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Bulk CSV import (staff). Onboard a whole spreadsheet of new plants at once
+// instead of one-at-a-time through the form. Every valid row lands as an
+// un-verified lead; invalid rows are skipped with a per-row reason so staff can
+// fix just the failures and re-upload.
+// ---------------------------------------------------------------------------
+
+// The columns the importer understands. `name`, `latitude` and `longitude` are
+// mandatory; the rest are optional company details.
+const IMPORT_COLUMNS = [
+  'name', 'address', 'city', 'latitude', 'longitude',
+  'contactNumber', 'email', 'legalName', 'gstNo',
+] as const;
+
+// Minimal RFC-4180-ish CSV parser: handles quoted fields, escaped quotes (""),
+// commas/newlines inside quotes, and both \r\n and \n line endings. Kept inline
+// (rather than pulling a dependency) since the grammar we accept is small.
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let field = '';
+  let row: string[] = [];
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      row.push(field); field = '';
+    } else if (c === '\r') {
+      // ignore; the paired \n closes the row
+    } else if (c === '\n') {
+      row.push(field); rows.push(row); row = []; field = '';
+    } else {
+      field += c;
+    }
+  }
+  // Flush a trailing field/row when the file doesn't end with a newline.
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+const importSchema = z.object({
+  csv: z.string().min(1, 'csv content is required'),
+});
+
+interface ImportRowResult {
+  row: number;                       // 1-based source row number (incl. header)
+  name: string;
+  status: 'created' | 'skipped';
+  reason?: string;
+}
+
+router.post('/import', ADMIN, platformStaffOnly, async (req, res) => {
+  const parse = importSchema.safeParse(req.body);
+  if (!parse.success) {
+    res.status(400).json({ error: 'A non-empty CSV is required.' });
+    return;
+  }
+
+  // Drop fully-blank lines so a trailing newline or spacer row doesn't count.
+  const grid = parseCsv(parse.data.csv).filter(r => r.some(cell => cell.trim() !== ''));
+  if (grid.length === 0) {
+    res.status(400).json({ error: 'The CSV is empty.' });
+    return;
+  }
+
+  const headerLc = grid[0].map(h => h.trim().toLowerCase());
+  const colIndex = {} as Record<(typeof IMPORT_COLUMNS)[number], number>;
+  for (const col of IMPORT_COLUMNS) colIndex[col] = headerLc.indexOf(col.toLowerCase());
+  if (colIndex.name < 0 || colIndex.latitude < 0 || colIndex.longitude < 0) {
+    res.status(400).json({
+      error: 'CSV must include at least these column headers: name, latitude, longitude. ' +
+        'Optional columns: address, city, contactNumber, email, legalName, gstNo.',
+    });
+    return;
+  }
+
+  const dataRows = grid.slice(1);
+  if (dataRows.length === 0) {
+    res.status(400).json({ error: 'The CSV has a header row but no data rows.' });
+    return;
+  }
+
+  // Pre-load existing plant names + coordinates once for the duplicate guards.
+  const existing = await db
+    .select({ name: plants.name, latitude: plants.latitude, longitude: plants.longitude })
+    .from(plants);
+  const existingNames = new Set(existing.map(p => p.name.trim().toLowerCase()));
+  const existingCoords = existing.map(p => ({ lat: parseFloat(p.latitude), lng: parseFloat(p.longitude) }));
+
+  const DUPE_KM = 0.3;
+  const results: ImportRowResult[] = [];
+  // Names/coords accepted earlier in THIS batch, so two identical CSV rows can't
+  // both slip past the (committed-rows-only) DB checks above.
+  const batchNames = new Set<string>();
+  const batchCoords: { lat: number; lng: number }[] = [];
+  const toInsert: { values: typeof plants.$inferInsert; resultIdx: number }[] = [];
+
+  const cellAt = (cells: string[], col: (typeof IMPORT_COLUMNS)[number]) => {
+    const idx = colIndex[col];
+    return idx >= 0 && idx < cells.length ? cells[idx].trim() : '';
+  };
+
+  dataRows.forEach((cells, i) => {
+    const rowNum = i + 2; // 1-based + header row
+    const name = cellAt(cells, 'name');
+    const result: ImportRowResult = { row: rowNum, name, status: 'skipped' };
+
+    if (!name) { result.reason = 'Missing plant name.'; results.push(result); return; }
+
+    const latStr = cellAt(cells, 'latitude');
+    const lngStr = cellAt(cells, 'longitude');
+    const lat = Number(latStr);
+    const lng = Number(lngStr);
+    if (!latStr || !lngStr || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      result.reason = 'Missing or invalid latitude/longitude.'; results.push(result); return;
+    }
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      result.reason = 'Latitude/longitude out of range.'; results.push(result); return;
+    }
+
+    const gstNo = cellAt(cells, 'gstNo');
+    if (gstNo && !validateGst(gstNo)) {
+      result.reason = `Invalid GST format ("${gstNo}").`; results.push(result); return;
+    }
+
+    const nameKey = name.toLowerCase();
+    if (existingNames.has(nameKey) || batchNames.has(nameKey)) {
+      result.reason = 'A plant with this name already exists.'; results.push(result); return;
+    }
+
+    const dupeCoord =
+      existingCoords.some(c => haversineKm(lat, lng, c.lat, c.lng) < DUPE_KM) ||
+      batchCoords.some(c => haversineKm(lat, lng, c.lat, c.lng) < DUPE_KM);
+    if (dupeCoord) {
+      result.reason = `Duplicate location (within ${DUPE_KM * 1000} m of another plant).`;
+      results.push(result); return;
+    }
+
+    // Row is valid — queue it for insertion as an un-verified lead.
+    batchNames.add(nameKey);
+    batchCoords.push({ lat, lng });
+    const optStr = (v: string) => (v === '' ? null : v);
+    const values: typeof plants.$inferInsert = {
+      name,
+      address: optStr(cellAt(cells, 'address')),
+      city: optStr(cellAt(cells, 'city')),
+      latitude: String(lat),
+      longitude: String(lng),
+      contactNumber: optStr(cellAt(cells, 'contactNumber')),
+      email: optStr(cellAt(cells, 'email')),
+      legalName: optStr(cellAt(cells, 'legalName')),
+      gstNo: gstNo ? gstNo.toUpperCase() : null,
+      verified: false,
+    };
+    result.status = 'created';
+    results.push(result);
+    toInsert.push({ values, resultIdx: results.length - 1 });
+  });
+
+  // Insert the valid rows one at a time so a late DB failure (e.g. a race that
+  // created a same-named plant after our pre-check) flips only that row to
+  // skipped rather than aborting the whole import. drizzle wraps the driver
+  // error, so the Postgres `code` lives on `.cause` (see users.ts).
+  const pgCode = (err: unknown): string | undefined => {
+    const e = err as { code?: string; cause?: { code?: string } } | undefined;
+    return e?.code ?? e?.cause?.code;
+  };
+  let created = 0;
+  for (const item of toInsert) {
+    try {
+      await db.insert(plants).values(item.values);
+      created++;
+    } catch (err) {
+      results[item.resultIdx].status = 'skipped';
+      if (pgCode(err) === '23505') {
+        // Unique violation — a same-named plant was created concurrently.
+        results[item.resultIdx].reason = 'A plant with this name already exists.';
+      } else {
+        // Unexpected DB failure — surface it transparently rather than passing
+        // it off as a duplicate, and log it for operators.
+        console.error('[plants] CSV import: row insert failed:', err);
+        results[item.resultIdx].reason = 'Could not be saved due to a server error. Please retry this row.';
+      }
+    }
+  }
+
+  const skipped = results.filter(r => r.status === 'skipped').length;
+
+  if (created > 0) {
+    await db.insert(auditLogs).values({
+      actorId: req.user!.id,
+      actorName: req.user!.name,
+      action: 'plants.imported',
+      detail: `Bulk CSV import: ${created} lead(s) created, ${skipped} row(s) skipped.`,
+    });
+  }
+
+  res.status(created > 0 ? 201 : 200).json({ created, skipped, results });
+});
+
 // The company details that must be present before a plant can be published to
 // the customer-facing marketplace. Mirrors missingVerifyFields() in the UI.
 function missingVerifyFields(src: {
