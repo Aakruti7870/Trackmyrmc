@@ -24,13 +24,27 @@ async function settingValue(key) {
     const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key));
     return row?.value ?? null;
 }
+// `configured` reflects the Twilio sender env; this suite asserts the UNSET
+// (not-configured) default, so clear any ambient Twilio creds for the file.
+const TWILIO_ENV_KEYS = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_FROM'];
+const savedTwilioEnv = {};
 before(() => {
+    for (const k of TWILIO_ENV_KEYS) {
+        savedTwilioEnv[k] = process.env[k];
+        delete process.env[k];
+    }
     app = buildTestApp();
 });
 beforeEach(async () => {
     await db.execute(sql `TRUNCATE TABLE audit_logs, users, app_settings RESTART IDENTITY CASCADE`);
 });
 after(async () => {
+    for (const k of TWILIO_ENV_KEYS) {
+        if (savedTwilioEnv[k] === undefined)
+            delete process.env[k];
+        else
+            process.env[k] = savedTwilioEnv[k];
+    }
     await pool.end();
 });
 test('defaults to all-on with empty template SIDs when unset', async () => {

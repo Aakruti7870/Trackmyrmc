@@ -72,7 +72,16 @@ async function seedOrderMessage(opts = {}) {
     }).returning();
     return { client, order, msg };
 }
+// These tests rely on the UNCONFIGURED sender so resends take the dev send path
+// rather than calling the live Twilio API. Clear any ambient Twilio creds for the
+// whole file (restored after) so behaviour is deterministic regardless of env.
+const TWILIO_ENV_KEYS = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_FROM'];
+const savedTwilioEnv = {};
 before(() => {
+    for (const k of TWILIO_ENV_KEYS) {
+        savedTwilioEnv[k] = process.env[k];
+        delete process.env[k];
+    }
     app = buildTestApp();
 });
 beforeEach(async () => {
@@ -83,7 +92,15 @@ beforeEach(async () => {
     await setSetting(WHATSAPP_KEYS.dispatchTemplateSid, 'HXdispatch');
     await setSetting(WHATSAPP_KEYS.deliveryTemplateSid, 'HXdelivery');
 });
-after(async () => { await pool.end(); });
+after(async () => {
+    for (const k of TWILIO_ENV_KEYS) {
+        if (savedTwilioEnv[k] === undefined)
+            delete process.env[k];
+        else
+            process.env[k] = savedTwilioEnv[k];
+    }
+    await pool.end();
+});
 test('re-sending a failed dispatch records a fresh message row', async () => {
     const admin = await createUser('admin', 'admin@test.com');
     const { challan, msg } = await seedChallanMessage({ event: 'dispatch', status: 'failed' });
