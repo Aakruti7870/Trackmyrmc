@@ -199,6 +199,12 @@ export default function Plants() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importCsv, setImportCsv] = useState('');
   const importInputRef = useRef<HTMLInputElement>(null);
+  // When the staff drops a corrected file into the inline re-upload target, we
+  // remember how many rows were skipped on the prior run so the next result can
+  // report how many of those previously-skipped rows now succeeded.
+  const [prevSkipped, setPrevSkipped] = useState<number | null>(null);
+  const [reuploadDragOver, setReuploadDragOver] = useState(false);
+  const reuploadInputRef = useRef<HTMLInputElement>(null);
 
   function load() {
     api.get<Plant[]>('/plants')
@@ -244,11 +250,17 @@ export default function Plants() {
     setImportError('');
     setImportFileName('');
     setImportDragOver(false);
+    setPrevSkipped(null);
+    setReuploadDragOver(false);
     if (importInputRef.current) importInputRef.current.value = '';
+    if (reuploadInputRef.current) reuploadInputRef.current.value = '';
   }
 
-  async function runImport(file: File) {
+  async function runImport(file: File, isRetry = false) {
     setImportError('');
+    // Capture the prior skipped count before we clear the result so a corrected
+    // re-upload can report how many previously-skipped rows now succeeded.
+    setPrevSkipped(isRetry ? (importResult?.skipped ?? null) : null);
     setImportResult(null);
     const lower = file.name.toLowerCase();
     if (!lower.endsWith('.csv') && file.type && !/csv|text\/plain|excel|spreadsheet/.test(file.type)) {
@@ -268,6 +280,7 @@ export default function Plants() {
       setImportError((err as Error).message || 'Could not import the CSV.');
     } finally {
       setImporting(false);
+      if (reuploadInputRef.current) reuploadInputRef.current.value = '';
     }
   }
 
@@ -281,6 +294,18 @@ export default function Plants() {
   function onImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) void runImport(file);
+  }
+
+  function onReuploadDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setReuploadDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void runImport(file, true);
+  }
+
+  function onReuploadFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) void runImport(file, true);
   }
 
   // Keep the queue live: a streamed-in request refreshes the list and, unless
@@ -683,6 +708,14 @@ export default function Plants() {
               onDragLeave={() => setImportDragOver(false)}
               onReset={resetImport}
               onDownloadSkipped={() => importResult && downloadSkippedRows(importCsv, importResult)}
+              prevSkipped={prevSkipped}
+              reuploadInputRef={reuploadInputRef}
+              reuploadDragOver={reuploadDragOver}
+              onReuploadPick={() => reuploadInputRef.current?.click()}
+              onReuploadFileChange={onReuploadFileChange}
+              onReuploadDrop={onReuploadDrop}
+              onReuploadDragOver={e => { e.preventDefault(); setReuploadDragOver(true); }}
+              onReuploadDragLeave={() => setReuploadDragOver(false)}
             />
           )}
 
@@ -1162,6 +1195,8 @@ const INVITE_STATUS_COLORS: Record<InviteStatus, string> = {
 function ImportPanel({
   dragOver, importing, error, fileName, result, inputRef,
   onPick, onFileChange, onDrop, onDragOver, onDragLeave, onReset, onDownloadSkipped,
+  prevSkipped, reuploadInputRef, reuploadDragOver,
+  onReuploadPick, onReuploadFileChange, onReuploadDrop, onReuploadDragOver, onReuploadDragLeave,
 }: {
   dragOver: boolean;
   importing: boolean;
@@ -1176,6 +1211,14 @@ function ImportPanel({
   onDragLeave: () => void;
   onReset: () => void;
   onDownloadSkipped: () => void;
+  prevSkipped: number | null;
+  reuploadInputRef: React.RefObject<HTMLInputElement | null>;
+  reuploadDragOver: boolean;
+  onReuploadPick: () => void;
+  onReuploadFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onReuploadDrop: (e: React.DragEvent) => void;
+  onReuploadDragOver: (e: React.DragEvent) => void;
+  onReuploadDragLeave: () => void;
 }) {
   return (
     <div style={{ ...softCard, marginBottom: 14, borderColor: 'color-mix(in srgb, var(--blue) 32%, transparent)', background: 'color-mix(in srgb, var(--blue) 4%, transparent)' }}>
@@ -1236,6 +1279,14 @@ function ImportPanel({
 
       {result && (
         <div style={{ marginTop: 14 }}>
+          {prevSkipped !== null && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '9px 12px', borderRadius: 10, fontSize: 12.5, color: 'var(--text)', border: '1px solid color-mix(in srgb, var(--green) 38%, transparent)', background: 'color-mix(in srgb, var(--green) 9%, transparent)' }}>
+              <CheckCircle2 size={14} style={{ color: 'var(--green)', flexShrink: 0 }} />
+              <span>
+                Re-import complete — <strong>{Math.min(result.created, prevSkipped)}</strong> of <strong>{prevSkipped}</strong> previously-skipped {prevSkipped === 1 ? 'row' : 'rows'} now imported successfully{result.skipped > 0 ? <>, <strong>{result.skipped}</strong> still skipped.</> : '.'}
+              </span>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
             <span style={badge('var(--green)')}><CheckCircle2 size={11} /> {result.created} created</span>
             <span style={badge(result.skipped > 0 ? 'var(--gold)' : 'var(--muted)')}>
@@ -1282,6 +1333,42 @@ function ImportPanel({
               </table>
             </div>
           </div>
+
+          {result.skipped > 0 && (
+            <>
+              <input
+                ref={reuploadInputRef}
+                type="file"
+                accept=".csv,text/csv,text/plain"
+                style={{ display: 'none' }}
+                onChange={onReuploadFileChange}
+              />
+              <div
+                onClick={importing ? undefined : onReuploadPick}
+                onDrop={onReuploadDrop}
+                onDragOver={onReuploadDragOver}
+                onDragLeave={onReuploadDragLeave}
+                style={{
+                  marginTop: 12,
+                  border: `1.5px dashed ${reuploadDragOver ? 'var(--gold)' : 'var(--line)'}`,
+                  borderRadius: 12,
+                  padding: '16px 14px',
+                  textAlign: 'center',
+                  cursor: importing ? 'default' : 'pointer',
+                  background: reuploadDragOver ? 'color-mix(in srgb, var(--gold) 10%, transparent)' : 'rgba(255,255,255,.02)',
+                  transition: 'background .15s, border-color .15s',
+                }}
+              >
+                <Upload size={18} style={{ color: reuploadDragOver ? 'var(--gold)' : 'var(--muted)' }} />
+                <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>
+                  {importing ? 'Importing…' : 'Fixed the skipped rows? Drop the corrected CSV here to re-import'}
+                </div>
+                <div style={{ marginTop: 3, fontSize: 11.5, color: 'var(--muted)' }}>
+                  Download the skipped rows above, correct them, then re-upload — no need to re-open this panel.
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
