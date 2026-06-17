@@ -78,6 +78,32 @@ export function metaWhatsAppConfig(): MetaWhatsAppConfig | null {
   };
 }
 
+// The token Meta echoes back during the Webhooks "Verify and save" handshake.
+// Meta sends a GET with hub.verify_token; we must compare it to this value and
+// reply with hub.challenge. Returns null when unset so verification fails closed.
+export function metaWebhookVerifyToken(): string | null {
+  return process.env.WHATSAPP_META_VERIFY_TOKEN?.trim() || null;
+}
+
+// Verify an incoming Meta webhook POST against its X-Hub-Signature-256 header.
+// Meta signs the raw request body as 'sha256=' + HMAC-SHA256(appSecret, body).
+// Returns 'unconfigured' when no app secret is set (we then accept best-effort,
+// mirroring how the rest of the WhatsApp stack is gated by configuration),
+// 'valid' on a matching signature, and 'invalid' otherwise.
+export function verifyMetaWebhookSignature(
+  signatureHeader: string | null | undefined,
+  rawBody: Buffer | undefined,
+): 'valid' | 'invalid' | 'unconfigured' {
+  const appSecret = process.env.WHATSAPP_META_APP_SECRET?.trim();
+  if (!appSecret) return 'unconfigured';
+  if (!signatureHeader || !rawBody || rawBody.length === 0) return 'invalid';
+  const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
+  const a = Buffer.from(signatureHeader);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return 'invalid';
+  return crypto.timingSafeEqual(a, b) ? 'valid' : 'invalid';
+}
+
 // Twilio WhatsApp delivery needs the shared Twilio account credentials plus a
 // registered WhatsApp sender number. (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN are
 // already used by the OTP flow.)

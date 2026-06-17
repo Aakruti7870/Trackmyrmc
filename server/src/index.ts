@@ -22,6 +22,7 @@ import fuelRoutes from './routes/fuel.js';
 import plantRoutes from './routes/plants.js';
 import eventsRoutes from './routes/events.js';
 import whatsappRoutes from './routes/whatsapp.js';
+import webhookRoutes from './routes/webhooks.js';
 import aiRoutes from './routes/ai.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
@@ -39,7 +40,16 @@ const PORT = process.env.PORT || process.env.API_PORT || (isProd ? 5000 : 3001);
 
 app.use(cors({ origin: '*' }));
 // Larger limit to accommodate proof-of-delivery photos (base64 data URLs).
-app.use(express.json({ limit: '12mb' }));
+// Capture the raw body so the Meta webhook can verify its X-Hub-Signature-256
+// HMAC, which must be computed over the exact bytes Meta sent.
+app.use(
+  express.json({
+    limit: '12mb',
+    verify: (req, _res, buf) => {
+      (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+    },
+  }),
+);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/clients', clientRoutes);
@@ -59,6 +69,7 @@ app.use('/api/recurring', recurringRoutes);
 app.use('/api/fuel', fuelRoutes);
 app.use('/api/plants', plantRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/webhooks', webhookRoutes);
 app.use('/api/ai', aiRoutes);
 
 app.get('/api/health', (_req, res) => {
