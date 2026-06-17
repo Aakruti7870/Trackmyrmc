@@ -31,7 +31,16 @@ async function settingValue(key: string): Promise<string | null> {
   return row?.value ?? null;
 }
 
+// `configured` reflects the Twilio sender env; this suite asserts the UNSET
+// (not-configured) default, so clear any ambient Twilio creds for the file.
+const TWILIO_ENV_KEYS = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_FROM'] as const;
+const savedTwilioEnv: Record<string, string | undefined> = {};
+
 before(() => {
+  for (const k of TWILIO_ENV_KEYS) {
+    savedTwilioEnv[k] = process.env[k];
+    delete process.env[k];
+  }
   app = buildTestApp();
 });
 
@@ -40,6 +49,10 @@ beforeEach(async () => {
 });
 
 after(async () => {
+  for (const k of TWILIO_ENV_KEYS) {
+    if (savedTwilioEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedTwilioEnv[k];
+  }
   await pool.end();
 });
 

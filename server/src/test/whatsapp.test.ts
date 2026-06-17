@@ -1,4 +1,4 @@
-import { test, beforeEach, after } from 'node:test';
+import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { sql } from 'drizzle-orm';
 
@@ -26,11 +26,30 @@ function cfg(over: Partial<WhatsAppConfig> = {}): WhatsAppConfig {
   };
 }
 
+// These assertions cover the UNCONFIGURED sender (dev-fallback / fail-closed)
+// branches, so they must not depend on whatever Twilio creds happen to be set in
+// the ambient environment. Snapshot + clear them for the whole file, restore after.
+const TWILIO_ENV_KEYS = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_FROM'] as const;
+const savedTwilioEnv: Record<string, string | undefined> = {};
+
+before(() => {
+  for (const k of TWILIO_ENV_KEYS) {
+    savedTwilioEnv[k] = process.env[k];
+    delete process.env[k];
+  }
+});
+
 beforeEach(async () => {
   await db.execute(sql`TRUNCATE TABLE app_settings RESTART IDENTITY CASCADE`);
 });
 
-after(async () => { await pool.end(); });
+after(async () => {
+  for (const k of TWILIO_ENV_KEYS) {
+    if (savedTwilioEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedTwilioEnv[k];
+  }
+  await pool.end();
+});
 
 test('getWhatsAppConfig defaults to all-on with no templates when unset', async () => {
   const c = await getWhatsAppConfig();
