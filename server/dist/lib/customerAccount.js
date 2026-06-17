@@ -99,3 +99,93 @@ export async function resolveCustomerByPhone(phone, name) {
     }
     return { ok: true, user };
 }
+/**
+ * Find the live customer (client-role) account for a *verified* email address, or
+ * transparently create one on first sign-in. This is the email counterpart of
+ * resolveCustomerByPhone, used by the Clerk Google (OAuth) customer token
+ * exchange so a verified Google identity resolves to a 'client' account.
+ *
+ * The caller MUST have already verified ownership of `email` (a verified Clerk
+ * email identity) — this function does no verification itself.
+ *
+ * Security boundary: this mirrors resolveCustomerByPhone exactly. An email maps
+ * ONLY to a customer (client-role) account here; if a live account already holds
+ * this email but is not a client (i.e. a staff/authority account), it refuses
+ * rather than issue a token — staff sign in through the staff SSO path, which is
+ * the dual that only ever resolves staff roles. The two paths can never
+ * cross-issue a token for the other's account.
+ */
+export async function resolveCustomerByEmail(email, name) {
+    const normalized = email.trim().toLowerCase();
+    let [user] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.email, normalized), isNull(users.deletedAt)));
+    if (user && user.role !== 'client') {
+        return { ok: false, status: 403, error: 'This email is registered to a staff account. Please use staff sign-in.' };
+    }
+    if (!user) {
+        const displayName = name?.trim() || normalized.split('@')[0] || 'Customer';
+        // Random, unusable password — these accounts authenticate only by a verified
+        // Google identity, never by password.
+        const passwordHash = await hashPassword(crypto.randomBytes(32).toString('hex'));
+        try {
+            user = await db.transaction(async (tx) => {
+                const [client] = await tx.insert(clients).values({
+                    name: displayName,
+                    contactPerson: displayName,
+                    // clients.phone is NOT NULL; Google customers have no number yet, so
+                    // store an empty placeholder they can fill in later from their profile.
+                    phone: '',
+                    email: normalized,
+                }).returning();
+                const [created] = await tx.insert(users).values({
+                    name: displayName,
+                    email: normalized,
+                    passwordHash,
+                    role: 'client',
+                    isActive: true,
+                    linkedClientId: client.id,
+                }).returning();
+                await tx.insert(auditLogs).values({
+                    actorId: null,
+                    actorName: displayName,
+                    action: 'account_registered',
+                    targetUserId: created.id,
+                    targetUserEmail: created.email,
+                    status: 'success',
+                    detail: `Google-verified customer (${normalized}) — account active`,
+                });
+                return created;
+            });
+        }
+        catch (err) {
+            // A unique violation means two sign-ins for the same email raced, or the
+            // address is already taken (e.g. by a soft-deleted row). Re-read the live
+            // account and continue; if there genuinely isn't one, surface a clean
+            // error instead of a 500.
+            if (err && typeof err === 'object' && err.code === '23505') {
+                [user] = await db
+                    .select()
+                    .from(users)
+                    .where(and(eq(users.email, normalized), isNull(users.deletedAt)));
+                if (!user) {
+                    return { ok: false, status: 409, error: 'This email could not be registered. Please contact support.' };
+                }
+                if (user.role !== 'client') {
+                    return { ok: false, status: 403, error: 'This email is registered to a staff account. Please use staff sign-in.' };
+                }
+            }
+            else {
+                throw err;
+            }
+        }
+    }
+    if (!user) {
+        return { ok: false, status: 500, error: 'Could not complete sign-in. Please try again.' };
+    }
+    if (!user.isActive) {
+        return { ok: false, status: 403, error: 'This account has been disabled. Please contact support.' };
+    }
+    return { ok: true, user };
+}

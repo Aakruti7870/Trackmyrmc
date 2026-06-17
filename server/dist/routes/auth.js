@@ -9,7 +9,7 @@ import { verifyToken as clerkVerifyToken, createClerkClient } from '@clerk/backe
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { isAuthorityEmail } from '../lib/authority.js';
 import { resolveStaffSsoUser } from '../lib/staffSso.js';
-import { resolveCustomerByPhone } from '../lib/customerAccount.js';
+import { resolveCustomerByPhone, resolveCustomerByEmail } from '../lib/customerAccount.js';
 import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.js';
 import { peekInviteToken, redeemInviteToken } from '../lib/inviteToken.js';
 import { rateLimit } from '../lib/rateLimit.js';
@@ -325,6 +325,85 @@ router.post('/clerk/customer', async (req, res) => {
         return;
     }
     const resolved = await resolveCustomerByPhone(phone, parse.data.name);
+    if (!resolved.ok) {
+        res.status(resolved.status).json({ error: resolved.error });
+        return;
+    }
+    const { user } = resolved;
+    const appToken = signToken({
+        id: user.id, email: user.email, role: user.role, name: user.name,
+        plantId: user.plantId,
+        linkedClientId: user.linkedClientId,
+        linkedDriverId: user.linkedDriverId,
+    });
+    res.json({
+        token: appToken,
+        user: {
+            id: user.id, name: user.name, email: user.email, role: user.role,
+            phone: user.phone,
+            plantId: user.plantId,
+            linkedClientId: user.linkedClientId,
+            linkedDriverId: user.linkedDriverId,
+        },
+    });
+});
+// Customer token exchange via Google (OAuth). The mirror of POST /auth/clerk for
+// the *email* side of the customer flow: Clerk verifies the customer's Google
+// identity in the browser; the client posts the resulting Clerk session token
+// here. We verify it server-side, read the identity's *verified primary email*,
+// and resolve (or transparently create) the matching 'client' account.
+//
+// Security boundary: this path keys on the verified EMAIL only and always yields
+// a client account; if the email belongs to a staff/authority account it refuses
+// (resolveCustomerByEmail). Staff use POST /auth/clerk, which only ever resolves
+// staff roles — the two can never cross-issue a token for the other's account.
+router.post('/clerk/customer/google', async (req, res) => {
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) {
+        res.status(503).json({ error: 'Google sign-in is not configured on this server.' });
+        return;
+    }
+    const parse = clerkCustomerSchema.safeParse(req.body ?? {});
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.issues[0]?.message ?? 'A Clerk session token is required' });
+        return;
+    }
+    let clerkUserId;
+    try {
+        const claims = await clerkVerifyToken(parse.data.token, { secretKey });
+        clerkUserId = claims.sub;
+    }
+    catch {
+        res.status(401).json({ error: 'Invalid or expired sign-in session' });
+        return;
+    }
+    if (!clerkUserId) {
+        res.status(401).json({ error: 'Invalid or expired sign-in session' });
+        return;
+    }
+    // Read the *verified primary* email. Never fall back to an unverified or
+    // secondary address, so a customer can only sign into the account for an email
+    // they have actually proven they control.
+    let rawEmail = null;
+    try {
+        const clerk = createClerkClient({ secretKey });
+        const cu = await clerk.users.getUser(clerkUserId);
+        const primary = cu.primaryEmailAddressId
+            ? cu.emailAddresses.find((e) => e.id === cu.primaryEmailAddressId)
+            : undefined;
+        if (primary && primary.verification?.status === 'verified') {
+            rawEmail = primary.emailAddress;
+        }
+    }
+    catch {
+        res.status(502).json({ error: 'Could not read your sign-in profile' });
+        return;
+    }
+    if (!rawEmail) {
+        res.status(403).json({ error: 'A verified email address is required to sign in.' });
+        return;
+    }
+    const resolved = await resolveCustomerByEmail(rawEmail, parse.data.name);
     if (!resolved.ok) {
         res.status(resolved.status).json({ error: resolved.error });
         return;

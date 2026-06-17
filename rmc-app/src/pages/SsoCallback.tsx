@@ -38,7 +38,7 @@ export default function SsoCallback() {
       setError('Google sign-in could not be completed. Please try again.');
       setTimeout(() => navigate('/login'), 2500);
     }, 12000);
-    handleRedirectCallback({}, () => {}).catch(() => {
+    handleRedirectCallback({}, async () => {}).catch(() => {
       // Non-fatal (e.g. already signed in): the watcher still runs the exchange.
       // If no session ever appears, the watchdog above sends the user back.
     });

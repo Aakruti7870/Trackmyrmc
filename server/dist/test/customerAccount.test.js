@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
 import { users } from '../db/schema.js';
-import { resolveCustomerByPhone, placeholderEmailFor } from '../lib/customerAccount.js';
+import { resolveCustomerByPhone, resolveCustomerByEmail, placeholderEmailFor } from '../lib/customerAccount.js';
 let app;
 // CLERK_SECRET_KEY is read live from the environment by the /clerk/customer
 // guard, so snapshot and restore it around the suite to avoid leaking state.
@@ -123,6 +123,99 @@ test('resolveCustomerByPhone ignores a soft-deleted account and creates a fresh 
         return;
     assert.equal(res.user.isActive, true);
     assert.equal(res.user.deletedAt, null);
+});
+// ---------------------------------------------------------------------------
+// resolveCustomerByEmail — the verified-email → client mapping used by the Clerk
+// Google (OAuth) customer exchange. Mirrors the phone resolver's boundary tests.
+// ---------------------------------------------------------------------------
+test('resolveCustomerByEmail creates a live client account on first sign-in', async () => {
+    const res = await resolveCustomerByEmail('Buyer@Example.com', 'Acme Builders');
+    assert.equal(res.ok, true);
+    if (!res.ok)
+        return;
+    assert.equal(res.user.role, 'client');
+    assert.equal(res.user.email, 'buyer@example.com'); // normalized to lowercase
+    assert.equal(res.user.isActive, true);
+    assert.equal(res.user.name, 'Acme Builders');
+    assert.ok(res.user.linkedClientId, 'should be linked to a client record');
+});
+test('resolveCustomerByEmail is idempotent and case-insensitive', async () => {
+    const first = await resolveCustomerByEmail('person@example.com', 'First Name');
+    const second = await resolveCustomerByEmail('PERSON@EXAMPLE.COM', 'Different Name');
+    assert.equal(first.ok, true);
+    assert.equal(second.ok, true);
+    if (!first.ok || !second.ok)
+        return;
+    assert.equal(second.user.id, first.user.id);
+    assert.equal(second.user.name, 'First Name'); // name only used at creation
+});
+test('resolveCustomerByEmail derives a display name from the address when none is given', async () => {
+    const res = await resolveCustomerByEmail('johndoe@example.com');
+    assert.equal(res.ok, true);
+    if (!res.ok)
+        return;
+    assert.equal(res.user.name, 'johndoe');
+});
+test('resolveCustomerByEmail refuses an email registered to a staff account', async () => {
+    const email = 'admin@plant.example';
+    await db.insert(users).values({
+        name: 'Plant Admin', email, passwordHash: 'x', role: 'admin', isActive: true,
+    });
+    const res = await resolveCustomerByEmail(email);
+    assert.equal(res.ok, false);
+    if (!res.ok)
+        assert.equal(res.status, 403);
+});
+test('resolveCustomerByEmail rejects a deactivated client account', async () => {
+    const email = 'disabled@example.com';
+    await db.insert(users).values({
+        name: 'Disabled Customer', email, passwordHash: 'x', role: 'client', isActive: false,
+    });
+    const res = await resolveCustomerByEmail(email);
+    assert.equal(res.ok, false);
+    if (!res.ok)
+        assert.equal(res.status, 403);
+});
+test('resolveCustomerByEmail re-applies the staff gate on the 23505 race re-read path', async () => {
+    const email = 'race@example.com';
+    // First lookup finds nothing (enter create branch), but a concurrent insert
+    // claims the email with a STAFF role before our insert lands → unique
+    // violation. The catch's re-read must re-apply the client-only gate.
+    mock.method(db, 'transaction', async () => {
+        await db.insert(users).values({
+            name: 'Race Admin', email, passwordHash: 'x', role: 'admin', isActive: true,
+        });
+        const err = new Error('duplicate key');
+        err.code = '23505';
+        throw err;
+    });
+    try {
+        const res = await resolveCustomerByEmail(email);
+        assert.equal(res.ok, false);
+        if (!res.ok)
+            assert.equal(res.status, 403);
+    }
+    finally {
+        mock.restoreAll();
+    }
+});
+// ---------------------------------------------------------------------------
+// POST /api/auth/clerk/customer/google — deterministic, no-Clerk-call guards.
+// ---------------------------------------------------------------------------
+test('POST /api/auth/clerk/customer/google returns 503 when Clerk is not configured', async () => {
+    delete process.env.CLERK_SECRET_KEY;
+    const res = await request(app).post('/api/auth/clerk/customer/google').send({ token: 'anything' });
+    assert.equal(res.status, 503);
+});
+test('POST /api/auth/clerk/customer/google returns 400 when no token is supplied', async () => {
+    process.env.CLERK_SECRET_KEY = 'sk_test_dummy';
+    const res = await request(app).post('/api/auth/clerk/customer/google').send({});
+    assert.equal(res.status, 400);
+});
+test('POST /api/auth/clerk/customer/google returns 401 for an invalid token', async () => {
+    process.env.CLERK_SECRET_KEY = 'sk_test_dummy';
+    const res = await request(app).post('/api/auth/clerk/customer/google').send({ token: 'not-a-real-token' });
+    assert.equal(res.status, 401);
 });
 // ---------------------------------------------------------------------------
 // POST /api/auth/clerk/customer — the deterministic, no-Clerk-call guard paths.
