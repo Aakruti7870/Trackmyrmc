@@ -408,8 +408,9 @@ export default function Landing() {
       <footer style={{ borderTop: '1px solid var(--line)', marginTop: 24 }}>
         <div style={{ ...section, padding: '28px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <Logo size={0.85} />
-          <div style={{ color: 'var(--muted)', fontSize: 13 }}>
-            © {new Date().getFullYear()} Concrete King · Powered by GOLD-e Tech
+          <div style={{ color: 'var(--muted)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <a href="/privacy" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Privacy Policy</a>
+            <span>© {new Date().getFullYear()} Concrete King · Powered by GOLD-e Tech</span>
           </div>
         </div>
       </footer>

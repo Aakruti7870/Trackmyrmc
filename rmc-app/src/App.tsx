@@ -10,6 +10,7 @@ import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import SetPassword from '@/pages/SetPassword';
 import Landing from '@/pages/Landing';
+import Privacy from '@/pages/Privacy';
 import { canAccess, defaultPath } from '@/lib/permissions';
 
 const Dashboard      = lazy(() => import('@/pages/Dashboard'));
@@ -149,6 +150,7 @@ export default function App() {
           <Switch>
             <Route path="/login" component={LoginRoute} />
             <Route path="/register" component={RegisterRoute} />
+            <Route path="/privacy" component={Privacy} />
             <Route path="/set-password" component={SetPassword} />
             <Route path="/sso-callback" component={() => (
               <Suspense fallback={PageSpinner}><SsoCallback /></Suspense>
