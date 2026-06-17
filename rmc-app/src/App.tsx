@@ -36,6 +36,7 @@ const ActivityLog    = lazy(() => import('@/pages/ActivityLog'));
 const AuditLog       = lazy(() => import('@/pages/AuditLog'));
 const ProfileSettings = lazy(() => import('@/pages/ProfileSettings'));
 const Kiosk          = lazy(() => import('@/pages/Kiosk'));
+const SsoCallback    = lazy(() => import('@/pages/SsoCallback'));
 
 const PageSpinner = (
   <div style={{
@@ -149,6 +150,9 @@ export default function App() {
             <Route path="/login" component={LoginRoute} />
             <Route path="/register" component={RegisterRoute} />
             <Route path="/set-password" component={SetPassword} />
+            <Route path="/sso-callback" component={() => (
+              <Suspense fallback={PageSpinner}><SsoCallback /></Suspense>
+            )} />
             <Route component={ProtectedRoutes} />
           </Switch>
         </ToastProvider>
