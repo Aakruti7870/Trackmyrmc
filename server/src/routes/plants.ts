@@ -19,6 +19,7 @@ import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { canCreateRole, roleLimit, isPlatformStaff } from '../lib/roleHierarchy.js';
 import { extractDocumentFields, isGeminiConfigured } from '../lib/gemini.js';
 import { ObjectStorageService } from '../replit_integrations/object_storage/index.js';
+import { parseCsv } from '../lib/csv.js';
 
 // Build the public base URL the owner-invite link points at. Prefers an
 // explicit env override (so emails work behind a custom domain in production),
@@ -764,38 +765,6 @@ const IMPORT_COLUMNS = [
   'name', 'address', 'city', 'latitude', 'longitude',
   'contactNumber', 'email', 'legalName', 'gstNo',
 ] as const;
-
-// Minimal RFC-4180-ish CSV parser: handles quoted fields, escaped quotes (""),
-// commas/newlines inside quotes, and both \r\n and \n line endings. Kept inline
-// (rather than pulling a dependency) since the grammar we accept is small.
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let field = '';
-  let row: string[] = [];
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else inQuotes = false;
-      } else field += c;
-    } else if (c === '"') {
-      inQuotes = true;
-    } else if (c === ',') {
-      row.push(field); field = '';
-    } else if (c === '\r') {
-      // ignore; the paired \n closes the row
-    } else if (c === '\n') {
-      row.push(field); rows.push(row); row = []; field = '';
-    } else {
-      field += c;
-    }
-  }
-  // Flush a trailing field/row when the file doesn't end with a newline.
-  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
-  return rows;
-}
 
 const importSchema = z.object({
   csv: z.string().min(1, 'csv content is required'),
