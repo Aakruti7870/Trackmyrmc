@@ -18,6 +18,7 @@ import fuelRoutes from '../routes/fuel.js';
 import vehicleRoutes from '../routes/vehicles.js';
 import plantRoutes from '../routes/plants.js';
 import whatsappRoutes from '../routes/whatsapp.js';
+import webhookRoutes from '../routes/webhooks.js';
 import aiRoutes from '../routes/ai.js';
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
@@ -26,7 +27,13 @@ export function buildTestApp() {
     const app = express();
     // Mirror the production limit (see src/index.ts) so proof-of-delivery photo
     // size validation is exercised by validateProofPhoto, not the body parser.
-    app.use(express.json({ limit: '12mb' }));
+    // Capture the raw body too so the Meta webhook signature check is exercised.
+    app.use(express.json({
+        limit: '12mb',
+        verify: (req, _res, buf) => {
+            req.rawBody = buf;
+        },
+    }));
     app.use('/api/auth', authRoutes);
     app.use('/api/users', userRoutes);
     app.use('/api/admin', adminRoutes);
@@ -46,6 +53,7 @@ export function buildTestApp() {
     app.use('/api/vehicles', vehicleRoutes);
     app.use('/api/plants', plantRoutes);
     app.use('/api/whatsapp', whatsappRoutes);
+    app.use('/api/webhooks', webhookRoutes);
     app.use('/api/ai', aiRoutes);
     return app;
 }
