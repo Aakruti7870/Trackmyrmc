@@ -89,8 +89,19 @@ function urlFor(dbName) {
 // intentionally exercise SMTP set their own fake env vars and mock
 // nodemailer.createTransport, so clearing the ambient ones here is safe and
 // keeps coverage unchanged.
+//
+// The WHATSAPP_META_* credentials are stripped for the same reason: they are set
+// globally (Phone Number ID env var + access-token secret) for real delivery, so
+// without this every suite would see the Meta sender as configured and the
+// WhatsApp business-notification path would switch from its expected
+// Twilio/dev-fallback behaviour to Meta. Tests that intentionally exercise the
+// Meta path set their own fake WHATSAPP_META_* env and stub global.fetch.
 const baseEnv = { ...process.env, NODE_ENV: 'test' };
-for (const key of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM']) {
+for (const key of [
+  'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
+  'WHATSAPP_META_PHONE_NUMBER_ID', 'WHATSAPP_META_ACCESS_TOKEN',
+  'WHATSAPP_META_API_VERSION', 'WHATSAPP_META_LANG',
+]) {
   delete baseEnv[key];
 }
 

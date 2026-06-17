@@ -1876,7 +1876,7 @@ export default function ProfileSettings() {
                 color: whatsappConfigured ? '#22c55e' : '#ef4444',
               }}>
                 {whatsappConfigured ? <CheckCircle size={13} /> : <XCircle size={13} />}
-                {whatsappConfigured ? 'Twilio WhatsApp sender connected' : 'Twilio WhatsApp sender not configured'}
+                {whatsappConfigured ? 'WhatsApp sender connected' : 'WhatsApp sender not configured'}
               </div>
 
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 16 }}>
@@ -1915,7 +1915,7 @@ export default function ProfileSettings() {
                       type="text"
                       value={whatsappForm[evt.sid]}
                       onChange={e => setWhatsappForm(f => ({ ...f, [evt.sid]: e.target.value }))}
-                      placeholder="Twilio Content template SID (HX…)"
+                      placeholder="Meta template name (e.g. order_placed)"
                       disabled={!whatsappForm.enabled || !whatsappForm[evt.toggle]}
                       autoComplete="off"
                       style={{
@@ -1928,9 +1928,9 @@ export default function ProfileSettings() {
               </div>
 
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 14, lineHeight: 1.5 }}>
-                Paste the <strong style={{ color: 'var(--text)' }}>approved Twilio Content template SID</strong> for each event
-                (created &amp; approved in your Twilio console). A message only sends when notifications are on, the event is
-                enabled, a template SID is set, and a Twilio WhatsApp sender is connected. Delivery is best-effort and never
+                Enter the <strong style={{ color: 'var(--text)' }}>approved Meta template name</strong> for each event
+                (created &amp; approved in your WhatsApp Manager). A message only sends when notifications are on, the event is
+                enabled, a template name is set, and a WhatsApp sender is connected. Delivery is best-effort and never
                 blocks the order.
               </div>
 

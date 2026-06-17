@@ -42,7 +42,7 @@ export interface WhatsAppConfig {
   orderTemplateSid: string | null;
   dispatchTemplateSid: string | null;
   deliveryTemplateSid: string | null;
-  // True when the Twilio messaging credentials + sender are present, i.e. real
+  // True when a provider (Meta Cloud API or Twilio) is configured, i.e. real
   // delivery is possible. Surfaced to the admin UI as a configured/not badge.
   configured: boolean;
 }
@@ -51,15 +51,49 @@ function isProd(): boolean {
   return process.env.NODE_ENV === 'production';
 }
 
-// Real WhatsApp delivery needs the shared Twilio account credentials plus a
+// Meta WhatsApp Cloud API sender. When a Phone Number ID + access token are both
+// present we send business templates straight through Meta's Graph API. In this
+// mode the per-event "template" settings hold the Meta template NAME (not a
+// Twilio Content SID) and placeholders are filled positionally ({{1}},{{2}},…).
+export interface MetaWhatsAppConfig {
+  phoneNumberId: string;
+  token: string;
+  version: string;
+  lang: string;
+}
+
+// The configured Meta sender, or null when either required value is missing. We
+// need BOTH the Phone Number ID and the access token to reach Meta; without them
+// we fall back to Twilio (below) or the dev / fail-closed path. version + lang
+// have safe defaults so only the two identifiers are mandatory.
+export function metaWhatsAppConfig(): MetaWhatsAppConfig | null {
+  const phoneNumberId = process.env.WHATSAPP_META_PHONE_NUMBER_ID?.trim();
+  const token = process.env.WHATSAPP_META_ACCESS_TOKEN?.trim();
+  if (!phoneNumberId || !token) return null;
+  return {
+    phoneNumberId,
+    token,
+    version: process.env.WHATSAPP_META_API_VERSION?.trim() || 'v21.0',
+    lang: process.env.WHATSAPP_META_LANG?.trim() || 'en_US',
+  };
+}
+
+// Twilio WhatsApp delivery needs the shared Twilio account credentials plus a
 // registered WhatsApp sender number. (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN are
 // already used by the OTP flow.)
-export function isWhatsAppMessagingConfigured(): boolean {
+function isTwilioWhatsAppConfigured(): boolean {
   return Boolean(
     process.env.TWILIO_ACCOUNT_SID &&
       process.env.TWILIO_AUTH_TOKEN &&
       process.env.TWILIO_WHATSAPP_FROM,
   );
+}
+
+// Real WhatsApp delivery is possible when EITHER provider is configured. Meta
+// takes precedence when present (see sendWhatsAppTemplate). Surfaced to the admin
+// UI as a configured/not badge.
+export function isWhatsAppMessagingConfigured(): boolean {
+  return Boolean(metaWhatsAppConfig()) || isTwilioWhatsAppConfigured();
 }
 
 function parseBool(value: string | null, fallback: boolean): boolean {
@@ -134,8 +168,77 @@ export function whatsAppStatusCallbackUrl(): string | null {
   return `${base.replace(/\/+$/, '')}/api/whatsapp/status`;
 }
 
+// --- Meta WhatsApp Cloud API ------------------------------------------------
+
+// Convert the numbered-placeholder variable map ({"1":…,"2":…}) into Meta's
+// ordered body-parameter array, sorted numerically so {{1}},{{2}},… line up with
+// the template's positional placeholders.
+function metaBodyParams(variables: Record<string, string>): { type: 'text'; text: string }[] {
+  return Object.keys(variables)
+    .sort((a, b) => Number(a) - Number(b))
+    .map((k) => ({ type: 'text' as const, text: variables[k] }));
+}
+
+// Send one approved Meta template via the Graph API. `templateName` is the Meta
+// template's name; `to` is a normalized +E.164 number (Meta wants digits only,
+// so the leading + is stripped). Mirrors the Twilio path's result contract,
+// including the transient-vs-permanent retryable classification.
+async function sendViaMeta(
+  cfg: MetaWhatsAppConfig,
+  to: string,
+  templateName: string,
+  variables: Record<string, string>,
+): Promise<WhatsAppSendResult> {
+  try {
+    const params = metaBodyParams(variables);
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: to.replace(/^\+/, ''),
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: cfg.lang },
+        // A static template (no placeholders) must NOT send an empty body
+        // component, or Meta rejects it — only include components when we have
+        // parameters to fill.
+        ...(params.length ? { components: [{ type: 'body', parameters: params }] } : {}),
+      },
+    };
+    const res = await fetch(
+      `https://graph.facebook.com/${cfg.version}/${cfg.phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cfg.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      // Same split as Twilio: 5xx = provider-side fault and 429 = rate limited are
+      // transient and worth a backed-off retry; every other 4xx (bad number,
+      // template/name error, expired token) is permanent and will only fail again.
+      const retryable = res.status >= 500 || res.status === 429;
+      return { ok: false, channel: 'whatsapp', error: `WhatsApp provider error (${res.status}). ${detail.slice(0, 200)}`, retryable };
+    }
+    // Meta returns { messages: [{ id: "wamid…" }] }. Persist that id as the SID so
+    // the stored notification row carries the provider's message handle. Parse
+    // defensively: a malformed body must not turn an accepted send into a failure.
+    const body = (await res.json().catch(() => ({}))) as { messages?: { id?: string }[] };
+    return { ok: true, channel: 'whatsapp', sid: body.messages?.[0]?.id, status: 'accepted' };
+  } catch {
+    // Network-level failure (DNS, connection, timeout) — the provider was briefly
+    // unreachable, so this is the canonical transient case to retry.
+    return { ok: false, channel: 'whatsapp', error: 'Could not reach the WhatsApp provider.', retryable: true };
+  }
+}
+
 // Send one approved WhatsApp template to a recipient. `variables` maps the
-// template's numbered placeholders ("1", "2", …) to their values. Never throws:
+// template's numbered placeholders ("1", "2", …) to their values. When the Meta
+// Cloud API is configured it is used (templateSid carries the Meta template
+// NAME); otherwise Twilio is used (templateSid is a Content SID). Never throws:
 // callers fire-and-forget and any failure is returned, not raised.
 export async function sendWhatsAppTemplate(
   toPhone: string | null | undefined,
@@ -146,7 +249,11 @@ export async function sendWhatsAppTemplate(
   if (!to) return { ok: false, channel: 'dev', error: 'No valid recipient phone number.', retryable: false };
   if (!templateSid) return { ok: false, channel: 'dev', error: 'No template configured for this message.', retryable: false };
 
-  if (isWhatsAppMessagingConfigured()) {
+  // Meta Cloud API takes precedence when configured.
+  const meta = metaWhatsAppConfig();
+  if (meta) return sendViaMeta(meta, to, templateSid, variables);
+
+  if (isTwilioWhatsAppConfigured()) {
     try {
       const params = new URLSearchParams({
         From: senderAddress(),
