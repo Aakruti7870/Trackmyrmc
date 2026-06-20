@@ -52,3 +52,4 @@
 - [RMC place-order plant default](rmc-plant-default-priority.md) — Place Order pre-select priority: marketplace handoff/reorder (set plant directly) > pinned default > single-option > last-ordered > blank; /plants/directory + /me/preferred-plant back it.
 - [Test-harness helper importable](test-harness-helper-importable.md) — to unit-test pure helpers in scripts/*.mjs from src/test/*.test.ts, pair the .mjs with a sibling .d.mts so tsc resolves types without a rootDir/build error.
 - [WhatsApp test env isolation](whatsapp-test-env-isolation.md) — tests asserting the UNCONFIGURED Twilio branch must snapshot+delete TWILIO_* in before() / restore in after(), else real workspace secrets flip the dev-vs-live path.
+- [Shared CSV import parser](rmc-shared-csv-parser.md) — server/src/lib/csv.ts is the single plant-import CSV reader, re-exported into the frontend; keep it browser-safe & dependency-free or rmc-app build breaks.

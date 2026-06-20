@@ -1,8 +1,8 @@
-// Canonical RFC-4180-style CSV parser for plant imports. The skipped-rows
-// download in the client (rmc-app/src/lib/importCsv.ts) keeps a byte-for-byte
-// mirror of this so its row numbers line up with the original file. A contract
-// test (rmc-app/src/lib/csvParser.contract.test.ts) feeds shared fixtures
-// through BOTH copies and fails if they ever drift apart.
+// Single source of truth: RFC-4180-style CSV parser for plant imports. This
+// pure, dependency-free leaf module is imported directly by both the server
+// import handler and the client skipped-rows download
+// (rmc-app/src/lib/importCsv.ts re-exports it as parseImportCsv), so there is
+// no second copy that could drift and row numbers always line up with the file.
 export function parseCsv(text) {
     const rows = [];
     let field = '';
