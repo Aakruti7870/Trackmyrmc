@@ -161,7 +161,7 @@ export default function Drivers() {
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{modal === 'create' ? 'Add Driver' : 'Edit Driver'}</h3>
               <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="modal-grid">
               {[
                 { key: 'name', label: 'Full Name *', type: 'text', full: true },
                 { key: 'phone', label: 'Phone *', type: 'text' },

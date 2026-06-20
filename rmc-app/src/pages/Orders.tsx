@@ -78,7 +78,7 @@ export default function Orders() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="page-hd">
         <div>
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Orders</h2>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>{orders.length} total orders</p>
@@ -90,8 +90,8 @@ export default function Orders() {
         }}><Plus size={15} /> New Order</button>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
+      <div className="filter-row">
+        <div className="filter-search" style={{ maxWidth: 320 }}>
           <Search size={14} style={{ color: 'var(--muted)', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search orders…"
             style={{ ...inputStyle, paddingLeft: 36 }} />
@@ -158,7 +158,7 @@ export default function Orders() {
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{modal === 'create' ? 'New Order' : 'Edit Order'}</h3>
               <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="modal-grid">
               <div style={{ gridColumn: '1/-1' }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Client *</label>
                 <select value={form.clientId || ''} onChange={e => { setForm(f => ({ ...f, clientId: +e.target.value, siteId: undefined })); if (e.target.value) loadSites(+e.target.value); }}

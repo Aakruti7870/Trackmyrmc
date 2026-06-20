@@ -88,7 +88,7 @@ export default function Reports() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="page-hd">
         <div>
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Reports</h2>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>Analytics &amp; exports</p>
@@ -102,7 +102,7 @@ export default function Reports() {
 
       {/* Date range */}
       <div className="glass-card" style={{ padding: '14px 16px', marginBottom: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div className="reports-date-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
             <Calendar size={14} /> Date Range:
           </div>
@@ -113,7 +113,7 @@ export default function Reports() {
               color: preset === i ? '#111' : 'var(--muted)', border: 'none',
             }}>{p.label}</button>
           ))}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+          <div className="reports-date-inputs">
             <input type="date" value={from} onChange={e => { setFrom(e.target.value); setPreset(-1); }}
               style={{ padding: '5px 10px', background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 8, color: 'var(--text)', fontSize: 12, outline: 'none' }} />
             <span style={{ color: 'var(--muted)' }}>to</span>
@@ -143,13 +143,14 @@ export default function Reports() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 18, background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 12, padding: 4 }}>
+      <div className="reports-tabs">
         {(['client-wise', 'grade-wise', 'dispatch', 'trip-timing', 'production', 'fuel'] as ReportTab[]).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
-            flex: 1, padding: '9px', background: tab === t ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'transparent',
+            padding: '9px 12px', background: tab === t ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'transparent',
             border: tab === t ? '1px solid color-mix(in srgb, var(--gold) 25%, transparent)' : '1px solid transparent',
             borderRadius: 9, cursor: 'pointer',
             color: tab === t ? 'var(--gold)' : 'var(--muted)', fontSize: 13, fontWeight: tab === t ? 700 : 500,
+            whiteSpace: 'nowrap',
           }}>{t.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}</button>
         ))}
       </div>
@@ -169,14 +170,14 @@ export default function Reports() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {clientData.length === 0 && <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>No data for this period</div>}
               {clientData.map((r, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ minWidth: 160, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.clientName}</span>
-                  <div style={{ flex: 1, background: 'var(--chip-bg)', borderRadius: 999, overflow: 'hidden', height: 10 }}>
+                <div key={i} className="report-bar-row">
+                  <span className="bar-label" style={{ minWidth: 140, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.clientName}</span>
+                  <div className="bar-track" style={{ flex: 1, background: 'var(--chip-bg)', borderRadius: 999, overflow: 'hidden', height: 10 }}>
                     <div style={{ width: `${(Number(r.totalQty) / maxClientQty) * 100}%`, height: '100%', background: 'linear-gradient(90deg,var(--gold),var(--gold-dark))', borderRadius: 999, transition: 'width .5s' }} />
                   </div>
-                  <span style={{ minWidth: 70, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{Number(r.totalQty).toFixed(1)} m³</span>
-                  <span style={{ minWidth: 64, fontSize: 12, fontWeight: 700, color: varColor(Number(r.variance), Number(r.plannedForDelivered)), textAlign: 'right' }} title="Delivered − planned (delivered challans)">{varText(Number(r.variance), Number(r.plannedForDelivered))}</span>
-                  <span style={{ minWidth: 60, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{r.totalChallans} trips</span>
+                  <span className="bar-meta" style={{ minWidth: 60, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{Number(r.totalQty).toFixed(1)} m³</span>
+                  <span style={{ minWidth: 54, fontSize: 12, fontWeight: 700, color: varColor(Number(r.variance), Number(r.plannedForDelivered)), textAlign: 'right' }} title="Delivered − planned (delivered challans)">{varText(Number(r.variance), Number(r.plannedForDelivered))}</span>
+                  <span style={{ minWidth: 50, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{r.totalChallans} trips</span>
                 </div>
               ))}
             </div>
@@ -186,14 +187,14 @@ export default function Reports() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {gradeData.length === 0 && <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>No data for this period</div>}
               {gradeData.map((r, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ width: 48, fontSize: 13, fontWeight: 700, color: GRADE_COLORS[i % GRADE_COLORS.length] }}>{r.grade}</span>
-                  <div style={{ flex: 1, background: 'var(--chip-bg)', borderRadius: 999, overflow: 'hidden', height: 10 }}>
+                <div key={i} className="report-bar-row">
+                  <span className="bar-label" style={{ width: 48, fontSize: 13, fontWeight: 700, color: GRADE_COLORS[i % GRADE_COLORS.length] }}>{r.grade}</span>
+                  <div className="bar-track" style={{ flex: 1, background: 'var(--chip-bg)', borderRadius: 999, overflow: 'hidden', height: 10 }}>
                     <div style={{ width: `${(Number(r.totalQty) / maxGradeQty) * 100}%`, height: '100%', background: GRADE_COLORS[i % GRADE_COLORS.length], borderRadius: 999, transition: 'width .5s', opacity: 0.85 }} />
                   </div>
-                  <span style={{ minWidth: 70, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{Number(r.totalQty).toFixed(1)} m³</span>
-                  <span style={{ minWidth: 64, fontSize: 12, fontWeight: 700, color: varColor(Number(r.variance), Number(r.plannedForDelivered)), textAlign: 'right' }} title="Delivered − planned (delivered challans)">{varText(Number(r.variance), Number(r.plannedForDelivered))}</span>
-                  <span style={{ minWidth: 60, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{r.totalChallans} batches</span>
+                  <span className="bar-meta" style={{ minWidth: 60, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{Number(r.totalQty).toFixed(1)} m³</span>
+                  <span style={{ minWidth: 54, fontSize: 12, fontWeight: 700, color: varColor(Number(r.variance), Number(r.plannedForDelivered)), textAlign: 'right' }} title="Delivered − planned (delivered challans)">{varText(Number(r.variance), Number(r.plannedForDelivered))}</span>
+                  <span style={{ minWidth: 50, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{r.totalChallans} batches</span>
                 </div>
               ))}
             </div>

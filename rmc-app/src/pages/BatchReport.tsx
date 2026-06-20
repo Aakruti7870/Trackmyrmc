@@ -59,7 +59,7 @@ export default function BatchReport() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="page-hd">
         <div>
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Production</h2>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>{batches.length} batch records total</p>
@@ -72,7 +72,7 @@ export default function BatchReport() {
       </div>
 
       {/* Today's summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
+      <div className="batch-summary-grid">
         {[
           { label: "Today's Batches", value: summary.totalBatches, unit: '', color: 'var(--blue)' },
           { label: "Today's Production", value: Number(summary.totalQty || 0).toFixed(1), unit: 'm³', color: 'var(--green)' },
@@ -107,8 +107,8 @@ export default function BatchReport() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 280 }}>
+      <div className="filter-row" style={{ marginBottom: 14 }}>
+        <div className="filter-search" style={{ maxWidth: 280 }}>
           <Search size={14} style={{ color: 'var(--muted)', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search batches…"
             style={{ ...inputStyle, paddingLeft: 36 }} />
@@ -165,7 +165,7 @@ export default function BatchReport() {
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{editing ? 'Edit Batch' : 'Log New Batch'}</h3>
               <button onClick={() => setModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="modal-grid">
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>Grade *</label>
                 <select value={form.grade || ''} onChange={e => setForm(f => ({ ...f, grade: e.target.value }))} style={inputStyle}>

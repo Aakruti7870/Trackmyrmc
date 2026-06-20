@@ -95,7 +95,7 @@ export default function Clients() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="page-hd">
         <div>
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Clients</h2>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>{clients.length} registered clients</p>
@@ -166,7 +166,7 @@ export default function Clients() {
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{modal === 'create' ? 'New Client' : 'Edit Client'}</h3>
               <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="modal-grid">
               {[
                 { key: 'name', label: 'Company Name *', full: true },
                 { key: 'contactPerson', label: 'Contact Person *' },

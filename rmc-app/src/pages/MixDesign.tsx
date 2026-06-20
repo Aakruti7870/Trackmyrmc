@@ -39,7 +39,7 @@ export default function MixDesign() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+      <div className="page-hd" style={{ alignItems: 'flex-start', marginBottom: 22 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>Mix Design</h2>
           <p style={{ margin: '5px 0 0', color: 'var(--muted)', fontSize: 14 }}>Concrete mix proportions per grade</p>
@@ -130,7 +130,7 @@ export default function MixDesign() {
                   {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="modal-grid">
                 <div>
                   <label style={labelStyle}>Cement (kg/m³) *</label>
                   <input type="number" min={200} max={700} value={form.cement} onChange={e => setForm(f => ({ ...f, cement: Number(e.target.value) }))} required style={inputStyle} data-testid="input-cement" />
@@ -140,7 +140,7 @@ export default function MixDesign() {
                   <input type="number" min={100} max={250} value={form.water} onChange={e => setForm(f => ({ ...f, water: Number(e.target.value) }))} required style={inputStyle} data-testid="input-water" />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="modal-grid">
                 <div>
                   <label style={labelStyle}>Sand (kg/m³) *</label>
                   <input type="number" min={400} max={1000} value={form.sand} onChange={e => setForm(f => ({ ...f, sand: Number(e.target.value) }))} required style={inputStyle} data-testid="input-sand" />

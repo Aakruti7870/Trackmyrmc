@@ -155,7 +155,7 @@ export default function Dispatch() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="page-hd">
         <div>
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Dispatch</h2>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>{challans.filter(c => c.status === 'dispatched').length} on road · {challans.length} total challans</p>
@@ -187,8 +187,8 @@ export default function Dispatch() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
+      <div className="filter-row">
+        <div className="filter-search" style={{ maxWidth: 320 }}>
           <Search size={14} style={{ color: 'var(--muted)', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search challans…"
             style={{ ...inputStyle, paddingLeft: 36 }} />
@@ -324,7 +324,7 @@ export default function Dispatch() {
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Create Challan</h3>
               <button onClick={() => setModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="modal-grid">
               {form.orderId && (
                 <div style={{ gridColumn: '1/-1', padding: '8px 12px', background: 'color-mix(in srgb, var(--gold) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 15%, transparent)', borderRadius: 8, fontSize: 12, color: 'var(--gold)' }}>
                   Creating challan for Order #{orders.find(o => String(o.id) === form.orderId)?.orderNo}

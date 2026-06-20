@@ -413,7 +413,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {SidebarContent()}
         </div>
 
-        <main style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
+        <main id="app-main" style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
           {children}
         </main>
       </div>
