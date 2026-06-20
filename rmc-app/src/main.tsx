@@ -13,12 +13,12 @@ const tree = clerkEnabled ? (
     afterSignOutUrl="/login"
     appearance={{
       variables: {
-        colorPrimary: '#f7c948',
-        colorBackground: '#0d1626',
-        colorText: '#e7ecf3',
-        colorTextSecondary: '#94a3b8',
-        colorInputBackground: '#0b1322',
-        colorInputText: '#e7ecf3',
+        colorPrimary: '#d68a0a',
+        colorBackground: '#ffffff',
+        colorText: '#0f172a',
+        colorTextSecondary: '#5a6b85',
+        colorInputBackground: '#ffffff',
+        colorInputText: '#0f172a',
       },
     }}
   >
