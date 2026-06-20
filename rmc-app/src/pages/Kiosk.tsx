@@ -76,9 +76,9 @@ export default function Kiosk() {
   ] : [];
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', color: 'var(--text)', overflow: 'hidden' }}>
+    <div className="kiosk-root" style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', color: 'var(--text)', overflow: 'hidden' }}>
       {/* ===== Header ===== */}
-      <header style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '16px 26px', borderBottom: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--panel), transparent)' }}>
+      <header className="kiosk-header" style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '16px 26px', borderBottom: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--panel), transparent)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(145deg,var(--gold-hi),var(--gold-mid) 42%,var(--gold-dark))', display: 'grid', placeItems: 'center', fontWeight: 900, color: '#111827', fontSize: 13 }}>RMC</div>
           <div>
@@ -87,7 +87,7 @@ export default function Kiosk() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="kiosk-header-right" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999, background: 'color-mix(in srgb, var(--green) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--green) 26%, transparent)' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 12px var(--green)', animation: 'kioskPulse 1.8s ease-in-out infinite' }} />
             <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)', letterSpacing: '.4px' }}>PLANT ONLINE</span>
@@ -119,10 +119,10 @@ export default function Kiosk() {
       </div>
 
       {/* ===== Scene body ===== */}
-      <main style={{ flex: 1, minHeight: 0, padding: '10px 26px 26px', overflow: 'hidden' }}>
+      <main className="kiosk-main" style={{ flex: 1, minHeight: 0, padding: '10px 26px 26px', overflow: 'hidden' }}>
         {/* Scene 0: Operations Overview */}
         {scene === 0 && (
-          <div style={{ height: '100%', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gridTemplateRows: 'repeat(2,1fr)', gap: 18 }}>
+          <div className="kiosk-scene0" style={{ height: '100%', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gridTemplateRows: 'repeat(2,1fr)', gap: 18 }}>
             {tiles.map(({ label, value, sub, icon: Icon, color }) => (
               <div key={label} className="glass-card" style={{ padding: '22px 26px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, transparent, ${color}, transparent)` }} />
@@ -143,7 +143,7 @@ export default function Kiosk() {
 
         {/* Scene 1: Live Fleet */}
         {scene === 1 && (
-          <div style={{ height: '100%', display: 'grid', gridTemplateRows: 'auto 1fr', gap: 16 }}>
+          <div className="kiosk-scene1" style={{ height: '100%', display: 'grid', gridTemplateRows: 'auto 1fr', gap: 16 }}>
             <div className="glass-card" style={{ padding: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}><Radio size={18} style={{ color: 'var(--blue)' }} /> Live Fleet Movement</h3>
@@ -163,7 +163,7 @@ export default function Kiosk() {
 
         {/* Scene 2: Dispatch Queue */}
         {scene === 2 && (
-          <div style={{ height: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+          <div className="kiosk-scene2" style={{ height: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
             {/* Dispatch queue */}
             <div className="glass-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <h3 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}><ClipboardList size={18} style={{ color: 'var(--gold)' }} /> Dispatch Queue</h3>
@@ -205,7 +205,31 @@ export default function Kiosk() {
         )}
       </main>
 
-      <style>{`@keyframes kioskPulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 50%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }`}</style>
+      <style>{`
+        @keyframes kioskPulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 50%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
+
+        /* ===== Tablet & phone: reflow so nothing overflows horizontally ===== */
+        @media (max-width: 1024px) {
+          .kiosk-root { height: auto !important; min-height: 100vh; overflow: visible !important; }
+          .kiosk-main { overflow: visible !important; padding: 10px 18px 22px !important; }
+          /* Tiles: 3x2 -> 2 columns, auto height */
+          .kiosk-scene0 { height: auto !important; grid-template-columns: repeat(2, 1fr) !important; grid-template-rows: none !important; }
+          /* Dispatch queue & recent challans: side-by-side -> stacked */
+          .kiosk-scene2 { height: auto !important; grid-template-columns: 1fr !important; }
+          .kiosk-scene2 > .glass-card { min-height: 300px; }
+          /* Live fleet: give the map a usable height when not full-screen */
+          .kiosk-scene1 { height: auto !important; grid-template-rows: none !important; }
+          .kiosk-scene1 > div:last-child { min-height: 360px; }
+        }
+
+        @media (max-width: 560px) {
+          .kiosk-header { padding: 12px 16px !important; flex-wrap: wrap; }
+          .kiosk-header-right { gap: 8px !important; flex-wrap: wrap; justify-content: flex-end; }
+          .kiosk-main { padding: 8px 14px 18px !important; }
+          /* Tiles: single column on phones */
+          .kiosk-scene0 { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

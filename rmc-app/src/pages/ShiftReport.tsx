@@ -158,7 +158,7 @@ export default function ShiftReport() {
       </header>
 
       {/* Zone 1: Shift score + timeline + mix */}
-      <section className="glass-card" style={{ padding: 28, marginBottom: 32, position: 'relative', overflow: 'hidden' }}>
+      <section className="glass-card sr-card" style={{ padding: 28, marginBottom: 32, position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: -40, right: -10, fontSize: 220, fontWeight: 800, lineHeight: 1, color: 'var(--text)', opacity: .03, pointerEvents: 'none' }}>
           {score}
         </div>
@@ -316,8 +316,14 @@ export default function ShiftReport() {
       </section>
 
       <style>{`
-        @media (max-width: 760px) {
-          .sr-zone3 { grid-template-columns: 1fr !important; }
+        @media (max-width: 768px) {
+          .sr-zone3 { grid-template-columns: 1fr !important; gap: 28px !important; }
+          .sr-zone1 { gap: 28px !important; }
+        }
+        @media (max-width: 480px) {
+          .sr-card { padding: 18px !important; }
+          .sr-zone1 { gap: 22px !important; }
+          .sr-zone1 > div { min-width: 0 !important; }
         }
         @media print {
           .sr-noprint { display: none !important; }
