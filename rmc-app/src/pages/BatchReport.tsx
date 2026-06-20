@@ -53,7 +53,7 @@ export default function BatchReport() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '9px 12px', boxSizing: 'border-box',
-    background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+    background: 'var(--chip-bg)', border: '1px solid var(--line)',
     borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
   };
 
@@ -97,7 +97,7 @@ export default function BatchReport() {
             {Object.entries(gradeBreakdown).sort((a, b) => b[1] - a[1]).map(([grade, qty]) => (
               <div key={grade} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ width: 40, fontSize: 12, fontWeight: 700, color: 'var(--blue)' }}>{grade}</span>
-                <div style={{ flex: 1, background: 'rgba(255,255,255,.05)', borderRadius: 999, overflow: 'hidden', height: 8 }}>
+                <div style={{ flex: 1, background: 'var(--chip-bg)', borderRadius: 999, overflow: 'hidden', height: 8 }}>
                   <div style={{ width: `${(qty / totalQtyAll) * 100}%`, height: '100%', background: 'linear-gradient(90deg,var(--blue),#0ea5e9)', borderRadius: 999 }} />
                 </div>
                 <span style={{ fontSize: 12, color: 'var(--muted)', minWidth: 60 }}>{qty.toFixed(1)} m³</span>
@@ -131,7 +131,7 @@ export default function BatchReport() {
             </thead>
             <tbody>
               {filtered.map(b => (
-                <tr key={b.id} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+                <tr key={b.id} style={{ borderBottom: '1px solid var(--line)' }}>
                   <td style={{ padding: '10px 12px', color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace' }}>{b.batchNo}</td>
                   <td style={{ padding: '10px 12px' }}><span style={{ padding: '2px 8px', background: 'rgba(56,189,248,.12)', color: 'var(--blue)', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>{b.grade}</span></td>
                   <td style={{ padding: '10px 12px', fontWeight: 700 }}>{b.quantity}</td>
@@ -158,7 +158,7 @@ export default function BatchReport() {
       </div>
 
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setModal(false)}>
           <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -200,7 +200,7 @@ export default function BatchReport() {
             </div>
             {error && <div style={{ marginTop: 10, color: 'var(--red)', fontSize: 13 }}>{error}</div>}
             <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-              <button onClick={() => setModal(false)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button onClick={() => setModal(false)} style={{ flex: 1, padding: 10, background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 10, color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
               <button onClick={save} disabled={saving} style={{ flex: 2, padding: 10, background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))', color: '#111827', fontWeight: 800, borderRadius: 10, border: 'none', cursor: 'pointer' }}>
                 {saving ? 'Saving…' : editing ? 'Update Batch' : 'Log Batch'}
               </button>

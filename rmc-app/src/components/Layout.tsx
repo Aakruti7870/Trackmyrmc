@@ -206,7 +206,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         style={{
           display: 'flex', alignItems: 'center', gap: 8, width: '100%',
           padding: '9px 12px', marginBottom: 12, borderRadius: 12, cursor: 'pointer',
-          background: 'rgba(255,255,255,.03)', border: '1px solid var(--line)',
+          background: 'var(--chip-bg)', border: '1px solid var(--line)',
           color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
         }}
       >
@@ -265,7 +265,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           style={{
             display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
             borderRadius: 12, cursor: 'pointer', position: 'relative',
-            background: userMenuOpen ? 'rgba(38,52,73,.5)' : 'transparent',
+            background: userMenuOpen ? 'var(--menu-hover)' : 'transparent',
           }}
           onClick={() => setUserMenuOpen(o => !o)}
         >
@@ -289,7 +289,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
         {userMenuOpen && (
           <div style={{
-            marginTop: 4, background: 'rgba(13,25,48,.95)', border: '1px solid var(--line)',
+            marginTop: 4, background: 'var(--menu-bg)', border: '1px solid var(--line)',
             borderRadius: 10, overflow: 'hidden',
           }}>
             <Link
@@ -358,7 +358,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <AIHelpAgent />
       {/* Mobile header */}
       <div style={{
-        display: 'none', background: 'rgba(8,17,31,.96)',
+        display: 'none', background: 'var(--header-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
         borderBottom: '1px solid var(--line)', padding: '12px 16px',
         alignItems: 'center', justifyContent: 'space-between',
         position: 'sticky', top: 0, zIndex: 50,
@@ -387,7 +387,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Desktop sidebar */}
         <aside id="desktop-sidebar" style={{
           width: 240, flexShrink: 0,
-          background: 'linear-gradient(180deg,rgba(8,17,31,.97),rgba(2,6,18,.97))',
+          background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
+          backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
           borderRight: '1px solid var(--line)', padding: '18px 14px',
           position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
           display: 'flex', flexDirection: 'column',
@@ -397,12 +398,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Mobile overlay */}
         {mobileOpen && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(5,9,20,.6)', backdropFilter: 'blur(2px)' }}
+          <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--overlay)', backdropFilter: 'blur(2px)' }}
             onClick={() => setMobileOpen(false)} />
         )}
         <div id="mobile-sidebar" style={{
           position: 'fixed', top: 0, left: 0, bottom: 0, width: 260, zIndex: 45,
-          background: 'linear-gradient(180deg,rgba(8,17,31,.98),rgba(2,6,18,.98))',
+          background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
+          backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
           borderRight: '1px solid var(--line)', padding: '18px 14px',
           display: 'flex', flexDirection: 'column',
           transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',

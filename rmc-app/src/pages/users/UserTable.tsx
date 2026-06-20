@@ -57,12 +57,12 @@ export default function UserTable({
 }) {
   return (
     <div style={{
-      background: 'linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01))',
-      border: '1px solid rgba(255,255,255,.08)', borderRadius: 16, overflow: 'hidden',
+      background: 'var(--surface)',
+      border: '1px solid var(--line)', borderRadius: 16, overflow: 'hidden',
     }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
-          <tr style={{ borderBottom: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.15)' }}>
+          <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--chip-bg)' }}>
             {showDeleted && (
               <th style={{ padding: '11px 14px', width: 1, whiteSpace: 'nowrap' }}>
                 <input
@@ -116,7 +116,7 @@ export default function UserTable({
             const lockCountdown = isLocked && lockMsLeft > 0 ? formatCountdown(lockMsLeft) : null;
             return (
               <tr key={u.id} style={{
-                borderBottom: '1px solid rgba(255,255,255,.05)',
+                borderBottom: '1px solid var(--line)',
                 background: isLocked ? 'rgba(239,160,68,.04)' : u.isActive ? 'transparent' : 'rgba(239,68,68,.03)',
                 opacity: u.isActive ? 1 : 0.65,
               }}>
@@ -301,7 +301,7 @@ export default function UserTable({
                       onClick={() => onEdit(u)}
                       title="Edit user"
                       style={{
-                        background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)',
+                        background: 'var(--chip-bg)', border: '1px solid var(--line)',
                         borderRadius: 7, color: 'var(--muted)', cursor: 'pointer', padding: '5px 8px',
                       }}
                     >

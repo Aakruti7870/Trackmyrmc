@@ -207,7 +207,7 @@ export default function AIHelpAgent() {
             display: 'flex', flexDirection: 'column',
             background: 'linear-gradient(180deg, var(--panel), var(--panel2))',
             border: '1px solid var(--line)', borderTopLeftRadius: 18, borderTopRightRadius: 18,
-            boxShadow: '0 -10px 50px rgba(0,0,0,.5)',
+            boxShadow: '0 -10px 50px rgba(var(--shadow-rgb),.5)',
           }}
         >
           {/* Header */}

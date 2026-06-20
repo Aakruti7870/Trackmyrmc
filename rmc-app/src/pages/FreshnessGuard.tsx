@@ -19,8 +19,8 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   return (
     <div style={{
       background: 'linear-gradient(135deg,rgba(15,28,54,.95),rgba(8,17,31,.95))',
-      border: '1px solid rgba(255,255,255,.07)', borderRadius: 16, padding: 20,
-      boxShadow: '0 8px 32px rgba(0,0,0,.3)', ...style,
+      border: '1px solid var(--line)', borderRadius: 16, padding: 20,
+      boxShadow: '0 8px 32px rgba(var(--shadow-rgb),.3)', ...style,
     }}>{children}</div>
   );
 }
@@ -93,19 +93,19 @@ function LoadCard({ load, now, cfg }: { load: FreshnessLoad; now: number; cfg: F
       </div>
 
       {/* Life bar */}
-      <div style={{ marginTop: 10, height: 7, borderRadius: 99, background: 'rgba(255,255,255,.06)', overflow: 'hidden' }}>
+      <div style={{ marginTop: 10, height: 7, borderRadius: 99, background: 'var(--chip-bg)', overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: meta.color, transition: 'width .9s linear' }} />
       </div>
 
       {/* ETA vs remaining */}
       <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: 9, padding: '8px 10px' }}>
+        <div style={{ background: 'var(--chip-bg)', borderRadius: 9, padding: '8px 10px' }}>
           <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', display: 'flex', alignItems: 'center', gap: 4 }}><Navigation size={11} /> ETA to site</div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>
             {load.hasLivePosition ? fmtMin(load.etaMin) : 'No GPS yet'}
           </div>
         </div>
-        <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: 9, padding: '8px 10px' }}>
+        <div style={{ background: 'var(--chip-bg)', borderRadius: 9, padding: '8px 10px' }}>
           <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={11} /> Distance</div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>
             {load.distanceM == null ? '—' : load.distanceM >= 1000 ? `${(load.distanceM / 1000).toFixed(1)} km` : `${load.distanceM} m`}
@@ -163,7 +163,7 @@ function SettingsPanel({ onSaved }: { onSaved: (cfg: FreshnessConfig) => void })
         type="number" min="1" value={form[key]}
         onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
         placeholder={defaults ? String(defaults[key]) : ''}
-        style={{ width: '100%', marginTop: 5, padding: '8px 11px', borderRadius: 9, boxSizing: 'border-box', background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13 }}
+        style={{ width: '100%', marginTop: 5, padding: '8px 11px', borderRadius: 9, boxSizing: 'border-box', background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13 }}
       />
       <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 4 }}>{hint}</div>
     </div>

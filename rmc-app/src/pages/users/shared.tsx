@@ -112,7 +112,7 @@ export const ACTION_COLOR: Record<string, string> = {
 
 export const inputStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', boxSizing: 'border-box',
-  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+  background: 'var(--chip-bg)', border: '1px solid var(--line)',
   borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
 };
 

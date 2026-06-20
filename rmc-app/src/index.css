@@ -21,29 +21,45 @@
   --radius-card: 18px;
 }
 
-/* ===== Theme tokens (swapped at runtime by ThemeProvider) — default: Command Center ===== */
+/* ===== Theme tokens (swapped at runtime by ThemeProvider) — default: Daylight Glass ===== */
 :root {
-  --bg-top: #0b1118;
-  --bg: #05070a;
-  --bg-deep: #020305;
-  --panel: #12181f;
-  --panel2: #161d27;
-  --surface: #1a232f;
-  --line: rgba(255,255,255,0.10);
-  --text: #f5f7fa;
-  --muted: #9ca3af;
-  --gold-hi: #f3dd86;
-  --gold-mid: #e3c14e;
-  --gold: #d4af37;
-  --gold-dark: #a67c12;
-  --green: #22c55e;
-  --green-dark: #15803d;
-  --blue: #00b4d8;
-  --red: #ef4444;
-  --orange: #f59e0b;
-  --glow-1: rgba(212,175,55,.16);
-  --glow-2: rgba(0,180,216,.14);
+  --bg-top: #f4f7fc;
+  --bg: #eef2f9;
+  --bg-deep: #e3e9f4;
+  --panel: #ffffff;
+  --panel2: #f6f9fd;
+  --surface: #ffffff;
+  --line: rgba(30,41,90,0.12);
+  --text: #0f172a;
+  --muted: #5a6b85;
+  --gold-hi: #f5b942;
+  --gold-mid: #e59a16;
+  --gold: #d68a0a;
+  --gold-dark: #a96a06;
+  --green: #15a06a;
+  --green-dark: #0f7a4f;
+  --blue: #2a83d6;
+  --red: #e11d57;
+  --orange: #d97706;
+  --glow-1: rgba(214,138,10,.16);
+  --glow-2: rgba(14,154,167,.16);
   --font-app: 'Sora', system-ui, -apple-system, sans-serif;
+
+  /* surface kit (Daylight Glass defaults — swapped per theme at runtime) */
+  --shadow-rgb: 30,41,90;
+  --glass-1: rgba(255,255,255,0.78);
+  --glass-2: rgba(255,255,255,0.55);
+  --glass-border: rgba(255,255,255,0.85);
+  --glass-hi: rgba(255,255,255,0.9);
+  --glass-blur: blur(20px) saturate(140%);
+  --sidebar-1: rgba(255,255,255,0.88);
+  --sidebar-2: rgba(245,248,253,0.82);
+  --header-bg: rgba(255,255,255,0.9);
+  --menu-bg: rgba(255,255,255,0.97);
+  --menu-hover: rgba(30,41,90,0.06);
+  --overlay: rgba(15,23,42,0.35);
+  --chip-bg: rgba(30,41,90,0.04);
+  --sheen: rgba(255,255,255,.5);
 }
 
 * {
@@ -68,7 +84,7 @@ body::before {
   background:
     radial-gradient(circle at 80% 10%, var(--glow-1), transparent 26%),
     radial-gradient(circle at 72% 78%, var(--glow-2), transparent 28%),
-    linear-gradient(120deg, transparent, rgba(255,255,255,.035), transparent);
+    linear-gradient(120deg, transparent, var(--sheen), transparent);
   z-index: -1;
   transition: background .4s ease;
 }
@@ -90,9 +106,11 @@ button { cursor: pointer; border: 0; }
 
 /* Card glass effect */
 .glass-card {
-  background: linear-gradient(160deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--bg-deep) 96%, transparent));
-  border: 1px solid rgba(203,213,225,.14);
-  box-shadow: 0 22px 70px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.08);
+  background: linear-gradient(160deg, var(--glass-1), var(--glass-2));
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 22px 70px rgba(var(--shadow-rgb),.30), inset 0 1px 0 var(--glass-hi);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: 18px;
   position: relative;
   overflow: hidden;
@@ -102,7 +120,7 @@ button { cursor: pointer; border: 0; }
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(125deg, rgba(255,255,255,.12), transparent 22%, transparent 72%, color-mix(in srgb, var(--gold) 12%, transparent));
+  background: linear-gradient(125deg, var(--glass-hi), transparent 22%, transparent 72%, color-mix(in srgb, var(--gold) 12%, transparent));
   pointer-events: none;
 }
 
@@ -215,7 +233,7 @@ button { cursor: pointer; border: 0; }
 
 /* Metric gradient text */
 .metric-text {
-  background: linear-gradient(180deg, #ffffff, #cbd5e1);
+  background: linear-gradient(180deg, var(--text), color-mix(in srgb, var(--text) 55%, var(--muted)));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -241,7 +259,7 @@ button { cursor: pointer; border: 0; }
 .cc-card { transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
 .cc-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 30px 60px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.10);
+  box-shadow: 0 30px 60px rgba(var(--shadow-rgb),.42), inset 0 1px 0 var(--glass-hi);
   border-color: color-mix(in srgb, var(--gold) 30%, transparent);
 }
 

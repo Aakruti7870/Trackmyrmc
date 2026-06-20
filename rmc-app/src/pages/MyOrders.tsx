@@ -79,10 +79,10 @@ function StatusBadge({ status }: { status: string }) {
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
-      background: 'linear-gradient(135deg,rgba(15,28,54,.95),rgba(8,17,31,.95))',
-      border: '1px solid rgba(255,255,255,.07)',
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
       borderRadius: 16, padding: 20,
-      boxShadow: '0 8px 32px rgba(0,0,0,.3)',
+      boxShadow: '0 8px 32px rgba(var(--shadow-rgb),.3)',
       ...style,
     }}>{children}</div>
   );
@@ -136,7 +136,7 @@ function LiveTimeline({ status, hasLive }: { status: string; hasLive: boolean })
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, flexShrink: 0 }}>
               <div style={{
                 width: 18, height: 18, borderRadius: '50%', display: 'grid', placeItems: 'center',
-                background: done ? color : 'rgba(255,255,255,.06)',
+                background: done ? color : 'var(--chip-bg)',
                 border: `1px solid ${done ? color : 'var(--line)'}`,
                 boxShadow: done && i === step ? `0 0 0 4px color-mix(in srgb, ${color} 22%, transparent)` : 'none',
               }}>
@@ -700,14 +700,14 @@ export default function MyOrders() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'rgba(255,255,255,.04)', borderRadius: 12, padding: 4, width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--chip-bg)', borderRadius: 12, padding: 4, width: 'fit-content' }}>
         {tabs.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '8px 20px', borderRadius: 9, border: 'none', cursor: 'pointer',
             fontSize: 13, fontWeight: 700, transition: 'all .18s',
             background: tab === t.key ? 'linear-gradient(135deg,var(--surface),var(--panel2))' : 'transparent',
             color: tab === t.key ? 'var(--text)' : 'var(--muted)',
-            boxShadow: tab === t.key ? '0 2px 8px rgba(0,0,0,.25)' : 'none',
+            boxShadow: tab === t.key ? '0 2px 8px rgba(var(--shadow-rgb),.25)' : 'none',
           }}>
             {t.label} ({t.count ?? 0})
           </button>
@@ -752,7 +752,7 @@ export default function MyOrders() {
               </thead>
               <tbody>
                 {orders.map(o => (
-                  <tr key={o.id} style={{ borderBottom: '1px solid rgba(38,52,73,.5)' }}>
+                  <tr key={o.id} style={{ borderBottom: '1px solid var(--line)' }}>
                     <td style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--blue)', fontSize: 13 }}>{o.orderNo}</td>
                     <td style={{ padding: '12px 14px', color: 'var(--text)', fontSize: 12.5 }}>
                       {o.plantName || '—'}
@@ -829,7 +829,7 @@ export default function MyOrders() {
                 return (
                   <div key={c.id} style={{
                     border: '1px solid var(--line)', borderRadius: 13, padding: '14px 16px',
-                    background: 'rgba(255,255,255,.02)',
+                    background: 'var(--chip-bg)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -884,7 +884,7 @@ export default function MyOrders() {
                   const hasTiming = !!(c.siteArrivalTime || c.siteReleaseTime);
                   return (
                   <Fragment key={c.id}>
-                  <tr style={{ borderBottom: hasTiming ? 'none' : '1px solid rgba(38,52,73,.5)' }}>
+                  <tr style={{ borderBottom: hasTiming ? 'none' : '1px solid var(--line)' }}>
                     <td style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)', fontSize: 13 }}>{c.challanNo}</td>
                     <td style={{ padding: '12px 14px' }}>
                       <span style={{ background: 'rgba(56,189,248,.12)', color: 'var(--blue)', padding: '2px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>{c.grade}</span>
@@ -926,7 +926,7 @@ export default function MyOrders() {
                     </td>
                   </tr>
                   {hasTiming && (
-                    <tr style={{ borderBottom: '1px solid rgba(38,52,73,.5)' }}>
+                    <tr style={{ borderBottom: '1px solid var(--line)' }}>
                       <td colSpan={9} style={{ padding: '0 14px 12px' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
                           {c.siteArrivalTime && (
@@ -993,7 +993,7 @@ export default function MyOrders() {
               </thead>
               <tbody>
                 {ledger.entries.map(e => (
-                  <tr key={e.id} style={{ borderBottom: '1px solid rgba(38,52,73,.5)' }}>
+                  <tr key={e.id} style={{ borderBottom: '1px solid var(--line)' }}>
                     <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>
                       {new Date(e.createdAt).toLocaleDateString('en-IN')}
                     </td>
@@ -1031,7 +1031,7 @@ export default function MyOrders() {
         <div
           onClick={() => !saving && setModalOpen(false)}
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(3px)',
+            position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.6)', backdropFilter: 'blur(3px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100,
           }}
         >
@@ -1040,9 +1040,9 @@ export default function MyOrders() {
             onSubmit={submitOrder}
             style={{
               width: '100%', maxWidth: 500,
-              background: 'linear-gradient(135deg,rgba(15,28,54,.98),rgba(8,17,31,.98))',
-              border: '1px solid rgba(255,255,255,.1)', borderRadius: 18, padding: 24,
-              boxShadow: '0 24px 60px rgba(0,0,0,.5)', maxHeight: '90vh', overflowY: 'auto',
+              background: 'var(--surface)',
+              border: '1px solid var(--line)', borderRadius: 18, padding: 24,
+              boxShadow: '0 24px 60px rgba(var(--shadow-rgb),.5)', maxHeight: '90vh', overflowY: 'auto',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
@@ -1171,7 +1171,7 @@ export default function MyOrders() {
             <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
               <button type="button" onClick={() => !saving && setModalOpen(false)} style={{
                 flex: 1, padding: '11px', borderRadius: 11, cursor: 'pointer', fontSize: 14, fontWeight: 700,
-                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', color: 'var(--text)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)',
               }}>
                 Cancel
               </button>
@@ -1192,7 +1192,7 @@ export default function MyOrders() {
         <div
           onClick={() => setProof(p => ({ ...p, open: false }))}
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(3px)',
+            position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.6)', backdropFilter: 'blur(3px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100,
           }}
         >
@@ -1200,9 +1200,9 @@ export default function MyOrders() {
             onClick={e => e.stopPropagation()}
             style={{
               width: '100%', maxWidth: 560,
-              background: 'linear-gradient(135deg,rgba(15,28,54,.98),rgba(8,17,31,.98))',
-              border: '1px solid rgba(255,255,255,.1)', borderRadius: 18, padding: 24,
-              boxShadow: '0 24px 60px rgba(0,0,0,.5)', maxHeight: '90vh', overflowY: 'auto',
+              background: 'var(--surface)',
+              border: '1px solid var(--line)', borderRadius: 18, padding: 24,
+              boxShadow: '0 24px 60px rgba(var(--shadow-rgb),.5)', maxHeight: '90vh', overflowY: 'auto',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
@@ -1245,7 +1245,7 @@ export default function MyOrders() {
         <div
           onClick={() => !recSaving && setRecModalOpen(false)}
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(3px)',
+            position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.6)', backdropFilter: 'blur(3px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100,
           }}
         >
@@ -1254,9 +1254,9 @@ export default function MyOrders() {
             onSubmit={submitRecurring}
             style={{
               width: '100%', maxWidth: 500,
-              background: 'linear-gradient(135deg,rgba(15,28,54,.98),rgba(8,17,31,.98))',
-              border: '1px solid rgba(255,255,255,.1)', borderRadius: 18, padding: 24,
-              boxShadow: '0 24px 60px rgba(0,0,0,.5)', maxHeight: '90vh', overflowY: 'auto',
+              background: 'var(--surface)',
+              border: '1px solid var(--line)', borderRadius: 18, padding: 24,
+              boxShadow: '0 24px 60px rgba(var(--shadow-rgb),.5)', maxHeight: '90vh', overflowY: 'auto',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
@@ -1337,7 +1337,7 @@ export default function MyOrders() {
             <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
               <button type="button" onClick={() => !recSaving && setRecModalOpen(false)} style={{
                 flex: 1, padding: '11px', borderRadius: 11, cursor: 'pointer', fontSize: 14, fontWeight: 700,
-                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', color: 'var(--text)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)',
               }}>
                 Cancel
               </button>
@@ -1413,7 +1413,7 @@ function OverviewTab({ orders, challans, ledger, recurring, fmt, totalQty }: {
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Outstanding</span>
             <span style={{ fontSize: 14, fontWeight: 800, color: ledger.outstanding > 0 ? 'var(--red)' : 'var(--green)' }}>{fmt(ledger.outstanding)}</span>
           </div>
-          <div style={{ height: 10, borderRadius: 6, background: 'rgba(255,255,255,.06)', overflow: 'hidden', marginBottom: 6 }}>
+          <div style={{ height: 10, borderRadius: 6, background: 'var(--chip-bg)', overflow: 'hidden', marginBottom: 6 }}>
             <div style={{ width: `${creditUsed}%`, height: '100%', borderRadius: 6, background: creditUsed > 85 ? 'var(--red)' : creditUsed > 60 ? 'var(--gold)' : 'var(--green)', transition: 'width .4s' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--muted)' }}>
@@ -1437,7 +1437,7 @@ function OverviewTab({ orders, challans, ledger, recurring, fmt, totalQty }: {
                     <span style={{ fontWeight: 700, color: 'var(--blue)' }}>{g}</span>
                     <span style={{ color: 'var(--muted)' }}>{q.toFixed(1)} m³</span>
                   </div>
-                  <div style={{ height: 8, borderRadius: 5, background: 'rgba(255,255,255,.06)', overflow: 'hidden' }}>
+                  <div style={{ height: 8, borderRadius: 5, background: 'var(--chip-bg)', overflow: 'hidden' }}>
                     <div style={{ width: `${maxGrade ? (q / maxGrade) * 100 : 0}%`, height: '100%', borderRadius: 5, background: 'linear-gradient(90deg,#a78bfa,var(--blue))' }} />
                   </div>
                 </div>
@@ -1457,7 +1457,7 @@ function OverviewTab({ orders, challans, ledger, recurring, fmt, totalQty }: {
         ) : (
           <div style={{ display: 'grid', gap: 10 }}>
             {activity.map(a => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: a.color, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{a.label}</div>
@@ -1512,7 +1512,7 @@ function RecurringTab({ recurring, busyId, onNew, onEdit, onToggle, onDelete }: 
             return (
               <div key={r.id} style={{
                 border: '1px solid var(--line)', borderRadius: 13, padding: '14px 16px',
-                background: 'rgba(255,255,255,.02)', opacity: r.active ? 1 : 0.6,
+                background: 'var(--chip-bg)', opacity: r.active ? 1 : 0.6,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -1569,8 +1569,8 @@ const labelStyle: React.CSSProperties = {
 };
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,.04)',
-  border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: 'var(--text)',
+  width: '100%', padding: '10px 12px', background: 'var(--chip-bg)',
+  border: '1px solid var(--line)', borderRadius: 10, color: 'var(--text)',
   fontSize: 14, outline: 'none', boxSizing: 'border-box',
 };
 

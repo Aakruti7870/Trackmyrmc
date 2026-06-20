@@ -91,7 +91,7 @@ function dot(color: string, glyph: string) {
 const meIcon = dot('#38bdf8', '🧍');
 const plantIcon = dot('var(--gold, #f7c948)', '🏭');
 // Muted grey marker for unverified, not-yet-onboarded leads from the live map directory.
-const leadIcon = dot('#94a3b8', '🏭');
+const leadIcon = dot('var(--muted)', '🏭');
 
 function FitAll({ points }: { points: [number, number][] }) {
   const map = useMap();
@@ -312,7 +312,7 @@ export default function NearbyPlants() {
             placeholder="Search plants by name, city or area…"
             style={{
               width: '100%', boxSizing: 'border-box', padding: '11px 14px 11px 40px',
-              borderRadius: 12, background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)',
+              borderRadius: 12, background: 'var(--chip-bg)', border: '1px solid var(--line)',
               color: 'var(--text)', fontSize: 14, fontWeight: 600, outline: 'none',
             }}
           />
@@ -442,9 +442,9 @@ export default function NearbyPlants() {
 
           {view === 'map' && coords && (
             <div style={{ marginTop: 16, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(255,255,255,.03)', borderBottom: '1px solid var(--line)', fontSize: 12.5, fontWeight: 700 }}>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', padding: '10px 14px', background: 'var(--chip-bg)', borderBottom: '1px solid var(--line)', fontSize: 12.5, fontWeight: 700 }}>
                 <span style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text)' }}><span style={{ width: 11, height: 11, borderRadius: '50%', background: 'var(--gold)' }} /> Verified partner</span>
-                <span style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--muted)' }}><span style={{ width: 11, height: 11, borderRadius: '50%', background: '#94a3b8' }} /> Unverified lead</span>
+                <span style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--muted)' }}><span style={{ width: 11, height: 11, borderRadius: '50%', background: 'var(--muted)' }} /> Unverified lead</span>
               </div>
               <MapContainer center={[coords.lat, coords.lng]} zoom={12} style={{ height: 'min(70vh, 560px)', width: '100%' }} scrollWheelZoom>
                 <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -456,7 +456,7 @@ export default function NearbyPlants() {
                       <div style={{ minWidth: 180 }}>
                         <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 2 }}>{p.name}</div>
                         <div style={{ fontSize: 12, color: '#555', marginBottom: 6 }}>{p.distanceKm} km · {p.openNow ? 'Open now' : 'Closed'}</div>
-                        <button onClick={() => placeOrder(p)} style={{ background: '#f7c948', color: '#1a1a1a', border: 'none', borderRadius: 8, padding: '6px 10px', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Place Order</button>
+                        <button onClick={() => placeOrder(p)} style={{ background: 'var(--gold)', color: '#1a1a1a', border: 'none', borderRadius: 8, padding: '6px 10px', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Place Order</button>
                         <div style={{ fontSize: 12, color: '#333', marginTop: 8, paddingTop: 6, borderTop: '1px solid #eee' }}>
                           Need help? <a href={`tel:${HELP_TEL}`} style={{ color: '#0a66c2', fontWeight: 700, textDecoration: 'none' }}>{HELP_CONTACT}</a>
                         </div>
@@ -491,7 +491,7 @@ export default function NearbyPlants() {
 function PlantCard({ p, onOrder, onMap }: { p: NearbyPlant; onOrder: () => void; onMap: () => void }) {
   return (
     <div style={{
-      background: 'linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02))',
+      background: 'var(--surface)',
       border: '1px solid var(--line)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
@@ -568,7 +568,7 @@ function LeadCard({ p, onMap, invite, inviteError, onInvite }: {
 }) {
   return (
     <div style={{
-      background: 'rgba(255,255,255,.02)',
+      background: 'var(--chip-bg)',
       border: '1px dashed var(--line)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
@@ -642,14 +642,14 @@ function LeadCard({ p, onMap, invite, inviteError, onInvite }: {
 function toggleBtn(active: boolean): React.CSSProperties {
   return {
     display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 9, cursor: 'pointer', fontSize: 13, fontWeight: 700,
-    background: active ? 'color-mix(in srgb, var(--gold) 16%, transparent)' : 'rgba(255,255,255,.04)',
+    background: active ? 'color-mix(in srgb, var(--gold) 16%, transparent)' : 'var(--chip-bg)',
     color: active ? 'var(--gold)' : 'var(--text)',
     border: `1px solid ${active ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'var(--line)'}`,
   };
 }
 const radiusSelect: React.CSSProperties = {
   appearance: 'none', padding: '8px 13px', borderRadius: 9, cursor: 'pointer', fontSize: 13, fontWeight: 700,
-  background: 'rgba(255,255,255,.04)', color: 'var(--text)', border: '1px solid var(--line)',
+  background: 'var(--chip-bg)', color: 'var(--text)', border: '1px solid var(--line)',
 };
 const primaryBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, fontWeight: 800,
@@ -657,12 +657,12 @@ const primaryBtn: React.CSSProperties = {
 };
 const ghostBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, fontWeight: 700,
-  background: 'rgba(255,255,255,.05)', color: 'var(--text)', border: '1px solid var(--line)',
+  background: 'var(--chip-bg)', color: 'var(--text)', border: '1px solid var(--line)',
 };
 const centerCard: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-  padding: '54px 20px', marginTop: 16, borderRadius: 14, border: '1px solid var(--line)', background: 'rgba(255,255,255,.02)',
+  padding: '54px 20px', marginTop: 16, borderRadius: 14, border: '1px solid var(--line)', background: 'var(--chip-bg)',
 };
 const softCard: React.CSSProperties = {
-  padding: 18, borderRadius: 14, border: '1px solid var(--line)', background: 'rgba(255,255,255,.02)',
+  padding: 18, borderRadius: 14, border: '1px solid var(--line)', background: 'var(--chip-bg)',
 };

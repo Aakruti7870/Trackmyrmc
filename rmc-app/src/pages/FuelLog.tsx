@@ -130,7 +130,7 @@ export default function FuelLog() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '9px 12px', boxSizing: 'border-box',
-    background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+    background: 'var(--chip-bg)', border: '1px solid var(--line)',
     borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
   };
   const labelStyle: React.CSSProperties = {
@@ -172,10 +172,10 @@ export default function FuelLog() {
         </div>
       </div>
 
-      <div style={{ background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: 'rgba(255,255,255,.03)', textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+            <tr style={{ background: 'var(--chip-bg)', textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.4px' }}>
               <th style={{ padding: '11px 14px' }}>Date</th>
               <th style={{ padding: '11px 14px' }}>Vehicle</th>
               <th style={{ padding: '11px 14px', textAlign: 'right' }}>Litres</th>
@@ -191,7 +191,7 @@ export default function FuelLog() {
               <tr><td colSpan={8} style={{ padding: '28px 14px', textAlign: 'center', color: 'var(--muted)' }}>No fuel entries yet.</td></tr>
             )}
             {logs.map(l => (
-              <tr key={l.id} style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
+              <tr key={l.id} style={{ borderTop: '1px solid var(--line)' }}>
                 <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>{new Date(l.filledAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</td>
                 <td style={{ padding: '11px 14px', color: 'var(--text)', fontWeight: 600 }}>{l.vehicleNo || `#${l.vehicleId}`}</td>
                 <td style={{ padding: '11px 14px', textAlign: 'right' }}>{parseFloat(l.litres).toFixed(1)}</td>
@@ -214,8 +214,8 @@ export default function FuelLog() {
       </div>
 
       {modal && (
-        <div onClick={() => !saving && setModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: 'var(--card, #0d1726)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 14, padding: 22, maxHeight: '90vh', overflowY: 'auto' }}>
+        <div onClick={() => !saving && setModal(null)} style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14, padding: 22, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', margin: 0 }}>{modal === 'create' ? 'Add Fuel Entry' : 'Edit Fuel Entry'}</h2>
               <button onClick={() => !saving && setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
@@ -259,7 +259,7 @@ export default function FuelLog() {
             <div style={{ marginBottom: 16 }}>
               <label style={labelStyle}>Bill / odometer photo (optional)</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', cursor: photoBusy ? 'wait' : 'pointer', fontSize: 12, color: 'var(--text)', background: 'rgba(255,255,255,.04)' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--line)', cursor: photoBusy ? 'wait' : 'pointer', fontSize: 12, color: 'var(--text)', background: 'var(--chip-bg)' }}>
                   <Upload size={14} /> {photoBusy ? 'Uploading…' : 'Upload photo'}
                   <input type="file" accept="image/*" onChange={onPickPhoto} disabled={photoBusy} style={{ display: 'none' }} />
                 </label>
@@ -279,7 +279,7 @@ export default function FuelLog() {
             {error && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 12 }}>{error}</div>}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => !saving && setModal(null)} style={{ padding: '9px 16px', borderRadius: 8, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', color: 'var(--text)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+              <button onClick={() => !saving && setModal(null)} style={{ padding: '9px 16px', borderRadius: 8, background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
               <button onClick={save} disabled={saving || photoBusy} style={{ padding: '9px 18px', borderRadius: 8, background: saving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))', border: 'none', color: '#1a1407', fontWeight: 700, cursor: saving || photoBusy ? 'not-allowed' : 'pointer', fontSize: 13 }}>{saving ? 'Saving…' : 'Save'}</button>
             </div>
           </div>
@@ -287,7 +287,7 @@ export default function FuelLog() {
       )}
 
       {viewPhoto && (
-        <div onClick={() => setViewPhoto(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24 }}>
+        <div onClick={() => setViewPhoto(null)} style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24 }}>
           <img src={viewPhoto} alt="Fuel bill" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 10 }} />
         </div>
       )}

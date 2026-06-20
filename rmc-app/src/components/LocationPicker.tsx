@@ -112,12 +112,12 @@ export default function LocationPicker({
             placeholder="Search address or landmark…"
             style={{
               flex: 1, padding: '8px 11px', borderRadius: 9, boxSizing: 'border-box',
-              background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13,
+              background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13,
             }}
           />
           <button type="submit" disabled={searching} title="Search" style={{
             display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0 11px', borderRadius: 9, cursor: searching ? 'wait' : 'pointer',
-            background: 'rgba(255,255,255,.05)', color: 'var(--text)', border: '1px solid var(--line)', fontSize: 12.5, fontWeight: 700,
+            background: 'var(--chip-bg)', color: 'var(--text)', border: '1px solid var(--line)', fontSize: 12.5, fontWeight: 700,
           }}>
             {searching ? <Loader2 size={14} className="lp-spin" /> : <Search size={14} />}
           </button>
@@ -132,7 +132,7 @@ export default function LocationPicker({
       </div>
 
       {results.length > 0 && (
-        <div style={{ marginBottom: 8, border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,.03)' }}>
+        <div style={{ marginBottom: 8, border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden', background: 'var(--chip-bg)' }}>
           {results.map((r, i) => (
             <button
               key={`${r.lat},${r.lon},${i}`}

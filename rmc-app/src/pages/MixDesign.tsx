@@ -29,7 +29,7 @@ export default function MixDesign() {
   function doDelete() { if (deleteId) { mixDesignStore.remove(deleteId); reload(); setDeleteId(null); } }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', background: 'rgba(38,52,73,.4)', border: '1px solid var(--line)',
+    width: '100%', background: 'var(--chip-bg)', border: '1px solid var(--line)',
     borderRadius: 10, padding: '9px 12px', color: 'var(--text)', fontSize: 14, outline: 'none'
   };
   const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 5, display: 'block' };
@@ -117,7 +117,7 @@ export default function MixDesign() {
 
       {/* Modal */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(5,9,20,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
           <div className="glass-card" style={{ padding: 28, width: '100%', maxWidth: 520 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{editId ? 'Edit Mix Design' : 'Add Mix Design'}</h3>
@@ -154,7 +154,7 @@ export default function MixDesign() {
                 <label style={labelStyle}>Admixture (% of cement)</label>
                 <input type="number" step={0.1} min={0} max={5} value={form.admixture} onChange={e => setForm(f => ({ ...f, admixture: Number(e.target.value) }))} style={inputStyle} data-testid="input-admixture" />
               </div>
-              <div style={{ background: 'rgba(38,52,73,.3)', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
+              <div style={{ background: 'var(--chip-bg)', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
                 <span style={{ color: 'var(--muted)' }}>Calculated W/C Ratio: </span>
                 <strong style={{ color: 'var(--gold)' }}>{(form.water / form.cement).toFixed(2)}</strong>
               </div>
@@ -172,7 +172,7 @@ export default function MixDesign() {
       )}
 
       {deleteId && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(5,9,20,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div className="glass-card" style={{ padding: 28, maxWidth: 400, width: '90%' }}>
             <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 700 }}>Delete Mix Design?</h3>
             <p style={{ color: 'var(--muted)', marginBottom: 20, fontSize: 14 }}>This cannot be undone.</p>

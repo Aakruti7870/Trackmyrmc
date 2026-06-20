@@ -64,7 +64,7 @@ function actionLabel(action: string) {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', boxSizing: 'border-box',
-  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+  background: 'var(--chip-bg)', border: '1px solid var(--line)',
   borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
 };
 
@@ -212,8 +212,8 @@ export default function ActivityLog() {
 
       {/* Filters */}
       <div style={{
-        background: 'linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01))',
-        border: '1px solid rgba(255,255,255,.08)', borderRadius: 16, padding: 16, marginBottom: 18,
+        background: 'var(--surface)',
+        border: '1px solid var(--line)', borderRadius: 16, padding: 16, marginBottom: 18,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <Filter size={15} style={{ color: 'var(--gold)' }} />
@@ -224,7 +224,7 @@ export default function ActivityLog() {
               style={{
                 display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto',
                 padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--muted)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--muted)',
               }}
             >
               <RotateCcw size={12} /> Clear filters
@@ -311,15 +311,15 @@ export default function ActivityLog() {
 
       {/* Table */}
       <div style={{
-        background: 'linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01))',
-        border: '1px solid rgba(255,255,255,.08)', borderRadius: 16, overflow: 'hidden',
+        background: 'var(--surface)',
+        border: '1px solid var(--line)', borderRadius: 16, overflow: 'hidden',
       }}>
         {loading ? (
-          <div style={{ padding: '32px', textAlign: 'center', color: '#9fb0c7', fontSize: 13 }}>
+          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
             Loading activity…
           </div>
         ) : logs.length === 0 ? (
-          <div style={{ padding: '32px', textAlign: 'center', color: '#9fb0c7', fontSize: 13 }}>
+          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
             {hasActiveFilter
               ? 'No activity matches the current filters.'
               : 'No activity recorded yet. Account changes and emails will appear here.'}
@@ -328,9 +328,9 @@ export default function ActivityLog() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 760 }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.15)' }}>
+                <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--chip-bg)' }}>
                   {['Timestamp', 'Action', 'Details', 'Target Account', 'Performed By', 'Email'].map(h => (
-                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: '#9fb0c7', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
                       {h}
                     </th>
                   ))}
@@ -338,10 +338,10 @@ export default function ActivityLog() {
               </thead>
               <tbody>
                 {logs.map(entry => {
-                  const c = ACTION_COLOR[entry.action] ?? '#9fb0c7';
+                  const c = ACTION_COLOR[entry.action] ?? 'var(--muted)';
                   return (
-                    <tr key={entry.id} style={{ borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-                      <td style={{ padding: '11px 14px', color: '#9fb0c7', fontSize: 12, whiteSpace: 'nowrap' }}>
+                    <tr key={entry.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                      <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
                         {formatDate(entry.createdAt)}
                       </td>
                       <td style={{ padding: '11px 14px' }}>
@@ -353,16 +353,16 @@ export default function ActivityLog() {
                           {actionLabel(entry.action)}
                         </span>
                       </td>
-                      <td style={{ padding: '11px 14px', color: '#9fb0c7', fontSize: 12 }}>{entry.detail ?? '—'}</td>
-                      <td style={{ padding: '11px 14px', color: '#eef5ff' }}>
+                      <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{entry.detail ?? '—'}</td>
+                      <td style={{ padding: '11px 14px', color: 'var(--text)' }}>
                         <AccountRef id={entry.targetUserId} label={entry.targetUserEmail} />
                       </td>
-                      <td style={{ padding: '11px 14px', color: '#9fb0c7' }}>
+                      <td style={{ padding: '11px 14px', color: 'var(--muted)' }}>
                         <AccountRef id={entry.actorId} label={entry.actorName} />
                       </td>
                       <td style={{ padding: '11px 14px' }}>
                         {entry.emailSent === null ? (
-                          <span style={{ color: '#9fb0c7', fontSize: 12 }}>—</span>
+                          <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
                         ) : entry.emailSent ? (
                           <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#22c55e', fontSize: 12, fontWeight: 600 }}>
                             <CheckCircle size={13} /> Sent
@@ -385,11 +385,11 @@ export default function ActivityLog() {
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             flexWrap: 'wrap', gap: 12, padding: '14px 16px',
-            borderTop: '1px solid rgba(255,255,255,.06)',
+            borderTop: '1px solid var(--line)',
           }}>
-            <span style={{ fontSize: 12, color: '#9fb0c7' }}>
-              Showing <strong style={{ color: '#eef5ff' }}>{rangeStart.toLocaleString('en-IN')}–{rangeEnd.toLocaleString('en-IN')}</strong>
-              {' '}of <strong style={{ color: '#eef5ff' }}>{total.toLocaleString('en-IN')}</strong>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+              Showing <strong style={{ color: 'var(--text)' }}>{rangeStart.toLocaleString('en-IN')}–{rangeEnd.toLocaleString('en-IN')}</strong>
+              {' '}of <strong style={{ color: 'var(--text)' }}>{total.toLocaleString('en-IN')}</strong>
             </span>
 
             {totalPages > 1 && (
@@ -403,9 +403,9 @@ export default function ActivityLog() {
                   <ChevronLeft size={15} />
                 </button>
 
-                <span style={{ fontSize: 12, color: '#9fb0c7', whiteSpace: 'nowrap' }}>
-                  Page <strong style={{ color: '#eef5ff' }}>{page + 1}</strong> of{' '}
-                  <strong style={{ color: '#eef5ff' }}>{totalPages}</strong>
+                <span style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                  Page <strong style={{ color: 'var(--text)' }}>{page + 1}</strong> of{' '}
+                  <strong style={{ color: 'var(--text)' }}>{totalPages}</strong>
                 </span>
 
                 <button
@@ -418,7 +418,7 @@ export default function ActivityLog() {
                 </button>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
-                  <span style={{ fontSize: 12, color: '#9fb0c7' }}>Jump to</span>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>Jump to</span>
                   <input
                     type="number"
                     min={1}
@@ -429,7 +429,7 @@ export default function ActivityLog() {
                     placeholder={String(page + 1)}
                     style={{
                       width: 64, padding: '6px 8px', textAlign: 'center',
-                      background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.12)',
+                      background: 'var(--chip-bg)', border: '1px solid var(--line)',
                       borderRadius: 8, color: 'var(--text)', fontSize: 12, outline: 'none',
                     }}
                   />

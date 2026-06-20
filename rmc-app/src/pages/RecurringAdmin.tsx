@@ -20,8 +20,8 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   return (
     <div style={{
       background: 'linear-gradient(135deg,rgba(15,28,54,.95),rgba(8,17,31,.95))',
-      border: '1px solid rgba(255,255,255,.07)', borderRadius: 16, padding: 20,
-      boxShadow: '0 8px 32px rgba(0,0,0,.3)', ...style,
+      border: '1px solid var(--line)', borderRadius: 16, padding: 20,
+      boxShadow: '0 8px 32px rgba(var(--shadow-rgb),.3)', ...style,
     }}>{children}</div>
   );
 }
@@ -115,11 +115,11 @@ export default function RecurringAdmin() {
             placeholder="Search client, site or grade…"
             style={{
               flex: 1, padding: '8px 11px', borderRadius: 9, boxSizing: 'border-box',
-              background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13,
+              background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13,
             }}
           />
         </div>
-        <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,.04)', borderRadius: 10, padding: 3 }}>
+        <div style={{ display: 'flex', gap: 4, background: 'var(--chip-bg)', borderRadius: 10, padding: 3 }}>
           {(['all', 'active', 'paused'] as const).map(s => (
             <button key={s} onClick={() => setStatusFilter(s)} style={{
               padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',

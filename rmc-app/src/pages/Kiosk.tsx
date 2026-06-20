@@ -97,7 +97,7 @@ export default function Kiosk() {
             <div style={{ fontSize: 11, color: 'var(--muted)' }}>{now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</div>
           </div>
           <button onClick={() => setPaused(p => !p)} title={paused ? 'Resume rotation' : 'Pause rotation'}
-            style={{ width: 40, height: 40, borderRadius: 11, display: 'grid', placeItems: 'center', cursor: 'pointer', background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)', color: 'var(--text)' }}>
+            style={{ width: 40, height: 40, borderRadius: 11, display: 'grid', placeItems: 'center', cursor: 'pointer', background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)' }}>
             {paused ? <Play size={16} /> : <Pause size={16} />}
           </button>
           <button onClick={() => navigate('/')} title="Exit (Esc)"
@@ -113,7 +113,7 @@ export default function Kiosk() {
         <div style={{ display: 'flex', gap: 8 }}>
           {SCENES.map((s, i) => (
             <button key={s} onClick={() => setScene(i)} title={s}
-              style={{ width: i === scene ? 28 : 10, height: 10, borderRadius: 999, cursor: 'pointer', border: 'none', padding: 0, background: i === scene ? 'var(--gold)' : 'rgba(255,255,255,.18)', transition: 'all .3s ease' }} />
+              style={{ width: i === scene ? 28 : 10, height: 10, borderRadius: 999, cursor: 'pointer', border: 'none', padding: 0, background: i === scene ? 'var(--gold)' : 'var(--chip-bg)', transition: 'all .3s ease' }} />
           ))}
         </div>
       </div>
@@ -169,7 +169,7 @@ export default function Kiosk() {
               <h3 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}><ClipboardList size={18} style={{ color: 'var(--gold)' }} /> Dispatch Queue</h3>
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {orders.map(o => (
-                  <div key={o.id} style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)' }}>
+                  <div key={o.id} style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--chip-bg)', border: '1px solid var(--line)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                       <span style={{ fontWeight: 800, fontSize: 16, fontFamily: 'monospace', color: 'var(--gold)' }}>{o.orderNo}</span>
                       <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, color: statusColor(o.status), background: `color-mix(in srgb, ${statusColor(o.status)} 14%, transparent)` }}>{statusLabel(o.status)}</span>
@@ -187,7 +187,7 @@ export default function Kiosk() {
               <h3 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}><Truck size={18} style={{ color: 'var(--green)' }} /> Recent Dispatch</h3>
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {challans.map(ch => (
-                  <div key={ch.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)' }}>
+                  <div key={ch.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 12, background: 'var(--chip-bg)', border: '1px solid var(--line)' }}>
                     <div>
                       <div style={{ fontWeight: 800, fontSize: 15, fontFamily: 'monospace', color: 'var(--gold)' }}>#{ch.challanNo}</div>
                       <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{(ch.clientName || '—')} · {ch.vehicleNo || 'TM'}</div>

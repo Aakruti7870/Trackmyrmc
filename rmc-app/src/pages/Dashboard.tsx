@@ -182,7 +182,7 @@ export default function Dashboard() {
         <div className="glass-card" style={{
           padding: 16, marginBottom: 16,
           border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)',
-          boxShadow: '0 0 0 1px color-mix(in srgb, var(--gold) 8%, transparent), 0 18px 40px rgba(0,0,0,.28)',
+          boxShadow: '0 0 0 1px color-mix(in srgb, var(--gold) 8%, transparent), 0 18px 40px rgba(var(--shadow-rgb),.28)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -198,7 +198,7 @@ export default function Dashboard() {
               <div key={order.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                 padding: '12px 14px', borderRadius: 12,
-                background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)',
               }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -257,7 +257,7 @@ export default function Dashboard() {
         {loading
           ? Array(7).fill(0).map((_, i) => (
             <div key={i} className="glass-card" style={{ padding: '18px 16px', minHeight: 96 }}>
-              <div style={{ width: 80, height: 12, background: 'rgba(255,255,255,.06)', borderRadius: 6 }} />
+              <div style={{ width: 80, height: 12, background: 'var(--chip-bg)', borderRadius: 6 }} />
             </div>
           ))
           : stats.map(({ label, value, sub, icon: Icon, color }) => (
@@ -296,7 +296,7 @@ export default function Dashboard() {
               width: 72, height: 72, borderRadius: 18, display: 'grid', placeItems: 'center',
               background: 'color-mix(in srgb, var(--surface) 80%, transparent)',
               border: '2px solid color-mix(in srgb, var(--muted) 30%, transparent)',
-              boxShadow: '0 18px 34px rgba(0,0,0,.4)',
+              boxShadow: '0 18px 34px rgba(var(--shadow-rgb),.4)',
             }}>
               <Settings size={30} style={{ color: 'var(--muted)', animation: 'spin 9s linear infinite' }} />
             </div>
@@ -429,7 +429,7 @@ export default function Dashboard() {
             {orders.map(o => (
               <div key={o.id} style={{
                 padding: '10px 12px', borderRadius: 10,
-                background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ fontWeight: 700, fontSize: 13, fontFamily: 'monospace', color: 'var(--gold)' }}>
@@ -465,7 +465,7 @@ export default function Dashboard() {
             {notifications.map(({ id, color, Icon, title, sub }) => (
               <div key={id} style={{
                 display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 10,
-                background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)',
               }}>
                 <div style={{
                   width: 30, height: 30, flexShrink: 0, borderRadius: 9, display: 'grid', placeItems: 'center',

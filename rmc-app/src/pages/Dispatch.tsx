@@ -149,7 +149,7 @@ export default function Dispatch() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '9px 12px', boxSizing: 'border-box',
-    background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+    background: 'var(--chip-bg)', border: '1px solid var(--line)',
     borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
   };
 
@@ -214,7 +214,7 @@ export default function Dispatch() {
             </thead>
             <tbody>
               {filtered.map(ch => (
-                <tr key={ch.id} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+                <tr key={ch.id} style={{ borderBottom: '1px solid var(--line)' }}>
                   <td style={{ padding: '11px 14px', color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace' }}>
                     #{ch.challanNo}
                     {ch.notes && (
@@ -317,7 +317,7 @@ export default function Dispatch() {
 
       {/* Create Challan Modal */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setModal(false)}>
           <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -383,7 +383,7 @@ export default function Dispatch() {
             </div>
             {error && <div style={{ marginTop: 10, color: 'var(--red)', fontSize: 13 }}>{error}</div>}
             <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-              <button onClick={() => setModal(false)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button onClick={() => setModal(false)} style={{ flex: 1, padding: 10, background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 10, color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
               <button onClick={save} disabled={saving} style={{ flex: 2, padding: 10, background: 'linear-gradient(135deg,#86efac,var(--green) 48%,var(--green-dark))', color: '#052e16', fontWeight: 800, borderRadius: 10, border: 'none', cursor: 'pointer' }}>
                 {saving ? 'Creating…' : 'Dispatch Challan'}
               </button>
@@ -394,7 +394,7 @@ export default function Dispatch() {
 
       {/* Proof-of-delivery photo viewer */}
       {photoView && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.82)', zIndex: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.82)', zIndex: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setPhotoView(null)}>
           <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 18, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -453,18 +453,18 @@ export default function Dispatch() {
                         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
                         style={{ width: '100%', borderRadius: 10, display: 'block', cursor: 'zoom-in', maxHeight: photoZoom ? 'none' : '60vh', objectFit: 'contain', touchAction: 'pan-y pinch-zoom', userSelect: 'none' }} />
                       {!photoZoom && (
-                        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,.55)', borderRadius: 8, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#fff', pointerEvents: 'none' }}>
+                        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(var(--shadow-rgb),.55)', borderRadius: 8, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#fff', pointerEvents: 'none' }}>
                           <ZoomIn size={13} /> Click to zoom
                         </div>
                       )}
                       {n > 1 && (
                         <>
                           <button onClick={() => go(-1)} aria-label="Previous photo"
-                            style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,.6)', border: '1px solid var(--line)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+                            style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(var(--shadow-rgb),.6)', border: '1px solid var(--line)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
                             <ChevronLeft size={20} />
                           </button>
                           <button onClick={() => go(1)} aria-label="Next photo"
-                            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,.6)', border: '1px solid var(--line)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+                            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(var(--shadow-rgb),.6)', border: '1px solid var(--line)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
                             <ChevronRight size={20} />
                           </button>
                         </>

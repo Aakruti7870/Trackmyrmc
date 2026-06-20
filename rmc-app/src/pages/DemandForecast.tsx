@@ -12,8 +12,8 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   return (
     <div style={{
       background: 'linear-gradient(135deg,rgba(15,28,54,.95),rgba(8,17,31,.95))',
-      border: '1px solid rgba(255,255,255,.07)', borderRadius: 16, padding: 20,
-      boxShadow: '0 8px 32px rgba(0,0,0,.3)', ...style,
+      border: '1px solid var(--line)', borderRadius: 16, padding: 20,
+      boxShadow: '0 8px 32px rgba(var(--shadow-rgb),.3)', ...style,
     }}>{children}</div>
   );
 }
@@ -53,7 +53,7 @@ function GradeRow({ g, max }: { g: GradeForecast; max: number }) {
         <div style={{ fontWeight: 800, color: 'var(--text)', fontSize: 16 }}>{g.predictedQty.toFixed(1)} <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>m³</span></div>
       </div>
       {/* Predicted bar with committed (booked+recurring) overlay */}
-      <div style={{ position: 'relative', height: 12, borderRadius: 99, background: 'rgba(255,255,255,.05)', overflow: 'hidden' }}>
+      <div style={{ position: 'relative', height: 12, borderRadius: 99, background: 'var(--chip-bg)', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: 'linear-gradient(90deg,var(--gold-dark),var(--gold))', borderRadius: 99 }} />
         <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: `${(pct * bookedPct) / 100}%`, background: 'color-mix(in srgb, var(--green) 70%, transparent)', borderRadius: 99 }} />
       </div>
@@ -101,7 +101,7 @@ export default function DemandForecast() {
           <CalendarDays size={16} style={{ color: 'var(--muted)' }} />
           <input
             type="date" value={date} onChange={e => { setLoading(true); setDate(e.target.value || tomorrowStr()); }}
-            style={{ padding: '8px 11px', borderRadius: 9, background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13 }}
+            style={{ padding: '8px 11px', borderRadius: 9, background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13 }}
           />
         </div>
       </div>

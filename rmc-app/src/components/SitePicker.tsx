@@ -9,7 +9,7 @@ const labelStyle: React.CSSProperties = {
 };
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px 12px', borderRadius: 10, boxSizing: 'border-box',
-  background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 14,
+  background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 14,
 };
 
 // A delivery-site selector reused by the order and recurring-order modals. Lets
@@ -75,7 +75,7 @@ export default function SitePicker({
           </button>
         </div>
       ) : (
-        <div style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 12, background: 'rgba(255,255,255,.02)' }}>
+        <div style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 12, background: 'var(--chip-bg)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>
               <MapPin size={13} style={{ color: 'var(--gold)' }} /> New delivery site

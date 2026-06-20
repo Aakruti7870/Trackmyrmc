@@ -87,11 +87,11 @@ const WA_EVENT_LABEL: Record<string, string> = {
 const WA_FAILED_STATUSES = new Set(['undelivered', 'failed', 'error']);
 
 const card: React.CSSProperties = {
-  background: 'linear-gradient(135deg,rgba(17,30,55,.85),rgba(10,20,40,.9))',
-  border: '1px solid rgba(255,255,255,.07)',
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
   borderRadius: 18,
   padding: '28px 30px',
-  boxShadow: '0 8px 32px rgba(0,0,0,.35)',
+  boxShadow: '0 8px 32px rgba(var(--shadow-rgb),.35)',
 };
 
 const label: React.CSSProperties = {
@@ -101,7 +101,7 @@ const label: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px 38px 10px 12px',
-  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+  background: 'var(--chip-bg)', border: '1px solid var(--line)',
   borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
   boxSizing: 'border-box',
 };
@@ -1533,18 +1533,18 @@ export default function ProfileSettings() {
           </div>
 
           {/* Test history */}
-          <div style={{ marginTop: 22, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,.07)' }}>
+          <div style={{ marginTop: 22, paddingTop: 20, borderTop: '1px solid var(--line)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
               <History size={14} color="#9fb0c7" />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#9fb0c7', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
                 Test History
               </span>
             </div>
 
             {historyLoading && testHistory.length === 0 ? (
-              <div style={{ fontSize: 12, color: '#9fb0c7' }}>Loading…</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>Loading…</div>
             ) : testHistory.length === 0 ? (
-              <div style={{ fontSize: 12, color: '#9fb0c7' }}>No test attempts recorded yet.</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>No test attempts recorded yet.</div>
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {testHistory.map(log => {
@@ -1554,8 +1554,8 @@ export default function ProfileSettings() {
                     <div key={log.id} style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10,
                       padding: '10px 12px', borderRadius: 10,
-                      background: 'rgba(255,255,255,.03)',
-                      border: '1px solid rgba(255,255,255,.06)',
+                      background: 'var(--chip-bg)',
+                      border: '1px solid var(--line)',
                     }}>
                       {ok
                         ? <CheckCircle size={15} color="#22c55e" style={{ flexShrink: 0, marginTop: 1 }} />
@@ -1564,20 +1564,20 @@ export default function ProfileSettings() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{
                             fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px',
-                            color: '#9fb0c7', padding: '2px 7px', borderRadius: 6,
-                            background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)',
+                            color: 'var(--muted)', padding: '2px 7px', borderRadius: 6,
+                            background: 'var(--chip-bg)', border: '1px solid var(--line)',
                           }}>
                             {kindLabel}
                           </span>
                           <span style={{ fontSize: 13, fontWeight: 700, color: ok ? '#22c55e' : '#ef4444' }}>
                             {ok ? 'Success' : 'Failed'}
                           </span>
-                          <span style={{ fontSize: 11, color: '#9fb0c7' }}>
+                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                             {new Date(log.createdAt).toLocaleString()}
                           </span>
                         </div>
                         {log.detail && (
-                          <div style={{ fontSize: 11, color: '#9fb0c7', marginTop: 3, wordBreak: 'break-word' }}>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3, wordBreak: 'break-word' }}>
                             {log.detail}
                           </div>
                         )}
@@ -1951,7 +1951,7 @@ export default function ProfileSettings() {
           )}
 
           {/* Pending-retry queue — transient failures waiting to re-send */}
-          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,.07)' }}>
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--line)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Messages waiting to retry</div>
@@ -1967,7 +1967,7 @@ export default function ProfileSettings() {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '7px 12px', borderRadius: 9,
-                  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+                  background: 'var(--chip-bg)', border: '1px solid var(--line)',
                   cursor: (retriesLoading || retryActingId !== null) ? 'not-allowed' : 'pointer',
                   color: 'var(--muted)', fontWeight: 700, fontSize: 12,
                 }}
@@ -2090,7 +2090,7 @@ export default function ProfileSettings() {
               dispatched, delivery status will appear here.
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,.06)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)' }}>
               {whatsappMessages.map(m => {
                 const badge = WA_STATUS_BADGE[m.status] ?? { color: 'var(--muted)', label: m.status };
                 const ref = m.orderNo ? `Order ${m.orderNo}` : m.challanNo ? `Challan ${m.challanNo}` : '—';
@@ -2099,7 +2099,7 @@ export default function ProfileSettings() {
                   <div key={m.id} style={{
                     display: 'grid', gridTemplateColumns: 'minmax(120px,1.2fr) 1fr 1fr auto',
                     gap: 12, alignItems: 'center', padding: '12px 14px',
-                    background: 'rgba(255,255,255,.015)',
+                    background: 'var(--chip-bg)',
                   }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ref}</div>
@@ -2328,7 +2328,7 @@ export default function ProfileSettings() {
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '7px 12px', borderRadius: 9,
-                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)',
                 cursor: lockoutsLoading ? 'not-allowed' : 'pointer',
                 color: 'var(--muted)', fontWeight: 700, fontSize: 12,
               }}
@@ -2420,7 +2420,7 @@ export default function ProfileSettings() {
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '7px 12px', borderRadius: 9,
-                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)',
                 cursor: (stuckLoading || retrying) ? 'not-allowed' : 'pointer',
                 color: 'var(--muted)', fontWeight: 700, fontSize: 12,
               }}

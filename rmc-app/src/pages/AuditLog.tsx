@@ -68,10 +68,10 @@ function actionColor(action: string): string {
 }
 
 const card: React.CSSProperties = {
-  background: 'linear-gradient(135deg,rgba(17,30,55,.85),rgba(10,20,40,.9))',
-  border: '1px solid rgba(255,255,255,.07)',
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
   borderRadius: 18,
-  boxShadow: '0 8px 32px rgba(0,0,0,.35)',
+  boxShadow: '0 8px 32px rgba(var(--shadow-rgb),.35)',
 };
 
 const PAGE_SIZE = 50;
@@ -158,7 +158,7 @@ export default function AuditLog() {
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '9px 14px', borderRadius: 10,
-            background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+            background: 'var(--chip-bg)', border: '1px solid var(--line)',
             color: 'var(--text)', fontSize: 13, fontWeight: 600,
             cursor: loading ? 'not-allowed' : 'pointer',
           }}
@@ -181,7 +181,7 @@ export default function AuditLog() {
           onChange={e => changeFilter(e.target.value)}
           style={{
             padding: '9px 12px', borderRadius: 10, minWidth: 200,
-            background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+            background: 'var(--chip-bg)', border: '1px solid var(--line)',
             color: 'var(--text)', fontSize: 13, outline: 'none', cursor: 'pointer',
           }}
         >
@@ -224,7 +224,7 @@ export default function AuditLog() {
                   const ok = log.status === 'success';
                   const failed = log.status === 'failure';
                   return (
-                    <tr key={log.id} style={{ borderTop: '1px solid rgba(255,255,255,.06)' }}>
+                    <tr key={log.id} style={{ borderTop: '1px solid var(--line)' }}>
                       <td style={tdStyle}>
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -318,7 +318,7 @@ function pagerStyle(enabled: boolean): React.CSSProperties {
   return {
     display: 'flex', alignItems: 'center', gap: 5,
     padding: '9px 16px', borderRadius: 10,
-    background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+    background: 'var(--chip-bg)', border: '1px solid var(--line)',
     color: enabled ? 'var(--text)' : 'var(--muted)', fontSize: 13, fontWeight: 600,
     cursor: enabled ? 'pointer' : 'not-allowed', opacity: enabled ? 1 : 0.5,
   };

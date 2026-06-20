@@ -174,10 +174,10 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
 
   return (
     <div style={{
-      background: 'linear-gradient(135deg,rgba(15,28,54,.95),rgba(8,17,31,.95))',
+      background: 'var(--surface)',
       border: `1px solid color-mix(in srgb, ${s.color} 16%, transparent)`,
       borderRadius: 16, padding: 20, position: 'relative', overflow: 'hidden',
-      boxShadow: '0 8px 32px rgba(0,0,0,.28)',
+      boxShadow: '0 8px 32px rgba(var(--shadow-rgb),.28)',
     }}>
       <div style={{
         position: 'absolute', top: 0, right: 0, width: 72, height: 72, borderRadius: '0 16px 0 72px',
@@ -218,7 +218,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
       </div>
 
       {challan.siteName && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, padding: '7px 10px', background: 'rgba(255,255,255,.04)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, padding: '7px 10px', background: 'var(--chip-bg)', borderRadius: 8 }}>
           <MapPin size={12} style={{ color: 'var(--muted)' }} />
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>{challan.siteName}</span>
         </div>
@@ -326,7 +326,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
             disabled={leaving}
             style={{
               width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 10,
-              background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+              background: 'var(--chip-bg)', border: '1px solid var(--line)',
               color: 'var(--text)', fontSize: 13, boxSizing: 'border-box',
             }}
           />
@@ -385,7 +385,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
               disabled={marking}
               style={{
                 width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 10,
-                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)',
                 color: 'var(--text)', fontSize: 13, boxSizing: 'border-box',
               }}
             />
@@ -400,7 +400,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
               disabled={marking}
               style={{
                 width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 10,
-                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)',
                 color: 'var(--text)', fontSize: 13, boxSizing: 'border-box',
               }}
             />
@@ -415,7 +415,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
               disabled={marking}
               style={{
                 width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 10,
-                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)',
                 color: 'var(--text)', fontSize: 13, boxSizing: 'border-box',
               }}
             />
@@ -428,7 +428,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
               disabled={marking}
               style={{
                 width: '100%', padding: '9px 11px', borderRadius: 8, marginBottom: 12,
-                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+                background: 'var(--chip-bg)', border: '1px solid var(--line)',
                 color: 'var(--text)', fontSize: 13, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit',
               }}
             />
@@ -451,7 +451,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
                     <img
                       src={p}
                       alt={`Proof of delivery ${i + 1}`}
-                      style={{ width: '100%', height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', display: 'block' }}
+                      style={{ width: '100%', height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)', display: 'block' }}
                     />
                     {!marking && (
                       <button
@@ -460,7 +460,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
                         aria-label={`Remove photo ${i + 1}`}
                         style={{
                           position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: '50%',
-                          background: 'rgba(0,0,0,.65)', border: '1px solid rgba(255,255,255,.2)', cursor: 'pointer',
+                          background: 'rgba(var(--shadow-rgb),.65)', border: '1px solid var(--line)', cursor: 'pointer',
                           color: '#fff', display: 'grid', placeItems: 'center',
                         }}
                       >
@@ -495,7 +495,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
                 disabled={marking}
                 style={{
                   flex: '0 0 auto', padding: '10px 16px', borderRadius: 9, cursor: marking ? 'not-allowed' : 'pointer',
-                  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+                  background: 'var(--chip-bg)', border: '1px solid var(--line)',
                   color: 'var(--muted)', fontSize: 13, fontWeight: 700,
                 }}
               >
@@ -537,8 +537,8 @@ function GPSPanel({
   const on = tracking && geoState === 'active';
   return (
     <div style={{
-      background: on ? 'linear-gradient(135deg,rgba(34,197,94,.1),rgba(8,17,31,.9))' : 'linear-gradient(135deg,rgba(15,28,54,.95),rgba(8,17,31,.95))',
-      border: `1px solid ${on ? 'color-mix(in srgb, var(--green) 28%, transparent)' : 'rgba(255,255,255,.08)'}`,
+      background: on ? 'linear-gradient(135deg,rgba(34,197,94,.1),rgba(8,17,31,.9))' : 'var(--surface)',
+      border: `1px solid ${on ? 'color-mix(in srgb, var(--green) 28%, transparent)' : 'var(--line)'}`,
       borderRadius: 16, padding: 18, marginBottom: 24,
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
@@ -566,7 +566,7 @@ function GPSPanel({
           style={{
             display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', borderRadius: 11,
             cursor: activeCount === 0 && !on ? 'not-allowed' : 'pointer',
-            background: on ? 'rgba(239,68,68,.14)' : (activeCount === 0 ? 'rgba(255,255,255,.05)' : 'linear-gradient(135deg,#16a34a,var(--green))'),
+            background: on ? 'rgba(239,68,68,.14)' : (activeCount === 0 ? 'var(--chip-bg)' : 'linear-gradient(135deg,#16a34a,var(--green))'),
             color: on ? 'var(--red)' : (activeCount === 0 ? 'var(--muted)' : '#fff'),
             border: on ? '1px solid color-mix(in srgb, var(--red) 30%, transparent)' : '1px solid transparent',
             fontSize: 13, fontWeight: 800, transition: 'all .2s', whiteSpace: 'nowrap',
@@ -828,8 +828,8 @@ export default function MyTrips() {
           onClick={() => setViewAll(v => !v)}
           style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
-            background: viewAll ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'rgba(255,255,255,.06)',
-            border: `1px solid ${viewAll ? '#f7c94844' : 'rgba(255,255,255,.1)'}`,
+            background: viewAll ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'var(--chip-bg)',
+            border: `1px solid ${viewAll ? '#f7c94844' : 'var(--line)'}`,
             borderRadius: 10, cursor: 'pointer', color: viewAll ? 'var(--gold)' : 'var(--muted)',
             fontSize: 12, fontWeight: 600, transition: 'all .2s',
           }}
@@ -876,8 +876,8 @@ export default function MyTrips() {
           { label: 'Volume Delivered', value: `${totalVol.toFixed(1)} m³`, color: '#a78bfa', icon: Package },
         ].map(k => (
           <div key={k.label} style={{
-            background: 'linear-gradient(135deg,rgba(15,28,54,.95),rgba(8,17,31,.95))',
-            border: '1px solid rgba(255,255,255,.07)', borderRadius: 14, padding: '16px 18px',
+            background: 'var(--surface)',
+            border: '1px solid var(--line)', borderRadius: 14, padding: '16px 18px',
             display: 'flex', alignItems: 'center', gap: 12,
           }}>
             <div style={{ width: 40, height: 40, borderRadius: 11, background: `color-mix(in srgb, ${k.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${k.color} 19%, transparent)`, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
@@ -892,14 +892,14 @@ export default function MyTrips() {
       </div>
 
       {/* Filter tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'rgba(255,255,255,.04)', borderRadius: 12, padding: 4, width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--chip-bg)', borderRadius: 12, padding: 4, width: 'fit-content' }}>
         {([['all', 'All'], ['dispatched', 'Active'], ['delivered', 'Delivered']] as const).map(([val, lbl]) => (
           <button key={val} onClick={() => setFilter(val)} style={{
             padding: '8px 18px', borderRadius: 9, border: 'none', cursor: 'pointer',
             fontSize: 13, fontWeight: 700,
             background: filter === val ? 'linear-gradient(135deg,var(--surface),var(--panel2))' : 'transparent',
             color: filter === val ? 'var(--text)' : 'var(--muted)',
-            boxShadow: filter === val ? '0 2px 8px rgba(0,0,0,.25)' : 'none',
+            boxShadow: filter === val ? '0 2px 8px rgba(var(--shadow-rgb),.25)' : 'none',
           }}>
             {lbl}
           </button>
@@ -913,7 +913,7 @@ export default function MyTrips() {
       ) : filtered.length === 0 ? (
         <div style={{
           textAlign: 'center', padding: 60, color: 'var(--muted)',
-          background: 'rgba(15,28,54,.5)', borderRadius: 16, border: '1px solid rgba(255,255,255,.06)',
+          background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--line)',
         }}>
           <Truck size={36} style={{ opacity: .3, display: 'block', margin: '0 auto 12px' }} />
           {viewAll ? 'No trips found' : 'No trips assigned for today'}

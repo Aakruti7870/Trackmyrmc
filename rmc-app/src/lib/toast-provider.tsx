@@ -50,12 +50,12 @@ function ToastOverlay({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: numb
     }}>
       {toasts.map(t => (
         <div key={t.id} data-toast-type={t.type} style={{
-          background: t.type === 'error' ? 'rgba(239,68,68,.15)' : t.type === 'success' ? 'color-mix(in srgb, var(--green) 16%, transparent)' : 'rgba(38,52,73,.95)',
+          background: t.type === 'error' ? 'rgba(239,68,68,.15)' : t.type === 'success' ? 'color-mix(in srgb, var(--green) 16%, transparent)' : 'var(--menu-bg)',
           border: `1px solid ${t.type === 'error' ? '#ef444444' : t.type === 'success' ? 'color-mix(in srgb, var(--green) 40%, transparent)' : 'var(--line)'}`,
           borderRadius: 12, padding: '12px 16px',
           color: t.type === 'error' ? '#fca5a5' : t.type === 'success' ? 'var(--green)' : 'var(--text)',
           fontSize: 13, fontWeight: 600,
-          boxShadow: '0 8px 32px rgba(0,0,0,.4)',
+          boxShadow: '0 8px 32px rgba(var(--shadow-rgb),.4)',
           backdropFilter: 'blur(8px)',
           maxWidth: 340,
           pointerEvents: 'all',

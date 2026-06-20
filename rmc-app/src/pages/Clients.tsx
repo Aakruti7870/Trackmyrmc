@@ -89,7 +89,7 @@ export default function Clients() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '9px 12px', boxSizing: 'border-box',
-    background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+    background: 'var(--chip-bg)', border: '1px solid var(--line)',
     borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
   };
 
@@ -159,7 +159,7 @@ export default function Clients() {
 
       {/* Modal */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setModal(null)}>
           <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -188,7 +188,7 @@ export default function Clients() {
             </div>
             {error && <div style={{ marginTop: 10, color: 'var(--red)', fontSize: 13 }}>{error}</div>}
             <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-              <button onClick={() => setModal(null)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button onClick={() => setModal(null)} style={{ flex: 1, padding: 10, background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 10, color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
               <button onClick={save} disabled={saving} style={{ flex: 2, padding: 10, background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))', color: '#111827', fontWeight: 800, borderRadius: 10, border: 'none', cursor: 'pointer' }}>
                 {saving ? 'Saving…' : modal === 'create' ? 'Add Client' : 'Save Changes'}
               </button>
@@ -199,7 +199,7 @@ export default function Clients() {
 
       {/* Drawer */}
       {drawer && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.6)', zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}
           onClick={e => e.target === e.currentTarget && setDrawer(null)}>
           <div style={{ width: '100%', maxWidth: 480, background: 'var(--bg)', borderLeft: '1px solid var(--line)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -223,7 +223,7 @@ export default function Clients() {
               {tab === 'overview' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {[['Contact', drawer.contactPerson], ['Phone', drawer.phone], ['Email', drawer.email || '—'], ['GST No', drawer.gstNo || '—'], ['City', drawer.city || '—'], ['Credit Limit', fmtRs(drawer.creditLimit)], ['Outstanding', fmtRs(drawer.outstandingAmount)]].map(([k, v]) => (
-                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, borderBottom: '1px solid rgba(38,52,73,.5)', paddingBottom: 10 }}>
+                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, borderBottom: '1px solid var(--line)', paddingBottom: 10 }}>
                       <span style={{ color: 'var(--muted)', fontWeight: 600 }}>{k}</span>
                       <span style={{ fontWeight: 700, color: k === 'Outstanding' && Number(drawer.outstandingAmount) > 0 ? 'var(--red)' : 'var(--text)' }}>{v}</span>
                     </div>
@@ -236,7 +236,7 @@ export default function Clients() {
                     <Plus size={13} /> Add Site
                   </button>
                   {siteModal && (
-                    <div style={{ padding: 14, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, marginBottom: 12 }}>
+                    <div style={{ padding: 14, background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 10, marginBottom: 12 }}>
                       {[['name', 'Site Name'], ['address', 'Address'], ['city', 'City']].map(([k, l]) => (
                         <div key={k} style={{ marginBottom: 8 }}>
                           <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>{l}</label>
@@ -261,13 +261,13 @@ export default function Clients() {
                         Optional GPS pin for the delivery site. When set, driver trips auto-complete on arrival within {150} m.
                       </div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                        <button onClick={() => setSiteModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: 'var(--muted)', cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={() => setSiteModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid var(--line)', borderRadius: 8, color: 'var(--muted)', cursor: 'pointer' }}>Cancel</button>
                         <button onClick={addSite} style={{ flex: 1, padding: '7px', background: 'var(--gold)', border: 'none', borderRadius: 8, color: '#111', fontWeight: 700, cursor: 'pointer' }}>Save</button>
                       </div>
                     </div>
                   )}
                   {sites.map(s => (
-                    <div key={s.id} style={{ padding: '10px 12px', background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.06)', borderRadius: 8, marginBottom: 6 }}>
+                    <div key={s.id} style={{ padding: '10px 12px', background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 8, marginBottom: 6 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</span>
                         {s.latitude != null && s.longitude != null && (
@@ -294,7 +294,7 @@ export default function Clients() {
                     </button>
                   </div>
                   {ledgerModal && (
-                    <div style={{ padding: 14, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, marginBottom: 12 }}>
+                    <div style={{ padding: 14, background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 10, marginBottom: 12 }}>
                       <div style={{ marginBottom: 8 }}>
                         <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>Type</label>
                         <select value={ledgerForm.type} onChange={e => setLedgerForm(f => ({ ...f, type: e.target.value }))}
@@ -310,13 +310,13 @@ export default function Clients() {
                         </div>
                       ))}
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                        <button onClick={() => setLedgerModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: 'var(--muted)', cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={() => setLedgerModal(false)} style={{ flex: 1, padding: '7px', background: 'transparent', border: '1px solid var(--line)', borderRadius: 8, color: 'var(--muted)', cursor: 'pointer' }}>Cancel</button>
                         <button onClick={addLedger} style={{ flex: 1, padding: '7px', background: 'var(--gold)', border: 'none', borderRadius: 8, color: '#111', fontWeight: 700, cursor: 'pointer' }}>Add</button>
                       </div>
                     </div>
                   )}
                   {ledger.entries.map(e => (
-                    <div key={e.id} style={{ padding: '9px 11px', background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.05)', borderRadius: 8, marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div key={e.id} style={{ padding: '9px 11px', background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 8, marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
                         <div style={{ fontSize: 12, fontWeight: 700 }}>{e.description}</div>
                         <div style={{ fontSize: 10, color: 'var(--muted)' }}>{e.referenceNo || '—'} · {new Date(e.createdAt).toLocaleDateString('en-IN')}</div>

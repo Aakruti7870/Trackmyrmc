@@ -94,7 +94,7 @@ export default function Users() {
           style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
             borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-            background: showDeleted ? 'rgba(239,68,68,.14)' : 'rgba(255,255,255,.05)',
+            background: showDeleted ? 'rgba(239,68,68,.14)' : 'var(--chip-bg)',
             border: `1px solid ${showDeleted ? 'rgba(239,68,68,.3)' : 'rgba(255,255,255,.1)'}`,
             color: showDeleted ? '#ef4444' : 'var(--muted)',
           }}

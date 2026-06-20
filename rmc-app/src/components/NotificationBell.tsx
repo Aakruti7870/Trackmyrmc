@@ -47,7 +47,7 @@ export default function NotificationBell() {
         style={{
           position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           width: 34, height: 34, borderRadius: 10, cursor: 'pointer',
-          background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)', color: 'var(--text)',
+          background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)',
         }}
       >
         <Bell size={16} />
@@ -65,8 +65,8 @@ export default function NotificationBell() {
       {open && (
         <div style={{
           position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: 320, maxWidth: '86vw', zIndex: 200,
-          background: 'rgba(13,25,48,.98)', border: '1px solid var(--line)', borderRadius: 14,
-          boxShadow: '0 24px 60px rgba(0,0,0,.5)', overflow: 'hidden',
+          background: 'var(--menu-bg)', border: '1px solid var(--line)', borderRadius: 14,
+          boxShadow: '0 24px 60px rgba(var(--shadow-rgb),.5)', overflow: 'hidden',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid var(--line)' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>Notifications</span>
@@ -86,7 +86,7 @@ export default function NotificationBell() {
                 <div style={{ fontSize: 12.5 }}>No notifications yet</div>
               </div>
             ) : notifications.map((n: AppNotification) => (
-              <div key={n.id} style={{ display: 'flex', gap: 10, padding: '11px 14px', borderBottom: '1px solid rgba(38,52,73,.5)' }}>
+              <div key={n.id} style={{ display: 'flex', gap: 10, padding: '11px 14px', borderBottom: '1px solid var(--line)' }}>
                 <span style={{
                   marginTop: 5, width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
                   background: n.type === 'success' ? 'var(--green)' : 'var(--blue)',

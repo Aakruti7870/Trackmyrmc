@@ -36,7 +36,7 @@ export default function AvatarPortrait({
         placeItems: 'center',
         boxShadow: speaking
           ? '0 0 0 4px color-mix(in srgb, var(--gold) 28%, transparent), 0 12px 30px color-mix(in srgb, var(--gold) 30%, transparent)'
-          : '0 10px 26px rgba(0,0,0,.32), inset 0 2px 2px rgba(255,255,255,.5)',
+          : '0 10px 26px rgba(var(--shadow-rgb),.32), inset 0 2px 2px rgba(255,255,255,.5)',
         transition: 'box-shadow .25s ease',
         animation: state === 'idle' ? 'aiAvBreathe 3.6s ease-in-out infinite' : undefined,
       }}

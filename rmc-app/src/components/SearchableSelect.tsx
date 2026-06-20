@@ -15,7 +15,7 @@ type Props = {
 
 const fieldStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', boxSizing: 'border-box',
-  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+  background: 'var(--chip-bg)', border: '1px solid var(--line)',
   borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
   gap: 8, cursor: 'pointer', textAlign: 'left',
@@ -131,10 +131,10 @@ export default function SearchableSelect({
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 200,
           background: 'linear-gradient(145deg,var(--panel),var(--bg))',
-          border: '1px solid rgba(255,255,255,.12)', borderRadius: 10,
-          boxShadow: '0 12px 32px rgba(0,0,0,.45)', overflow: 'hidden',
+          border: '1px solid var(--line)', borderRadius: 10,
+          boxShadow: '0 12px 32px rgba(var(--shadow-rgb),.45)', overflow: 'hidden',
         }}>
-          <div style={{ padding: 8, borderBottom: '1px solid rgba(255,255,255,.07)' }}>
+          <div style={{ padding: 8, borderBottom: '1px solid var(--line)' }}>
             <div style={{ position: 'relative' }}>
               <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
               <input
@@ -145,7 +145,7 @@ export default function SearchableSelect({
                 placeholder="Search…"
                 style={{
                   width: '100%', boxSizing: 'border-box', padding: '7px 10px 7px 28px',
-                  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+                  background: 'var(--chip-bg)', border: '1px solid var(--line)',
                   borderRadius: 7, color: 'var(--text)', fontSize: 13, outline: 'none',
                 }}
               />
@@ -181,7 +181,7 @@ export default function SearchableSelect({
                     onMouseEnter={() => setHighlight(i)}
                     style={{
                       width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 7,
-                      background: isHi ? 'rgba(255,255,255,.07)' : 'transparent',
+                      background: isHi ? 'var(--menu-hover)' : 'transparent',
                       border: 'none', cursor: 'pointer',
                       color: isSel ? 'var(--gold)' : 'var(--text)', fontSize: 13,
                       fontWeight: isSel ? 700 : 500,

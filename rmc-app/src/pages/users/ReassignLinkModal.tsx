@@ -27,7 +27,7 @@ export default function ReassignLinkModal({
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 130,
-      background: 'rgba(5,9,20,.75)', backdropFilter: 'blur(4px)',
+      background: 'var(--overlay)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }}>
       <div style={{
@@ -70,8 +70,8 @@ export default function ReassignLinkModal({
             onClick={onCancel}
             disabled={busy}
             style={{
-              flex: 1, padding: '10px', background: 'rgba(255,255,255,.07)',
-              border: '1px solid rgba(255,255,255,.1)', borderRadius: 10,
+              flex: 1, padding: '10px', background: 'var(--chip-bg)',
+              border: '1px solid var(--line)', borderRadius: 10,
               color: 'var(--muted)', fontWeight: 600, fontSize: 13,
               cursor: busy ? 'not-allowed' : 'pointer',
             }}

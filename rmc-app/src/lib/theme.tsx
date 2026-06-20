@@ -18,8 +18,65 @@ const SEMANTIC = {
   '--orange': '#f59e0b', /* command-center warning accent */
 };
 
+/* Surface "kits" — the dark-baked chrome (sidebar/header/menus/overlay/glass)
+ * is tokenized so each theme can flip it. Every theme MUST carry a full kit,
+ * otherwise applyTheme() leaves stale values from the previously-active theme. */
+const DARK_SURFACES = {
+  '--shadow-rgb': '0,0,0',
+  '--glass-1': 'color-mix(in srgb, var(--surface) 92%, transparent)',
+  '--glass-2': 'color-mix(in srgb, var(--bg-deep) 96%, transparent)',
+  '--glass-border': 'rgba(203,213,225,.14)',
+  '--glass-hi': 'rgba(255,255,255,.08)',
+  '--glass-blur': 'blur(2px)',
+  '--sidebar-1': 'rgba(8,17,31,.97)',
+  '--sidebar-2': 'rgba(2,6,18,.97)',
+  '--header-bg': 'rgba(8,17,31,.96)',
+  '--menu-bg': 'rgba(13,25,48,.95)',
+  '--menu-hover': 'rgba(38,52,73,.5)',
+  '--overlay': 'rgba(5,9,20,.6)',
+  '--chip-bg': 'rgba(255,255,255,.03)',
+  '--sheen': 'rgba(255,255,255,.035)',
+};
+
+const LIGHT_SURFACES = {
+  '--shadow-rgb': '30,41,90',
+  '--glass-1': 'rgba(255,255,255,0.78)',
+  '--glass-2': 'rgba(255,255,255,0.55)',
+  '--glass-border': 'rgba(255,255,255,0.85)',
+  '--glass-hi': 'rgba(255,255,255,0.9)',
+  '--glass-blur': 'blur(20px) saturate(140%)',
+  '--sidebar-1': 'rgba(255,255,255,0.88)',
+  '--sidebar-2': 'rgba(245,248,253,0.82)',
+  '--header-bg': 'rgba(255,255,255,0.9)',
+  '--menu-bg': 'rgba(255,255,255,0.97)',
+  '--menu-hover': 'rgba(30,41,90,0.06)',
+  '--overlay': 'rgba(15,23,42,0.35)',
+  '--chip-bg': 'rgba(30,41,90,0.04)',
+  '--sheen': 'rgba(255,255,255,.5)',
+};
+
 export const THEMES: Theme[] = [
-  /* ===== Concept 5: Futuristic 3D Command Center (default) ===== */
+  /* ===== Daylight Glass — frosted light glassmorphism (DEFAULT) ===== */
+  {
+    id: 'daylight-glass',
+    name: 'Daylight Glass',
+    tagline: 'Frosted light & aurora gold',
+    fontName: 'Sora',
+    font: "'Sora', system-ui, -apple-system, sans-serif",
+    tokens: {
+      '--bg-top': '#f4f7fc', '--bg': '#eef2f9', '--bg-deep': '#e3e9f4',
+      '--panel': '#ffffff', '--panel2': '#f6f9fd', '--surface': '#ffffff', '--line': 'rgba(30,41,90,0.12)',
+      '--text': '#0f172a', '--muted': '#5a6b85',
+      '--gold-hi': '#f5b942', '--gold-mid': '#e59a16', '--gold': '#d68a0a', '--gold-dark': '#a96a06',
+      '--glow-1': 'rgba(214,138,10,.16)', '--glow-2': 'rgba(14,154,167,.16)',
+      ...SEMANTIC,
+      /* status hues retuned for legibility on a light surface */
+      '--green': '#15a06a', '--green-dark': '#0f7a4f', '--blue': '#2a83d6',
+      '--red': '#e11d57', '--orange': '#d97706',
+      ...LIGHT_SURFACES,
+    },
+  },
+  /* ===== Concept 5: Futuristic 3D Command Center ===== */
   {
     id: 'command-center',
     name: 'Command Center',
@@ -34,6 +91,7 @@ export const THEMES: Theme[] = [
       '--glow-1': 'rgba(212,175,55,.16)', '--glow-2': 'rgba(0,180,216,.14)',
       ...SEMANTIC,
       '--blue': '#00b4d8', /* electric blue is the command-center accent */
+      ...DARK_SURFACES,
     },
   },
   {
@@ -49,6 +107,7 @@ export const THEMES: Theme[] = [
       '--gold-hi': '#ffe08a', '--gold-mid': '#f6b818', '--gold': '#f7c948', '--gold-dark': '#d97706',
       '--glow-1': 'rgba(255,183,3,.16)', '--glow-2': 'rgba(56,189,248,.10)',
       ...SEMANTIC,
+      ...DARK_SURFACES,
     },
   },
   {
@@ -64,6 +123,7 @@ export const THEMES: Theme[] = [
       '--gold-hi': '#e9d5ff', '--gold-mid': '#c4a0ff', '--gold': '#b794f6', '--gold-dark': '#7c3aed',
       '--glow-1': 'rgba(167,139,250,.20)', '--glow-2': 'rgba(56,189,248,.10)',
       ...SEMANTIC,
+      ...DARK_SURFACES,
     },
   },
   {
@@ -79,6 +139,7 @@ export const THEMES: Theme[] = [
       '--gold-hi': '#ffd9a8', '--gold-mid': '#f0a857', '--gold': '#e8923c', '--gold-dark': '#b45309',
       '--glow-1': 'rgba(232,146,60,.20)', '--glow-2': 'rgba(220,140,80,.10)',
       ...SEMANTIC,
+      ...DARK_SURFACES,
     },
   },
   {
@@ -94,6 +155,7 @@ export const THEMES: Theme[] = [
       '--gold-hi': '#ffd5e4', '--gold-mid': '#f7a8c4', '--gold': '#f084ac', '--gold-dark': '#be185d',
       '--glow-1': 'rgba(240,132,172,.18)', '--glow-2': 'rgba(167,139,250,.10)',
       ...SEMANTIC,
+      ...DARK_SURFACES,
     },
   },
   {
@@ -109,6 +171,7 @@ export const THEMES: Theme[] = [
       '--gold-hi': '#d0f0fa', '--gold-mid': '#7dd3ec', '--gold': '#56c5e0', '--gold-dark': '#0e7490',
       '--glow-1': 'rgba(86,197,224,.18)', '--glow-2': 'rgba(125,211,252,.10)',
       ...SEMANTIC,
+      ...DARK_SURFACES,
     },
   },
 ];

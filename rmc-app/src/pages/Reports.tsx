@@ -109,16 +109,16 @@ export default function Reports() {
           {PRESETS.map((p, i) => (
             <button key={p.label} onClick={() => applyPreset(i)} style={{
               padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              background: preset === i ? 'var(--gold)' : 'rgba(255,255,255,.05)',
+              background: preset === i ? 'var(--gold)' : 'var(--chip-bg)',
               color: preset === i ? '#111' : 'var(--muted)', border: 'none',
             }}>{p.label}</button>
           ))}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
             <input type="date" value={from} onChange={e => { setFrom(e.target.value); setPreset(-1); }}
-              style={{ padding: '5px 10px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: 'var(--text)', fontSize: 12, outline: 'none' }} />
+              style={{ padding: '5px 10px', background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 8, color: 'var(--text)', fontSize: 12, outline: 'none' }} />
             <span style={{ color: 'var(--muted)' }}>to</span>
             <input type="date" value={to} onChange={e => { setTo(e.target.value); setPreset(-1); }}
-              style={{ padding: '5px 10px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: 'var(--text)', fontSize: 12, outline: 'none' }} />
+              style={{ padding: '5px 10px', background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 8, color: 'var(--text)', fontSize: 12, outline: 'none' }} />
           </div>
         </div>
       </div>
@@ -143,7 +143,7 @@ export default function Reports() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 18, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 12, padding: 4 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 18, background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 12, padding: 4 }}>
         {(['client-wise', 'grade-wise', 'dispatch', 'trip-timing', 'production', 'fuel'] as ReportTab[]).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             flex: 1, padding: '9px', background: tab === t ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'transparent',
@@ -171,7 +171,7 @@ export default function Reports() {
               {clientData.map((r, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ minWidth: 160, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.clientName}</span>
-                  <div style={{ flex: 1, background: 'rgba(255,255,255,.05)', borderRadius: 999, overflow: 'hidden', height: 10 }}>
+                  <div style={{ flex: 1, background: 'var(--chip-bg)', borderRadius: 999, overflow: 'hidden', height: 10 }}>
                     <div style={{ width: `${(Number(r.totalQty) / maxClientQty) * 100}%`, height: '100%', background: 'linear-gradient(90deg,var(--gold),var(--gold-dark))', borderRadius: 999, transition: 'width .5s' }} />
                   </div>
                   <span style={{ minWidth: 70, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{Number(r.totalQty).toFixed(1)} m³</span>
@@ -188,7 +188,7 @@ export default function Reports() {
               {gradeData.map((r, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ width: 48, fontSize: 13, fontWeight: 700, color: GRADE_COLORS[i % GRADE_COLORS.length] }}>{r.grade}</span>
-                  <div style={{ flex: 1, background: 'rgba(255,255,255,.05)', borderRadius: 999, overflow: 'hidden', height: 10 }}>
+                  <div style={{ flex: 1, background: 'var(--chip-bg)', borderRadius: 999, overflow: 'hidden', height: 10 }}>
                     <div style={{ width: `${(Number(r.totalQty) / maxGradeQty) * 100}%`, height: '100%', background: GRADE_COLORS[i % GRADE_COLORS.length], borderRadius: 999, transition: 'width .5s', opacity: 0.85 }} />
                   </div>
                   <span style={{ minWidth: 70, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{Number(r.totalQty).toFixed(1)} m³</span>
@@ -229,7 +229,7 @@ export default function Reports() {
                   </thead>
                   <tbody>
                     {dispatchData.map((r, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+                      <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
                         <td style={{ padding: '8px 12px' }}>{new Date(r.date).toLocaleDateString('en-IN')}</td>
                         <td style={{ padding: '8px 12px', fontWeight: 700 }}>{Number(r.totalQty).toFixed(1)}</td>
                         <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--green)' }}>{Number(r.deliveredQty).toFixed(1)}</td>
@@ -260,11 +260,11 @@ export default function Reports() {
                 return (
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
-                      <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 10 }}>
+                      <div style={{ padding: '12px 14px', background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 10 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>AVG TRAVEL</div>
                         <div style={{ fontSize: 20, fontWeight: 800 }}>{fmt(avgTravel)}</div>
                       </div>
-                      <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 10 }}>
+                      <div style={{ padding: '12px 14px', background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 10 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>AVG TIME AT SITE</div>
                         <div style={{ fontSize: 20, fontWeight: 800 }}>{fmt(avgSite)}</div>
                       </div>
@@ -294,7 +294,7 @@ export default function Reports() {
                           </thead>
                           <tbody>
                             {rows.map((r, i) => (
-                              <tr key={i} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+                              <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
                                 <td style={{ padding: '8px 12px' }}>{new Date(r.date).toLocaleDateString('en-IN')}</td>
                                 <td style={{ padding: '8px 12px', fontWeight: 700 }}>{fmt(Number(r.avgTravelMin))}</td>
                                 <td style={{ padding: '8px 12px', fontWeight: 700 }}>{fmt(Number(r.avgSiteMin))}</td>
@@ -329,7 +329,7 @@ export default function Reports() {
                   </thead>
                   <tbody>
                     {productionData.map((r, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+                      <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
                         <td style={{ padding: '8px 12px', color: 'var(--muted)' }}>{new Date(r.date).toLocaleDateString('en-IN')}</td>
                         <td style={{ padding: '8px 12px' }}><span style={{ padding: '2px 8px', background: 'rgba(56,189,248,.12)', color: 'var(--blue)', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>{r.grade}</span></td>
                         <td style={{ padding: '8px 12px', fontWeight: 700 }}>{Number(r.totalQty).toFixed(1)}</td>
@@ -369,7 +369,7 @@ export default function Reports() {
                         </div>
                         <button
                           onClick={async () => { await api.post(`/positions/alerts/${a.id}/ack`, {}); setAlerts(prev => prev.filter(x => x.id !== a.id)); }}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'var(--text)', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--chip-bg)', color: 'var(--text)', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}
                         ><Check size={13} /> Acknowledge</button>
                       </div>
                     ))}
@@ -396,7 +396,7 @@ export default function Reports() {
                     </thead>
                     <tbody>
                       {fuelRecon.rows.map(r => (
-                        <tr key={r.vehicleId} style={{ borderBottom: '1px solid rgba(38,52,73,.4)', background: r.flagged ? 'rgba(239,68,68,.06)' : 'transparent' }}>
+                        <tr key={r.vehicleId} style={{ borderBottom: '1px solid var(--line)', background: r.flagged ? 'rgba(239,68,68,.06)' : 'transparent' }}>
                           <td style={{ padding: '8px 12px', fontWeight: 700 }}>
                             {r.flagged && <AlertTriangle size={12} style={{ color: 'var(--red)', marginRight: 5, verticalAlign: 'middle' }} />}
                             {r.vehicleNo || `#${r.vehicleId}`}

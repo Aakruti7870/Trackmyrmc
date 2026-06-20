@@ -9,7 +9,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <section style={{ marginTop: 34 }}>
       <h2 style={{
-        fontSize: 19, fontWeight: 700, color: '#fff', margin: '0 0 12px',
+        fontSize: 19, fontWeight: 700, color: 'var(--text)', margin: '0 0 12px',
         letterSpacing: 0.2,
       }}>{title}</h2>
       <div style={{ color: 'var(--muted)', fontSize: 15, lineHeight: 1.7 }}>{children}</div>
@@ -21,7 +21,7 @@ export default function Privacy() {
   const [, setLoc] = useLocation();
   return (
     <div style={{
-      minHeight: '100vh', background: 'var(--bg, #08111f)', color: '#e8eef7',
+      minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)',
       padding: '0 20px 80px',
     }}>
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
@@ -33,7 +33,7 @@ export default function Privacy() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center',
-              background: 'linear-gradient(160deg, #1a2c46, #0c1828)',
+              background: 'rgba(255,255,255,.6)',
               border: '1px solid rgba(247,201,72,.4)',
               boxShadow: '0 0 24px -8px rgba(247,201,72,.6)',
             }}>
@@ -41,7 +41,7 @@ export default function Privacy() {
             </div>
             <div style={{ lineHeight: 1 }}>
               <div style={{ fontWeight: 800, letterSpacing: 0.5, fontSize: 18 }}>
-                <span style={{ color: '#fff' }}>CONCRETE </span>
+                <span style={{ color: 'var(--text)' }}>CONCRETE </span>
                 <span style={{ color: 'var(--gold, #f7c948)' }}>KING</span>
               </div>
               <div style={{ fontSize: 9.5, color: 'var(--muted, #8aa0bd)', letterSpacing: 2, marginTop: 4, textTransform: 'uppercase' }}>
@@ -53,8 +53,8 @@ export default function Privacy() {
             onClick={() => setLoc('/')}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
-              background: 'rgba(255,255,255,.04)', border: '1px solid var(--line, rgba(120,160,220,.18))',
-              color: '#cdd9ea', padding: '9px 16px', borderRadius: 10, fontSize: 14,
+              background: 'var(--chip-bg)', border: '1px solid var(--line)',
+              color: 'var(--muted)', padding: '9px 16px', borderRadius: 10, fontSize: 14,
               cursor: 'pointer',
             }}
           >
@@ -65,13 +65,13 @@ export default function Privacy() {
         {/* title card */}
         <div style={{
           marginTop: 14, padding: '30px 30px', borderRadius: 20,
-          background: 'radial-gradient(120% 120% at 70% 0%, #13243c 0%, #0b1626 60%, #0a1322 100%)',
-          border: '1px solid var(--line, rgba(120,160,220,.18))',
-          boxShadow: '0 30px 70px -40px rgba(0,0,0,.8)',
+          background: 'rgba(255,255,255,.78)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255,255,255,.85)',
+          boxShadow: '0 30px 70px -40px rgba(30,41,90,.28)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <ShieldCheck size={28} color="var(--gold, #f7c948)" />
-            <h1 style={{ fontSize: 30, fontWeight: 800, margin: 0, color: '#fff', letterSpacing: 0.2 }}>
+            <h1 style={{ fontSize: 30, fontWeight: 800, margin: 0, color: 'var(--text)', letterSpacing: 0.2 }}>
               Privacy Policy
             </h1>
           </div>
@@ -91,10 +91,10 @@ export default function Privacy() {
 
         <Section title="1. Information We Collect">
           <ul style={{ margin: 0, paddingLeft: 20 }}>
-            <li style={{ marginBottom: 8 }}><strong style={{ color: '#cdd9ea' }}>Account &amp; contact details</strong> — name, phone number, company name, GST details, and email where provided.</li>
-            <li style={{ marginBottom: 8 }}><strong style={{ color: '#cdd9ea' }}>Order &amp; delivery data</strong> — concrete grade, quantity, delivery address, order history, challans, and dispatch records.</li>
-            <li style={{ marginBottom: 8 }}><strong style={{ color: '#cdd9ea' }}>Location data</strong> — site/delivery coordinates and, for tracking, the live location of transit vehicles servicing your order.</li>
-            <li style={{ marginBottom: 8 }}><strong style={{ color: '#cdd9ea' }}>Usage &amp; device data</strong> — log data such as IP address and basic device/browser information used to operate and secure the service.</li>
+            <li style={{ marginBottom: 8 }}><strong style={{ color: 'var(--text)' }}>Account &amp; contact details</strong> — name, phone number, company name, GST details, and email where provided.</li>
+            <li style={{ marginBottom: 8 }}><strong style={{ color: 'var(--text)' }}>Order &amp; delivery data</strong> — concrete grade, quantity, delivery address, order history, challans, and dispatch records.</li>
+            <li style={{ marginBottom: 8 }}><strong style={{ color: 'var(--text)' }}>Location data</strong> — site/delivery coordinates and, for tracking, the live location of transit vehicles servicing your order.</li>
+            <li style={{ marginBottom: 8 }}><strong style={{ color: 'var(--text)' }}>Usage &amp; device data</strong> — log data such as IP address and basic device/browser information used to operate and secure the service.</li>
           </ul>
         </Section>
 
@@ -172,18 +172,18 @@ export default function Privacy() {
           </p>
           <div style={{
             marginTop: 14, padding: '18px 20px', borderRadius: 14,
-            background: 'rgba(255,255,255,.03)', border: '1px solid var(--line, rgba(120,160,220,.18))',
+            background: 'var(--chip-bg)', border: '1px solid var(--line)',
           }}>
             <div style={{ marginBottom: 6 }}>
-              <span style={{ color: '#cdd9ea' }}>Email: </span>
+              <span style={{ color: 'var(--text)' }}>Email: </span>
               <a href={`mailto:${MAIL}`} style={{ color: 'var(--gold, #f7c948)', textDecoration: 'none' }}>{MAIL}</a>
             </div>
             <div style={{ marginBottom: 6 }}>
-              <span style={{ color: '#cdd9ea' }}>Phone: </span>
+              <span style={{ color: 'var(--text)' }}>Phone: </span>
               <a href={`tel:${PHONE.replace(/\s/g, '')}`} style={{ color: 'var(--gold, #f7c948)', textDecoration: 'none' }}>{PHONE}</a>
             </div>
             <div>
-              <span style={{ color: '#cdd9ea' }}>Website: </span>
+              <span style={{ color: 'var(--text)' }}>Website: </span>
               <span style={{ color: 'var(--gold, #f7c948)' }}>trackmyrmc.com</span>
             </div>
           </div>

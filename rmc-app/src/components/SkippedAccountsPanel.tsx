@@ -53,7 +53,7 @@ export default function SkippedAccountsPanel({
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 120,
-      background: 'rgba(5,9,20,.75)', backdropFilter: 'blur(4px)',
+      background: 'var(--overlay)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }}>
       <div style={{
@@ -146,7 +146,7 @@ export default function SkippedAccountsPanel({
                       )}
                     </div>
                   </div>
-                  <div style={{ margin: '5px 0 0 20px', fontSize: 12.5, color: '#9fb0c7', lineHeight: 1.45 }}>
+                  <div style={{ margin: '5px 0 0 20px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.45 }}>
                     {item.reason}
                   </div>
                   {((onUnlink && item.conflictUserId != null && item.conflictLinkType) || (onReassign && item.conflictLinkType)) && (
@@ -202,7 +202,7 @@ export default function SkippedAccountsPanel({
         </div>
         <button onClick={onClose} style={{
           marginTop: 18, padding: '10px', width: '100%',
-          background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)',
+          background: 'var(--chip-bg)', border: '1px solid var(--line)',
           borderRadius: 10, color: 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer',
         }}>
           Done

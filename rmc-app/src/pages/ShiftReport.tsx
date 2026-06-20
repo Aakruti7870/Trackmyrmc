@@ -135,7 +135,7 @@ export default function ShiftReport() {
         <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
           <span style={{
             fontFamily: 'monospace', fontSize: 13, color: 'var(--muted)',
-            padding: '5px 12px', borderRadius: 999, background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)',
+            padding: '5px 12px', borderRadius: 999, background: 'var(--chip-bg)', border: '1px solid var(--line)',
           }}>
             {fmtClock(shift.start)} — {fmtClock(shift.end)}
           </span>
@@ -149,7 +149,7 @@ export default function ShiftReport() {
             style={{
               display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer',
               padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 800,
-              color: 'var(--text)', background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)',
+              color: 'var(--text)', background: 'var(--chip-bg)', border: '1px solid var(--line)',
             }}
           >
             <Printer size={14} /> Print Handover
@@ -170,7 +170,7 @@ export default function ShiftReport() {
               <span style={{ fontSize: 64, fontWeight: 300, color: 'var(--text)', letterSpacing: '-2px', lineHeight: 1 }}>{score}</span>
               <span style={{ fontSize: 28, fontWeight: 300, color: 'var(--muted)' }}>%</span>
             </div>
-            <div style={{ height: 6, maxWidth: 160, background: 'rgba(255,255,255,.08)', borderRadius: 999, overflow: 'hidden', marginTop: 12 }}>
+            <div style={{ height: 6, maxWidth: 160, background: 'var(--chip-bg)', borderRadius: 999, overflow: 'hidden', marginTop: 12 }}>
               <div style={{ height: '100%', width: `${score}%`, background: 'linear-gradient(90deg,var(--gold-hi),var(--gold))', borderRadius: 999 }} />
             </div>
             <p style={{ margin: '12px 0 0', color: 'var(--muted)', fontSize: 13 }}>
@@ -183,8 +183,8 @@ export default function ShiftReport() {
             <p style={{ margin: '0 0 28px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.16em', fontSize: 11, fontWeight: 700 }}>
               Production Timeline · {shiftBatches.length} batch{shiftBatches.length === 1 ? '' : 'es'}
             </p>
-            <div style={{ position: 'relative', height: 6, background: 'rgba(255,255,255,.08)', borderRadius: 999 }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${currentPercent}%`, background: 'rgba(255,255,255,.12)', borderRadius: 999 }} />
+            <div style={{ position: 'relative', height: 6, background: 'var(--chip-bg)', borderRadius: 999 }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${currentPercent}%`, background: 'var(--chip-bg)', borderRadius: 999 }} />
               {shiftBatches.map(({ batch, time, p }, i) => (
                 <div
                   key={batch.id}
@@ -214,7 +214,7 @@ export default function ShiftReport() {
                 <div key={grade} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '8px 12px', borderRadius: 10, fontSize: 13,
-                  background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)',
+                  background: 'var(--chip-bg)', border: '1px solid var(--line)',
                 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontWeight: 600 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: GRADE_DOT[grade] || 'var(--muted)' }} />
@@ -243,7 +243,7 @@ export default function ShiftReport() {
               <div key={ch.id} className="glass-card cc-card" style={{ padding: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 10 }}>
                   <div style={{ minWidth: 0 }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: 'var(--text)', padding: '3px 8px', borderRadius: 7, background: 'rgba(255,255,255,.05)' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: 'var(--text)', padding: '3px 8px', borderRadius: 7, background: 'var(--chip-bg)' }}>
                       #{ch.challanNo}
                     </span>
                     <p style={{ margin: '10px 0 0', fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -257,7 +257,7 @@ export default function ShiftReport() {
                     background: 'color-mix(in srgb, var(--gold) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 22%, transparent)',
                   }}>EN ROUTE</span>
                 </div>
-                <div style={{ height: 6, background: 'rgba(255,255,255,.07)', borderRadius: 999, overflow: 'hidden' }}>
+                <div style={{ height: 6, background: 'var(--chip-bg)', borderRadius: 999, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: '55%', background: 'linear-gradient(90deg, color-mix(in srgb, var(--gold) 45%, transparent), var(--gold))', borderRadius: 999 }} />
                 </div>
               </div>
@@ -277,7 +277,7 @@ export default function ShiftReport() {
             {pendingNext.map(o => (
               <div key={o.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,.02)', border: '1px solid var(--line)',
+                padding: '12px 14px', borderRadius: 10, background: 'var(--chip-bg)', border: '1px solid var(--line)',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--muted)', flexShrink: 0 }} />
@@ -307,7 +307,7 @@ export default function ShiftReport() {
             placeholder="Notes for the next shift — mixer servicing, client confirmations, pending pours…"
             style={{
               flex: 1, minHeight: 150, width: '100%', boxSizing: 'border-box', resize: 'vertical',
-              background: 'rgba(255,255,255,.02)', border: '1px solid var(--line)', borderRadius: 14,
+              background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 14,
               padding: 18, color: 'var(--text)', fontSize: 13.5, lineHeight: 1.6, fontFamily: 'monospace',
               outline: 'none',
             }}

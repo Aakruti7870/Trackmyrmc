@@ -116,7 +116,7 @@ export default function CommandPalette() {
       onClick={close}
       style={{
         position: 'fixed', inset: 0, zIndex: 200,
-        background: 'rgba(2,4,8,.62)', backdropFilter: 'blur(4px)',
+        background: 'var(--overlay)', backdropFilter: 'blur(4px)',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '12vh',
       }}
     >
@@ -165,7 +165,7 @@ export default function CommandPalette() {
                         border: `1px solid ${isActive ? 'color-mix(in srgb, var(--gold) 26%, transparent)' : 'transparent'}`,
                       }}
                     >
-                      <div style={{ width: 30, height: 30, borderRadius: 8, display: 'grid', placeItems: 'center', background: 'rgba(255,255,255,.04)', flexShrink: 0 }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 8, display: 'grid', placeItems: 'center', background: 'var(--chip-bg)', flexShrink: 0 }}>
                         <Icon size={15} style={{ color: isActive ? 'var(--gold)' : 'var(--muted)' }} />
                       </div>
                       <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{c.label}</span>

@@ -80,7 +80,7 @@ export default function ActivityLogPanel({
             style={{
               display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto',
               padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-              background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--muted)',
+              background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--muted)',
             }}
           >
             <X size={12} /> Showing {historyUserName} — Show all
@@ -152,7 +152,7 @@ export default function ActivityLogPanel({
             style={{
               display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
               borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-              background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', color: 'var(--muted)',
+              background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--muted)',
             }}
           >
             <X size={13} /> Clear Filters
@@ -179,8 +179,8 @@ export default function ActivityLogPanel({
                 role="menu"
                 style={{
                   position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 20, minWidth: 180,
-                  background: '#0e1a2e', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10,
-                  boxShadow: '0 12px 30px rgba(0,0,0,.45)', overflow: 'hidden', padding: 4,
+                  background: 'var(--menu-bg)', border: '1px solid var(--line)', borderRadius: 10,
+                  boxShadow: '0 12px 30px rgba(var(--shadow-rgb),.45)', overflow: 'hidden', padding: 4,
                 }}
               >
                 {([
@@ -197,7 +197,7 @@ export default function ActivityLogPanel({
                       padding: '9px 11px', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
                       background: 'transparent', border: 'none', color: 'var(--text)',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.06)')}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--menu-hover)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
                     <span style={{ color: '#f7c948', display: 'flex' }}>{item.icon}</span>
@@ -211,11 +211,11 @@ export default function ActivityLogPanel({
       </div>
 
       <div style={{
-        background: 'linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01))',
-        border: '1px solid rgba(255,255,255,.08)', borderRadius: 16, overflow: 'hidden',
+        background: 'var(--surface)',
+        border: '1px solid var(--line)', borderRadius: 16, overflow: 'hidden',
       }}>
         {auditLog.length === 0 ? (
-          <div style={{ padding: '32px', textAlign: 'center', color: '#9fb0c7', fontSize: 13 }}>
+          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
             {hasFilters
               ? 'No activity matches the selected filters.'
               : historyUserName
@@ -225,9 +225,9 @@ export default function ActivityLogPanel({
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.15)' }}>
+              <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--chip-bg)' }}>
                 {['Timestamp', 'Action', 'Details', 'Target Account', 'Performed By', 'Email Sent'].map(h => (
-                  <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: '#9fb0c7', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                  <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
                     {h}
                   </th>
                 ))}
@@ -235,13 +235,13 @@ export default function ActivityLogPanel({
             </thead>
             <tbody>
               {auditLog.map(entry => (
-                <tr key={entry.id} style={{ borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-                  <td style={{ padding: '11px 14px', color: '#9fb0c7', fontSize: 12, whiteSpace: 'nowrap' }}>
+                <tr key={entry.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                  <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
                     {formatDate(entry.createdAt)}
                   </td>
                   <td style={{ padding: '11px 14px' }}>
                     {(() => {
-                      const c = ACTION_COLOR[entry.action] ?? '#9fb0c7';
+                      const c = ACTION_COLOR[entry.action] ?? 'var(--muted)';
                       return (
                         <span style={{
                           padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700,
@@ -253,16 +253,16 @@ export default function ActivityLogPanel({
                       );
                     })()}
                   </td>
-                  <td style={{ padding: '11px 14px', color: '#9fb0c7', fontSize: 12 }}>{entry.detail ?? '—'}</td>
-                  <td style={{ padding: '11px 14px', color: '#eef5ff' }}>
+                  <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{entry.detail ?? '—'}</td>
+                  <td style={{ padding: '11px 14px', color: 'var(--text)' }}>
                     <AccountRef id={entry.targetUserId} label={entry.targetUserEmail} />
                   </td>
-                  <td style={{ padding: '11px 14px', color: '#9fb0c7' }}>
+                  <td style={{ padding: '11px 14px', color: 'var(--muted)' }}>
                     <AccountRef id={entry.actorId} label={entry.actorName} />
                   </td>
                   <td style={{ padding: '11px 14px' }}>
                     {entry.emailSent === null ? (
-                      <span style={{ color: '#9fb0c7', fontSize: 12 }}>—</span>
+                      <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
                     ) : entry.emailSent ? (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#22c55e', fontSize: 12, fontWeight: 600 }}>
                         <CheckCircle size={13} /> Sent

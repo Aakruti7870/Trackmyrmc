@@ -800,15 +800,15 @@ export default function Plants() {
       )}
 
       {showForm && (
-        <div onClick={() => setShowForm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 14px', zIndex: 1000, overflowY: 'auto' }}>
-          <form onClick={e => e.stopPropagation()} onSubmit={save} style={{ width: 'min(660px, 100%)', background: 'var(--card, #0d1828)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
+        <div onClick={() => setShowForm(false)} style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 14px', zIndex: 1000, overflowY: 'auto' }}>
+          <form onClick={e => e.stopPropagation()} onSubmit={save} style={{ width: 'min(660px, 100%)', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--text)' }}>{editId != null ? 'Edit Plant' : 'Add Plant'}</h2>
               <button type="button" onClick={() => { setShowForm(false); resetExtractionState(); }} style={iconBtn}><X size={18} /></button>
             </div>
 
             {/* AI Document Extraction Panel */}
-            <div style={{ ...softCard, marginBottom: 16, borderColor: showDocPanel ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'var(--line)', background: showDocPanel ? 'rgba(247,201,72,.04)' : 'rgba(255,255,255,.02)' }}>
+            <div style={{ ...softCard, marginBottom: 16, borderColor: showDocPanel ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'var(--line)', background: showDocPanel ? 'rgba(247,201,72,.04)' : 'var(--chip-bg)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Sparkles size={15} style={{ color: 'var(--gold)' }} />
@@ -997,8 +997,8 @@ export default function Plants() {
 
       {/* Auto-invite notification shown after a plant is verified and invites are processed */}
       {autoInviteResult && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '8vh 14px', zIndex: 1100 }}>
-          <div style={{ width: 'min(480px, 100%)', background: 'var(--card, #0d1828)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '8vh 14px', zIndex: 1100 }}>
+          <div style={{ width: 'min(480px, 100%)', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CheckCircle2 size={18} style={{ color: 'var(--green)' }} /> Plant verified
@@ -1053,8 +1053,8 @@ export default function Plants() {
       )}
 
       {ownerFor && (
-        <div onClick={() => setOwnerFor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 14px', zIndex: 1000, overflowY: 'auto' }}>
-          <form onClick={e => e.stopPropagation()} onSubmit={provisionOwner} style={{ width: 'min(460px, 100%)', background: 'var(--card, #0d1828)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
+        <div onClick={() => setOwnerFor(null)} style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 14px', zIndex: 1000, overflowY: 'auto' }}>
+          <form onClick={e => e.stopPropagation()} onSubmit={provisionOwner} style={{ width: 'min(460px, 100%)', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <KeyRound size={18} style={{ color: 'var(--blue)' }} /> Owner login
@@ -1129,8 +1129,8 @@ export default function Plants() {
       )}
 
       {loginsFor && (
-        <div onClick={() => setLoginsFor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 14px', zIndex: 1000, overflowY: 'auto' }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: 'min(540px, 100%)', background: 'var(--card, #0d1828)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
+        <div onClick={() => setLoginsFor(null)} style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 14px', zIndex: 1000, overflowY: 'auto' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(540px, 100%)', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 22 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Users size={18} style={{ color: 'var(--blue)' }} /> Logins
@@ -1258,7 +1258,7 @@ function ImportPanel({
           padding: '26px 16px',
           textAlign: 'center',
           cursor: importing ? 'default' : 'pointer',
-          background: dragOver ? 'color-mix(in srgb, var(--blue) 10%, transparent)' : 'rgba(255,255,255,.02)',
+          background: dragOver ? 'color-mix(in srgb, var(--blue) 10%, transparent)' : 'var(--chip-bg)',
           transition: 'background .15s, border-color .15s',
         }}
       >
@@ -1309,7 +1309,7 @@ function ImportPanel({
             <div style={{ maxHeight: 280, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>
-                  <tr style={{ position: 'sticky', top: 0, background: 'var(--card, #0d1828)' }}>
+                  <tr style={{ position: 'sticky', top: 0, background: 'var(--panel)' }}>
                     <th style={importTh}>Row</th>
                     <th style={importTh}>Plant</th>
                     <th style={importTh}>Status</th>
@@ -1355,7 +1355,7 @@ function ImportPanel({
                   padding: '16px 14px',
                   textAlign: 'center',
                   cursor: importing ? 'default' : 'pointer',
-                  background: reuploadDragOver ? 'color-mix(in srgb, var(--gold) 10%, transparent)' : 'rgba(255,255,255,.02)',
+                  background: reuploadDragOver ? 'color-mix(in srgb, var(--gold) 10%, transparent)' : 'var(--chip-bg)',
                   transition: 'background .15s, border-color .15s',
                 }}
               >
@@ -1526,7 +1526,7 @@ function AiField({ label, aiField, autoFilled, onClearAi, children }: {
 
 const input: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', padding: '9px 11px', borderRadius: 9,
-  background: 'rgba(255,255,255,.04)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13.5,
+  background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)', fontSize: 13.5,
 };
 const primaryBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 15px', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, fontWeight: 800,
@@ -1534,13 +1534,13 @@ const primaryBtn: React.CSSProperties = {
 };
 const ghostBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 15px', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, fontWeight: 700,
-  background: 'rgba(255,255,255,.05)', color: 'var(--text)', border: '1px solid var(--line)',
+  background: 'var(--chip-bg)', color: 'var(--text)', border: '1px solid var(--line)',
 };
 const iconBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 8, borderRadius: 9, cursor: 'pointer',
-  background: 'rgba(255,255,255,.05)', color: 'var(--text)', border: '1px solid var(--line)',
+  background: 'var(--chip-bg)', color: 'var(--text)', border: '1px solid var(--line)',
 };
-const softCard: React.CSSProperties = { padding: 16, borderRadius: 13, border: '1px solid var(--line)', background: 'rgba(255,255,255,.02)' };
+const softCard: React.CSSProperties = { padding: 16, borderRadius: 13, border: '1px solid var(--line)', background: 'var(--chip-bg)' };
 const linkBtn: React.CSSProperties = {
   padding: 0, background: 'none', border: 'none', cursor: 'pointer',
   color: 'var(--blue)', fontSize: 12, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 2,
@@ -1553,7 +1553,7 @@ function pill(color: string): React.CSSProperties {
 function chip(on: boolean, color: string): React.CSSProperties {
   return {
     display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-    background: on ? `color-mix(in srgb, ${color} 16%, transparent)` : 'rgba(255,255,255,.04)',
+    background: on ? `color-mix(in srgb, ${color} 16%, transparent)` : 'var(--chip-bg)',
     color: on ? color : 'var(--muted)',
     border: `1px solid ${on ? `color-mix(in srgb, ${color} 38%, transparent)` : 'var(--line)'}`,
   };
@@ -1567,13 +1567,13 @@ function badge(color: string): React.CSSProperties {
 function tabBtn(active: boolean, color: string): React.CSSProperties {
   return {
     display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
-    background: active ? `color-mix(in srgb, ${color} 16%, transparent)` : 'rgba(255,255,255,.04)',
+    background: active ? `color-mix(in srgb, ${color} 16%, transparent)` : 'var(--chip-bg)',
     color: active ? color : 'var(--muted)',
     border: `1px solid ${active ? `color-mix(in srgb, ${color} 38%, transparent)` : 'var(--line)'}`,
   };
 }
 const countPill: React.CSSProperties = {
-  fontSize: 11.5, fontWeight: 800, background: 'rgba(255,255,255,.1)', borderRadius: 20, padding: '1px 8px', color: 'inherit',
+  fontSize: 11.5, fontWeight: 800, background: 'var(--chip-bg)', borderRadius: 20, padding: '1px 8px', color: 'inherit',
 };
 const unreadDot: React.CSSProperties = {
   position: 'absolute', top: -6, right: -6, minWidth: 18, height: 18, padding: '0 4px',

@@ -139,13 +139,13 @@ export default function LiveGPSTracker() {
 
   return (
     <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid rgba(38,52,73,.6)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid var(--line)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px #22c55e', animation: 'pulse 1.5s ease-in-out infinite' }} />
           <span style={{ fontWeight: 700, fontSize: 14 }}>Driver Live GPS</span>
           <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: 'rgba(34,197,94,.12)', color: '#22c55e' }}>{vehicles.length} ON ROAD</span>
         </div>
-        <span style={{ fontSize: 11, color: '#9fb0c7' }}>Updated {lastUpdate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Updated {lastUpdate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px' }}>
@@ -167,25 +167,25 @@ export default function LiveGPSTracker() {
           </div>
         </div>
 
-        <div style={{ borderLeft: '1px solid rgba(38,52,73,.6)', overflowY: 'auto', maxHeight: 220 }}>
+        <div style={{ borderLeft: '1px solid var(--line)', overflowY: 'auto', maxHeight: 220 }}>
           {vehicles.length === 0 && (
-            <div style={{ padding: '20px 12px', color: '#9fb0c7', fontSize: 12, textAlign: 'center' }}>Generate a challan to see live tracking</div>
+            <div style={{ padding: '20px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>Generate a challan to see live tracking</div>
           )}
           {vehicles.map((v, i) => {
             const isSel = selected === v.id;
             const col = ['#f7c948','#22c55e','#38bdf8','#a78bfa','#f97316'][i % 5];
             return (
-              <div key={v.id} onClick={() => setSelected(v.id)} style={{ padding: '10px 12px', borderBottom: '1px solid rgba(38,52,73,.4)', cursor: 'pointer', background: isSel ? 'rgba(38,52,73,.4)' : 'transparent', transition: 'background .15s' }}>
+              <div key={v.id} onClick={() => setSelected(v.id)} style={{ padding: '10px 12px', borderBottom: '1px solid var(--line)', cursor: 'pointer', background: isSel ? 'var(--menu-hover)' : 'transparent', transition: 'background .15s' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
                   <span style={{ fontWeight: 700, fontSize: 11, fontFamily: 'monospace' }}>{v.vehicleNo}</span>
                 </div>
-                <div style={{ fontSize: 10, color: '#9fb0c7', marginBottom: 3, paddingLeft: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.driver}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 3, paddingLeft: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.driver}</div>
                 <div style={{ display: 'flex', gap: 6, paddingLeft: 14 }}>
                   <span style={{ fontSize: 10, color: col, fontWeight: 700 }}><Clock size={9} style={{ display: 'inline', marginRight: 2 }} />{v.eta} min</span>
-                  <span style={{ fontSize: 10, color: '#9fb0c7' }}>{v.speed} km/h</span>
+                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>{v.speed} km/h</span>
                 </div>
-                <div style={{ paddingLeft: 14, marginTop: 3, fontSize: 9, color: '#9fb0c7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>→ {v.site}</div>
+                <div style={{ paddingLeft: 14, marginTop: 3, fontSize: 9, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>→ {v.site}</div>
               </div>
             );
           })}
@@ -193,16 +193,16 @@ export default function LiveGPSTracker() {
       </div>
 
       {selVehicle && (
-        <div style={{ borderTop: '1px solid rgba(38,52,73,.6)', padding: '10px 16px', display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ borderTop: '1px solid var(--line)', padding: '10px 16px', display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Truck size={14} color="#f7c948" /><span style={{ fontWeight: 800, fontSize: 13, fontFamily: 'monospace' }}>{selVehicle.vehicleNo}</span></div>
-          <div style={{ fontSize: 12, color: '#9fb0c7' }}><span style={{ color: '#eef5ff', fontWeight: 600 }}>{selVehicle.driver}</span></div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}><MapPin size={12} color="#22c55e" /><span style={{ color: '#9fb0c7' }}>{selVehicle.site}</span></div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}><Clock size={12} color="#38bdf8" /><span style={{ color: '#eef5ff', fontWeight: 700 }}>ETA {selVehicle.eta} min</span></div>
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}><span style={{ color: 'var(--text)', fontWeight: 600 }}>{selVehicle.driver}</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}><MapPin size={12} color="#22c55e" /><span style={{ color: 'var(--muted)' }}>{selVehicle.site}</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}><Clock size={12} color="#38bdf8" /><span style={{ color: 'var(--text)', fontWeight: 700 }}>ETA {selVehicle.eta} min</span></div>
           <div style={{ fontSize: 12 }}>
             <span style={{ padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: 'rgba(56,189,248,.12)', color: '#38bdf8' }}>{selVehicle.grade}</span>
-            <span style={{ marginLeft: 6, color: '#9fb0c7', fontSize: 11 }}>{selVehicle.qty} m³</span>
+            <span style={{ marginLeft: 6, color: 'var(--muted)', fontSize: 11 }}>{selVehicle.qty} m³</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#9fb0c7', marginLeft: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>
             <Radio size={11} color="#22c55e" />
             <span style={{ color: '#22c55e', fontWeight: 600 }}>{selVehicle.speed} km/h</span>
             <span>· Challan #{selVehicle.challanNo}</span>

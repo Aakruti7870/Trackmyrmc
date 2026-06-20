@@ -157,7 +157,7 @@ export default function Login() {
               {DEMO.map(d => (
                 <button key={d.role} onClick={() => fillDemo(d)} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-                  background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)',
+                  background: 'rgba(255,255,255,.5)', border: '1px solid rgba(30,41,90,.1)',
                   borderRadius: 10, cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
                   color: 'var(--text)',
                 }}>
@@ -172,10 +172,11 @@ export default function Login() {
 
         {/* Right — login form */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(255,255,255,.04), rgba(255,255,255,.01))',
-          border: '1px solid rgba(255,255,255,.08)',
+          background: 'linear-gradient(135deg, rgba(255,255,255,.82), rgba(255,255,255,.62))',
+          border: '1px solid rgba(255,255,255,.85)',
           borderRadius: 20, padding: '40px 32px',
           backdropFilter: 'blur(12px)',
+          boxShadow: '0 30px 70px -30px rgba(30,41,90,.28)',
         }}>
           {mode === 'phone' ? (
             <>

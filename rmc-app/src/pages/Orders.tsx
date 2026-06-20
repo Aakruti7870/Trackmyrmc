@@ -72,7 +72,7 @@ export default function Orders() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '9px 12px', boxSizing: 'border-box',
-    background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)',
+    background: 'var(--chip-bg)', border: '1px solid var(--line)',
     borderRadius: 8, color: 'var(--text)', fontSize: 13, outline: 'none',
   };
 
@@ -114,7 +114,7 @@ export default function Orders() {
             </thead>
             <tbody>
               {filtered.map(o => (
-                <tr key={o.id} style={{ borderBottom: '1px solid rgba(38,52,73,.4)' }}>
+                <tr key={o.id} style={{ borderBottom: '1px solid var(--line)' }}>
                   <td style={{ padding: '11px 14px', color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace' }}>{o.orderNo}</td>
                   <td style={{ padding: '11px 14px', fontWeight: 600 }}>{o.clientName}</td>
                   <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || '—'}</td>
@@ -151,7 +151,7 @@ export default function Orders() {
       </div>
 
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setModal(null)}>
           <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -215,7 +215,7 @@ export default function Orders() {
             </div>
             {error && <div style={{ marginTop: 10, color: 'var(--red)', fontSize: 13 }}>{error}</div>}
             <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-              <button onClick={() => setModal(null)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button onClick={() => setModal(null)} style={{ flex: 1, padding: 10, background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 10, color: 'var(--muted)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
               <button onClick={save} disabled={saving} style={{ flex: 2, padding: 10, background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))', color: '#111827', fontWeight: 800, borderRadius: 10, border: 'none', cursor: 'pointer' }}>
                 {saving ? 'Saving…' : modal === 'create' ? 'Create Order' : 'Save Changes'}
               </button>

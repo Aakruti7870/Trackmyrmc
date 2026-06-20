@@ -233,18 +233,18 @@ export default function ClerkCustomerLogin({ onError }: { onError?: (msg: string
         </form>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '18px 0' }}>
-          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.08)' }} />
+          <div style={{ flex: 1, height: 1, background: 'rgba(30,41,90,.12)' }} />
           <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>
             or
           </span>
-          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.08)' }} />
+          <div style={{ flex: 1, height: 1, background: 'rgba(30,41,90,.12)' }} />
         </div>
 
         <button
           type="button" onClick={handleGoogle} disabled={loading}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,.14)',
+            padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(30,41,90,.14)',
             background: '#fff', color: '#1f2937', fontSize: 14, fontWeight: 700,
             cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1,
           }}
