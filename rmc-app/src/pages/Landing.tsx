@@ -3,10 +3,11 @@ import { useLocation } from 'wouter';
 import {
   Crown, Navigation, ShoppingCart, Eye, Truck, ShieldCheck,
   FileText, Bell, Headphones, Phone, Mail, ArrowRight, X, Menu,
-  MapPin, Factory, Radio, ChevronRight,
+  Radio, ChevronRight,
 } from 'lucide-react';
 import './Landing.css';
 
+const CK_ROUTE = 'M 95 300 C 200 250, 180 140, 300 150 S 470 120, 510 70';
 const IMG = (n: string) => `/ck/images/${n}`;
 const VID = (n: string) => `/ck/videos/${n}`;
 const GRADES = ['M20', 'M25', 'M30', 'M35', 'M40', 'M50'];
@@ -93,34 +94,32 @@ function LiveTrackingMap() {
         animation: 'ck-grid 6s linear infinite',
         maskImage: 'radial-gradient(120% 100% at 50% 30%, #000 40%, transparent 95%)',
       }} />
-      {/* route */}
-      <svg viewBox="0 0 600 380" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+      {/* route + truck + markers — all in ONE coordinate space so they always line up */}
+      <svg viewBox="0 0 600 380" preserveAspectRatio="xMidYMid meet"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}>
         <defs>
           <linearGradient id="ck-route" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor="#f7c948" />
             <stop offset="1" stopColor="#38bdf8" />
           </linearGradient>
         </defs>
-        <path id="ck-path" d="M 95 300 C 200 250, 180 140, 300 150 S 470 120, 510 70"
-          fill="none" stroke="rgba(247,201,72,.18)" strokeWidth="10" strokeLinecap="round" />
-        <path d="M 95 300 C 200 250, 180 140, 300 150 S 470 120, 510 70"
-          fill="none" stroke="url(#ck-route)" strokeWidth="3.5" strokeLinecap="round"
+
+        {/* route glow + animated dashes */}
+        <path d={CK_ROUTE} fill="none" stroke="rgba(247,201,72,.18)" strokeWidth="10" strokeLinecap="round" />
+        <path d={CK_ROUTE} fill="none" stroke="url(#ck-route)" strokeWidth="3.5" strokeLinecap="round"
           strokeDasharray="14 16" style={{ animation: 'ck-dash 18s linear infinite' }} />
+
+        {/* markers (drawn in the SAME coords as the route) */}
+        <MapMarker x={95} y={300} color="var(--blue)" label="Plant" kind="plant" />
+        <MapMarker x={510} y={70} color="var(--green)" label="Your Site" kind="site" />
+
+        {/* moving mixer — animateMotion follows the exact same path, slow & smooth */}
+        <g style={{ filter: 'drop-shadow(0 7px 9px rgba(10,19,34,.30))' }}>
+          <g transform="translate(-31,-19)"><MixerTruckGlyph /></g>
+          <animateMotion dur="22s" repeatCount="indefinite" rotate="auto"
+            keyPoints="0;1;1" keyTimes="0;0.9;1" calcMode="linear" path={CK_ROUTE} />
+        </g>
       </svg>
-      {/* moving mixer truck along the route */}
-      <div style={{
-        position: 'absolute', inset: 0, width: 58, height: 38,
-        offsetPath: "path('M 95 300 C 200 250, 180 140, 300 150 S 470 120, 510 70')",
-        offsetRotate: 'auto',
-        animation: 'ck-move 7s cubic-bezier(.65,0,.35,1) infinite',
-        filter: 'drop-shadow(0 6px 10px rgba(10,19,34,.35))',
-      } as React.CSSProperties}>
-        <MixerTruck />
-      </div>
-      {/* plant marker */}
-      <PinMarker x={70} y={282} color="var(--blue)" label="Plant" icon={<Factory size={14} />} />
-      {/* site marker */}
-      <PinMarker x={492} y={52} color="var(--green)" label="Your Site" icon={<MapPin size={14} />} />
       {/* live tracking card */}
       <div style={{
         position: 'absolute', left: 18, top: 18, padding: '12px 14px', borderRadius: 14,
@@ -138,9 +137,11 @@ function LiveTrackingMap() {
   );
 }
 
-function MixerTruck() {
+/* Realistic transit mixer drawn in a 0..62 × 0..38 box (faces right →).
+   Centered by the parent <g transform="translate(-31,-19)">. */
+function MixerTruckGlyph() {
   return (
-    <svg viewBox="0 0 64 40" width="100%" height="100%" style={{ display: 'block', overflow: 'visible' }}>
+    <g>
       <defs>
         <linearGradient id="ck-drum-grad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#fbd36b" />
@@ -148,61 +149,78 @@ function MixerTruck() {
           <stop offset="1" stopColor="#d68a0a" />
         </linearGradient>
         <linearGradient id="ck-cab-grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#27344a" />
+          <stop offset="0" stopColor="#2b3a52" />
           <stop offset="1" stopColor="#141d2b" />
         </linearGradient>
-        <clipPath id="ck-drum-clip"><rect x="11" y="6" width="36" height="22" rx="11" /></clipPath>
+        <clipPath id="ck-drum-clip"><rect x="13" y="6" width="33" height="21" rx="10.5" /></clipPath>
       </defs>
 
-      {/* chassis */}
-      <rect x="5" y="25" width="52" height="5" rx="2.5" fill="#16202e" />
-      {/* rear chute */}
-      <path d="M11 19 L3 25 L6 28 L13 22 Z" fill="#1a232f" />
+      {/* rear discharge chute */}
+      <path d="M12 18 L2 25 L5 28 L14 22 Z" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="0.6" />
+      {/* chassis rail */}
+      <rect x="6" y="25" width="51" height="4.5" rx="2.2" fill="#1b2536" />
+      {/* mixer support frame */}
+      <path d="M14 25 L20 12 M43 25 L40 13" stroke="#8a96a5" strokeWidth="1.4" strokeLinecap="round" />
 
-      {/* mixer drum, tilted */}
-      <g transform="rotate(-9 27 17)">
-        <rect x="11" y="6" width="36" height="22" rx="11" fill="url(#ck-drum-grad)" />
+      {/* drum, tilted */}
+      <g transform="rotate(-8 29 16)">
+        <rect x="13" y="6" width="33" height="21" rx="10.5" fill="url(#ck-drum-grad)" />
         <g clipPath="url(#ck-drum-clip)">
-          <g style={{ transformBox: 'fill-box', transformOrigin: 'center', animation: 'ck-drum-spin 2.6s linear infinite' } as React.CSSProperties}>
-            {[-12, -4, 4, 12].map((dx) => (
-              <line key={dx} x1={22 + dx} y1="2" x2={34 + dx} y2="32"
-                stroke="rgba(120,78,8,.55)" strokeWidth="2.2" strokeLinecap="round" />
+          <g style={{ transformBox: 'fill-box', transformOrigin: 'center', animation: 'ck-drum-spin 3.4s linear infinite' } as React.CSSProperties}>
+            {[-12, -5, 2, 9, 16].map((dx) => (
+              <line key={dx} x1={20 + dx} y1="1" x2={33 + dx} y2="31"
+                stroke="rgba(120,78,8,.5)" strokeWidth="2" strokeLinecap="round" />
             ))}
           </g>
         </g>
-        {/* drum sheen + rim */}
-        <rect x="14" y="9" width="30" height="5" rx="2.5" fill="rgba(255,255,255,.35)" />
-        <rect x="11" y="6" width="36" height="22" rx="11" fill="none" stroke="#a9760c" strokeWidth="1.3" />
+        {/* sheen + rim */}
+        <rect x="16" y="9" width="27" height="4.5" rx="2.2" fill="rgba(255,255,255,.4)" />
+        <rect x="13" y="6" width="33" height="21" rx="10.5" fill="none" stroke="#a9760c" strokeWidth="1.2" />
+      </g>
+
+      {/* access ladder */}
+      <g stroke="#9aa6b2" strokeWidth="0.8" strokeLinecap="round">
+        <line x1="9" y1="14" x2="9" y2="25" />
+        <line x1="6" y1="16" x2="9" y2="16" />
+        <line x1="6" y1="19" x2="9" y2="19" />
+        <line x1="6" y1="22" x2="9" y2="22" />
       </g>
 
       {/* cab */}
-      <path d="M48 13 h6 a3.5 3.5 0 0 1 3.5 3.5 V27 H44 V17 a4 4 0 0 1 4 -4 z" fill="url(#ck-cab-grad)" />
-      <path d="M48.5 16 H55 a1.5 1.5 0 0 1 1.5 1.5 V22 H47.5 V17.5 A1.5 1.5 0 0 1 48.5 16 z" fill="#bcd6f5" />
-      <rect x="44" y="24" width="14" height="3" rx="1.5" fill="#0e1726" />
+      <path d="M47 12 h6 a4 4 0 0 1 4 4 V27 H43 V16 a4 4 0 0 1 4 -4 z" fill="url(#ck-cab-grad)" />
+      <path d="M47.6 15 H54 a1.5 1.5 0 0 1 1.5 1.5 V21 H46 V16.5 A1.5 1.5 0 0 1 47.6 15 z" fill="#bcd6f5" />
+      <rect x="43" y="24" width="14" height="3" rx="1.5" fill="#0e1726" />
       {/* headlight */}
-      <circle cx="56.5" cy="25" r="1.1" fill="#ffe08a" />
+      <circle cx="56.6" cy="25" r="1.1" fill="#ffe08a" />
 
-      {/* wheels */}
-      {[17, 26, 51].map((cx) => (
+      {/* wheels — front + rear tandem */}
+      {[16, 25, 33, 51].map((cx) => (
         <g key={cx}>
-          <circle cx={cx} cy="31" r="5" fill="#0c1320" />
-          <circle cx={cx} cy="31" r="2.1" fill="#5a6b85" />
+          <circle cx={cx} cy="31" r="4.6" fill="#0c1320" />
+          <circle cx={cx} cy="31" r="1.9" fill="#5a6b85" />
         </g>
       ))}
-    </svg>
+    </g>
   );
 }
 
-function PinMarker({ x, y, color, label, icon }: { x: number; y: number; color: string; label: string; icon: React.ReactNode }) {
+/* SVG map pin drawn in route coordinates so it always sits on the path ends. */
+function MapMarker({ x, y, color, label, kind }: { x: number; y: number; color: string; label: string; kind: 'plant' | 'site' }) {
   return (
-    <div style={{ position: 'absolute', left: `${(x / 600) * 100}%`, top: `${(y / 380) * 100}%`, transform: 'translate(-50%,-50%)', textAlign: 'center' }}>
-      <div style={{
-        width: 30, height: 30, borderRadius: '50%', display: 'grid', placeItems: 'center', margin: '0 auto',
-        background: 'rgba(255,255,255,.85)', color, border: `1.5px solid ${color}`,
-        animation: 'ck-pulse-red 2.4s ease infinite',
-      }}>{icon}</div>
-      <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 5, fontWeight: 600 }}>{label}</div>
-    </div>
+    <g transform={`translate(${x} ${y})`}>
+      <circle r="22" fill={color} opacity="0.14" style={{ transformBox: 'fill-box', transformOrigin: 'center', animation: 'ck-pulse-red 2.4s ease infinite' }} />
+      <circle r="14" fill="rgba(255,255,255,.92)" stroke={color} strokeWidth="2" />
+      {kind === 'plant' ? (
+        <path d="M-7 6 H7 V-3 L1.5 1 V-3 L-4 1 V-2 H-7 Z" fill={color} />
+      ) : (
+        <>
+          <path d="M0 -8 C 4 -8 7 -5 7 -1 C 7 4 0 8.5 0 8.5 C 0 8.5 -7 4 -7 -1 C -7 -5 -4 -8 0 -8 Z" fill={color} />
+          <circle cx="0" cy="-1" r="2.6" fill="#fff" />
+        </>
+      )}
+      <text x="0" y="34" textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--muted)"
+        style={{ fontFamily: 'inherit' }}>{label}</text>
+    </g>
   );
 }
 
