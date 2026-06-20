@@ -1,7 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Hand, Lock } from 'lucide-react';
 
 export interface DeliveryMarker {
   challanId: number;
@@ -46,7 +47,44 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
+// Toggles Leaflet's touch/scroll handlers so that on mobile the map only
+// captures touch once the user opts in. While locked, the container is left
+// scrollable (touch-action: pan-y) so the page keeps scrolling normally.
+function GestureGate({ interactive }: { interactive: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    if (interactive) {
+      map.dragging.enable();
+      map.touchZoom.enable();
+      map.scrollWheelZoom.enable();
+      map.doubleClickZoom.enable();
+      map.boxZoom.enable();
+      container.style.touchAction = '';
+    } else {
+      map.dragging.disable();
+      map.touchZoom.disable();
+      map.scrollWheelZoom.disable();
+      map.doubleClickZoom.disable();
+      map.boxZoom.disable();
+      container.style.touchAction = 'pan-y';
+    }
+  }, [interactive, map]);
+  return null;
+}
+
 export default function LiveDeliveryMap({ markers }: { markers: DeliveryMarker[] }) {
+  const [isMobile, setIsMobile] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 899px)');
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
   const points = useMemo<[number, number][]>(() => {
     const pts: [number, number][] = [];
     for (const m of markers) {
@@ -59,15 +97,27 @@ export default function LiveDeliveryMap({ markers }: { markers: DeliveryMarker[]
   if (points.length === 0) return null;
 
   const center = points[0];
+  // Desktop always interactive; on mobile only after the user enables it.
+  const interactive = !isMobile || enabled;
+  const showHint = isMobile && !enabled;
 
   return (
-    <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)', marginBottom: 14 }}>
-      <MapContainer center={center} zoom={13} style={{ height: 300, width: '100%' }} scrollWheelZoom>
+    <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)', marginBottom: 14 }}>
+      <MapContainer
+        center={center}
+        zoom={13}
+        style={{ height: 300, width: '100%' }}
+        scrollWheelZoom={!isMobile}
+        dragging={!isMobile}
+        touchZoom={!isMobile}
+        doubleClickZoom={!isMobile}
+      >
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBounds points={points} />
+        <GestureGate interactive={interactive} />
         {markers.map(m => (
           <div key={m.challanId}>
             {m.truck && m.site && (
@@ -91,6 +141,50 @@ export default function LiveDeliveryMap({ markers }: { markers: DeliveryMarker[]
           </div>
         ))}
       </MapContainer>
+
+      {showHint && (
+        // Full-cover tap target. touch-action: pan-y lets the page keep
+        // scrolling over the map; a stationary tap enables map gestures.
+        <button
+          type="button"
+          onClick={() => setEnabled(true)}
+          aria-label="Enable map interaction"
+          style={{
+            position: 'absolute', inset: 0, zIndex: 500,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+            border: 'none', cursor: 'pointer', touchAction: 'pan-y',
+            background: 'color-mix(in srgb, #050d18 35%, transparent)',
+            color: '#fff', font: 'inherit',
+          }}
+        >
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '8px 14px', borderRadius: 999,
+            background: 'rgba(5,13,24,.78)', border: '1px solid rgba(255,255,255,.18)',
+            fontSize: 13, fontWeight: 700,
+          }}>
+            <Hand size={15} /> Use two fingers to move the map
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.85 }}>Tap to enable zoom &amp; pan</span>
+        </button>
+      )}
+
+      {isMobile && enabled && (
+        <button
+          type="button"
+          onClick={() => setEnabled(false)}
+          aria-label="Lock map and resume page scroll"
+          style={{
+            position: 'absolute', top: 10, right: 10, zIndex: 500,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '6px 10px', borderRadius: 999, cursor: 'pointer',
+            background: 'rgba(5,13,24,.82)', border: '1px solid rgba(255,255,255,.18)',
+            color: '#fff', fontSize: 11, fontWeight: 700,
+          }}
+        >
+          <Lock size={13} /> Lock map
+        </button>
+      )}
     </div>
   );
 }
