@@ -30,6 +30,7 @@ export default function Login() {
   // collapsible staff / existing-account path.
   const [mode, setMode] = useState<'phone' | 'email'>('phone');
   const [loading, setLoading] = useState(false);
+  const [demoBusy, setDemoBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   // Email / password (staff)
@@ -99,11 +100,21 @@ export default function Login() {
     setError('');
   }
 
-  function fillDemo(d: { email: string; password: string }) {
+  // One-click demo sign-in: fill the staff form AND log straight in.
+  async function loginDemo(d: { role: string; email: string; password: string }) {
     setMode('email');
     setEmail(d.email);
     setPassword(d.password);
     setError('');
+    setDemoBusy(d.role);
+    try {
+      const loggedIn = await login(d.email, d.password);
+      setLoc(defaultPath(loggedIn.role));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setDemoBusy(null);
+    }
   }
 
   return (
@@ -114,7 +125,7 @@ export default function Login() {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 20, fontFamily: 'var(--font-app)',
     }}>
-      <div style={{ width: '100%', maxWidth: 900, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+      <div className="ck-login-grid" style={{ width: '100%', maxWidth: 900, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
 
         {/* Left — brand */}
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 32px' }}>
@@ -155,15 +166,17 @@ export default function Login() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {DEMO.map(d => (
-                <button key={d.role} onClick={() => fillDemo(d)} style={{
+                <button key={d.role} type="button" onClick={() => loginDemo(d)} disabled={!!demoBusy} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
                   background: 'rgba(255,255,255,.5)', border: '1px solid rgba(30,41,90,.1)',
-                  borderRadius: 10, cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
-                  color: 'var(--text)',
+                  borderRadius: 10, cursor: demoBusy ? 'wait' : 'pointer', textAlign: 'left', transition: 'all .15s',
+                  color: 'var(--text)', opacity: demoBusy && demoBusy !== d.role ? 0.5 : 1,
                 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 12, fontWeight: 700, minWidth: 100, color: d.color }}>{d.role}</span>
-                  <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{d.email}</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>
+                    {demoBusy === d.role ? 'Signing in…' : d.email}
+                  </span>
                 </button>
               ))}
             </div>

@@ -316,3 +316,8 @@ button { cursor: pointer; border: 0; }
 }
 .crown-sso-btn:hover { transform: translateY(-1px); }
 .crown-sso-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* Login screen: stack the two columns on small screens (!important beats the inline grid). */
+@media (max-width: 760px) {
+  .ck-login-grid { grid-template-columns: 1fr !important; }
+}
