@@ -107,20 +107,15 @@ function LiveTrackingMap() {
           fill="none" stroke="url(#ck-route)" strokeWidth="3.5" strokeLinecap="round"
           strokeDasharray="14 16" style={{ animation: 'ck-dash 18s linear infinite' }} />
       </svg>
-      {/* moving truck along the route */}
+      {/* moving mixer truck along the route */}
       <div style={{
-        position: 'absolute', inset: 0, width: 36, height: 36,
+        position: 'absolute', inset: 0, width: 58, height: 38,
         offsetPath: "path('M 95 300 C 200 250, 180 140, 300 150 S 470 120, 510 70')",
         offsetRotate: 'auto',
         animation: 'ck-move 7s cubic-bezier(.65,0,.35,1) infinite',
+        filter: 'drop-shadow(0 6px 10px rgba(10,19,34,.35))',
       } as React.CSSProperties}>
-        <div style={{
-          width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center',
-          background: 'linear-gradient(160deg,#f7c948,#e0a91f)', color: '#0a1322',
-          boxShadow: '0 6px 18px -4px rgba(247,201,72,.8)',
-        }}>
-          <Truck size={18} strokeWidth={2.4} />
-        </div>
+        <MixerTruck />
       </div>
       {/* plant marker */}
       <PinMarker x={70} y={282} color="var(--blue)" label="Plant" icon={<Factory size={14} />} />
@@ -140,6 +135,61 @@ function LiveTrackingMap() {
         </div>
       </div>
     </div>
+  );
+}
+
+function MixerTruck() {
+  return (
+    <svg viewBox="0 0 64 40" width="100%" height="100%" style={{ display: 'block', overflow: 'visible' }}>
+      <defs>
+        <linearGradient id="ck-drum-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fbd36b" />
+          <stop offset="0.5" stopColor="#f0b429" />
+          <stop offset="1" stopColor="#d68a0a" />
+        </linearGradient>
+        <linearGradient id="ck-cab-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#27344a" />
+          <stop offset="1" stopColor="#141d2b" />
+        </linearGradient>
+        <clipPath id="ck-drum-clip"><rect x="11" y="6" width="36" height="22" rx="11" /></clipPath>
+      </defs>
+
+      {/* chassis */}
+      <rect x="5" y="25" width="52" height="5" rx="2.5" fill="#16202e" />
+      {/* rear chute */}
+      <path d="M11 19 L3 25 L6 28 L13 22 Z" fill="#1a232f" />
+
+      {/* mixer drum, tilted */}
+      <g transform="rotate(-9 27 17)">
+        <rect x="11" y="6" width="36" height="22" rx="11" fill="url(#ck-drum-grad)" />
+        <g clipPath="url(#ck-drum-clip)">
+          <g style={{ transformBox: 'fill-box', transformOrigin: 'center', animation: 'ck-drum-spin 2.6s linear infinite' } as React.CSSProperties}>
+            {[-12, -4, 4, 12].map((dx) => (
+              <line key={dx} x1={22 + dx} y1="2" x2={34 + dx} y2="32"
+                stroke="rgba(120,78,8,.55)" strokeWidth="2.2" strokeLinecap="round" />
+            ))}
+          </g>
+        </g>
+        {/* drum sheen + rim */}
+        <rect x="14" y="9" width="30" height="5" rx="2.5" fill="rgba(255,255,255,.35)" />
+        <rect x="11" y="6" width="36" height="22" rx="11" fill="none" stroke="#a9760c" strokeWidth="1.3" />
+      </g>
+
+      {/* cab */}
+      <path d="M48 13 h6 a3.5 3.5 0 0 1 3.5 3.5 V27 H44 V17 a4 4 0 0 1 4 -4 z" fill="url(#ck-cab-grad)" />
+      <path d="M48.5 16 H55 a1.5 1.5 0 0 1 1.5 1.5 V22 H47.5 V17.5 A1.5 1.5 0 0 1 48.5 16 z" fill="#bcd6f5" />
+      <rect x="44" y="24" width="14" height="3" rx="1.5" fill="#0e1726" />
+      {/* headlight */}
+      <circle cx="56.5" cy="25" r="1.1" fill="#ffe08a" />
+
+      {/* wheels */}
+      {[17, 26, 51].map((cx) => (
+        <g key={cx}>
+          <circle cx={cx} cy="31" r="5" fill="#0c1320" />
+          <circle cx={cx} cy="31" r="2.1" fill="#5a6b85" />
+        </g>
+      ))}
+    </svg>
   );
 }
 
@@ -337,21 +387,21 @@ export default function Landing() {
             <button key={f.video} onClick={() => setOpenFeed(i)} className="ck-feed ck-card-hover"
               style={{ position: 'relative', height: 220, borderRadius: 18, overflow: 'hidden', cursor: 'pointer',
                 border: '1px solid var(--line)', padding: 0, background: '#e8eef7' }}>
-              {/* Static thumbnail — video loads only when the modal opens */}
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', gap: 10,
-                background: 'linear-gradient(160deg, #f4f7fc 0%, #e8eef7 60%, #dde6f2 100%)' }}>
-                <div style={{ width: 52, height: 52, borderRadius: '50%', display: 'grid', placeItems: 'center',
-                  background: 'rgba(247,201,72,.15)', border: '1px solid rgba(247,201,72,.35)',
-                  boxShadow: '0 0 24px -8px rgba(247,201,72,.5)' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(247,201,72,.9)">
-                    <polygon points="5,3 19,12 5,21" />
-                  </svg>
-                </div>
-                <div style={{ textAlign: 'center', padding: '0 16px' }}>
-                  <div style={{ fontWeight: 700, fontSize: 14.5, color: 'var(--text)' }}>{f.label}</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>{f.desc}</div>
-                </div>
+              {/* Always-live autoplay loop */}
+              <video src={VID(f.video)} autoPlay muted loop playsInline preload="auto"
+                aria-label={f.label}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+              {/* LIVE badge */}
+              <div style={{ position: 'absolute', top: 12, left: 12, display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '4px 10px', borderRadius: 999, background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(6px)' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)', animation: 'ck-pulse-red 1.6s ease infinite' }} />
+                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 1.5, color: '#fff' }}>LIVE</span>
+              </div>
+              {/* Caption overlay */}
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, textAlign: 'left', padding: '28px 16px 14px',
+                background: 'linear-gradient(to top, rgba(15,23,42,.78) 0%, rgba(15,23,42,.4) 55%, transparent 100%)' }}>
+                <div style={{ fontWeight: 700, fontSize: 14.5, color: '#fff' }}>{f.label}</div>
+                <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', marginTop: 3 }}>{f.desc}</div>
               </div>
             </button>
           ))}

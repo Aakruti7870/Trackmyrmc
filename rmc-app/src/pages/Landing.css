@@ -23,6 +23,7 @@
   0%   { offset-distance: 0%; }
   100% { offset-distance: 100%; }
 }
+@keyframes ck-drum-spin { to { transform: rotate(360deg); } }
 @keyframes ck-pulse {
   0%   { box-shadow: 0 0 0 0 rgba(247, 201, 72, 0.5); }
   70%  { box-shadow: 0 0 0 14px rgba(247, 201, 72, 0); }
