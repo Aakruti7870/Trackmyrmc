@@ -24,6 +24,7 @@ import eventsRoutes from './routes/events.js';
 import whatsappRoutes from './routes/whatsapp.js';
 import webhookRoutes from './routes/webhooks.js';
 import aiRoutes from './routes/ai.js';
+import pushRoutes from './routes/push.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
 import { runDueWhatsAppRetries } from './lib/whatsappRetry.js';
@@ -66,6 +67,7 @@ app.use('/api/plants', plantRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/push', pushRoutes);
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

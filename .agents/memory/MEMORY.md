@@ -53,3 +53,4 @@
 - [Test-harness helper importable](test-harness-helper-importable.md) — to unit-test pure helpers in scripts/*.mjs from src/test/*.test.ts, pair the .mjs with a sibling .d.mts so tsc resolves types without a rootDir/build error.
 - [WhatsApp test env isolation](whatsapp-test-env-isolation.md) — tests asserting the UNCONFIGURED Twilio branch must snapshot+delete TWILIO_* in before() / restore in after(), else real workspace secrets flip the dev-vs-live path.
 - [Shared CSV import parser](rmc-shared-csv-parser.md) — server/src/lib/csv.ts is the single plant-import CSV reader, re-exported into the frontend; keep it browser-safe & dependency-free or rmc-app build breaks.
+- [RMC web push](rmc-web-push.md) — order/delivery alerts via email+VAPID web push (SW importScripts); unsubscribe MUST scope deleteSubscription by userId (endpoint-only = IDOR).

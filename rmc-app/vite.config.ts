@@ -52,26 +52,61 @@ export default defineConfig(({ mode }) => {
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.png', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.png', 'favicon.svg', 'apple-touch-icon.png'],
       manifest: {
+        id: '/',
         name: 'CONCRETE KING RMC — Plant & Driver',
         short_name: 'CONCRETE KING',
         description: 'Ready-mix concrete plant operations, dispatch and live driver delivery tracking.',
+        lang: 'en',
+        dir: 'ltr',
         theme_color: '#08111f',
         background_color: '#08111f',
         display: 'standalone',
+        display_override: ['standalone', 'minimal-ui'],
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        categories: ['business', 'productivity', 'utilities'],
         icons: [
-          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
           { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png', purpose: 'any' },
+        ],
+        screenshots: [
+          {
+            src: '/social-preview.png',
+            sizes: '1200x630',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: 'CONCRETE KING — RMC plant operations & live delivery tracking',
+          },
+        ],
+        shortcuts: [
+          {
+            name: 'My Orders',
+            short_name: 'Orders',
+            description: 'View and track your concrete orders',
+            url: '/my-orders',
+            icons: [{ src: '/pwa-192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'Nearby Plants',
+            short_name: 'Plants',
+            description: 'Discover approved RMC plants near you',
+            url: '/nearby-plants',
+            icons: [{ src: '/pwa-192.png', sizes: '192x192', type: 'image/png' }],
+          },
         ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        // Pull in our custom Web Push / notification-click handlers. Kept as a
+        // plain script in public/ so it survives precache revisioning.
+        importScripts: ['/push-sw.js'],
         navigateFallback: '/index.html',
         // The app is auth'd + realtime: never let the service worker serve
         // cached HTML for API calls or intercept/cache the SSE stream.

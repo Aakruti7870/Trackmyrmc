@@ -4,6 +4,7 @@ import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckPr
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { ThemeSwitcher } from '@/lib/theme-providers';
+import NotificationsCard from '@/components/NotificationsCard';
 import type { User } from '@/lib/api';
 
 interface SmtpSettings {
@@ -1180,6 +1181,9 @@ export default function ProfileSettings() {
         </div>
         <ThemeSwitcher />
       </div>
+
+      {/* Push notifications card */}
+      <NotificationsCard />
 
       {/* Edit profile card */}
       <div style={{ ...card, marginBottom: 20 }}>

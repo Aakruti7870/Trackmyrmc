@@ -664,3 +664,21 @@ export const supportTickets = pgTable('support_tickets', {
   index('support_tickets_plant_idx').on(t.plantId),
   index('support_tickets_user_idx').on(t.userId),
 ]);
+
+// A browser/PWA Web Push subscription belonging to a user. One row per push
+// endpoint; a user may hold several (one per device/browser). Used to deliver
+// order/delivery notifications that pop up even when the app is closed. The
+// endpoint is globally unique, so re-subscribing the same browser upserts in
+// place. Rows are pruned automatically when the push service reports the
+// endpoint as gone (404/410).
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  endpoint: text('endpoint').notNull().unique(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('push_subscriptions_user_idx').on(t.userId),
+]);

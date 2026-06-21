@@ -2,7 +2,8 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { challans, clients, sites, orders, plants, users, whatsappMessages } from '../db/schema.js';
 import { normalizePhone } from './otp.js';
-import { sendDeliveryNotificationEmail, sendWhatsAppFailureAlertEmail } from './email.js';
+import { sendDeliveryNotificationEmail, sendWhatsAppFailureAlertEmail, sendOrderPlacedEmail } from './email.js';
+import { sendPushToClientUsers } from './push.js';
 import { emitSSEEvent } from './sseEmitter.js';
 import {
   getWhatsAppConfig,
@@ -90,6 +91,7 @@ export async function notifyChallanStatus(
     const [row] = await db
       .select({
         plantId: challans.plantId,
+        clientId: challans.clientId,
         challanNo: challans.challanNo,
         grade: challans.grade,
         quantity: challans.quantity,
@@ -115,28 +117,44 @@ export async function notifyChallanStatus(
       });
     }
 
+    // Web push to the customer's linked accounts — pops up even when the app is
+    // closed. Best-effort: a missing VAPID key or dead endpoint never throws.
+    try {
+      await sendPushToClientUsers(row.clientId, {
+        title: status === 'dispatched'
+          ? 'Your concrete is on the way'
+          : 'Your concrete has been delivered',
+        body: status === 'dispatched'
+          ? `Challan ${row.challanNo} — ${row.quantity} m³ ${row.grade} has been dispatched${row.siteName ? ` to ${row.siteName}` : ''}.`
+          : `Challan ${row.challanNo} — ${row.quantity} m³ ${row.grade} has been delivered.`,
+        url: '/my-orders',
+        tag: `challan-${challanId}`,
+      });
+    } catch (err) {
+      console.warn(`[notify] challan ${status} push failed:`, err);
+    }
+
     await notifyChallanWhatsApp(status, { challanId, ...row });
   } catch (err) {
     console.warn(`[notify] Failed to send ${status} notification for challan ${challanId}:`, err);
   }
 }
 
-// A customer placed a new order — send them a WhatsApp confirmation. There is no
-// email counterpart today; order confirmation is WhatsApp-only by design. Loads
-// the order details plus the customer's phone and the issuing plant's name.
+// A customer placed a new order — confirm it across every channel: email and
+// web push (always, when contactable) plus a gated WhatsApp template. Loads the
+// order details, the customer's email/phone and the issuing plant's name.
 export async function notifyOrderPlaced(orderId: number): Promise<void> {
   try {
-    const cfg = await getWhatsAppConfig();
-    if (!eventEnabled(cfg, 'order')) return;
-
     const [row] = await db
       .select({
         plantId: orders.plantId,
+        clientId: orders.clientId,
         orderNo: orders.orderNo,
         grade: orders.grade,
         quantity: orders.quantity,
         deliveryDate: orders.deliveryDate,
         clientName: clients.name,
+        email: clients.email,
         phone: clients.phone,
         plantName: plants.name,
       })
@@ -145,20 +163,52 @@ export async function notifyOrderPlaced(orderId: number): Promise<void> {
       .leftJoin(plants, eq(orders.plantId, plants.id))
       .where(eq(orders.id, orderId));
 
-    if (!row || !row.phone) return;
+    if (!row) return;
 
-    // Variables map to the template's numbered placeholders in this order:
-    //   {{1}} customer  {{2}} order no  {{3}} grade  {{4}} quantity
-    //   {{5}} delivery date  {{6}} plant
-    const result = await sendWhatsAppWithRetry(row.phone, cfg.orderTemplateSid, {
-      '1': row.clientName ?? 'Customer',
-      '2': row.orderNo,
-      '3': row.grade,
-      '4': row.quantity,
-      '5': row.deliveryDate ?? 'to be scheduled',
-      '6': row.plantName ?? 'the plant',
-    }, 'order');
-    await recordWhatsAppMessage('order', { orderId, plantId: row.plantId }, row.phone, result);
+    // Email confirmation (when the customer has an email on file). Independent of
+    // the WhatsApp toggle — email is always sent if we can.
+    if (row.email) {
+      try {
+        await sendOrderPlacedEmail(row.email, row.clientName ?? 'Customer', {
+          orderNo: row.orderNo,
+          grade: row.grade,
+          quantity: row.quantity,
+          deliveryDate: row.deliveryDate ?? null,
+          plantName: row.plantName ?? null,
+        });
+      } catch (err) {
+        console.warn(`[notify] order-placed email failed for order ${orderId}:`, err);
+      }
+    }
+
+    // Web push to the customer's linked accounts — pops up even when closed.
+    try {
+      await sendPushToClientUsers(row.clientId, {
+        title: 'Order received',
+        body: `Order ${row.orderNo} — ${row.quantity} m³ ${row.grade} has been received by ${row.plantName ?? 'the plant'}.`,
+        url: '/my-orders',
+        tag: `order-${orderId}`,
+      });
+    } catch (err) {
+      console.warn(`[notify] order-placed push failed for order ${orderId}:`, err);
+    }
+
+    // WhatsApp confirmation — gated by the per-event toggle, an approved template
+    // and a phone number on file. Variables map to the template's numbered
+    // placeholders: {{1}} customer {{2}} order no {{3}} grade {{4}} quantity
+    // {{5}} delivery date {{6}} plant.
+    const cfg = await getWhatsAppConfig();
+    if (eventEnabled(cfg, 'order') && row.phone) {
+      const result = await sendWhatsAppWithRetry(row.phone, cfg.orderTemplateSid, {
+        '1': row.clientName ?? 'Customer',
+        '2': row.orderNo,
+        '3': row.grade,
+        '4': row.quantity,
+        '5': row.deliveryDate ?? 'to be scheduled',
+        '6': row.plantName ?? 'the plant',
+      }, 'order');
+      await recordWhatsAppMessage('order', { orderId, plantId: row.plantId }, row.phone, result);
+    }
   } catch (err) {
     console.warn(`[notify] Failed to send order-placed notification for order ${orderId}:`, err);
   }
