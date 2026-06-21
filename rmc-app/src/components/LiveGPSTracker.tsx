@@ -148,7 +148,7 @@ export default function LiveGPSTracker() {
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>Updated {lastUpdate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px' }}>
+      <div className="ck-gps-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 200px' }}>
         <div style={{ position: 'relative', background: 'radial-gradient(circle at 50% 50%, #0d1f38, #050d18)' }}>
           <canvas ref={canvasRef} width={460} height={220} style={{ width: '100%', height: 220, display: 'block' }} />
           {vehicles.length === 0 && (
@@ -167,7 +167,7 @@ export default function LiveGPSTracker() {
           </div>
         </div>
 
-        <div style={{ borderLeft: '1px solid var(--line)', overflowY: 'auto', maxHeight: 220 }}>
+        <div className="ck-gps-list" style={{ borderLeft: '1px solid var(--line)', overflowY: 'auto', maxHeight: 220 }}>
           {vehicles.length === 0 && (
             <div style={{ padding: '20px 12px', color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>Generate a challan to see live tracking</div>
           )}

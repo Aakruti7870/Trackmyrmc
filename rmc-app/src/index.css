@@ -317,9 +317,21 @@ button { cursor: pointer; border: 0; }
 .crown-sso-btn:hover { transform: translateY(-1px); }
 .crown-sso-btn:disabled { opacity: .6; cursor: not-allowed; }
 
-/* Login screen: stack the two columns on small screens (!important beats the inline grid). */
-@media (max-width: 760px) {
-  .ck-login-grid { grid-template-columns: 1fr !important; }
+/* Login screen: stack the two columns on tablets & phones (!important beats the inline grid).
+   Breakpoint covers iPad-portrait (768px) so the form is never squeezed beside the brand panel. */
+@media (max-width: 820px) {
+  .ck-login-grid { grid-template-columns: 1fr !important; max-width: 460px !important; }
+}
+
+/* Live GPS tracker: stack the map above the vehicle list on narrow screens so neither
+   the canvas nor the list gets squeezed; the side border becomes a top divider. */
+@media (max-width: 640px) {
+  .ck-gps-grid { grid-template-columns: 1fr !important; }
+  .ck-gps-list {
+    border-left: none !important;
+    border-top: 1px solid var(--line);
+    max-height: 180px !important;
+  }
 }
 
 /* ===== Global overflow guard — prevents any child from pushing the page wide ===== */
