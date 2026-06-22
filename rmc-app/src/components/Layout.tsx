@@ -406,7 +406,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
           backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
           borderRight: '1px solid var(--line)', padding: '18px 14px',
+          paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
           display: 'flex', flexDirection: 'column',
+          overflowY: 'auto', WebkitOverflowScrolling: 'touch',
           transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform .25s ease',
         }}>

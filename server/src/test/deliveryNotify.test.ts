@@ -16,6 +16,7 @@ mock.module('../lib/email.js', {
       sent.push({ email, name, details });
       return true;
     },
+    sendOrderPlacedEmail: async () => true,
     sendWelcomeEmail: async () => true,
     sendPasswordResetNotification: async () => false,
     sendWhatsAppFailureAlertEmail: async () => true,
