@@ -65,6 +65,32 @@ export const api = {
     request<T>(path, body === undefined
       ? { method: 'DELETE' }
       : { method: 'DELETE', body: JSON.stringify(body) }),
+  // Authenticated file download. Unlike window.open(), this attaches the Bearer
+  // token and resolves against API_ORIGIN, so it works in the native (Capacitor)
+  // build where the WebView origin is not the backend.
+  download: async (path: string, filename: string): Promise<void> => {
+    const token = getToken();
+    const res = await fetch(`${BASE}${path}`, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (res.status === 401) {
+      if (token) clearSessionAndRedirect();
+      throw new Error('Unauthorized');
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new ApiError(err.error || res.statusText, res.status, err as Record<string, unknown>);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export type User = {

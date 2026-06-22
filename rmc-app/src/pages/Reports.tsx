@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart3, Download, Calendar, Fuel, AlertTriangle, MapPin, Check } from 'lucide-react';
 import { api, type FuelReconResponse, type VehicleAlert } from '@/lib/api';
 import { useVarianceTolerance, isWithinTolerance } from '@/lib/variance';
+import { useToast } from '@/lib/toast';
 
 type ReportTab = 'client-wise' | 'grade-wise' | 'dispatch' | 'trip-timing' | 'production' | 'fuel';
 
@@ -35,6 +36,7 @@ export default function Reports() {
   const [alerts, setAlerts] = useState<VehicleAlert[]>([]);
   const [loading, setLoading] = useState(false);
   const tolerance = useVarianceTolerance();
+  const { showToast } = useToast();
 
   function applyPreset(idx: number) {
     setPreset(idx);
@@ -68,9 +70,13 @@ export default function Reports() {
     return () => { cancelled = true; };
   }, [from, to]);
 
-  function downloadCSV(report: string) {
+  async function downloadCSV(report: string) {
     const params = `?report=${report}&from=${from}T00:00:00&to=${to}T23:59:59`;
-    window.open(`/api/reports/export${params}`, '_blank');
+    try {
+      await api.download(`/reports/export${params}`, `${report}_${from}_to_${to}.csv`);
+    } catch {
+      showToast('Export failed. Please try again.', 'error');
+    }
   }
 
   const maxClientQty = Math.max(...clientData.map(r => Number(r.totalQty)), 1);
