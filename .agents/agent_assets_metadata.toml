@@ -95,3 +95,9 @@ id = "GjZzmBeGnC32fcWaPKcZY"
 uri = "file://attached_assets/stt_test/sample.mp3"
 type = "audio"
 title = "stt test sample"
+
+[[outputs]]
+id = "lKoNzuFvLjz5nyUUTkUJd"
+uri = "file://concrete-king-android-src.zip"
+type = "unspecified"
+title = "CONCRETE KING — Android source (slim, no node_modules)"
