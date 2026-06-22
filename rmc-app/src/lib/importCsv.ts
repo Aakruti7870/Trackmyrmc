@@ -1,8 +1,9 @@
-// Single source of truth: the import CSV parser lives in the server (the
-// runtime authority for plant imports). The client reuses the exact same pure,
-// dependency-free leaf module so skipped-row numbers line up byte-for-byte with
-// the original file — there is no second copy that could drift.
-import { parseCsv } from '../../../server/src/lib/csv';
+// The import CSV parser is a pure, dependency-free leaf module vendored into
+// rmc-app (src/lib/csv.ts) so the frontend builds standalone — including the
+// Capacitor Android export, which ships without the server/ tree. It is a
+// verbatim mirror of server/src/lib/csv.ts (the runtime authority); keep the
+// two identical so skipped-row numbers line up byte-for-byte with the file.
+import { parseCsv } from './csv';
 
 export { parseCsv as parseImportCsv };
 
