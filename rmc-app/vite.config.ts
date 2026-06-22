@@ -44,6 +44,10 @@ function staticSiteUrlPlugin(siteUrl: string): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const siteUrl = (env.VITE_PUBLIC_SITE_URL || 'https://www.goldetech.com').replace(/\/$/, '')
+  // The native (Capacitor) build disables the PWA service worker entirely: the
+  // wrapped app must always load fresh bundled assets and reach the live API,
+  // and the web-push SW (VAPID) doesn't work inside a native WebView anyway.
+  const disablePWA = env.VITE_DISABLE_PWA === '1' || env.VITE_DISABLE_PWA === 'true'
 
   return {
   plugins: [
@@ -51,6 +55,7 @@ export default defineConfig(({ mode }) => {
     react(),
     tailwindcss(),
     VitePWA({
+      disable: disablePWA,
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'favicon.svg', 'apple-touch-icon.png'],
       manifest: {

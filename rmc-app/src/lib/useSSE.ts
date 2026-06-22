@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { API_ORIGIN } from './api';
 
 export type SSEStatus = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
@@ -39,7 +40,7 @@ export function useSSE() {
 
       setStatus(retryCount.current === 0 ? 'connecting' : 'reconnecting');
 
-      const url = `/api/events?token=${encodeURIComponent(token)}`;
+      const url = `${API_ORIGIN}/api/events?token=${encodeURIComponent(token)}`;
       const es = new EventSource(url);
       esRef.current = es;
 

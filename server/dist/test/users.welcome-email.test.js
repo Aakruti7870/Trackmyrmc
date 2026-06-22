@@ -23,6 +23,7 @@ mock.module('../lib/email.js', {
         },
         sendPasswordResetNotification: async () => false,
         sendDeliveryNotificationEmail: async () => true,
+        sendOrderPlacedEmail: async () => true,
         sendOwnerInviteEmail: async () => true,
         sendPlantInviteNotification: async () => true,
         sendWhatsAppFailureAlertEmail: async () => true,

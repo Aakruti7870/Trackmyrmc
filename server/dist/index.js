@@ -37,7 +37,56 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
 const app = express();
 const PORT = process.env.PORT || process.env.API_PORT || (isProd ? 5000 : 3001);
-app.use(cors({ origin: '*' }));
+// CORS allowlist. The web app is served same-origin (no CORS needed there), but
+// the native Capacitor build runs from a localhost WebView origin and calls this
+// API cross-origin, so we permit the native origins plus the known web domains.
+// Extra origins can be added via CORS_ALLOWED_ORIGINS (comma-separated). We never
+// open it to all origins.
+const STATIC_ALLOWED_ORIGINS = new Set([
+    'https://localhost', // Capacitor Android (androidScheme: https)
+    'http://localhost', // Capacitor Android (androidScheme: http) / local tooling
+    'capacitor://localhost', // Capacitor iOS
+    'ionic://localhost', // legacy Ionic/Capacitor scheme
+    'https://www.goldetech.com',
+    'https://goldetech.com',
+]);
+for (const o of (process.env.CORS_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)) {
+    STATIC_ALLOWED_ORIGINS.add(o);
+}
+if (process.env.REPLIT_DEV_DOMAIN) {
+    STATIC_ALLOWED_ORIGINS.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+}
+function isAllowedOrigin(origin) {
+    if (STATIC_ALLOWED_ORIGINS.has(origin))
+        return true;
+    try {
+        const host = new URL(origin).hostname;
+        // Replit deployment + dev preview domains.
+        return (host.endsWith('.replit.app') ||
+            host.endsWith('.replit.dev') ||
+            host.endsWith('.repl.co'));
+    }
+    catch {
+        return false;
+    }
+}
+app.use(cors({
+    origin(origin, cb) {
+        // No Origin header: same-origin requests, curl, or native fetches that omit
+        // it. These are not browser cross-origin requests, so allow them.
+        if (!origin)
+            return cb(null, true);
+        if (isAllowedOrigin(origin))
+            return cb(null, true);
+        // Disallowed: don't throw (which would 500); simply omit the CORS headers
+        // so the browser blocks the cross-origin read on its own.
+        cb(null, false);
+    },
+    credentials: true,
+}));
 // Larger limit to accommodate proof-of-delivery photos (base64 data URLs).
 // Capture the raw body so the Meta webhook can verify its X-Hub-Signature-256
 // HMAC, which must be computed over the exact bytes Meta sent.

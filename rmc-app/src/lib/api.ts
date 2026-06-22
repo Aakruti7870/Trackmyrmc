@@ -1,4 +1,9 @@
-const BASE = '/api';
+// Optional absolute backend origin. Empty in the normal web build (and dev),
+// where requests stay relative to `/api` and rely on the Vite proxy / same-origin
+// server. The native (Capacitor) build sets VITE_API_BASE_URL to the deployed
+// backend so the wrapped app reaches the live API over the internet.
+export const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const BASE = `${API_ORIGIN}/api`;
 
 export class ApiError extends Error {
   status: number;

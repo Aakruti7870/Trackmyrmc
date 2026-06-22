@@ -20,6 +20,7 @@ mock.module('../lib/email.js', {
             failureAlerts.push({ emails, details });
             return true;
         },
+        sendOrderPlacedEmail: async () => true,
         sendWelcomeEmail: async () => true,
         sendPasswordResetNotification: async () => false,
         sendTestEmail: async () => ({ ok: false }),
