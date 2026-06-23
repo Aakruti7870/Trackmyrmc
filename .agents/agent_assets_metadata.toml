@@ -161,3 +161,9 @@ id = "CJTk1SjC56426ZAgW0393"
 uri = "file://play-store-assets/privacy-policy.txt"
 type = "text"
 title = "Privacy Policy (backup copy)"
+
+[[outputs]]
+id = "WhHoi2YZzz7WDDs047xei"
+uri = "file://excel-deliverable/RMC-Plant-Daily-Workbook.xlsx"
+type = "table"
+title = "RMC Plant Daily Workbook (Excel)"
