@@ -25,7 +25,8 @@ function mockEmptyReports() {
 // The export now goes through api.download(): an authenticated fetch + blob anchor
 // download (works in the native Capacitor build), not window.open(). We stub fetch
 // and the blob-URL helpers and assert on the fetched URL.
-let fetchSpy: ReturnType<typeof vi.spyOn>;
+const makeFetchSpy = () => vi.spyOn(global, 'fetch');
+let fetchSpy: ReturnType<typeof makeFetchSpy>;
 
 beforeEach(() => {
   vi.clearAllMocks();
