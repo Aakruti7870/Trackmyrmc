@@ -25,6 +25,10 @@ NAVY = "08111F"; NAVY2 = "12203A"; GOLD = "F7C948"; GREEN = "22C55E"
 BLUE = "38BDF8"; RED = "EF4444"; AMBER = "F59E0B"; WHITE = "FFFFFF"
 INPUT_BG = "FFFDF3"; CALC_BG = "EEF6FF"
 
+# ---------- company (printed on challan / batch report) ----------
+COMPANY = "AAKRUTI INFRA"
+COMPANY_SUB = "RMC Plant, Panvel  \u2022  +91 7498286760  \u2022  sales@aakrutiinfra.com"
+
 DATA_START = 5
 HDR_ROW = 4
 def end_row(rows): return DATA_START + rows - 1
@@ -103,7 +107,7 @@ def build_sheet(name, title, subtitle, columns, rows, examples=None, accent=FILL
                     ws.cell(row=ri, column=ci, value=val)
     end = end_row(rows)
     fmtmap = {"date": "dd-mmm-yyyy", "num": "#,##0.00", "money": '\u20b9#,##0.00',
-              "int": "#,##0", "pct": "0.00"}
+              "int": "#,##0", "pct": "0.00", "time": "h:mm AM/PM"}
     for i, c in enumerate(columns, start=1):
         L = get_column_letter(i)
         t = c.get("type", "input")
@@ -164,6 +168,16 @@ intro = [
     ("Payments", "Customer collections - drives outstanding on the Dashboard."),
     ("Cube Test Register", "7 / 28-day cube strength with automatic Pass/Fail vs grade requirement."),
     ("Stock Register", "Opening + Received - Consumed = Closing, per material, with low-stock alerts."),
+    ("Rate Card", "Grade-wise market & in-house selling rates (M10-M40 + DLC) for quoting."),
+    ("Monthly Consumption", "Month-wise material consumed (cement/sand/aggregate/water/admix + diesel) for the chosen year."),
+    ("Challan", "Pick a Challan No - the whole delivery challan auto-fills; one-tap WhatsApp to the client + print/PDF."),
+    ("Batch Report", "Pick Grade + Qty - target batch (per m3 x qty) auto-generates; WhatsApp + print/PDF."),
+    ("Daily Expenses", "Plant cash expenses with month-to-date total."),
+    ("Trip & KM", "Per-vehicle km run, trips & diesel efficiency (km/L)."),
+    ("Staff Attendance", "Daily muster - In/Out time auto-calculates hours worked."),
+    ("", ""),
+    ("PRINT / WHATSAPP", ""),
+    ("Challan & Batch Report buttons", "Green button opens WhatsApp with the details pre-filled. To print or save PDF press Ctrl+P (on phone: Share > Print > Save as PDF)."),
 ]
 r = HDR_ROW
 for a, b in intro:
@@ -208,9 +222,9 @@ mix_cols = [
     {"h": "Selling Rate (\u20b9/m3)", "w": 15, "type": "money"},
 ]
 mix_ex = [
-    ("M15", 320, 750, 700, 480, 160, 1.6, None, 4200), ("M20", 360, 720, 720, 480, 170, 2.0, None, 4600),
-    ("M25", 400, 690, 730, 490, 175, 2.4, None, 5000), ("M30", 440, 660, 740, 500, 180, 3.1, None, 5400),
-    ("M35", 480, 630, 750, 510, 185, 3.8, None, 5900), ("M40", 520, 600, 760, 520, 190, 4.7, None, 6400),
+    ("M15", 320, 750, 700, 480, 160, 1.6, None, 4650), ("M20", 360, 720, 720, 480, 170, 2.0, None, 5200),
+    ("M25", 400, 690, 730, 490, 175, 2.4, None, 5350), ("M30", 440, 660, 740, 500, 180, 3.1, None, 5450),
+    ("M35", 480, 630, 750, 510, 185, 3.8, None, 5600), ("M40", 520, 600, 760, 520, 190, 4.7, None, 6230),
 ]
 build_sheet("Setup - Mix Design", "Setup  -  Mix Design",
             "Concrete grades & material per m3. Drives production consumption + selling rate. Edit to your design.",
@@ -632,7 +646,7 @@ def fit_one_page(ws, area):
 # ============================================================
 wc = wb.create_sheet("Challan")
 set_widths(wc, [2, 18, 22, 16, 2, 18, 22, 16])
-page_form_title(wc, "CONCRETE KING", "DELIVERY CHALLAN  \u2022  Ready-Mix Concrete", 8)
+page_form_title(wc, COMPANY, "DELIVERY CHALLAN  \u2022  " + COMPANY_SUB, 8)
 wc.cell(4, 2, "Select Challan No:").font = Font(bold=True, color=GOLD, size=12)
 sel = wc.cell(4, 3, None); sel.fill = FILL_INPUT; sel.border = B
 sel.font = Font(bold=True, color=NAVY, size=12); sel.alignment = Alignment(horizontal="center")
@@ -669,7 +683,7 @@ wc.cell(18, 6, "Authorised Signatory").font = Font(color="5B6B86", size=9)
 for col in (2, 6):
     s = wc.cell(17, col, "__________________"); s.font = Font(color="33425C")
 # whatsapp + print buttons
-wa_msg = ("\"*CONCRETE KING - Delivery Challan*%0AChallan No: \"&$C$4&\"%0ADate: \"&TEXT($G$6,\"dd-mmm-yyyy\")"
+wa_msg = ("\"*AAKRUTI INFRA - Delivery Challan*%0AChallan No: \"&$C$4&\"%0ADate: \"&TEXT($G$6,\"dd-mmm-yyyy\")"
           "&\"%0ACustomer: \"&$C$13&\"%0AGrade: \"&$C$8&\"%0AQty: \"&$C$9&\" m3%0AVehicle: \"&$G$8"
           "&\"%0ADriver: \"&$G$9&\"%0ARate: Rs \"&$C$10&\"%0AAmount: Rs \"&$G$10")
 wa_url = ("=HYPERLINK(\"https://wa.me/\"&IF($C$14=\"\",\"\",\"91\"&$C$14)&\"?text=\"&"
@@ -687,7 +701,7 @@ fit_one_page(wc, "A1:H21")
 # ============================================================
 wbr = wb.create_sheet("Batch Report")
 set_widths(wbr, [2, 22, 16, 18, 12, 18])
-page_form_title(wbr, "CONCRETE KING", "BATCH REPORT  \u2022  Target Mix per Batch", 6)
+page_form_title(wbr, COMPANY, "BATCH REPORT  \u2022  " + COMPANY_SUB, 6)
 wbr.cell(4, 2, "Select Grade:").font = Font(bold=True, color=GOLD, size=12)
 g = wbr.cell(4, 3, None); g.fill = FILL_INPUT; g.border = B; g.font = Font(bold=True, color=NAVY, size=12)
 g.alignment = Alignment(horizontal="center")
@@ -696,7 +710,7 @@ wbr.cell(4, 4, "Production Qty (m\u00b3):").font = Font(bold=True, color=GOLD, s
 q = wbr.cell(4, 5, None); q.fill = FILL_INPUT; q.border = B; q.font = Font(bold=True, color=NAVY, size=12)
 q.alignment = Alignment(horizontal="center"); q.number_format = "#,##0.00"
 # header info
-box(wbr, 6, 2, "Plant", "=\"CONCRETE KING\"")
+box(wbr, 6, 2, "Plant", f'="{COMPANY}"')
 box(wbr, 6, 4, "Recipe / Grade", "=IF($C$4=\"\",\"\",$C$4)")
 box(wbr, 7, 2, "Batch No", None, value_input=True)
 box(wbr, 7, 4, "Batch Date", None, vfmt="dd-mmm-yyyy", value_input=True)
@@ -734,7 +748,7 @@ wbr.cell(tmr, 5, "kg")
 for cc in range(2, 6):
     cell = wbr.cell(tmr, cc); cell.fill = GOLD_BTN; cell.font = Font(bold=True, color=NAVY); cell.border = B
 # whatsapp + print
-br_msg = ("\"*CONCRETE KING - Batch Report*%0AGrade: \"&$C$4&\"%0AQty: \"&$E$4&\" m3%0ABatch No: \"&$C$7"
+br_msg = ("\"*AAKRUTI INFRA - Batch Report*%0AGrade: \"&$C$4&\"%0AQty: \"&$E$4&\" m3%0ABatch No: \"&$C$7"
           "&\"%0ADate: \"&TEXT($E$7,\"dd-mmm-yyyy\")&\"%0ACement: \"&D12&\" kg%0ASand: \"&D13&\" kg\""
           "&\"%0AAgg20: \"&D14&\" kg%0AAgg10: \"&D15&\" kg%0AWater: \"&D16&\" L%0AAdmix: \"&D17"
           "&\" kg%0ATotal: \"&D18&\" kg\"")
@@ -800,6 +814,86 @@ mcchart.add_data(mcdata, titles_from_data=True); mcchart.set_categories(mccats)
 wmc.add_chart(mcchart, "B21")
 
 # ============================================================
+# RATE CARD  (grade-wise selling rates: market & in-house)
+# ============================================================
+wrc = wb.create_sheet("Rate Card")
+set_widths(wrc, [3, 8, 16, 12, 18, 18])
+title_block(wrc, "Rate Card  -  RMC Selling Rates",
+            "Grade-wise market & in-house rates. Reference for quoting orders.", 6)
+rc_heads = ["Sr.", "Grade", "Unit", "Market Rate (\u20b9/m\u00b3)", "In-House Rate (\u20b9/m\u00b3)"]
+for i, h in enumerate(rc_heads):
+    wrc.cell(HDR_ROW, 2 + i, h)
+style_header(wrc, HDR_ROW, 6, fill=FILL_NAVY2)
+wrc.cell(HDR_ROW, 1).fill = PatternFill("solid", fgColor=WHITE)
+rate_card = [
+    ("RMC M 10", "Per m\u00b3", 4580, 4450), ("RMC M 15", "Per m\u00b3", 4850, 4650),
+    ("RMC M 20", "Per m\u00b3", 5350, 5200), ("RMC M 25", "Per m\u00b3", 5450, 5350),
+    ("RMC M 30", "Per m\u00b3", 5650, 5450), ("RMC M 35", "Per m\u00b3", 5850, 5600),
+    ("RMC M 40", "Per m\u00b3", 6400, 6230), ("DLC", "Per m\u00b3", 4400, 4000),
+]
+for i, (grade, unit, mkt, inh) in enumerate(rate_card):
+    rr = DATA_START + i
+    wrc.cell(rr, 2, i + 1)
+    wrc.cell(rr, 3, grade).font = Font(bold=True, color=NAVY)
+    wrc.cell(rr, 4, unit)
+    m = wrc.cell(rr, 5, mkt); m.number_format = '\u20b9#,##0'
+    h = wrc.cell(rr, 6, inh); h.number_format = '\u20b9#,##0'
+    for cc in range(2, 7):
+        cell = wrc.cell(rr, cc); cell.border = B
+        cell.fill = FILL_CALC if cc >= 5 else PatternFill("solid", fgColor=WHITE)
+
+# ============================================================
+# DAILY EXPENSES
+# ============================================================
+ws_exp = build_sheet("Daily Expenses", "Daily Expenses  -  Cash & Plant Costs",
+            "Log every plant expense. Month-to-date total shows top-right.",
+            [{"h": "Date", "w": 14, "type": "date"}, {"h": "Paid For", "w": 34},
+             {"h": "Amount (\u20b9)", "w": 14, "type": "money"}, {"h": "Paid By", "w": 18},
+             {"h": "Mode", "w": 12}, {"h": "Category", "w": 18}, {"h": "Remarks", "w": 30}],
+            TXN_ROWS, None, FILL_NAVY2)
+add_list_validation(ws_exp, "PayModeList", f"E{DATA_START}:E{TEND}")
+ws_exp.cell(2, 9, "THIS MONTH \u20b9").font = Font(bold=True, color=GOLD, size=11)
+mtd = ws_exp.cell(3, 9, f"=SUMIFS($C${DATA_START}:$C${TEND},$A${DATA_START}:$A${TEND},"
+                        f"\">=\"&DATE(YEAR(TODAY()),MONTH(TODAY()),1),$A${DATA_START}:$A${TEND},"
+                        f"\"<\"&DATE(YEAR(TODAY()),MONTH(TODAY())+1,1))")
+mtd.number_format = '\u20b9#,##0'; mtd.font = Font(bold=True, color=NAVY, size=14)
+mtd.fill = FILL_GOLD; mtd.border = B
+ws_exp.column_dimensions["I"].width = 16
+
+# ============================================================
+# STAFF ATTENDANCE
+# ============================================================
+ws_att = build_sheet("Staff Attendance", "Staff Attendance  -  Daily Muster",
+            "Mark each day. Hours auto-calc from In/Out time.",
+            [{"h": "Date", "w": 14, "type": "date"}, {"h": "Employee", "w": 22},
+             {"h": "Status", "w": 13}, {"h": "In Time", "w": 12, "type": "input", "numfmt": "time"},
+             {"h": "Out Time", "w": 12, "type": "input", "numfmt": "time"},
+             {"h": "Hours", "w": 10, "type": "calc",
+              "formula": "=IF(OR(D{r}=\"\",E{r}=\"\"),\"\",ROUND(MOD(E{r}-D{r},1)*24,2))"},
+             {"h": "Trips", "w": 8, "type": "int"}, {"h": "Remarks", "w": 30}],
+            TXN_ROWS, None, FILL_NAVY2)
+add_list_validation(ws_att, "StaffList", f"B{DATA_START}:B{TEND}")
+add_list_validation(ws_att, "AttStatusList", f"C{DATA_START}:C{TEND}")
+
+# ============================================================
+# TRIP & KM  (per-vehicle running + diesel efficiency)
+# ============================================================
+ws_trip = build_sheet("Trip & KM", "Trip & KM  -  Vehicle Running Log",
+            "Per-vehicle km, trips & diesel. KM-run and efficiency auto-calc.",
+            [{"h": "Date", "w": 14, "type": "date"}, {"h": "Vehicle No", "w": 16},
+             {"h": "Driver", "w": 20, "type": "calc",
+              "formula": "=IFERROR(IF(B{r}=\"\",\"\",VLOOKUP(B{r}," + VEH_TBL + ",4,0)),\"\")"},
+             {"h": "Opening KM", "w": 13, "type": "num"}, {"h": "Closing KM", "w": 13, "type": "num"},
+             {"h": "KM Run", "w": 11, "type": "calc",
+              "formula": "=IF(OR(D{r}=\"\",E{r}=\"\"),\"\",E{r}-D{r})"},
+             {"h": "Trips", "w": 8, "type": "int"}, {"h": "Diesel (L)", "w": 11, "type": "num"},
+             {"h": "Eff (km/L)", "w": 11, "type": "calc",
+              "formula": "=IF(OR(F{r}=\"\",H{r}=\"\",H{r}=0),\"\",ROUND(F{r}/H{r},2))"},
+             {"h": "Remarks", "w": 28}],
+            TXN_ROWS, None, FILL_NAVY2)
+add_list_validation(ws_trip, "VehicleList", f"B{DATA_START}:B{TEND}")
+
+# ============================================================
 # LISTS (hidden)
 # ============================================================
 wl = wb.create_sheet("Lists")
@@ -809,20 +903,29 @@ wl["B1"] = "Dispatch Status"
 for i, v in enumerate(["Scheduled", "Dispatched", "Delivered", "Cancelled"], start=2): wl[f"B{i}"] = v
 wl["C1"] = "Payment Mode"
 for i, v in enumerate(["Cash", "UPI", "Cheque", "NEFT", "RTGS"], start=2): wl[f"C{i}"] = v
+wl["D1"] = "Attendance Status"
+for i, v in enumerate(["Present", "Absent", "Half Day", "Leave", "Week Off"], start=2): wl[f"D{i}"] = v
+wl["E1"] = "Staff"
+for i, v in enumerate(["NEHA JAGTAP", "KRUSHNA S BADE", "YASH PATEL", "PREM KUMAR", "MANOJ KUMAR"], start=2):
+    wl[f"E{i}"] = v
+defname("AttStatusList", "'Lists'!$D$2:$D$6")
+defname("StaffList", "'Lists'!$E$2:$E$51")
 wl.sheet_state = "hidden"
 
 # ---- tab order & colours ----
 order = ["Instructions", "Dashboard", "Monthly Summary", "Monthly Consumption",
          "Setup - Clients", "Setup - Mix Design", "Setup - Vehicles", "Setup - Drivers", "Setup - Materials",
+         "Rate Card",
          "Orders", "Dispatch (Challan)", "Challan", "Batch Production", "Batch Report",
-         "Material Receipt", "Fuel Log",
+         "Material Receipt", "Fuel Log", "Daily Expenses", "Trip & KM", "Staff Attendance",
          "Payments", "Cube Test Register", "Stock Register", "Lists"]
 wb._sheets.sort(key=lambda s: order.index(s.title) if s.title in order else 99)
 cmap = {"Instructions": GOLD, "Dashboard": GOLD, "Monthly Summary": GOLD, "Monthly Consumption": GOLD,
         "Setup - Clients": "5B6B86", "Setup - Mix Design": "5B6B86", "Setup - Vehicles": "5B6B86",
-        "Setup - Drivers": "5B6B86", "Setup - Materials": "5B6B86",
+        "Setup - Drivers": "5B6B86", "Setup - Materials": "5B6B86", "Rate Card": GOLD,
         "Orders": NAVY2, "Dispatch (Challan)": "1E7F4F", "Challan": GOLD, "Batch Production": NAVY2,
-        "Batch Report": GOLD, "Material Receipt": NAVY2, "Fuel Log": NAVY2, "Payments": "1E7F4F",
+        "Batch Report": GOLD, "Material Receipt": NAVY2, "Fuel Log": NAVY2,
+        "Daily Expenses": NAVY2, "Trip & KM": NAVY2, "Staff Attendance": NAVY2, "Payments": "1E7F4F",
         "Cube Test Register": "1E5F8F", "Stock Register": "1E5F8F"}
 for s in wb._sheets:
     if s.title in cmap: s.sheet_properties.tabColor = cmap[s.title]
