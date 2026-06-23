@@ -8,7 +8,9 @@ Env overrides (used for fast validation builds):
 """
 
 import os
-from openpyxl import Workbook
+import glob
+import datetime
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -133,6 +135,67 @@ MIX_TBL = f"'Setup - Mix Design'!$A$5:$I${MEND}"
 VEH_TBL = f"'Setup - Vehicles'!$A$5:$D${MEND}"
 MAT_TBL = f"'Setup - Materials'!$A$5:$E${MEND}"
 
+
+# ============================================================
+# REAL DATA IMPORT  (April 2026 books -> transaction sheets)
+# ============================================================
+def norm_grade(g):
+    g = str(g or "").strip().upper()
+    if g in ("", "NA"):
+        return ""
+    return g.replace("RMC", "").replace(" ", "")
+
+
+def _as_date(v):
+    """Return a date for a datetime/date cell, else None."""
+    if isinstance(v, datetime.datetime):
+        return v.date()
+    if isinstance(v, datetime.date):
+        return v
+    return None
+
+
+def load_april_data():
+    """Read the user's April 2026 source workbook and return clean records.
+
+    Degrades gracefully to empty imports if the file is missing or unreadable,
+    so the workbook always builds even when the source is absent/corrupt.
+    """
+    files = glob.glob("attached_assets/APRIL_ALL2026*.xlsx")
+    if not files:
+        return [], [], []
+    try:
+        src = load_workbook(sorted(files)[-1], data_only=True)
+    except Exception as e:
+        print("WARN: could not read April source, skipping import:", e)
+        return [], [], []
+    sales, exp, diesel = [], [], []
+    if "APRIL MONTH SALE " in src.sheetnames:
+        for r in src["APRIL MONTH SALE "].iter_rows(min_row=3, values_only=True):
+            d, client, chno, grade, qty, site, veh = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
+            dd = _as_date(d)
+            if dd and isinstance(chno, (int, float)):
+                sales.append((dd, str(client or "").strip(), int(chno),
+                              norm_grade(grade), qty, str(site or "").strip(),
+                              str(veh or "").strip()))
+    if "EXPENSSES" in src.sheetnames:
+        for r in src["EXPENSSES"].iter_rows(min_row=2, values_only=True):
+            d, pf, amt = r[0], r[1], r[2]
+            dd = _as_date(d)
+            if dd and pf and isinstance(amt, (int, float)):
+                exp.append((dd, str(pf).strip(), amt))
+            d2, amt2, vol, sup = r[6], r[7], r[8], r[9]
+            dd2 = _as_date(d2)
+            if dd2 and isinstance(vol, (int, float)):
+                rate = round(amt2 / vol, 2) if isinstance(amt2, (int, float)) and vol else None
+                diesel.append((dd2, rate, vol, str(sup or "").strip()))
+    src.close()
+    print(f"April import: {len(sales)} challans, {len(exp)} expenses, {len(diesel)} diesel rows")
+    return sales, exp, diesel
+
+
+APRIL_SALES, APRIL_EXP, APRIL_DIESEL = load_april_data()
+
 # ============================================================
 # INSTRUCTIONS
 # ============================================================
@@ -171,7 +234,7 @@ intro = [
     ("Rate Card", "Grade-wise market & in-house selling rates (M10-M40 + DLC) for quoting."),
     ("Monthly Consumption", "Month-wise material consumed (cement/sand/aggregate/water/admix + diesel) for the chosen year."),
     ("Challan", "Pick a Challan No - the whole delivery challan auto-fills; one-tap WhatsApp to the client + print/PDF."),
-    ("Batch Report", "Pick Grade + Qty - target batch (per m3 x qty) auto-generates; WhatsApp + print/PDF."),
+    ("Batch Report", "Pick the Challan No - grade, qty, customer & target batch (per m3 x qty) auto-fetch; WhatsApp + print/PDF."),
     ("Daily Expenses", "Plant cash expenses with month-to-date total."),
     ("Trip & KM", "Per-vehicle km run, trips & diesel efficiency (km/L)."),
     ("Staff Attendance", "Daily muster - In/Out time auto-calculates hours worked."),
@@ -222,9 +285,11 @@ mix_cols = [
     {"h": "Selling Rate (\u20b9/m3)", "w": 15, "type": "money"},
 ]
 mix_ex = [
+    ("M10", 220, 800, 700, 480, 150, 0.0, None, 4450),
     ("M15", 320, 750, 700, 480, 160, 1.6, None, 4650), ("M20", 360, 720, 720, 480, 170, 2.0, None, 5200),
     ("M25", 400, 690, 730, 490, 175, 2.4, None, 5350), ("M30", 440, 660, 740, 500, 180, 3.1, None, 5450),
     ("M35", 480, 630, 750, 510, 185, 3.8, None, 5600), ("M40", 520, 600, 760, 520, 190, 4.7, None, 6230),
+    ("DLC", 140, 700, 950, 420, 80, 0.0, None, 4000),
 ]
 build_sheet("Setup - Mix Design", "Setup  -  Mix Design",
             "Concrete grades & material per m3. Drives production consumption + selling rate. Edit to your design.",
@@ -316,6 +381,19 @@ add_list_validation(ws_dis, "GradeList", f"E{DATA_START}:E{TEND}")
 add_list_validation(ws_dis, "VehicleList", f"G{DATA_START}:G{TEND}")
 add_list_validation(ws_dis, "DispStatusList", f"K{DATA_START}:K{TEND}")
 defname("ChallanList", f"'Dispatch (Challan)'!$B$5:$B${TEND}")
+# --- import real April 2026 challans (driver/rate/amount auto-calc via formulas) ---
+veh_map = {v[0].replace(" ", "").upper(): v[0] for v in veh_ex}
+for _i, (_d, _client, _chno, _grade, _qty, _site, _veh) in enumerate(APRIL_SALES):
+    _rr = DATA_START + _i
+    if _rr > TEND:
+        break
+    ws_dis.cell(_rr, 1, _d)
+    ws_dis.cell(_rr, 2, _chno)
+    ws_dis.cell(_rr, 4, _client or _site)
+    ws_dis.cell(_rr, 5, _grade)
+    ws_dis.cell(_rr, 6, _qty)
+    ws_dis.cell(_rr, 7, veh_map.get(str(_veh).replace(" ", "").upper(), _veh))
+    ws_dis.cell(_rr, 11, "Delivered")
 
 # ============================================================
 # BATCH PRODUCTION
@@ -350,6 +428,17 @@ ws_rec = build_sheet("Material Receipt", "Material Receipt  -  Purchases",
             "Incoming raw material. Unit auto-fills; amount auto-calculates. Feeds 'Received' in Stock.",
             rec_cols, TXN_ROWS, None, FILL_NAVY)
 add_list_validation(ws_rec, "MaterialList", f"B{DATA_START}:B{TEND}")
+# --- import real April 2026 diesel purchases (unit & amount auto-calc) ---
+for _i, (_d, _rate, _vol, _sup) in enumerate(APRIL_DIESEL):
+    _rr = DATA_START + _i
+    if _rr > TEND:
+        break
+    ws_rec.cell(_rr, 1, _d)
+    ws_rec.cell(_rr, 2, "Diesel")
+    ws_rec.cell(_rr, 3, _vol)
+    if _rate is not None:
+        ws_rec.cell(_rr, 5, _rate)
+    ws_rec.cell(_rr, 7, _sup)
 
 # ============================================================
 # FUEL LOG
@@ -689,7 +778,7 @@ wa_msg = ("\"*AAKRUTI INFRA - Delivery Challan*%0AChallan No: \"&$C$4&\"%0ADate:
 wa_url = ("=HYPERLINK(\"https://wa.me/\"&IF($C$14=\"\",\"\",\"91\"&$C$14)&\"?text=\"&"
           f"SUBSTITUTE({wa_msg},\" \",\"%20\"),\"\U0001F4F2  Send Challan on WhatsApp\")")
 wa_button(wc, "B20:D20", wa_url, "WhatsApp")
-note_button(wc, "F20:H20", "\U0001F5A8  Press Ctrl+P  (phone: Share \u25b8 Print)  to Print / Save as PDF", GOLD_BTN)
+note_button(wc, "F20:H20", "\U0001F5A8 Print  \u00b7  \U0001F4E5 Save as PDF  \u00b7  press Ctrl+P  (phone: Share \u25b8 Print)", GOLD_BTN)
 for r in range(6, 18):
     for c in range(2, 9):
         if wc.cell(r, c).border != B:
@@ -697,29 +786,28 @@ for r in range(6, 18):
 fit_one_page(wc, "A1:H21")
 
 # ============================================================
-# BATCH REPORT  (select Grade + Qty -> auto target batch sheet)
+# BATCH REPORT  (select Challan No -> auto-fetch grade/qty/customer + target batch)
 # ============================================================
 wbr = wb.create_sheet("Batch Report")
 set_widths(wbr, [2, 22, 16, 18, 12, 18])
 page_form_title(wbr, COMPANY, "BATCH REPORT  \u2022  " + COMPANY_SUB, 6)
-wbr.cell(4, 2, "Select Grade:").font = Font(bold=True, color=GOLD, size=12)
+wbr.cell(4, 2, "Select Challan No:").font = Font(bold=True, color=GOLD, size=12)
 g = wbr.cell(4, 3, None); g.fill = FILL_INPUT; g.border = B; g.font = Font(bold=True, color=NAVY, size=12)
 g.alignment = Alignment(horizontal="center")
-add_list_validation(wbr, "GradeList", "C4")
-wbr.cell(4, 4, "Production Qty (m\u00b3):").font = Font(bold=True, color=GOLD, size=12)
-q = wbr.cell(4, 5, None); q.fill = FILL_INPUT; q.border = B; q.font = Font(bold=True, color=NAVY, size=12)
-q.alignment = Alignment(horizontal="center"); q.number_format = "#,##0.00"
-# header info
+wbr.merge_cells("C4:D4")
+for cc in (3, 4): wbr.cell(4, cc).border = B
+add_list_validation(wbr, "ChallanList", "C4")
+wbr.cell(4, 5, "Pick a challan \u2192 the batch sheet fills in.").font = Font(italic=True, color="5B6B86", size=10)
+wbr.merge_cells("E4:F4")
+# header info (all auto-fetched from the Dispatch / sale entry by Challan No)
 box(wbr, 6, 2, "Plant", f'="{COMPANY}"')
-box(wbr, 6, 4, "Recipe / Grade", "=IF($C$4=\"\",\"\",$C$4)")
-box(wbr, 7, 2, "Batch No", None, value_input=True)
-box(wbr, 7, 4, "Batch Date", None, vfmt="dd-mmm-yyyy", value_input=True)
-box(wbr, 8, 2, "Truck No", None, value_input=True)
-box(wbr, 8, 4, "W/C Ratio", "=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($C$4," + MIX_TBL + ",8,0)),\"\")", vfmt="0.00")
-box(wbr, 9, 2, "Customer", None, vmerge=1, value_input=True)
-box(wbr, 9, 4, "Production Qty (m\u00b3)", "=IF($E$4=\"\",\"\",$E$4)", vfmt="#,##0.00")
-add_list_validation(wbr, "VehicleList", "C8")
-add_list_validation(wbr, "ClientList", "C9")
+box(wbr, 6, 4, "Grade", cidx("E"))
+box(wbr, 7, 2, "Batch No", "=$C$4")
+box(wbr, 7, 4, "Batch Date", cidx("A"), vfmt="dd-mmm-yyyy")
+box(wbr, 8, 2, "Truck No", cidx("G"))
+box(wbr, 8, 4, "W/C Ratio", "=IFERROR(IF($E$6=\"\",\"\",VLOOKUP($E$6," + MIX_TBL + ",8,0)),\"\")", vfmt="0.00")
+box(wbr, 9, 2, "Customer", cidx("D"), vmerge=1)
+box(wbr, 9, 4, "Production Qty (m\u00b3)", cidx("F"), vfmt="#,##0.00")
 # material table
 thr = 11
 heads = ["Material", "Per m\u00b3", "Total (\u00d7 Qty)", "Unit"]
@@ -732,9 +820,9 @@ mat_rows = [("Cement", 2, "kg"), ("Sand", 3, "kg"), ("Aggregate 20mm", 4, "kg"),
 for i, (mat, col, unit) in enumerate(mat_rows):
     rr = thr + 1 + i
     wbr.cell(rr, 2, mat).font = Font(bold=True, color=NAVY)
-    per = wbr.cell(rr, 3, f"=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($C$4,{MIX_TBL},{col},0)),\"\")")
+    per = wbr.cell(rr, 3, f"=IFERROR(IF($E$6=\"\",\"\",VLOOKUP($E$6,{MIX_TBL},{col},0)),\"\")")
     per.number_format = "#,##0.00"
-    tot = wbr.cell(rr, 4, f"=IF(OR($C$4=\"\",$E$4=\"\",C{rr}=\"\"),\"\",C{rr}*$E$4)")
+    tot = wbr.cell(rr, 4, f"=IF(OR($E$6=\"\",$E$9=\"\",C{rr}=\"\"),\"\",C{rr}*$E$9)")
     tot.number_format = "#,##0.00"
     wbr.cell(rr, 5, unit)
     for cc in range(2, 6):
@@ -743,19 +831,20 @@ for i, (mat, col, unit) in enumerate(mat_rows):
         if cc not in (3, 4): cell.font = Font(bold=True, color=NAVY)
 tmr = thr + 1 + len(mat_rows)
 wbr.cell(tmr, 2, "TOTAL MASS")
-tt = wbr.cell(tmr, 4, f"=IF($C$4=\"\",\"\",SUM(D{thr+1}:D{tmr-1}))"); tt.number_format = "#,##0.00"
+tt = wbr.cell(tmr, 4, f"=IF($E$6=\"\",\"\",SUM(D{thr+1}:D{tmr-1}))"); tt.number_format = "#,##0.00"
 wbr.cell(tmr, 5, "kg")
 for cc in range(2, 6):
     cell = wbr.cell(tmr, cc); cell.fill = GOLD_BTN; cell.font = Font(bold=True, color=NAVY); cell.border = B
 # whatsapp + print
-br_msg = ("\"*AAKRUTI INFRA - Batch Report*%0AGrade: \"&$C$4&\"%0AQty: \"&$E$4&\" m3%0ABatch No: \"&$C$7"
-          "&\"%0ADate: \"&TEXT($E$7,\"dd-mmm-yyyy\")&\"%0ACement: \"&D12&\" kg%0ASand: \"&D13&\" kg\""
+br_msg = ("\"*AAKRUTI INFRA - Batch Report*%0AChallan/Batch No: \"&$C$4&\"%0ADate: \"&TEXT($E$7,\"dd-mmm-yyyy\")"
+          "&\"%0AGrade: \"&$E$6&\"%0AQty: \"&$E$9&\" m3%0ACustomer: \"&$C$9&\"%0ATruck: \"&$C$8"
+          "&\"%0ACement: \"&D12&\" kg%0ASand: \"&D13&\" kg\""
           "&\"%0AAgg20: \"&D14&\" kg%0AAgg10: \"&D15&\" kg%0AWater: \"&D16&\" L%0AAdmix: \"&D17"
           "&\" kg%0ATotal: \"&D18&\" kg\"")
 br_url = ("=HYPERLINK(\"https://wa.me/?text=\"&"
           f"SUBSTITUTE({br_msg},\" \",\"%20\"),\"\U0001F4F2  Send Batch Report on WhatsApp\")")
 wa_button(wbr, "B20:C20", br_url, "WhatsApp")
-note_button(wbr, "D20:F20", "\U0001F5A8  Press Ctrl+P  (phone: Share \u25b8 Print)  to Print / Save as PDF", GOLD_BTN)
+note_button(wbr, "D20:F20", "\U0001F5A8 Print  \u00b7  \U0001F4E5 Save as PDF  \u00b7  press Ctrl+P  (phone: Share \u25b8 Print)", GOLD_BTN)
 for r in range(6, 10):
     for c in range(2, 6):
         if wbr.cell(r, c).border != B: wbr.cell(r, c).border = B
@@ -859,6 +948,14 @@ mtd = ws_exp.cell(3, 9, f"=SUMIFS($C${DATA_START}:$C${TEND},$A${DATA_START}:$A${
 mtd.number_format = '\u20b9#,##0'; mtd.font = Font(bold=True, color=NAVY, size=14)
 mtd.fill = FILL_GOLD; mtd.border = B
 ws_exp.column_dimensions["I"].width = 16
+# --- import real April 2026 daily expenses ---
+for _i, (_d, _pf, _amt) in enumerate(APRIL_EXP):
+    _rr = DATA_START + _i
+    if _rr > TEND:
+        break
+    ws_exp.cell(_rr, 1, _d)
+    ws_exp.cell(_rr, 2, _pf)
+    ws_exp.cell(_rr, 3, _amt)
 
 # ============================================================
 # STAFF ATTENDANCE
