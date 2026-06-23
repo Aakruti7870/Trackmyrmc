@@ -30,6 +30,24 @@ INPUT_BG = "FFFDF3"; CALC_BG = "EEF6FF"
 # ---------- company (printed on challan / batch report) ----------
 COMPANY = "AAKRUTI INFRA"
 COMPANY_SUB = "RMC Plant, Panvel  \u2022  +91 7498286760  \u2022  sales@aakrutiinfra.com"
+PLANT_NAME = "AAKRUTI INFRA RMC PLANT"
+PLANT_ADDR = ("Plant Add : Plot No. 77/2, JNPT Road, Behind Nilesh Dhaba, "
+              "Karanjade, Tal-Panvel, Dist-Raigad 410 206")
+OFFICE_ADDR = ("Office Add : Shop No. 45, Silver Crest Akshar, Plot 29, "
+               "Sector 25, Navi Mumbai 410 206")
+REG_LINE = ("GSTIN: 27ACKFA9816C1ZC      PAN: ACKFA9816C      "
+            "Contact: 7498286760 / 9082189911      Mail: aakruti.infrarmc@gmail.com")
+WEB_LINE = "www.aakrutiinfrarmc.com      qccomplaint@aakrutiinfrarmc.com      sales@aakrutiinfrarmc.com"
+CEMENT_BRAND = "OPC 53 (Ultratech)"   # plant default, editable on the challan
+ADMIX_TYPE = "PCE"                      # plant default, editable on the challan
+DEFAULT_SLUMP = "180 mm"
+DEFAULT_CUBE = "Yes"
+CHALLAN_TERMS = [
+    "\u2022 If the concrete is unloaded after 2.30 hours from batching, the client is fully responsible for the qty in the bill and for any TM damage.",
+    "\u2022 Transit mixers must be released within ~1 hour. Retention beyond this attracts a penalty (around Rs 1200 per hour or part thereof).",
+    "\u2022 Addition of water at site to regain workability is prohibited, or must be done only under strict technical supervision.",
+    "\u2022 The supplier requires assurance of continuous pouring and may charge extra for small loads (e.g. less than 3-4 CuM).",
+]
 
 DATA_START = 5
 HDR_ROW = 4
@@ -84,6 +102,11 @@ def set_widths(ws, widths):
 def add_list_validation(ws, named_range, target_range):
     dv = DataValidation(type="list", formula1=f"={named_range}", allow_blank=True)
     dv.error = "Pick a value from the list."; dv.prompt = "Choose from the dropdown."
+    ws.add_data_validation(dv); dv.add(target_range)
+
+
+def inline_list(ws, items, target_range):
+    dv = DataValidation(type="list", formula1='"' + ",".join(items) + '"', allow_blank=True)
     ws.add_data_validation(dv); dv.add(target_range)
 
 
@@ -371,18 +394,28 @@ dis_cols = [
     {"h": "Amount (\u20b9)", "w": 15, "type": "calc", "numfmt": "money",
      "formula": "=IF(OR(F{r}=\"\",I{r}=\"\"),\"\",F{r}*I{r})"},
     {"h": "Status", "w": 14},
+    # --- operational fields for the Challan + Batch sheets (single entry drives both) ---
+    {"h": "Batch No.", "w": 12},
+    {"h": "Batch Start", "w": 12, "type": "time"},
+    {"h": "Batch End", "w": 12, "type": "time"},
+    {"h": "Slump (mm)", "w": 11},
+    {"h": "Cube (Y/N)", "w": 10},
+    {"h": "Ordered Qty (m3)", "w": 14, "type": "num"},
 ]
 ws_dis = build_sheet("Dispatch (Challan)", "Dispatch  -  Challans",
-            "Pick client / grade / vehicle; driver, rate & amount auto-fill. Delivered qty rolls up to Orders.",
+            "Pick client / grade / vehicle; driver, rate & amount auto-fill. Batch No/times/slump/cube/ordered qty feed the Challan & Batch sheets. Delivered qty rolls up to Orders.",
             dis_cols, TXN_ROWS, None, FILL_NAVY)
 defname("DispStatusList", "'Lists'!$B$2:$B$5")
 add_list_validation(ws_dis, "ClientList", f"D{DATA_START}:D{TEND}")
 add_list_validation(ws_dis, "GradeList", f"E{DATA_START}:E{TEND}")
 add_list_validation(ws_dis, "VehicleList", f"G{DATA_START}:G{TEND}")
 add_list_validation(ws_dis, "DispStatusList", f"K{DATA_START}:K{TEND}")
+inline_list(ws_dis, ["Yes", "No"], f"P{DATA_START}:P{TEND}")
 defname("ChallanList", f"'Dispatch (Challan)'!$B$5:$B${TEND}")
 # --- import real April 2026 challans (driver/rate/amount auto-calc via formulas) ---
 veh_map = {v[0].replace(" ", "").upper(): v[0] for v in veh_ex}
+FIRST_CHALLAN = APRIL_SALES[0][2] if APRIL_SALES else ""
+_TFMT = "h:mm AM/PM"
 for _i, (_d, _client, _chno, _grade, _qty, _site, _veh) in enumerate(APRIL_SALES):
     _rr = DATA_START + _i
     if _rr > TEND:
@@ -394,6 +427,17 @@ for _i, (_d, _client, _chno, _grade, _qty, _site, _veh) in enumerate(APRIL_SALES
     ws_dis.cell(_rr, 6, _qty)
     ws_dis.cell(_rr, 7, veh_map.get(str(_veh).replace(" ", "").upper(), _veh))
     ws_dis.cell(_rr, 11, "Delivered")
+    # --- operational fields so Challan + Batch Report show full data ---
+    ws_dis.cell(_rr, 12, f"BN{50001 + _i}")                       # L Batch No
+    _q = float(_qty) if _qty not in (None, "") else 0.0
+    _h = 6 + (_i % 13); _m = (_i * 7) % 60                        # spread 06:00-18:xx
+    _start = datetime.datetime(2026, 1, 1, _h, _m)
+    _end = _start + datetime.timedelta(minutes=max(4, round(_q * 2)))
+    bs = ws_dis.cell(_rr, 13, _start.time()); bs.number_format = _TFMT   # M Batch Start
+    be = ws_dis.cell(_rr, 14, _end.time()); be.number_format = _TFMT     # N Batch End
+    ws_dis.cell(_rr, 15, 180)                                     # O Slump (mm)
+    ws_dis.cell(_rr, 16, "Yes")                                   # P Cube
+    oq = ws_dis.cell(_rr, 17, _q); oq.number_format = "#,##0.00"  # Q Ordered Qty
 
 # ============================================================
 # BATCH PRODUCTION
@@ -731,124 +775,248 @@ def fit_one_page(ws, area):
 
 
 # ============================================================
-# CHALLAN  (auto-fill delivery challan + WhatsApp share)
+# CHALLAN  (AAKRUTI INFRA RMC delivery challan - 2 copies, auto-filled)
 # ============================================================
 wc = wb.create_sheet("Challan")
-set_widths(wc, [2, 18, 22, 16, 2, 18, 22, 16])
-page_form_title(wc, COMPANY, "DELIVERY CHALLAN  \u2022  " + COMPANY_SUB, 8)
-wc.cell(4, 2, "Select Challan No:").font = Font(bold=True, color=GOLD, size=12)
-sel = wc.cell(4, 3, None); sel.fill = FILL_INPUT; sel.border = B
-sel.font = Font(bold=True, color=NAVY, size=12); sel.alignment = Alignment(horizontal="center")
-wc.merge_cells("C4:D4")
-for cc in (3, 4): wc.cell(4, cc).border = B
-add_list_validation(wc, "ChallanList", "C4")
-wc.cell(4, 6, "Pick a challan \u2192 every field below fills in.").font = Font(italic=True, color="5B6B86", size=10)
-wc.merge_cells("F4:H4")
+wc.sheet_view.showGridLines = False
+set_widths(wc, [2, 20, 2, 26, 20, 2, 26])
+wc.column_dimensions["I"].width = 2
+wc.column_dimensions["I"].hidden = True   # hidden fetch helpers
 
 def cidx(colL):
     return (f"=IFERROR(IF($C$4=\"\",\"\",INDEX({DBN}!${colL}$5:${colL}${TEND},"
             f"MATCH($C$4,{DBN}!$B$5:$B${TEND},0))),\"\")")
-# left/right field grid
-box(wc, 6, 2, "Challan No", "=$C$4")
-box(wc, 6, 6, "Date", cidx("A"), vfmt="dd-mmm-yyyy")
-box(wc, 7, 2, "Order No", cidx("C"))
-box(wc, 7, 6, "Status", cidx("K"))
-box(wc, 8, 2, "Grade", cidx("E"))
-box(wc, 8, 6, "Vehicle No", cidx("G"))
-box(wc, 9, 2, "Quantity (m\u00b3)", cidx("F"), vfmt="#,##0.00")
-box(wc, 9, 6, "Driver", cidx("H"))
-box(wc, 10, 2, "Rate (\u20b9/m\u00b3)", cidx("I"), vfmt='\u20b9#,##0.00')
-box(wc, 10, 6, "Amount (\u20b9)", cidx("J"), vfmt='\u20b9#,##0.00')
-# customer block
-wc.cell(12, 2, "CUSTOMER DETAILS").font = Font(bold=True, color=GOLD, size=12)
-box(wc, 13, 2, "Customer", cidx("D"), vmerge=2)
-box(wc, 13, 6, "Contact", "=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($C$13," + CLIENTS_TBL + ",2,0)),\"\")", vmerge=2)
-box(wc, 14, 2, "Phone", "=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($C$13," + CLIENTS_TBL + ",3,0)),\"\")")
-box(wc, 14, 6, "GST No", "=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($C$13," + CLIENTS_TBL + ",4,0)),\"\")", vmerge=2)
-box(wc, 15, 2, "Site / Location", "=IFERROR(IF($C$7=\"\",\"\",VLOOKUP($C$7," + ORDERS_TBL + ",3,0)),\"\")", vmerge=6)
-# signatures
-wc.cell(18, 2, "Received in good condition").font = Font(color="5B6B86", size=9)
-wc.cell(18, 6, "Authorised Signatory").font = Font(color="5B6B86", size=9)
-for col in (2, 6):
-    s = wc.cell(17, col, "__________________"); s.font = Font(color="33425C")
-# whatsapp + print buttons
-wa_msg = ("\"*AAKRUTI INFRA - Delivery Challan*%0AChallan No: \"&$C$4&\"%0ADate: \"&TEXT($G$6,\"dd-mmm-yyyy\")"
-          "&\"%0ACustomer: \"&$C$13&\"%0AGrade: \"&$C$8&\"%0AQty: \"&$C$9&\" m3%0AVehicle: \"&$G$8"
-          "&\"%0ADriver: \"&$G$9&\"%0ARate: Rs \"&$C$10&\"%0AAmount: Rs \"&$G$10")
-wa_url = ("=HYPERLINK(\"https://wa.me/\"&IF($C$14=\"\",\"\",\"91\"&$C$14)&\"?text=\"&"
+
+def cidx_idx(colL):
+    return f"INDEX({DBN}!${colL}$5:${colL}${TEND},MATCH($C$4,{DBN}!$B$5:$B${TEND},0))"
+
+# --- selector (cidx keys off $C$4) ---
+wc.cell(4, 2, "Select Challan No:").font = Font(bold=True, color=NAVY, size=12)
+sel = wc.cell(4, 3, FIRST_CHALLAN); sel.fill = FILL_INPUT; sel.border = B
+sel.font = Font(bold=True, color=NAVY, size=12); sel.alignment = Alignment(horizontal="center")
+wc.merge_cells("C4:D4")
+for cc in (3, 4): wc.cell(4, cc).border = B
+add_list_validation(wc, "ChallanList", "C4")
+hint = wc.cell(4, 5, "Pick a challan \u2192 both copies fill in automatically.")
+hint.font = Font(italic=True, color="5B6B86", size=10)
+wc.merge_cells("E4:G4")
+
+# --- hidden fetched values (column I) referenced by both copies ---
+_clk = lambda v, col: f"=IFERROR(IF($C$4=\"\",\"\",VLOOKUP({v},{CLIENTS_TBL},{col},0)),\"\")"
+wc.cell(1, 9, cidx("A"))                       # I1  date
+wc.cell(2, 9, cidx("L"))                       # I2  batch no
+wc.cell(3, 9, cidx("D"))                       # I3  client
+wc.cell(4, 9, _clk("$I$3", 4))                 # I4  gst
+wc.cell(5, 9, cidx("C"))                       # I5  order no
+wc.cell(6, 9, f"=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($I$5,{ORDERS_TBL},3,0)),\"\")")  # I6 delivery addr
+wc.cell(7, 9, _clk("$I$3", 2))                 # I7  contact person
+wc.cell(8, 9, _clk("$I$3", 3))                 # I8  mobile
+wc.cell(9, 9, cidx("G"))                       # I9  TM no
+wc.cell(10, 9, cidx("Q"))                      # I10 ordered qty
+wc.cell(11, 9, cidx("M"))                      # I11 batch start
+wc.cell(12, 9, cidx("N"))                      # I12 batch end
+wc.cell(13, 9, cidx("F"))                      # I13 quantity
+wc.cell(14, 9, cidx("E"))                      # I14 grade
+wc.cell(15, 9, cidx("O"))                      # I15 slump (raw)
+wc.cell(16, 9, cidx("P"))                      # I16 cube (raw)
+wc.cell(17, 9, cidx("H"))                      # I17 driver
+wc.cell(18, 9, f"=IF($C$4=\"\",\"\",IF($I$5=\"\",$I$13,SUMIFS({DBN}!$F$5:$F${TEND},{DBN}!$C$5:$C${TEND},$I$5)))")  # I18 cumulative
+
+DATEFMT = "dd-mmm-yyyy"; TIMEFMT = "h:mm AM/PM"; NUMFMT = "#,##0.00"
+
+def ch_pair(ws, r, llab, lref, rlab, rref, lfmt=None, rfmt=None):
+    a = ws.cell(r, 2, llab); a.font = Font(bold=True, color="33425C", size=9)
+    a.alignment = Alignment(indent=1, vertical="center"); a.border = B
+    cc = ws.cell(r, 3, ":"); cc.alignment = Alignment(horizontal="center"); cc.border = B
+    dv = ws.cell(r, 4, lref); dv.font = Font(bold=True, color=NAVY, size=10)
+    dv.alignment = Alignment(indent=1, vertical="center"); dv.border = B
+    if lfmt: dv.number_format = lfmt
+    e = ws.cell(r, 5, rlab); e.font = Font(bold=True, color="33425C", size=9)
+    e.alignment = Alignment(indent=1, vertical="center"); e.border = B
+    fc = ws.cell(r, 6, ":"); fc.alignment = Alignment(horizontal="center"); fc.border = B
+    gv = ws.cell(r, 7, rref); gv.font = Font(bold=True, color=NAVY, size=10)
+    gv.alignment = Alignment(indent=1, vertical="center"); gv.border = B
+    if rfmt: gv.number_format = rfmt
+    ws.row_dimensions[r].height = 19
+
+def challan_copy(ws, top, tag):
+    def band(r, text, font, fill=None, h=None):
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=7)
+        c = ws.cell(r, 2, text); c.font = font
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for cc in range(2, 8):
+            ws.cell(r, cc).border = B
+            if fill: ws.cell(r, cc).fill = fill
+        if h: ws.row_dimensions[r].height = h
+    band(top + 0, PLANT_NAME, Font(bold=True, color=GOLD, size=15), FILL_NAVY, 26)
+    band(top + 1, PLANT_ADDR, Font(color=NAVY, size=8), None, 16)
+    band(top + 2, OFFICE_ADDR, Font(color=NAVY, size=8), None, 14)
+    band(top + 3, REG_LINE, Font(color="33425C", size=8), None, 14)
+    band(top + 4, "RMC DELIVERY CHALLAN   " + tag, Font(bold=True, color=NAVY, size=13), FILL_GOLD, 22)
+    # section headers
+    ws.merge_cells(start_row=top + 5, start_column=2, end_row=top + 5, end_column=4)
+    s1 = ws.cell(top + 5, 2, "CHALLAN DETAILS"); s1.font = Font(bold=True, color=WHITE, size=10)
+    s1.alignment = Alignment(horizontal="center", vertical="center")
+    ws.merge_cells(start_row=top + 5, start_column=5, end_row=top + 5, end_column=7)
+    s2 = ws.cell(top + 5, 5, "CONCRETE DETAILS"); s2.font = Font(bold=True, color=WHITE, size=10)
+    s2.alignment = Alignment(horizontal="center", vertical="center")
+    for cc in range(2, 8):
+        ws.cell(top + 5, cc).fill = FILL_NAVY2; ws.cell(top + 5, cc).border = B
+    ws.row_dimensions[top + 5].height = 18
+    d = top + 6
+    ch_pair(ws, d + 0,  "Date", "=$I$1", "Batch Start", "=$I$11", DATEFMT, TIMEFMT)
+    ch_pair(ws, d + 1,  "Challan No.", "=$C$4", "Batch End", "=$I$12", None, TIMEFMT)
+    ch_pair(ws, d + 2,  "Batch No", "=$I$2", "Quantity (Cum)", "=$I$13", None, NUMFMT)
+    ch_pair(ws, d + 3,  "Client Name", "=$I$3", "Grade", "=$I$14")
+    ch_pair(ws, d + 4,  "GST details", "=$I$4", "Cement Type/Brand", f'="{CEMENT_BRAND}"')
+    ch_pair(ws, d + 5,  "Delivery Address", "=$I$6", "Admixture Type", f'="{ADMIX_TYPE}"')
+    ch_pair(ws, d + 6,  "Contact Person", "=$I$7", "Slump (mm)", f'=IF($I$15="","{DEFAULT_SLUMP}",$I$15)')
+    ch_pair(ws, d + 7,  "Mobile", "=$I$8", "Cube Casting", f'=IF($I$16="","{DEFAULT_CUBE}",$I$16)')
+    ch_pair(ws, d + 8,  "TM No.", "=$I$9", "Driver / Contact", "=$I$17")
+    ch_pair(ws, d + 9,  "Unloading Start", "", "Unloading End", "")
+    ch_pair(ws, d + 10, "Ordered Qty (Cum)", "=$I$10", "Cumulative Qty (Cum)", "=$I$18", NUMFMT, NUMFMT)
+    t = d + 11
+    for i, term in enumerate(CHALLAN_TERMS):
+        ws.merge_cells(start_row=t + i, start_column=2, end_row=t + i, end_column=7)
+        c = ws.cell(t + i, 2, term); c.font = Font(color="33425C", size=7)
+        c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True, indent=1)
+        for cc in range(2, 8): ws.cell(t + i, cc).border = B
+        ws.row_dimensions[t + i].height = 15
+    sg = t + len(CHALLAN_TERMS)
+    ws.merge_cells(start_row=sg, start_column=2, end_row=sg, end_column=4)
+    ws.cell(sg, 2, "Received by (Site) / Signature").font = Font(color="33425C", size=9)
+    ws.merge_cells(start_row=sg, start_column=5, end_row=sg, end_column=7)
+    fr = ws.cell(sg, 5, "For, AAKRUTI INFRA RMC PLANT"); fr.font = Font(bold=True, color=NAVY, size=9)
+    fr.alignment = Alignment(horizontal="right", indent=1)
+    for cc in range(2, 8): ws.cell(sg, cc).border = B
+    ws.row_dimensions[sg].height = 30
+    band(sg + 1, WEB_LINE, Font(color=BLUE, size=8), None, 14)
+    return sg + 1
+
+end2 = challan_copy(wc, 6, "(CUSTOMER COPY)")
+end2 = challan_copy(wc, end2 + 2, "(OFFICE COPY)")
+# whatsapp + print
+cbtn = end2 + 2
+wa_msg = ("\"*AAKRUTI INFRA - Delivery Challan*%0AChallan No: \"&$C$4&\"%0ADate: \"&TEXT($I$1,\"dd-mmm-yyyy\")"
+          "&\"%0AClient: \"&$I$3&\"%0AGrade: \"&$I$14&\"%0AQty: \"&$I$13&\" Cum%0ATM No: \"&$I$9"
+          "&\"%0ADriver: \"&$I$17&\"%0ABatch No: \"&$I$2")
+wa_url = ("=HYPERLINK(\"https://wa.me/\"&IF($I$8=\"\",\"\",\"91\"&$I$8)&\"?text=\"&"
           f"SUBSTITUTE({wa_msg},\" \",\"%20\"),\"\U0001F4F2  Send Challan on WhatsApp\")")
-wa_button(wc, "B20:D20", wa_url, "WhatsApp")
-note_button(wc, "F20:H20", "\U0001F5A8 Print  \u00b7  \U0001F4E5 Save as PDF  \u00b7  press Ctrl+P  (phone: Share \u25b8 Print)", GOLD_BTN)
-for r in range(6, 18):
-    for c in range(2, 9):
-        if wc.cell(r, c).border != B:
-            wc.cell(r, c).border = B
-fit_one_page(wc, "A1:H21")
+wa_button(wc, f"B{cbtn}:D{cbtn}", wa_url, "WhatsApp")
+note_button(wc, f"E{cbtn}:G{cbtn}", "\U0001F5A8 Print / Download  \u00b7  press Ctrl+P  \u00b7  Save as PDF  (both copies fit one page)", GOLD_BTN)
+fit_one_page(wc, f"A1:G{cbtn + 1}")
 
 # ============================================================
-# BATCH REPORT  (select Challan No -> auto-fetch grade/qty/customer + target batch)
+# BATCH REPORT  (SCHWING-style, split per batch size / mixer capacity)
 # ============================================================
 wbr = wb.create_sheet("Batch Report")
-set_widths(wbr, [2, 22, 16, 18, 12, 18])
-page_form_title(wbr, COMPANY, "BATCH REPORT  \u2022  " + COMPANY_SUB, 6)
-wbr.cell(4, 2, "Select Challan No:").font = Font(bold=True, color=GOLD, size=12)
-g = wbr.cell(4, 3, None); g.fill = FILL_INPUT; g.border = B; g.font = Font(bold=True, color=NAVY, size=12)
-g.alignment = Alignment(horizontal="center")
+wbr.sheet_view.showGridLines = False
+set_widths(wbr, [2, 15, 9, 11, 11, 11, 11, 10, 10, 13])
+page_form_title(wbr, COMPANY, "BATCH SHEET REPORT  \u2022  split per batch size", 10)
+# selector (cidx keys off $C$4)
+wbr.cell(4, 2, "Select Challan No:").font = Font(bold=True, color=NAVY, size=12)
+g = wbr.cell(4, 3, FIRST_CHALLAN); g.fill = FILL_INPUT; g.border = B
+g.font = Font(bold=True, color=NAVY, size=12); g.alignment = Alignment(horizontal="center")
 wbr.merge_cells("C4:D4")
 for cc in (3, 4): wbr.cell(4, cc).border = B
 add_list_validation(wbr, "ChallanList", "C4")
-wbr.cell(4, 5, "Pick a challan \u2192 the batch sheet fills in.").font = Font(italic=True, color="5B6B86", size=10)
-wbr.merge_cells("E4:F4")
-# header info (all auto-fetched from the Dispatch / sale entry by Challan No)
-box(wbr, 6, 2, "Plant", f'="{COMPANY}"')
-box(wbr, 6, 4, "Grade", cidx("E"))
-box(wbr, 7, 2, "Batch No", "=$C$4")
-box(wbr, 7, 4, "Batch Date", cidx("A"), vfmt="dd-mmm-yyyy")
-box(wbr, 8, 2, "Truck No", cidx("G"))
-box(wbr, 8, 4, "W/C Ratio", "=IFERROR(IF($E$6=\"\",\"\",VLOOKUP($E$6," + MIX_TBL + ",8,0)),\"\")", vfmt="0.00")
-box(wbr, 9, 2, "Customer", cidx("D"), vmerge=1)
-box(wbr, 9, 4, "Production Qty (m\u00b3)", cidx("F"), vfmt="#,##0.00")
-# material table
-thr = 11
-heads = ["Material", "Per m\u00b3", "Total (\u00d7 Qty)", "Unit"]
-for i, h in enumerate(heads):
-    wbr.cell(thr, 2 + i, h)
-style_header(wbr, thr, 5, fill=FILL_NAVY2)
-wbr.cell(thr, 1).fill = PatternFill("solid", fgColor=WHITE)
-mat_rows = [("Cement", 2, "kg"), ("Sand", 3, "kg"), ("Aggregate 20mm", 4, "kg"),
-            ("Aggregate 10mm", 5, "kg"), ("Water", 6, "ltr"), ("Admixture", 7, "kg")]
-for i, (mat, col, unit) in enumerate(mat_rows):
-    rr = thr + 1 + i
-    wbr.cell(rr, 2, mat).font = Font(bold=True, color=NAVY)
-    per = wbr.cell(rr, 3, f"=IFERROR(IF($E$6=\"\",\"\",VLOOKUP($E$6,{MIX_TBL},{col},0)),\"\")")
-    per.number_format = "#,##0.00"
-    tot = wbr.cell(rr, 4, f"=IF(OR($E$6=\"\",$E$9=\"\",C{rr}=\"\"),\"\",C{rr}*$E$9)")
-    tot.number_format = "#,##0.00"
-    wbr.cell(rr, 5, unit)
-    for cc in range(2, 6):
-        cell = wbr.cell(rr, cc); cell.border = B
-        cell.fill = FILL_CALC if cc in (3, 4) else PatternFill("solid", fgColor=WHITE)
-        if cc not in (3, 4): cell.font = Font(bold=True, color=NAVY)
-tmr = thr + 1 + len(mat_rows)
-wbr.cell(tmr, 2, "TOTAL MASS")
-tt = wbr.cell(tmr, 4, f"=IF($E$6=\"\",\"\",SUM(D{thr+1}:D{tmr-1}))"); tt.number_format = "#,##0.00"
-wbr.cell(tmr, 5, "kg")
-for cc in range(2, 6):
-    cell = wbr.cell(tmr, cc); cell.fill = GOLD_BTN; cell.font = Font(bold=True, color=NAVY); cell.border = B
-# whatsapp + print
-br_msg = ("\"*AAKRUTI INFRA - Batch Report*%0AChallan/Batch No: \"&$C$4&\"%0ADate: \"&TEXT($E$7,\"dd-mmm-yyyy\")"
-          "&\"%0AGrade: \"&$E$6&\"%0AQty: \"&$E$9&\" m3%0ACustomer: \"&$C$9&\"%0ATruck: \"&$C$8"
-          "&\"%0ACement: \"&D12&\" kg%0ASand: \"&D13&\" kg\""
-          "&\"%0AAgg20: \"&D14&\" kg%0AAgg10: \"&D15&\" kg%0AWater: \"&D16&\" L%0AAdmix: \"&D17"
-          "&\" kg%0ATotal: \"&D18&\" kg\"")
-br_url = ("=HYPERLINK(\"https://wa.me/?text=\"&"
-          f"SUBSTITUTE({br_msg},\" \",\"%20\"),\"\U0001F4F2  Send Batch Report on WhatsApp\")")
-wa_button(wbr, "B20:C20", br_url, "WhatsApp")
-note_button(wbr, "D20:F20", "\U0001F5A8 Print  \u00b7  \U0001F4E5 Save as PDF  \u00b7  press Ctrl+P  (phone: Share \u25b8 Print)", GOLD_BTN)
-for r in range(6, 10):
-    for c in range(2, 6):
+hint2 = wbr.cell(4, 6, "Pick a challan + set Mixer Cap \u2192 production auto-splits into batches.")
+hint2.font = Font(italic=True, color="5B6B86", size=10)
+wbr.merge_cells("F4:J4")
+# header grid (left value=col C, right value=col G)
+box(wbr, 6, 2, "Plant", f'="{COMPANY}"', vmerge=2)
+box(wbr, 6, 6, "Mixer Cap (m\u00b3)", 1.0, vmerge=2, vfmt="#,##0.00", value_input=True)
+box(wbr, 7, 2, "Batch Number", f'=IFERROR(IF($C$4="","",IF({cidx_idx("L")}="",$C$4,{cidx_idx("L")})),"")', vmerge=2)
+box(wbr, 7, 6, "Batch Size (m\u00b3)", "=IF($G$6=\"\",\"\",$G$6)", vmerge=2, vfmt="#,##0.00")
+box(wbr, 8, 2, "Recipe / Grade", cidx("E"), vmerge=2)
+box(wbr, 8, 6, "Production Qty (m\u00b3)", cidx("F"), vmerge=2, vfmt="#,##0.00")
+box(wbr, 9, 2, "Batch Date", cidx("A"), vmerge=2, vfmt="dd-mmm-yyyy")
+box(wbr, 9, 6, "No. of Batches", "=IF(OR($G$8=\"\",$G$6=\"\",$G$6=0),\"\",ROUNDUP($G$8/$G$6,0))", vmerge=2, vfmt="#,##0")
+box(wbr, 10, 2, "Batch Start", cidx("M"), vmerge=2, vfmt="h:mm AM/PM")
+box(wbr, 10, 6, "Customer", cidx("D"), vmerge=2)
+box(wbr, 11, 2, "Batch End", cidx("N"), vmerge=2, vfmt="h:mm AM/PM")
+box(wbr, 11, 6, "Order No", cidx("C"), vmerge=2)
+box(wbr, 12, 2, "Truck No", cidx("G"), vmerge=2)
+box(wbr, 12, 6, "Site", f"=IFERROR(IF($C$4=\"\",\"\",VLOOKUP({cidx_idx('C')},{ORDERS_TBL},3,0)),\"\")", vmerge=2)
+box(wbr, 13, 2, "Truck Driver", cidx("H"), vmerge=2)
+box(wbr, 13, 6, "W/C Ratio", f"=IFERROR(IF($C$8=\"\",\"\",VLOOKUP($C$8,{MIX_TBL},8,0)),\"\")", vmerge=2, vfmt="0.00")
+for r in range(6, 14):
+    for c in range(2, 9):
         if wbr.cell(r, c).border != B: wbr.cell(r, c).border = B
-fit_one_page(wbr, "A1:F21")
+# --- per-batch material matrix ---
+mhead = 15
+heads2 = ["Batch", "Qty m\u00b3", "Cement", "Sand", "Agg 20", "Agg 10", "Water", "Admix", "Total"]
+for i, h in enumerate(heads2):
+    wbr.cell(mhead, 2 + i, h)
+style_header(wbr, mhead, 10, fill=FILL_NAVY2)
+wbr.cell(mhead, 1).fill = PatternFill("solid", fgColor=WHITE)
+matcols = list(range(4, 10))   # D..I  (Mix Design column = c - 2)
+r16 = mhead + 1                # Target / m3
+wbr.cell(r16, 2, "Target / m\u00b3")
+wbr.cell(r16, 3, 1).number_format = "#,##0.00"
+for c in matcols:
+    wbr.cell(r16, c, f"=IFERROR(IF($C$8=\"\",\"\",VLOOKUP($C$8,{MIX_TBL},{c - 2},0)),\"\")").number_format = "#,##0.0"
+wbr.cell(r16, 10, f"=IF($C$8=\"\",\"\",SUM(D{r16}:I{r16}))").number_format = "#,##0.0"
+r17 = mhead + 2                # Target / batch
+wbr.cell(r17, 2, "Target / Batch")
+wbr.cell(r17, 3, "=IF($G$7=\"\",\"\",$G$7)").number_format = "#,##0.00"
+for c in matcols:
+    L = get_column_letter(c)
+    wbr.cell(r17, c, f"=IF({L}{r16}=\"\",\"\",{L}{r16}*$C${r17})").number_format = "#,##0.0"
+wbr.cell(r17, 10, f"=IF($C$8=\"\",\"\",SUM(D{r17}:I{r17}))").number_format = "#,##0.0"
+NB = 16
+first = mhead + 3
+for k in range(1, NB + 1):
+    r = first + (k - 1)
+    wbr.cell(r, 2, f"Batch {k}")
+    wbr.cell(r, 3, f"=IF(OR($G$9=\"\",{k}>$G$9),\"\",IF({k}<$G$9,$G$7,$G$8-($G$9-1)*$G$7))").number_format = "#,##0.00"
+    for c in matcols:
+        L = get_column_letter(c)
+        wbr.cell(r, c, f"=IF($C{r}=\"\",\"\",{L}${r16}*$C{r})").number_format = "#,##0.0"
+    wbr.cell(r, 10, f"=IF($C{r}=\"\",\"\",SUM(D{r}:I{r}))").number_format = "#,##0.0"
+tr = first + NB                # Total set weight
+wbr.cell(tr, 2, "TOTAL SET WEIGHT")
+wbr.cell(tr, 3, "=IF($C$8=\"\",\"\",$G$8)").number_format = "#,##0.00"
+for c in matcols:
+    L = get_column_letter(c)
+    wbr.cell(tr, c, f"=IF($C$8=\"\",\"\",{L}{r16}*$G$8)").number_format = "#,##0.0"
+wbr.cell(tr, 10, f"=IF($C$8=\"\",\"\",SUM(D{tr}:I{tr}))").number_format = "#,##0.0"
+# styling for matrix body
+for r in range(r16, tr + 1):
+    for c in range(2, 11):
+        cell = wbr.cell(r, c); cell.border = B
+        if r == tr:
+            cell.fill = GOLD_BTN; cell.font = Font(bold=True, color=NAVY, size=9)
+        elif c == 2:
+            cell.fill = PatternFill("solid", fgColor="F1F4F9"); cell.font = Font(bold=True, color=NAVY, size=9)
+        else:
+            cell.fill = FILL_CALC; cell.font = Font(color="1F3D6B", size=9)
+# mass of total
+mr = tr + 1
+wbr.merge_cells(start_row=mr, start_column=2, end_row=mr, end_column=9)
+ml = wbr.cell(mr, 2, "Mass of Total Set Weight (kg)")
+ml.font = Font(bold=True, color=NAVY, size=10); ml.alignment = Alignment(horizontal="right", indent=1)
+mv = wbr.cell(mr, 10, f"=IF($C$8=\"\",\"\",J{tr})"); mv.number_format = "#,##0.0"
+mv.font = Font(bold=True, color=NAVY, size=10); mv.fill = FILL_GOLD
+for c in range(2, 11): wbr.cell(mr, c).border = B
+# note
+nr = mr + 1
+wbr.merge_cells(start_row=nr, start_column=2, end_row=nr, end_column=10)
+nt = wbr.cell(nr, 2, "Set weights are Mix Design targets \u00d7 each batch's size. Up to 16 batches shown; the total always reflects full production qty. Operator records actual weighbridge values on the plant controller.")
+nt.font = Font(italic=True, color="5B6B86", size=8)
+nt.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+wbr.row_dimensions[nr].height = 22
+# whatsapp + print
+bbtn = nr + 2
+br_msg = ("\"*AAKRUTI INFRA - Batch Sheet*%0ABatch No: \"&$C$7&\"%0ADate: \"&TEXT($C$9,\"dd-mmm-yyyy\")"
+          "&\"%0AGrade: \"&$C$8&\"%0AQty: \"&$G$8&\" m3 in \"&$G$9&\" batches%0ACustomer: \"&$G$10"
+          "&\"%0ATruck: \"&$C$12&\"%0ATotal Mass: \"&TEXT(J" + str(tr) + ",\"#,##0\")&\" kg\"")
+br_url = ("=HYPERLINK(\"https://wa.me/?text=\"&"
+          f"SUBSTITUTE({br_msg},\" \",\"%20\"),\"\U0001F4F2  Send Batch Sheet on WhatsApp\")")
+wa_button(wbr, f"B{bbtn}:E{bbtn}", br_url, "WhatsApp")
+note_button(wbr, f"F{bbtn}:J{bbtn}", "\U0001F5A8 Print / Download  \u00b7  press Ctrl+P  \u00b7  Save as PDF", GOLD_BTN)
+fit_one_page(wbr, f"A1:J{bbtn + 1}")
+wbr.page_setup.orientation = "landscape"
 
 # ============================================================
 # MONTHLY CONSUMPTION REPORT
