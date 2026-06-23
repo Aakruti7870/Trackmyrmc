@@ -211,11 +211,7 @@ clients_cols = [
     {"h": "GST No.", "w": 20, "type": "input"},
     {"h": "Billing Address", "w": 40, "type": "input"},
 ]
-clients_ex = [
-    ("Skyline Builders Pvt Ltd", "R. Mehta", "9876543210", "27AABCS1234A1Z5", "Plot 14, MIDC, Pune"),
-    ("Greenfield Infra", "S. Kulkarni", "9822011223", "27AAFCG5678B1Z2", "Hinjewadi Phase 2, Pune"),
-    ("Metro Constructions", "A. Shaikh", "9890098900", "27AADCM4321C1Z9", "Wakad, Pune"),
-]
+clients_ex = []  # ready-to-use: enter your own clients
 build_sheet("Setup - Clients", "Setup  -  Clients",
             "Customer master. Add every client once; orders & challans pick from here.",
             clients_cols, clients_ex, accent=NAVY2)
@@ -260,11 +256,7 @@ veh_cols = [
     {"h": "Default Driver", "w": 22, "type": "input"},
     {"h": "Status", "w": 14, "type": "input"},
 ]
-veh_ex = [
-    ("MH12 AB 1234", "Transit Mixer", 6, "Ramesh Pawar", "Active"),
-    ("MH12 CD 5678", "Transit Mixer", 7, "Suresh Jadhav", "Active"),
-    ("MH12 EF 9012", "Concrete Pump", 0, "Vijay More", "Active"),
-]
+veh_ex = []  # ready-to-use: enter your own vehicles
 ws_veh = build_sheet("Setup - Vehicles", "Setup  -  Vehicles",
             "Transit mixer / pump fleet. Dispatch picks the vehicle; driver auto-fills.",
             veh_cols, veh_ex, accent=NAVY2)
@@ -283,11 +275,7 @@ drv_cols = [
     {"h": "Licence No.", "w": 20, "type": "input"},
     {"h": "Notes", "w": 30, "type": "input"},
 ]
-drv_ex = [
-    ("Ramesh Pawar", "9001122334", "MH1220190001234", ""),
-    ("Suresh Jadhav", "9002233445", "MH1220180005678", ""),
-    ("Vijay More", "9003344556", "MH1220200009012", ""),
-]
+drv_ex = []  # ready-to-use: enter your own drivers
 build_sheet("Setup - Drivers", "Setup  -  Drivers",
             "Driver master.", drv_cols, drv_ex, accent=NAVY2)
 defname("DriverList", "'Setup - Drivers'!$A$5:$A$304")
@@ -302,12 +290,12 @@ mat_cols = [
     {"h": "Purchase Rate (\u20b9/unit)", "w": 16, "type": "money"},
 ]
 mat_ex = [
-    ("Cement", "kg", 50000, 7.5),
-    ("Sand", "kg", 120000, 1.2),
-    ("Aggregate 20mm", "kg", 150000, 1.0),
-    ("Aggregate 10mm", "kg", 90000, 1.1),
-    ("Admixture", "kg", 800, 95),
-    ("Diesel", "ltr", 2000, 92),
+    ("Cement", "kg", 0, 7.5),
+    ("Sand", "kg", 0, 1.2),
+    ("Aggregate 20mm", "kg", 0, 1.0),
+    ("Aggregate 10mm", "kg", 0, 1.1),
+    ("Admixture", "kg", 0, 95),
+    ("Diesel", "ltr", 0, 92),
 ]
 build_sheet("Setup - Materials", "Setup  -  Materials",
             "Raw material master with opening stock & purchase rate. Drives the Stock Register.",
@@ -336,11 +324,7 @@ ord_cols = [
     {"h": "Status", "w": 13, "type": "calc",
      "formula": "=IF(F{r}=\"\",\"\",IF(I{r}=0,\"Pending\",IF(I{r}>=F{r},\"Completed\",\"Partial\")))"},
 ]
-ord_ex = [
-    ("2026-06-22", "ORD-0001", "Skyline Builders Pvt Ltd", "Tower A, Kharadi", "M25", 30, None, None, None, None, None),
-    ("2026-06-22", "ORD-0002", "Greenfield Infra", "Block C, Hinjewadi", "M30", 45, None, None, None, None, None),
-    ("2026-06-23", "ORD-0003", "Metro Constructions", "Metro Pillar 212", "M20", 20, None, None, None, None, None),
-]
+ord_ex = []  # ready-to-use: empty order book
 ws_ord = build_sheet("Orders", "Orders  -  Daily Order Book",
             "Pick client & grade from dropdowns. Rate, value, delivered qty, balance & status auto-calculate.",
             ord_cols, ord_ex, accent=NAVY)
@@ -366,11 +350,7 @@ dis_cols = [
      "formula": "=IF(OR(F{r}=\"\",I{r}=\"\"),\"\",F{r}*I{r})"},
     {"h": "Status", "w": 14, "type": "input"},
 ]
-dis_ex = [
-    ("2026-06-22", "CH-0001", "ORD-0001", "Skyline Builders Pvt Ltd", "M25", 6, "MH12 AB 1234", None, None, None, "Delivered"),
-    ("2026-06-22", "CH-0002", "ORD-0001", "Skyline Builders Pvt Ltd", "M25", 7, "MH12 CD 5678", None, None, None, "Delivered"),
-    ("2026-06-22", "CH-0003", "ORD-0002", "Greenfield Infra", "M30", 7, "MH12 CD 5678", None, None, None, "Dispatched"),
-]
+dis_ex = []  # ready-to-use: empty challan log
 ws_dis = build_sheet("Dispatch (Challan)", "Dispatch  -  Challans",
             "Each delivery challan. Pick client / grade / vehicle; driver, rate & amount auto-fill. Delivered qty rolls up to Orders.",
             dis_cols, dis_ex, accent=GREEN if False else NAVY)
@@ -402,11 +382,7 @@ prod_cols = [
     {"h": "Admixture (kg)", "w": 13, "type": "calc",
      "formula": "=IFERROR(IF(OR(C{r}=\"\",D{r}=\"\"),\"\",D{r}*VLOOKUP(C{r},{mix},7,0)),\"\")".replace("{mix}", MIX_TBL)},
 ]
-prod_ex = [
-    ("2026-06-22", "B-101", "M25", 6, "Anil", None, None, None, None, None, None),
-    ("2026-06-22", "B-102", "M25", 7, "Anil", None, None, None, None, None, None),
-    ("2026-06-22", "B-103", "M30", 7, "Prakash", None, None, None, None, None, None),
-]
+prod_ex = []  # ready-to-use: empty production log
 ws_prod = build_sheet("Batch Production", "Batch Production  -  Material Consumption",
             "Enter grade + m3 only. Cement / sand / aggregate / water / admixture consumed are computed from Mix Design.",
             prod_cols, prod_ex, accent=NAVY)
@@ -427,11 +403,7 @@ rec_cols = [
     {"h": "Supplier", "w": 24, "type": "input"},
     {"h": "Invoice No.", "w": 16, "type": "input"},
 ]
-rec_ex = [
-    ("2026-06-21", "Cement", 30000, None, 7.4, None, "UltraTech", "INV-5567"),
-    ("2026-06-21", "Sand", 60000, None, 1.15, None, "Krishna Sand", "INV-2231"),
-    ("2026-06-20", "Diesel", 1000, None, 92, None, "HP Petrol Pump", "INV-9981"),
-]
+rec_ex = []  # ready-to-use: empty receipt log
 ws_rec = build_sheet("Material Receipt", "Material Receipt  -  Purchases",
             "Incoming raw material. Unit auto-fills; amount auto-calculates. Feeds 'Received' in the Stock Register.",
             rec_cols, rec_ex, accent=NAVY)
@@ -450,10 +422,7 @@ fuel_cols = [
      "formula": "=IF(OR(C{r}=\"\",E{r}=\"\"),\"\",C{r}*E{r})"},
     {"h": "Filled By", "w": 18, "type": "input"},
 ]
-fuel_ex = [
-    ("2026-06-22", "MH12 AB 1234", 40, 84120, 92, None, "Anil"),
-    ("2026-06-22", "MH12 CD 5678", 45, 91250, 92, None, "Anil"),
-]
+fuel_ex = []  # ready-to-use: empty fuel log
 ws_fuel = build_sheet("Fuel Log", "Fuel Log  -  Diesel Issued",
             "Diesel issued per vehicle. Amount auto-calculates; total diesel feeds the Stock Register.",
             fuel_cols, fuel_ex, accent=NAVY)
