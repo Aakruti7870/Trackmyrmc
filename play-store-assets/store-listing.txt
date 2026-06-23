@@ -1,0 +1,71 @@
+CONCRETE KING — GOOGLE PLAY STORE LISTING TEXT
+================================================
+Copy/paste each field into the matching box in the Play Console
+(Main store listing screen).
+
+------------------------------------------------
+APP NAME  (max 30 characters)
+------------------------------------------------
+CONCRETE KING
+
+------------------------------------------------
+SHORT DESCRIPTION  (max 80 characters)
+------------------------------------------------
+Order ready-mix concrete & run plant dispatch, fleet and reports in one app.
+
+------------------------------------------------
+FULL DESCRIPTION  (max 4000 characters)
+------------------------------------------------
+CONCRETE KING is a complete Ready-Mix Concrete (RMC) marketplace and plant
+management platform. Customers can discover nearby approved RMC plants and place
+orders in minutes, while plant teams manage operations, dispatch, fleet and
+finances from a single premium dashboard.
+
+FOR CUSTOMERS
+• Discover approved RMC plants near your site on a live map.
+• Place concrete orders by grade and quantity in a few taps.
+• Track your order and the live location of the transit mixer on the way.
+• View delivery challans and your full order history.
+• Get instant updates on WhatsApp.
+
+FOR PLANTS & STAFF
+• Orders: create, edit and track dispatch progress for every order.
+• Dispatch: generate delivery challans and mark deliveries complete.
+• Fleet: manage transit mixers, drivers and vehicle status.
+• Batch Report: log every concrete batch with grade, quantity and operator.
+• Mix Design: maintain cement/water/sand/aggregate proportions per grade.
+• Reports: daily trends, grade and client breakdowns, fuel reconciliation and
+  CSV exports.
+• Demand Forecast, Shift Reports, Fuel Log and Activity / Audit logs.
+• Role-based access for admins, dispatchers, plant operators, clients and drivers.
+
+WHY CONCRETE KING
+• Built specifically for the ready-mix concrete industry.
+• Clean, fast, premium interface that works on phone and desktop.
+• Real-time order tracking and dispatch visibility end to end.
+• Secure sign-in by phone (one-time code) or email.
+
+Whether you run a batching plant or order concrete for your site, CONCRETE KING
+keeps your operations, dispatch and deliveries organised in one place.
+
+Operated by GOLD-e Tech. Support: support@goldetech.com
+
+------------------------------------------------
+CONTACT DETAILS
+------------------------------------------------
+Email:   support@goldetech.com
+Phone:   +91 74982 86760
+Website: https://www.goldetech.com
+
+------------------------------------------------
+PRIVACY POLICY URL
+------------------------------------------------
+https://www.goldetech.com/privacy
+(This page already exists inside your app. Make sure the app is published /
+deployed at goldetech.com so the link is publicly reachable before you submit.)
+
+------------------------------------------------
+APP CATEGORY (suggested)
+------------------------------------------------
+Category: Business
+Tags:     productivity, logistics, construction

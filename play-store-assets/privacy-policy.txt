@@ -1,0 +1,68 @@
+CONCRETE KING — PRIVACY POLICY
+==============================
+Last updated: June 18, 2026
+
+IMPORTANT: Google requires a PUBLIC URL to your privacy policy.
+Your app already includes this exact policy at:
+
+    https://www.goldetech.com/privacy
+
+Use that URL in the Play Console. This text file is only a backup copy in case
+you need to host it somewhere else.
+
+------------------------------------------------------------
+
+CONCRETE KING (operated by GOLD-e Tech, the "Company", "we", "us") provides a
+Ready-Mix Concrete (RMC) marketplace and plant-management platform at
+trackmyrmc.com. This Privacy Policy explains what information we collect, how we
+use it, and the choices you have. By using our website, app, or WhatsApp
+notifications, you agree to the practices described here.
+
+1. INFORMATION WE COLLECT
+• Account & contact details — name, phone number, company name, GST details, and
+  email where provided.
+• Order & delivery data — concrete grade, quantity, delivery address, order
+  history, challans, and dispatch records.
+• Location data — site/delivery coordinates and, for tracking, the live location
+  of transit vehicles servicing your order.
+• Usage & device data — log data such as IP address and basic device/browser
+  information used to operate and secure the service.
+
+2. HOW WE USE YOUR INFORMATION
+• To create and manage your account and orders.
+• To dispatch concrete, generate challans, and enable live delivery tracking.
+• To send order and delivery updates (including via WhatsApp/SMS).
+• To operate, secure, troubleshoot, and improve the service.
+• To meet legal, tax, and accounting obligations.
+
+3. SHARING
+We share information only as needed to run the service — for example with the RMC
+plant fulfilling your order, transport/driver personnel for delivery, and service
+providers (such as messaging, hosting, and maps). We do not sell your personal
+information.
+
+4. DATA RETENTION
+We keep information for as long as your account is active and as required for
+legal, tax, and business records, after which it is deleted or anonymised.
+
+5. SECURITY
+Data is transmitted over encrypted connections and access is restricted by role.
+No method of transmission or storage is 100% secure, but we work to protect your
+information.
+
+6. YOUR CHOICES & RIGHTS
+You may request access to, correction of, or deletion of your personal data, and
+you may opt out of non-essential messages. Contact us using the details below.
+
+7. CHILDREN
+The service is intended for businesses and adults; it is not directed at children
+under 18.
+
+8. CHANGES
+We may update this policy from time to time. Material changes will be posted on
+this page with a new "Last updated" date.
+
+9. CONTACT
+GOLD-e Tech
+Email: support@goldetech.com
+Phone: +91 74982 86760

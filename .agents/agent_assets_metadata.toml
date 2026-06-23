@@ -54,6 +54,18 @@ uri = "file://attached_assets/generated_images/concrete-king-logo.png"
 type = "image"
 title = "concrete king C dog logo"
 
+[[generated]]
+id = "t33Yj4aJ1OL8WykNZrx5r"
+uri = "file://play-store-assets/raw/icon_raw.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "offlR4Ld7BMm6VdFdicM7"
+uri = "file://play-store-assets/raw/feature_raw.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "oaHn9kwGbYywEoOBjUmqg"
 uri = "file://screenshots/theme-1-midnight-gold.jpg"
@@ -101,3 +113,51 @@ id = "lKoNzuFvLjz5nyUUTkUJd"
 uri = "file://concrete-king-android-src.zip"
 type = "unspecified"
 title = "CONCRETE KING — Android source (slim, no node_modules)"
+
+[[outputs]]
+id = "zZgIfZ0UH2LePIlnc4Ag4"
+uri = "file://play-store-assets/UPLOAD-GUIDE.md"
+type = "text"
+title = "Upload Guide (start here)"
+
+[[outputs]]
+id = "utAvmIMfhCzDr6hvdX48o"
+uri = "file://play-store-assets/icon-512.png"
+type = "image"
+title = "App Icon 512x512"
+
+[[outputs]]
+id = "7_IoLyPS1mfoIHZCuAPdy"
+uri = "file://play-store-assets/feature-graphic-1024x500.png"
+type = "image"
+title = "Feature Graphic 1024x500"
+
+[[outputs]]
+id = "dKnLa0yt3P4P0OHVevEsR"
+uri = "file://play-store-assets/screenshots/01-login.jpg"
+type = "image"
+title = "Screenshot 1 - Login"
+
+[[outputs]]
+id = "_VCY0ZAoH-_Yl4Wm-3R7o"
+uri = "file://play-store-assets/screenshots/02-privacy.jpg"
+type = "image"
+title = "Screenshot 2 - Privacy"
+
+[[outputs]]
+id = "jm41wnwXZeBV05HHONqnA"
+uri = "file://play-store-assets/screenshots/03-register.jpg"
+type = "image"
+title = "Screenshot 3 - Register"
+
+[[outputs]]
+id = "hgeYo6RqGkGRyrO9AIRk1"
+uri = "file://play-store-assets/store-listing.txt"
+type = "text"
+title = "Store Listing Text"
+
+[[outputs]]
+id = "CJTk1SjC56426ZAgW0393"
+uri = "file://play-store-assets/privacy-policy.txt"
+type = "text"
+title = "Privacy Policy (backup copy)"
