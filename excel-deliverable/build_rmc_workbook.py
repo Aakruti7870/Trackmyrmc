@@ -182,11 +182,21 @@ for a, b in intro:
 # ============================================================
 # SETUP SHEETS
 # ============================================================
+clients_ex = [
+    ("DB INFRATECH", "Mr. Pritam Keni", 9769030312, None, None),
+    ("DS INFRASTRUCTURE", "Er. Aadesh Kakde", 9766921554, None, None),
+    ("URVI ENTERPRISES", "Mr. Bunty Dhamale", 9699815155, None, None),
+    ("HIRAWATI AGRO PVT LTD", "Mr. Narayan Ji", 8879805815, None, None),
+    ("AANANTH CORPORATION", "Mr. Narayan Ji", 8879805815, None, None),
+    ("DDSR KALAMBOLI", "Mr. Pankaj sir", 7741808216, None, None),
+    ("DDSR KHARGHAR", "Mr. Pankaj sir", 7741808216, None, None),
+    ("LANDMARK ( ROYAL INFRA)", "Er. Akshay Sir", 9021225823, None, None),
+]
 build_sheet("Setup - Clients", "Setup  -  Clients",
             "Customer master. Add each client once; orders, challans & payments pick from here.",
             [{"h": "Client / Company Name", "w": 30}, {"h": "Contact Person", "w": 22},
              {"h": "Phone", "w": 16}, {"h": "GST No.", "w": 20}, {"h": "Billing Address", "w": 40}],
-            MASTER_ROWS, None, FILL_NAVY2)
+            MASTER_ROWS, clients_ex, FILL_NAVY2)
 defname("ClientList", f"'Setup - Clients'!$A$5:$A${MEND}")
 
 mix_cols = [
@@ -207,17 +217,29 @@ build_sheet("Setup - Mix Design", "Setup  -  Mix Design",
             mix_cols, MASTER_ROWS, mix_ex, FILL_NAVY2)
 defname("GradeList", f"'Setup - Mix Design'!$A$5:$A${MEND}")
 
+veh_ex = [
+    ("MH 46 DC 0813", "Transit Mixer", "7 M\u00b3", "RANJEET", "Active"),
+    ("MH 46 DC 0814", "Transit Mixer", "7 M\u00b3", "MANOJ", "Active"),
+    ("MH 46 BB 9003", "Transit Mixer", "6 M\u00b3", "SUBHASH", "Active"),
+    ("MH 48 T 5967", "Transit Mixer", "6 M\u00b3", "MAMA", "Active"),
+    ("MH 46 BP 0826", "Transit Mixer", "6 M\u00b3", "KAMAL", "Active"),
+]
 ws_veh = build_sheet("Setup - Vehicles", "Setup  -  Vehicles",
             "Transit mixer / pump fleet. Dispatch picks the vehicle; driver auto-fills.",
-            [{"h": "Vehicle No.", "w": 16}, {"h": "Type", "w": 16}, {"h": "Capacity (m3)", "w": 13, "type": "num"},
-             {"h": "Default Driver", "w": 22}, {"h": "Status", "w": 14}], MASTER_ROWS, None, FILL_NAVY2)
+            [{"h": "Vehicle No.", "w": 16}, {"h": "Type", "w": 16}, {"h": "Capacity (m3)", "w": 13},
+             {"h": "Default Driver", "w": 22}, {"h": "Status", "w": 14}], MASTER_ROWS, veh_ex, FILL_NAVY2)
 defname("VehicleList", f"'Setup - Vehicles'!$A$5:$A${MEND}")
 defname("VehStatusList", "'Lists'!$A$2:$A$4")
 add_list_validation(ws_veh, "VehStatusList", f"E{DATA_START}:E{MEND}")
 
+drv_ex = [
+    ("RANJEET", 7394924413, None, None), ("MANOJ", 8879446133, None, None),
+    ("SUBHASH", 9309133983, None, None), ("MAMA", 9987366558, None, None),
+    ("KAMAL", 8828920771, None, None),
+]
 build_sheet("Setup - Drivers", "Setup  -  Drivers", "Driver master.",
             [{"h": "Driver Name", "w": 24}, {"h": "Phone", "w": 16}, {"h": "Licence No.", "w": 20}, {"h": "Notes", "w": 30}],
-            MASTER_ROWS, None, FILL_NAVY2)
+            MASTER_ROWS, drv_ex, FILL_NAVY2)
 defname("DriverList", f"'Setup - Drivers'!$A$5:$A${MEND}")
 
 mat_cols = [
@@ -225,9 +247,9 @@ mat_cols = [
     {"h": "Purchase Rate (\u20b9/unit)", "w": 16, "type": "money"}, {"h": "Reorder Level", "w": 14, "type": "num"},
 ]
 mat_ex = [
-    ("Cement", "kg", 0, 7.5, 20000), ("Sand", "kg", 0, 1.2, 40000),
-    ("Aggregate 20mm", "kg", 0, 1.0, 40000), ("Aggregate 10mm", "kg", 0, 1.1, 25000),
-    ("Admixture", "kg", 0, 95, 200), ("Diesel", "ltr", 0, 92, 500),
+    ("Cement", "kg", 0, 6.3, 20000), ("Sand", "kg", 0, 0.82, 40000),
+    ("Aggregate 20mm", "kg", 0, 0.72, 40000), ("Aggregate 10mm", "kg", 0, 0.72, 25000),
+    ("Admixture", "kg", 0, 5.4, 200), ("Diesel", "ltr", 0, 98.4, 500),
 ]
 build_sheet("Setup - Materials", "Setup  -  Materials",
             "Raw material master: opening stock, rate & reorder level. Drives the Stock Register + low-stock alerts.",
@@ -279,6 +301,7 @@ add_list_validation(ws_dis, "ClientList", f"D{DATA_START}:D{TEND}")
 add_list_validation(ws_dis, "GradeList", f"E{DATA_START}:E{TEND}")
 add_list_validation(ws_dis, "VehicleList", f"G{DATA_START}:G{TEND}")
 add_list_validation(ws_dis, "DispStatusList", f"K{DATA_START}:K{TEND}")
+defname("ChallanList", f"'Dispatch (Challan)'!$B$5:$B${TEND}")
 
 # ============================================================
 # BATCH PRODUCTION
@@ -536,6 +559,247 @@ ws_cube.conditional_formatting.add(f"J{DATA_START}:J{TEND}", CellIsRule(operator
 ws_cube.conditional_formatting.add(f"J{DATA_START}:J{TEND}", CellIsRule(operator="equal", formula=['"Fail"'], fill=PatternFill("solid", fgColor="FEE2E2"), font=Font(bold=True, color="991B1B")))
 
 # ============================================================
+# SHARED HELPERS for printable / form pages
+# ============================================================
+from openpyxl.worksheet.properties import PageSetupProperties
+CLIENTS_TBL = f"'Setup - Clients'!$A$5:$E${MEND}"
+ORDERS_TBL = f"'Orders'!$B$5:$D${TEND}"
+DBN = "'Dispatch (Challan)'"
+GREEN_BTN = PatternFill("solid", fgColor="1E7F4F")
+GOLD_BTN = PatternFill("solid", fgColor=GOLD)
+
+
+def page_form_title(ws, big, small, span):
+    ws.sheet_view.showGridLines = False
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=span)
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=span)
+    a = ws.cell(1, 1, big); a.font = Font(bold=True, color=GOLD, size=22)
+    a.alignment = Alignment(horizontal="center", vertical="center")
+    b = ws.cell(2, 1, small); b.font = Font(bold=True, color=WHITE, size=12)
+    b.alignment = Alignment(horizontal="center", vertical="center")
+    for r in (1, 2):
+        for c in range(1, span + 1):
+            ws.cell(r, c).fill = FILL_NAVY
+    ws.row_dimensions[1].height = 32; ws.row_dimensions[2].height = 20
+
+
+def box(ws, r, c, label, value_formula, vmerge=1, vfmt=None, value_input=False):
+    lc = ws.cell(r, c, label); lc.font = Font(bold=True, color="5B6B86", size=10)
+    lc.fill = PatternFill("solid", fgColor="F1F4F9"); lc.border = B
+    lc.alignment = Alignment(indent=1, vertical="center")
+    vc = ws.cell(r, c + 1, value_formula)
+    vc.font = Font(bold=True, color=NAVY, size=11)
+    vc.fill = FILL_INPUT if value_input else FILL_CALC
+    vc.alignment = Alignment(indent=1, vertical="center"); vc.border = B
+    if vfmt: vc.number_format = vfmt
+    if vmerge > 1:
+        ws.merge_cells(start_row=r, start_column=c + 1, end_row=r, end_column=c + vmerge)
+        for cc in range(c + 1, c + vmerge + 1):
+            ws.cell(r, cc).border = B
+    ws.row_dimensions[r].height = 22
+
+
+def wa_button(ws, cell_range, url_formula, label):
+    first = cell_range.split(":")[0]
+    ws.merge_cells(cell_range)
+    cell = ws[first]
+    cell.value = url_formula
+    cell.font = Font(bold=True, color=WHITE, size=12)
+    cell.fill = GREEN_BTN; cell.border = B
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[int("".join(ch for ch in first if ch.isdigit()))].height = 30
+
+
+def note_button(ws, cell_range, text, fill):
+    first = cell_range.split(":")[0]
+    ws.merge_cells(cell_range)
+    cell = ws[first]; cell.value = text
+    cell.font = Font(bold=True, color=NAVY, size=11); cell.fill = fill; cell.border = B
+    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+
+def fit_one_page(ws, area):
+    ws.print_area = area
+    ws.page_setup.orientation = "portrait"
+    ws.page_setup.fitToWidth = 1; ws.page_setup.fitToHeight = 1
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+    ws.page_margins.left = ws.page_margins.right = 0.3
+    ws.page_margins.top = ws.page_margins.bottom = 0.4
+
+
+# ============================================================
+# CHALLAN  (auto-fill delivery challan + WhatsApp share)
+# ============================================================
+wc = wb.create_sheet("Challan")
+set_widths(wc, [2, 18, 22, 16, 2, 18, 22, 16])
+page_form_title(wc, "CONCRETE KING", "DELIVERY CHALLAN  \u2022  Ready-Mix Concrete", 8)
+wc.cell(4, 2, "Select Challan No:").font = Font(bold=True, color=GOLD, size=12)
+sel = wc.cell(4, 3, None); sel.fill = FILL_INPUT; sel.border = B
+sel.font = Font(bold=True, color=NAVY, size=12); sel.alignment = Alignment(horizontal="center")
+wc.merge_cells("C4:D4")
+for cc in (3, 4): wc.cell(4, cc).border = B
+add_list_validation(wc, "ChallanList", "C4")
+wc.cell(4, 6, "Pick a challan \u2192 every field below fills in.").font = Font(italic=True, color="5B6B86", size=10)
+wc.merge_cells("F4:H4")
+
+def cidx(colL):
+    return (f"=IFERROR(IF($C$4=\"\",\"\",INDEX({DBN}!${colL}$5:${colL}${TEND},"
+            f"MATCH($C$4,{DBN}!$B$5:$B${TEND},0))),\"\")")
+# left/right field grid
+box(wc, 6, 2, "Challan No", "=$C$4")
+box(wc, 6, 6, "Date", cidx("A"), vfmt="dd-mmm-yyyy")
+box(wc, 7, 2, "Order No", cidx("C"))
+box(wc, 7, 6, "Status", cidx("K"))
+box(wc, 8, 2, "Grade", cidx("E"))
+box(wc, 8, 6, "Vehicle No", cidx("G"))
+box(wc, 9, 2, "Quantity (m\u00b3)", cidx("F"), vfmt="#,##0.00")
+box(wc, 9, 6, "Driver", cidx("H"))
+box(wc, 10, 2, "Rate (\u20b9/m\u00b3)", cidx("I"), vfmt='\u20b9#,##0.00')
+box(wc, 10, 6, "Amount (\u20b9)", cidx("J"), vfmt='\u20b9#,##0.00')
+# customer block
+wc.cell(12, 2, "CUSTOMER DETAILS").font = Font(bold=True, color=GOLD, size=12)
+box(wc, 13, 2, "Customer", cidx("D"), vmerge=2)
+box(wc, 13, 6, "Contact", "=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($C$13," + CLIENTS_TBL + ",2,0)),\"\")", vmerge=2)
+box(wc, 14, 2, "Phone", "=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($C$13," + CLIENTS_TBL + ",3,0)),\"\")")
+box(wc, 14, 6, "GST No", "=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($C$13," + CLIENTS_TBL + ",4,0)),\"\")", vmerge=2)
+box(wc, 15, 2, "Site / Location", "=IFERROR(IF($C$7=\"\",\"\",VLOOKUP($C$7," + ORDERS_TBL + ",3,0)),\"\")", vmerge=6)
+# signatures
+wc.cell(18, 2, "Received in good condition").font = Font(color="5B6B86", size=9)
+wc.cell(18, 6, "Authorised Signatory").font = Font(color="5B6B86", size=9)
+for col in (2, 6):
+    s = wc.cell(17, col, "__________________"); s.font = Font(color="33425C")
+# whatsapp + print buttons
+wa_msg = ("\"*CONCRETE KING - Delivery Challan*%0AChallan No: \"&$C$4&\"%0ADate: \"&TEXT($G$6,\"dd-mmm-yyyy\")"
+          "&\"%0ACustomer: \"&$C$13&\"%0AGrade: \"&$C$8&\"%0AQty: \"&$C$9&\" m3%0AVehicle: \"&$G$8"
+          "&\"%0ADriver: \"&$G$9&\"%0ARate: Rs \"&$C$10&\"%0AAmount: Rs \"&$G$10")
+wa_url = ("=HYPERLINK(\"https://wa.me/\"&IF($C$14=\"\",\"\",\"91\"&$C$14)&\"?text=\"&"
+          f"SUBSTITUTE({wa_msg},\" \",\"%20\"),\"\U0001F4F2  Send Challan on WhatsApp\")")
+wa_button(wc, "B20:D20", wa_url, "WhatsApp")
+note_button(wc, "F20:H20", "\U0001F5A8  Press Ctrl+P  (phone: Share \u25b8 Print)  to Print / Save as PDF", GOLD_BTN)
+for r in range(6, 18):
+    for c in range(2, 9):
+        if wc.cell(r, c).border != B:
+            wc.cell(r, c).border = B
+fit_one_page(wc, "A1:H21")
+
+# ============================================================
+# BATCH REPORT  (select Grade + Qty -> auto target batch sheet)
+# ============================================================
+wbr = wb.create_sheet("Batch Report")
+set_widths(wbr, [2, 22, 16, 18, 12, 18])
+page_form_title(wbr, "CONCRETE KING", "BATCH REPORT  \u2022  Target Mix per Batch", 6)
+wbr.cell(4, 2, "Select Grade:").font = Font(bold=True, color=GOLD, size=12)
+g = wbr.cell(4, 3, None); g.fill = FILL_INPUT; g.border = B; g.font = Font(bold=True, color=NAVY, size=12)
+g.alignment = Alignment(horizontal="center")
+add_list_validation(wbr, "GradeList", "C4")
+wbr.cell(4, 4, "Production Qty (m\u00b3):").font = Font(bold=True, color=GOLD, size=12)
+q = wbr.cell(4, 5, None); q.fill = FILL_INPUT; q.border = B; q.font = Font(bold=True, color=NAVY, size=12)
+q.alignment = Alignment(horizontal="center"); q.number_format = "#,##0.00"
+# header info
+box(wbr, 6, 2, "Plant", "=\"CONCRETE KING\"")
+box(wbr, 6, 4, "Recipe / Grade", "=IF($C$4=\"\",\"\",$C$4)")
+box(wbr, 7, 2, "Batch No", None, value_input=True)
+box(wbr, 7, 4, "Batch Date", None, vfmt="dd-mmm-yyyy", value_input=True)
+box(wbr, 8, 2, "Truck No", None, value_input=True)
+box(wbr, 8, 4, "W/C Ratio", "=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($C$4," + MIX_TBL + ",8,0)),\"\")", vfmt="0.00")
+box(wbr, 9, 2, "Customer", None, vmerge=1, value_input=True)
+box(wbr, 9, 4, "Production Qty (m\u00b3)", "=IF($E$4=\"\",\"\",$E$4)", vfmt="#,##0.00")
+add_list_validation(wbr, "VehicleList", "C8")
+add_list_validation(wbr, "ClientList", "C9")
+# material table
+thr = 11
+heads = ["Material", "Per m\u00b3", "Total (\u00d7 Qty)", "Unit"]
+for i, h in enumerate(heads):
+    wbr.cell(thr, 2 + i, h)
+style_header(wbr, thr, 5, fill=FILL_NAVY2)
+wbr.cell(thr, 1).fill = PatternFill("solid", fgColor=WHITE)
+mat_rows = [("Cement", 2, "kg"), ("Sand", 3, "kg"), ("Aggregate 20mm", 4, "kg"),
+            ("Aggregate 10mm", 5, "kg"), ("Water", 6, "ltr"), ("Admixture", 7, "kg")]
+for i, (mat, col, unit) in enumerate(mat_rows):
+    rr = thr + 1 + i
+    wbr.cell(rr, 2, mat).font = Font(bold=True, color=NAVY)
+    per = wbr.cell(rr, 3, f"=IFERROR(IF($C$4=\"\",\"\",VLOOKUP($C$4,{MIX_TBL},{col},0)),\"\")")
+    per.number_format = "#,##0.00"
+    tot = wbr.cell(rr, 4, f"=IF(OR($C$4=\"\",$E$4=\"\",C{rr}=\"\"),\"\",C{rr}*$E$4)")
+    tot.number_format = "#,##0.00"
+    wbr.cell(rr, 5, unit)
+    for cc in range(2, 6):
+        cell = wbr.cell(rr, cc); cell.border = B
+        cell.fill = FILL_CALC if cc in (3, 4) else PatternFill("solid", fgColor=WHITE)
+        if cc not in (3, 4): cell.font = Font(bold=True, color=NAVY)
+tmr = thr + 1 + len(mat_rows)
+wbr.cell(tmr, 2, "TOTAL MASS")
+tt = wbr.cell(tmr, 4, f"=IF($C$4=\"\",\"\",SUM(D{thr+1}:D{tmr-1}))"); tt.number_format = "#,##0.00"
+wbr.cell(tmr, 5, "kg")
+for cc in range(2, 6):
+    cell = wbr.cell(tmr, cc); cell.fill = GOLD_BTN; cell.font = Font(bold=True, color=NAVY); cell.border = B
+# whatsapp + print
+br_msg = ("\"*CONCRETE KING - Batch Report*%0AGrade: \"&$C$4&\"%0AQty: \"&$E$4&\" m3%0ABatch No: \"&$C$7"
+          "&\"%0ADate: \"&TEXT($E$7,\"dd-mmm-yyyy\")&\"%0ACement: \"&D12&\" kg%0ASand: \"&D13&\" kg\""
+          "&\"%0AAgg20: \"&D14&\" kg%0AAgg10: \"&D15&\" kg%0AWater: \"&D16&\" L%0AAdmix: \"&D17"
+          "&\" kg%0ATotal: \"&D18&\" kg\"")
+br_url = ("=HYPERLINK(\"https://wa.me/?text=\"&"
+          f"SUBSTITUTE({br_msg},\" \",\"%20\"),\"\U0001F4F2  Send Batch Report on WhatsApp\")")
+wa_button(wbr, "B20:C20", br_url, "WhatsApp")
+note_button(wbr, "D20:F20", "\U0001F5A8  Press Ctrl+P  (phone: Share \u25b8 Print)  to Print / Save as PDF", GOLD_BTN)
+for r in range(6, 10):
+    for c in range(2, 6):
+        if wbr.cell(r, c).border != B: wbr.cell(r, c).border = B
+fit_one_page(wbr, "A1:F21")
+
+# ============================================================
+# MONTHLY CONSUMPTION REPORT
+# ============================================================
+wmc = wb.create_sheet("Monthly Consumption")
+set_widths(wmc, [3, 12, 14, 13, 14, 14, 13, 14, 13])
+title_block(wmc, "Monthly Consumption Report", "Month-wise raw-material consumed across the plant. Set the year.", 9)
+wmc.cell(4, 2, "Year:").font = Font(bold=True, color=GOLD, size=12)
+ymc = wmc.cell(4, 3, 2026); ymc.font = Font(bold=True, color=NAVY, size=12)
+ymc.fill = FILL_INPUT; ymc.border = B; ymc.alignment = Alignment(horizontal="center")
+YMC = "$C$4"
+mchead = 6
+mc_cols = ["Month", "Cement (kg)", "Sand (kg)", "Agg 20mm (kg)", "Agg 10mm (kg)",
+           "Water (ltr)", "Admixture (kg)", "Diesel (ltr)"]
+for i, h in enumerate(mc_cols):
+    wmc.cell(mchead, 2 + i, h)
+style_header(wmc, mchead, len(mc_cols) + 1, fill=FILL_NAVY2)
+wmc.cell(mchead, 1).fill = PatternFill("solid", fgColor=WHITE)
+PRO = "'Batch Production'"
+FUE = "'Fuel Log'"
+def cons_month(val_rng, date_rng, m):
+    return (f"=SUMIFS({val_rng},{date_rng},\">=\"&DATE({YMC},{m},1),"
+            f"{date_rng},\"<\"&DATE({YMC},{m}+1,1))")
+months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+for mi, mname in enumerate(months, start=1):
+    rr = mchead + mi
+    wmc.cell(rr, 2, mname).font = Font(bold=True, color=NAVY)
+    wmc.cell(rr, 3, cons_month(f"{PRO}!$F$5:$F${TEND}", f"{PRO}!$A$5:$A${TEND}", mi))
+    wmc.cell(rr, 4, cons_month(f"{PRO}!$G$5:$G${TEND}", f"{PRO}!$A$5:$A${TEND}", mi))
+    wmc.cell(rr, 5, cons_month(f"{PRO}!$H$5:$H${TEND}", f"{PRO}!$A$5:$A${TEND}", mi))
+    wmc.cell(rr, 6, cons_month(f"{PRO}!$I$5:$I${TEND}", f"{PRO}!$A$5:$A${TEND}", mi))
+    wmc.cell(rr, 7, cons_month(f"{PRO}!$J$5:$J${TEND}", f"{PRO}!$A$5:$A${TEND}", mi))
+    wmc.cell(rr, 8, cons_month(f"{PRO}!$K$5:$K${TEND}", f"{PRO}!$A$5:$A${TEND}", mi))
+    wmc.cell(rr, 9, cons_month(f"{FUE}!$C$5:$C${TEND}", f"{FUE}!$A$5:$A${TEND}", mi))
+    for cc in range(2, 10):
+        cell = wmc.cell(rr, cc); cell.border = B
+        cell.fill = FILL_CALC if cc > 2 else PatternFill("solid", fgColor=WHITE)
+        cell.font = F_CALC if cc > 2 else Font(bold=True, color=NAVY)
+        if cc > 2: cell.number_format = "#,##0"
+mctot = mchead + 13
+wmc.cell(mctot, 2, "TOTAL")
+for cc in range(3, 10):
+    L = get_column_letter(cc)
+    c = wmc.cell(mctot, cc, f"=SUM({L}{mchead+1}:{L}{mchead+12})"); c.number_format = "#,##0"
+for cc in range(2, 10):
+    cell = wmc.cell(mctot, cc); cell.fill = GOLD_BTN; cell.font = Font(bold=True, color=NAVY); cell.border = B
+mcchart = BarChart(); mcchart.type = "col"; mcchart.grouping = "stacked"; mcchart.overlap = 100
+mcchart.title = "Monthly Material Consumption (kg)"; mcchart.height = 8; mcchart.width = 20
+mcdata = Reference(wmc, min_col=3, min_row=mchead, max_col=6, max_row=mchead + 12)
+mccats = Reference(wmc, min_col=2, min_row=mchead + 1, max_row=mchead + 12)
+mcchart.add_data(mcdata, titles_from_data=True); mcchart.set_categories(mccats)
+wmc.add_chart(mcchart, "B21")
+
+# ============================================================
 # LISTS (hidden)
 # ============================================================
 wl = wb.create_sheet("Lists")
@@ -548,16 +812,17 @@ for i, v in enumerate(["Cash", "UPI", "Cheque", "NEFT", "RTGS"], start=2): wl[f"
 wl.sheet_state = "hidden"
 
 # ---- tab order & colours ----
-order = ["Instructions", "Dashboard", "Monthly Summary",
+order = ["Instructions", "Dashboard", "Monthly Summary", "Monthly Consumption",
          "Setup - Clients", "Setup - Mix Design", "Setup - Vehicles", "Setup - Drivers", "Setup - Materials",
-         "Orders", "Dispatch (Challan)", "Batch Production", "Material Receipt", "Fuel Log",
+         "Orders", "Dispatch (Challan)", "Challan", "Batch Production", "Batch Report",
+         "Material Receipt", "Fuel Log",
          "Payments", "Cube Test Register", "Stock Register", "Lists"]
 wb._sheets.sort(key=lambda s: order.index(s.title) if s.title in order else 99)
-cmap = {"Instructions": GOLD, "Dashboard": GOLD, "Monthly Summary": GOLD,
+cmap = {"Instructions": GOLD, "Dashboard": GOLD, "Monthly Summary": GOLD, "Monthly Consumption": GOLD,
         "Setup - Clients": "5B6B86", "Setup - Mix Design": "5B6B86", "Setup - Vehicles": "5B6B86",
         "Setup - Drivers": "5B6B86", "Setup - Materials": "5B6B86",
-        "Orders": NAVY2, "Dispatch (Challan)": "1E7F4F", "Batch Production": NAVY2,
-        "Material Receipt": NAVY2, "Fuel Log": NAVY2, "Payments": "1E7F4F",
+        "Orders": NAVY2, "Dispatch (Challan)": "1E7F4F", "Challan": GOLD, "Batch Production": NAVY2,
+        "Batch Report": GOLD, "Material Receipt": NAVY2, "Fuel Log": NAVY2, "Payments": "1E7F4F",
         "Cube Test Register": "1E5F8F", "Stock Register": "1E5F8F"}
 for s in wb._sheets:
     if s.title in cmap: s.sheet_properties.tabColor = cmap[s.title]
