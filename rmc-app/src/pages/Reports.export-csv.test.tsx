@@ -31,7 +31,7 @@ let fetchSpy: ReturnType<typeof makeFetchSpy>;
 beforeEach(() => {
   vi.clearAllMocks();
   mockEmptyReports();
-  fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+  fetchSpy = makeFetchSpy().mockResolvedValue(
     new Response('a,b\n1,2\n', { status: 200, headers: { 'Content-Type': 'text/csv' } }),
   );
   globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock');

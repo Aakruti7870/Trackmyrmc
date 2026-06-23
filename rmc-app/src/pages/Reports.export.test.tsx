@@ -32,7 +32,7 @@ beforeEach(() => {
     if (path.startsWith('/reports/variance-tolerance')) return Promise.resolve({ abs: 0.1, pct: 0 } as never);
     return Promise.resolve([] as never);
   });
-  fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+  fetchSpy = makeFetchSpy().mockResolvedValue(
     new Response('a,b\n1,2\n', { status: 200, headers: { 'Content-Type': 'text/csv' } }),
   );
   globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock');
