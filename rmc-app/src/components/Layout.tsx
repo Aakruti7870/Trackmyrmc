@@ -360,6 +360,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div style={{
         display: 'none', background: 'var(--header-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
         borderBottom: '1px solid var(--line)', padding: '12px 16px',
+        paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
         alignItems: 'center', justifyContent: 'space-between',
         position: 'sticky', top: 0, zIndex: 50,
       }} id="mobile-header">
@@ -406,6 +407,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
           backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
           borderRight: '1px solid var(--line)', padding: '18px 14px',
+          paddingTop: 'calc(18px + env(safe-area-inset-top, 0px))',
           paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
           display: 'flex', flexDirection: 'column',
           overflowY: 'auto', WebkitOverflowScrolling: 'touch',

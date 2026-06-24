@@ -69,9 +69,11 @@
   .ck-contact-grid { grid-template-columns: 1fr !important; }
 }
 /* Mobile navigation: collapse the inline nav into a hamburger menu so every
-   tab (Why Us / Live Feed / Contact / Login / Get Started) stays reachable. */
+   tab (Why Us / Live Feed / Contact / Login / Get Started) stays reachable.
+   Collapse at 980px (same point the hero stacks) so tablets in portrait don't
+   clip the full inline nav off the right edge. */
 .ck-nav-toggle { display: none; }
-@media (max-width: 720px) {
+@media (max-width: 980px) {
   .ck-nav-desktop { display: none !important; }
   .ck-nav-toggle { display: grid !important; }
 }

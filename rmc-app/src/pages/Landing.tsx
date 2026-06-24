@@ -267,6 +267,7 @@ export default function Landing() {
     <div className="ck" id="top" style={{ minHeight: '100vh', background: 'var(--bg)', overflowX: 'hidden' }}>
       {/* NAV */}
       <header style={{ position: 'sticky', top: 0, zIndex: 30,
+        paddingTop: 'env(safe-area-inset-top, 0px)',
         background: 'rgba(255,255,255,.72)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--line)' }}>
         <div style={{ ...section, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 74 }}>
           <button onClick={() => { setMenuOpen(false); scrollTo('top'); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
