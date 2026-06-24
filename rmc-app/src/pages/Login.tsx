@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
 import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft, ChevronDown, Hash, Users } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
-import logoCk from '@/assets/logo-ck.png';
+import logoCk from '@/assets/logo-king.png';
 import InstallAppButton from '@/components/InstallAppButton';
 import { clerkEnabled } from '@/lib/clerk';
 import { defaultPath } from '@/lib/permissions';

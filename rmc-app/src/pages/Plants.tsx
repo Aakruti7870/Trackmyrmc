@@ -7,6 +7,18 @@ import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 import BulkImportPanel from '@/components/BulkImportPanel';
 
 type PlantStatus = 'pending' | 'approved' | 'rejected';
+type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';
+type SubscriptionPlan = 'free' | 'basic' | 'pro' | 'enterprise';
+
+const SUBSCRIPTION_STATUS_OPTIONS: SubscriptionStatus[] = ['trial', 'active', 'past_due', 'suspended', 'cancelled'];
+const SUBSCRIPTION_PLAN_OPTIONS: SubscriptionPlan[] = ['free', 'basic', 'pro', 'enterprise'];
+const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  trial: 'Trial', active: 'Active', past_due: 'Past due', suspended: 'Suspended', cancelled: 'Cancelled',
+};
+// Colour for the billing chip: green=healthy, amber=attention, red=blocked.
+const SUBSCRIPTION_STATUS_COLOR: Record<SubscriptionStatus, string> = {
+  trial: 'var(--blue)', active: 'var(--green)', past_due: '#f59e0b', suspended: '#ef4444', cancelled: '#ef4444',
+};
 
 interface Plant {
   id: number;
@@ -20,6 +32,8 @@ interface Plant {
   latitude: string;
   longitude: string;
   plantStatus: PlantStatus;
+  subscriptionStatus: SubscriptionStatus;
+  subscriptionPlan: SubscriptionPlan;
   isActive: boolean;
   locationVerified: boolean;
   verified: boolean;
@@ -80,6 +94,8 @@ interface FormState {
   // Persisted on the plant for de-duplication on the server.
   placeId: string;
   plantStatus: PlantStatus;
+  subscriptionStatus: SubscriptionStatus;
+  subscriptionPlan: SubscriptionPlan;
   isActive: boolean; locationVerified: boolean; verified: boolean; deliveryRadiusKm: number;
   grades: string[]; openTime: string; closeTime: string;
 }
@@ -87,7 +103,8 @@ interface FormState {
 const emptyForm: FormState = {
   name: '', legalName: '', gstNo: '', email: '', address: '', city: '', contactNumber: '', latitude: '', longitude: '',
   placeId: '',
-  plantStatus: 'pending', isActive: true, locationVerified: false, verified: false, deliveryRadiusKm: 25,
+  plantStatus: 'pending', subscriptionStatus: 'trial', subscriptionPlan: 'free',
+  isActive: true, locationVerified: false, verified: false, deliveryRadiusKm: 25,
   grades: [], openTime: '06:00', closeTime: '20:00',
 };
 
@@ -312,6 +329,7 @@ export default function Plants() {
       latitude: p.latitude, longitude: p.longitude,
       placeId: (p as Plant & { placeId?: string }).placeId ?? '',
       plantStatus: p.plantStatus,
+      subscriptionStatus: p.subscriptionStatus ?? 'trial', subscriptionPlan: p.subscriptionPlan ?? 'free',
       isActive: p.isActive, locationVerified: p.locationVerified, verified: p.verified, deliveryRadiusKm: p.deliveryRadiusKm,
       grades: p.grades, openTime: p.openTime ?? '', closeTime: p.closeTime ?? '',
     });
@@ -689,6 +707,14 @@ export default function Plants() {
                     <option value="approved">Approved</option>
                     <option value="rejected">Rejected</option>
                   </select>
+                  <select
+                    value={p.subscriptionStatus ?? 'trial'}
+                    onChange={e => patch(p, { subscriptionStatus: e.target.value as SubscriptionStatus })}
+                    title="Billing status"
+                    style={pill(SUBSCRIPTION_STATUS_COLOR[p.subscriptionStatus ?? 'trial'])}
+                  >
+                    {SUBSCRIPTION_STATUS_OPTIONS.map(s => <option key={s} value={s}>{SUBSCRIPTION_STATUS_LABELS[s]}</option>)}
+                  </select>
                   <button onClick={() => patch(p, { isActive: !p.isActive })} title="Toggle active" style={chip(p.isActive, 'var(--blue)')}>
                     <Power size={13} /> {p.isActive ? 'Active' : 'Inactive'}
                   </button>
@@ -883,6 +909,16 @@ export default function Plants() {
                     <option value="pending">Pending</option>
                     <option value="approved">Approved</option>
                     <option value="rejected">Rejected</option>
+                  </select>
+                </Field>
+                <Field label="Billing status">
+                  <select value={form.subscriptionStatus} onChange={e => setForm(f => ({ ...f, subscriptionStatus: e.target.value as SubscriptionStatus }))} style={input}>
+                    {SUBSCRIPTION_STATUS_OPTIONS.map(s => <option key={s} value={s}>{SUBSCRIPTION_STATUS_LABELS[s]}</option>)}
+                  </select>
+                </Field>
+                <Field label="Plan">
+                  <select value={form.subscriptionPlan} onChange={e => setForm(f => ({ ...f, subscriptionPlan: e.target.value as SubscriptionPlan }))} style={input}>
+                    {SUBSCRIPTION_PLAN_OPTIONS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
                   </select>
                 </Field>
                 <label style={checkRow}><input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} /> Active</label>

@@ -17,6 +17,11 @@ export const vehicleStatusEnum = pgEnum('vehicle_status', ['active', 'maintenanc
 export const ledgerTypeEnum = pgEnum('ledger_type', ['debit', 'credit']);
 export const recurringFrequencyEnum = pgEnum('recurring_frequency', ['weekly', 'monthly']);
 export const plantStatusEnum = pgEnum('plant_status', ['pending', 'approved', 'rejected']);
+// Billing lifecycle for a plant's platform subscription. `trial`/`active` allow
+// normal login; `past_due` still logs in (a soft warning, grace period);
+// `suspended`/`cancelled` block plant-scoped staff at login (defence in depth).
+export const subscriptionStatusEnum = pgEnum('subscription_status', ['trial', 'active', 'past_due', 'suspended', 'cancelled']);
+export const subscriptionPlanEnum = pgEnum('subscription_plan', ['free', 'basic', 'pro', 'enterprise']);
 
 export const clients = pgTable('clients', {
   id: serial('id').primaryKey(),
@@ -397,6 +402,10 @@ export const plants = pgTable('plants', {
   latitude: decimal('latitude', { precision: 10, scale: 7 }).notNull(),
   longitude: decimal('longitude', { precision: 10, scale: 7 }).notNull(),
   plantStatus: plantStatusEnum('plant_status').notNull().default('pending'),
+  // Platform billing lifecycle. New plants start on a trial; staff move them
+  // through active/past_due/suspended/cancelled from the admin plant editor.
+  subscriptionStatus: subscriptionStatusEnum('subscription_status').notNull().default('trial'),
+  subscriptionPlan: subscriptionPlanEnum('subscription_plan').notNull().default('free'),
   isActive: boolean('is_active').notNull().default(true),
   locationVerified: boolean('location_verified').notNull().default(false),
   // Partner verification, distinct from locationVerified (which only attests the

@@ -15,6 +15,7 @@ import { peekInviteToken, redeemInviteToken, createInviteToken } from '../lib/in
 import { sendPasswordResetEmail } from '../lib/email.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { normalizePhone, isOtpProviderConfigured, sendOtp, verifyOtp } from '../lib/otp.js';
+import { isSubscriptionBlocking, subscriptionBlockMessage, type SubscriptionStatus } from '../lib/subscription.js';
 
 const router = Router();
 
@@ -77,6 +78,24 @@ router.post('/login', async (req, res) => {
   if (user.role === 'authority' && !isAuthorityEmail(user.email)) {
     res.status(403).json({ error: 'This account is not on the AUTHORITY allow-list.' });
     return;
+  }
+
+  // Billing gate: a plant-scoped staff account cannot sign in while its plant's
+  // subscription is suspended or cancelled. Platform staff (plantId === null)
+  // are never gated. trial/active/past_due all pass.
+  if (user.plantId) {
+    const [plant] = await db
+      .select({ status: plants.subscriptionStatus })
+      .from(plants)
+      .where(eq(plants.id, user.plantId));
+    if (plant && isSubscriptionBlocking(plant.status)) {
+      await resetAttempts(lockoutKey);
+      res.status(403).json({
+        error: subscriptionBlockMessage(plant.status as SubscriptionStatus),
+        subscriptionBlocked: true,
+      });
+      return;
+    }
   }
 
   // Optional Plant ID: when staff supply their plant code, it must match the

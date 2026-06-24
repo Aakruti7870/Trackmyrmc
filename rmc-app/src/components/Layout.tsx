@@ -17,7 +17,7 @@ import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
 import AIHelpAgent from '@/components/ai/AIHelpAgent';
 import InstallAppButton from '@/components/InstallAppButton';
-import logoCk from '@/assets/logo-ck.png';
+import logoCk from '@/assets/logo-king.png';
 
 const ALL_NAV_ITEMS = [
   { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },

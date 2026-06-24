@@ -36,6 +36,24 @@ const NIGHT_SURFACES = {
   '--sheen': 'rgba(255,255,255,.04)',
 };
 
+/* King (black & metallic gold) chrome kit — premium dark with gold-tinted edges. */
+const KING_SURFACES = {
+  '--shadow-rgb': '0,0,0',
+  '--glass-1': 'color-mix(in srgb, var(--surface) 90%, transparent)',
+  '--glass-2': 'color-mix(in srgb, var(--bg-deep) 94%, transparent)',
+  '--glass-border': 'rgba(212,175,55,.20)',
+  '--glass-hi': 'rgba(255,255,255,.05)',
+  '--glass-blur': 'blur(3px)',
+  '--sidebar-1': 'rgba(12,15,22,.98)',
+  '--sidebar-2': 'rgba(6,8,13,.98)',
+  '--header-bg': 'rgba(10,13,19,.97)',
+  '--menu-bg': 'rgba(16,20,29,.98)',
+  '--menu-hover': 'rgba(212,175,55,.12)',
+  '--overlay': 'rgba(2,3,6,.68)',
+  '--chip-bg': 'rgba(212,175,55,.07)',
+  '--sheen': 'rgba(255,255,255,.04)',
+};
+
 /* Day (white & teal) chrome kit. */
 const DAY_SURFACES = {
   '--shadow-rgb': '18,64,58',
@@ -55,7 +73,24 @@ const DAY_SURFACES = {
 };
 
 export const THEMES: Theme[] = [
-  /* ===== Day — clean white & teal (DEFAULT) ===== */
+  /* ===== King — black & metallic gold (DEFAULT) ===== */
+  {
+    id: 'king',
+    name: 'King',
+    tagline: 'Premium · black & gold',
+    fontName: 'Sora',
+    font: "'Sora', system-ui, -apple-system, sans-serif",
+    tokens: {
+      '--bg-top': '#0e131c', '--bg': '#090d14', '--bg-deep': '#05080d',
+      '--panel': '#10151f', '--panel2': '#141b27', '--surface': '#161d2a', '--line': 'rgba(212,175,55,0.16)',
+      '--text': '#f4efe2', '--muted': '#94a0b0',
+      '--gold-hi': '#f3d87a', '--gold-mid': '#e0b84b', '--gold': '#d4af37', '--gold-dark': '#a9821a',
+      '--glow-1': 'rgba(212,175,55,.22)', '--glow-2': 'rgba(212,175,55,.08)',
+      ...SEMANTIC,
+      ...KING_SURFACES,
+    },
+  },
+  /* ===== Day — clean white & teal ===== */
   {
     id: 'day',
     name: 'Day',
@@ -94,7 +129,7 @@ export const THEMES: Theme[] = [
   },
 ];
 
-const STORAGE_KEY = 'rmc-theme';
+const STORAGE_KEY = 'rmc-theme-v2';
 
 const FONT_URLS: Record<string, string> = {
   'Sora': 'https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap',

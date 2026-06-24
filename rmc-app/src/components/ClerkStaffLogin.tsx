@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { SignInButton, useAuth as useClerkAuth, useClerk } from '@clerk/clerk-react';
-import { Crown } from 'lucide-react';
+import logoKing from '@/assets/logo-king.png';
 import { api, ApiError, type User } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { defaultPath } from '@/lib/permissions';
@@ -49,16 +49,16 @@ export default function ClerkStaffLogin({ onError }: { onError: (msg: string) =>
   return (
     <div style={{ marginTop: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 16px' }}>
-        <div style={{ flex: 1, height: 1, background: 'rgba(18,64,58,.12)' }} />
+        <div style={{ flex: 1, height: 1, background: 'var(--line, rgba(212,175,55,.16))' }} />
         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>
           Staff
         </span>
-        <div style={{ flex: 1, height: 1, background: 'rgba(18,64,58,.12)' }} />
+        <div style={{ flex: 1, height: 1, background: 'var(--line, rgba(212,175,55,.16))' }} />
       </div>
 
       <SignInButton mode="modal" fallbackRedirectUrl="/login">
         <button type="button" disabled={exchanging} className="crown-sso-btn">
-          <Crown size={18} />
+          <img src={logoKing} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} />
           {exchanging ? 'Signing in…' : 'Staff Sign-In'}
         </button>
       </SignInButton>

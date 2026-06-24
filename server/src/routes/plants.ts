@@ -20,6 +20,10 @@ import { canCreateRole, roleLimit, isPlatformStaff } from '../lib/roleHierarchy.
 import { extractDocumentFields, isGeminiConfigured } from '../lib/gemini.js';
 import { ObjectStorageService } from '../replit_integrations/object_storage/index.js';
 import { parseCsv } from '../lib/csv.js';
+import {
+  SUBSCRIPTION_STATUSES, SUBSCRIPTION_PLANS,
+  type SubscriptionStatus, type SubscriptionPlan,
+} from '../lib/subscription.js';
 
 // Build the public base URL the owner-invite link points at. Prefers an
 // explicit env override (so emails work behind a custom domain in production),
@@ -603,6 +607,12 @@ function parseBody(body: Record<string, unknown>) {
   if (body.longitude !== undefined) out.longitude = String(body.longitude);
   if (body.placeId !== undefined) out.placeId = optStr(body.placeId);
   if (body.plantStatus !== undefined) out.plantStatus = body.plantStatus;
+  if (body.subscriptionStatus !== undefined && SUBSCRIPTION_STATUSES.includes(body.subscriptionStatus as SubscriptionStatus)) {
+    out.subscriptionStatus = body.subscriptionStatus;
+  }
+  if (body.subscriptionPlan !== undefined && SUBSCRIPTION_PLANS.includes(body.subscriptionPlan as SubscriptionPlan)) {
+    out.subscriptionPlan = body.subscriptionPlan;
+  }
   if (body.isActive !== undefined) out.isActive = Boolean(body.isActive);
   if (body.locationVerified !== undefined) out.locationVerified = Boolean(body.locationVerified);
   if (body.verified !== undefined) out.verified = Boolean(body.verified);

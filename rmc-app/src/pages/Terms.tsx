@@ -1,5 +1,6 @@
 import { useLocation } from 'wouter';
-import { Crown, ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
+import logoKing from '@/assets/logo-king.png';
 import { SUPPORT_EMAIL, SUPPORT_PHONE } from '@/lib/brand';
 
 const UPDATED = 'June 24, 2026';
@@ -31,12 +32,12 @@ export default function Terms() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
-              width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center',
-              background: 'rgba(255,255,255,.6)',
-              border: '1px solid rgba(23,138,110,.4)',
-              boxShadow: '0 0 24px -8px rgba(23,138,110,.6)',
+              width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center', overflow: 'hidden',
+              background: 'linear-gradient(160deg, #11151f, #07090e)',
+              border: '1px solid var(--glass-border, rgba(212,175,55,.2))',
+              boxShadow: '0 0 24px -8px var(--glow-1, rgba(212,175,55,.5))',
             }}>
-              <Crown size={24} color="var(--gold, #178a6e)" strokeWidth={2.2} fill="rgba(23,138,110,.18)" />
+              <img src={logoKing} alt="CONCRETE KING" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div style={{ lineHeight: 1 }}>
               <div style={{ fontWeight: 800, letterSpacing: 0.5, fontSize: 18 }}>
@@ -64,9 +65,9 @@ export default function Terms() {
         {/* title card */}
         <div style={{
           marginTop: 14, padding: '30px 30px', borderRadius: 20,
-          background: 'rgba(255,255,255,.78)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255,255,255,.85)',
-          boxShadow: '0 30px 70px -40px rgba(18,64,58,.28)',
+          background: 'linear-gradient(160deg, rgba(22,29,42,.9), rgba(16,21,31,.8))', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+          border: '1px solid var(--line)',
+          boxShadow: '0 30px 70px -40px rgba(0,0,0,.6)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <FileText size={28} color="var(--gold, #178a6e)" />
