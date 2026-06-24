@@ -56,3 +56,4 @@
 - [RMC Capacitor Android](rmc-capacitor-android.md) — native/web split is env-driven (VITE_API_BASE_URL + VITE_DISABLE_PWA, default empty = web unchanged); Capacitor pinned v7 for Node 20; sharp must be a direct devDep.
 - [RMC web push](rmc-web-push.md) — order/delivery alerts via email+VAPID web push (SW importScripts); unsubscribe MUST scope deleteSubscription by userId (endpoint-only = IDOR).
 - [RMC password reset vs invite](rmc-password-reset.md) — reset shares invite token table via a `kind` col; reset link origin must be config-only (not Host header) & reset must NOT reactivate suspended accounts.
+- [RMC plant-owner onboarding](rmc-partner-onboarding.md) — owners self-request via public /plants/partner-request into the plantInvites lead queue (approve-first, synthetic partner:<hex> placeId); 3 landing doors (customer/?staff=1/partner); Back-to-home on every public auth page.

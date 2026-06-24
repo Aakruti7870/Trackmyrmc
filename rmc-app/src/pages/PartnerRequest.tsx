@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { api, type User as AuthUser } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
-import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle, User, Phone, MapPin, FileText, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { api } from '@/lib/api';
+import { Building2, User, Phone, Mail, MapPin, FileText, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 
@@ -29,17 +28,15 @@ function Field({ icon, label, children }: { icon: React.ReactNode; label: string
   );
 }
 
-export default function Register() {
+export default function PartnerRequest() {
   const [, setLoc] = useLocation();
-  const { updateUser } = useAuth();
-  const [name, setName] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [email, setEmail] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [plantName, setPlantName] = useState('');
   const [phone, setPhone] = useState('');
-  const [gstNo, setGstNo] = useState('');
+  const [email, setEmail] = useState('');
   const [city, setCity] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
+  const [address, setAddress] = useState('');
+  const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -49,16 +46,16 @@ export default function Register() {
     setError('');
     setLoading(true);
     try {
-      const res = await api.post<{ token: string; user: AuthUser }>(
-        '/auth/register', { name, companyName, email, phone, gstNo, city, password },
-      );
-      // Log the customer in immediately. Setting the user makes RegisterRoute
-      // redirect to their default screen (nearby-plant discovery), so they can
-      // find an approved plant near them and place an order right away.
-      updateUser(res.user, res.token);
+      await api.post('/plants/partner-request', {
+        ownerName, plantName, phone,
+        email: email || undefined,
+        city: city || undefined,
+        address: address || undefined,
+        note: note || undefined,
+      });
       setDone(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      setError(err instanceof Error ? err.message : 'Could not submit your request');
     } finally {
       setLoading(false);
     }
@@ -73,10 +70,10 @@ export default function Register() {
       padding: 20, paddingTop: 'calc(20px + env(safe-area-inset-top, 0px))', fontFamily: 'var(--font-app)',
     }}>
       <div style={{
-        width: '100%', maxWidth: 520,
+        width: '100%', maxWidth: 540,
         background: 'linear-gradient(135deg, rgba(255,255,255,.82), rgba(255,255,255,.62))',
         border: '1px solid rgba(255,255,255,.85)',
-        borderRadius: 20, padding: '36px 32px',
+        borderRadius: 20, padding: '32px 32px 36px',
         backdropFilter: 'blur(12px)',
         boxShadow: '0 30px 70px -30px rgba(30,41,90,.28)',
       }}>
@@ -87,21 +84,21 @@ export default function Register() {
         }}>
           <ArrowLeft size={15} /> Back to home
         </button>
-        <button onClick={() => setLoc('/')} style={{
-          display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24,
-          background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
-        }}>
-          <div style={{
-            width: 46, height: 46, borderRadius: 14,
-            background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
-            display: 'grid', placeItems: 'center',
-            boxShadow: '0 8px 24px color-mix(in srgb, var(--gold) 30%, transparent)',
-          }}>
-            <Building2 size={22} color="#111" />
-          </div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>{PLATFORM_NAME}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>{PLATFORM_TAGLINE}</div>
+
+        <button onClick={() => setLoc('/')} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'block', width: '100%', textAlign: 'left' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <div style={{
+              width: 46, height: 46, borderRadius: 14,
+              background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+              display: 'grid', placeItems: 'center',
+              boxShadow: '0 8px 24px color-mix(in srgb, var(--gold) 30%, transparent)',
+            }}>
+              <Building2 size={22} color="#111" />
+            </div>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>{PLATFORM_NAME}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>{PLATFORM_TAGLINE}</div>
+            </div>
           </div>
         </button>
 
@@ -115,69 +112,57 @@ export default function Register() {
             }}>
               <CheckCircle2 size={28} style={{ color: 'var(--green)' }} />
             </div>
-            <h2 style={{ margin: '0 0 10px', fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Account created</h2>
+            <h2 style={{ margin: '0 0 10px', fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Request received</h2>
             <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>
-              You're all set — let's use your location to find approved RMC plants near you.
+              Thanks! Our team will review your plant details and reach out to verify
+              and set up your account. This usually takes 1–2 working days.
             </p>
-            <button onClick={() => setLoc('/nearby-plants')} style={{
+            <button onClick={() => setLoc('/')} style={{
               padding: '11px 24px', borderRadius: 12, border: 'none', cursor: 'pointer',
               background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
               color: '#111827', fontWeight: 800, fontSize: 14,
             }}>
-              Go to my dashboard
+              Back to home
             </button>
           </div>
         ) : (
           <>
-            <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Create your account</h2>
-            <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 13 }}>
-              Register your company and start ordering ready-mix concrete right away — no waiting for approval.
+            <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Register your plant</h2>
+            <p style={{ margin: '0 0 24px', color: 'var(--muted)', fontSize: 13, lineHeight: 1.5 }}>
+              Own an RMC plant? Tell us about it. Our team verifies every plant before
+              it goes live, so customers only ever see approved partners.
             </p>
 
             <form onSubmit={handleSubmit}>
               <Field icon={<User size={15} style={{ color: 'var(--muted)' }} />} label="Your Name">
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name" required style={inputStyle} />
+                <input type="text" value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Owner / contact person" required style={inputStyle} />
               </Field>
 
-              <Field icon={<Building2 size={15} style={{ color: 'var(--muted)' }} />} label="Company Name">
-                <input type="text" value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Your company / firm" required style={inputStyle} />
-              </Field>
-
-              <Field icon={<Mail size={15} style={{ color: 'var(--muted)' }} />} label="Email Address">
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" required style={inputStyle} />
+              <Field icon={<Building2 size={15} style={{ color: 'var(--muted)' }} />} label="Plant / Company Name">
+                <input type="text" value={plantName} onChange={e => setPlantName(e.target.value)} placeholder="Your RMC plant or firm" required style={inputStyle} />
               </Field>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Field icon={<Phone size={15} style={{ color: 'var(--muted)' }} />} label="Phone">
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Mobile number" required style={inputStyle} />
                 </Field>
-                <Field icon={<MapPin size={15} style={{ color: 'var(--muted)' }} />} label="City (optional)">
-                  <input type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="City" style={inputStyle} />
+                <Field icon={<Mail size={15} style={{ color: 'var(--muted)' }} />} label="Email (optional)">
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@plant.com" style={inputStyle} />
                 </Field>
               </div>
 
-              <Field icon={<FileText size={15} style={{ color: 'var(--muted)' }} />} label="GST Number (optional)">
-                <input type="text" value={gstNo} onChange={e => setGstNo(e.target.value)} placeholder="GSTIN" style={inputStyle} />
-              </Field>
-
-              <div style={{ marginBottom: 20 }}>
-                <label style={labelStyle}>Password</label>
-                <div style={{ position: 'relative' }}>
-                  <Lock size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                  <input
-                    type={showPw ? 'text' : 'password'} value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="At least 8 characters" required minLength={8}
-                    style={{ ...inputStyle, padding: '11px 40px 11px 38px' }}
-                  />
-                  <button type="button" onClick={() => setShowPw(s => !s)} style={{
-                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                  }}>
-                    {showPw ? <EyeOff size={15} style={{ color: 'var(--muted)' }} /> : <Eye size={15} style={{ color: 'var(--muted)' }} />}
-                  </button>
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <Field icon={<MapPin size={15} style={{ color: 'var(--muted)' }} />} label="City (optional)">
+                  <input type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="City" style={inputStyle} />
+                </Field>
+                <Field icon={<MapPin size={15} style={{ color: 'var(--muted)' }} />} label="Address (optional)">
+                  <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Plant location" style={inputStyle} />
+                </Field>
               </div>
+
+              <Field icon={<FileText size={15} style={{ color: 'var(--muted)' }} />} label="Anything else? (optional)">
+                <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Capacity, grades, etc." style={inputStyle} />
+              </Field>
 
               {error && (
                 <div style={{
@@ -198,27 +183,17 @@ export default function Register() {
                 cursor: loading ? 'not-allowed' : 'pointer', border: 'none',
                 transition: 'all .15s',
               }}>
-                {loading ? 'Submitting...' : 'Create Account →'}
+                {loading ? 'Submitting...' : 'Submit for review →'}
               </button>
             </form>
 
             <div style={{ marginTop: 18, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
-              Already have an account?{' '}
-              <button type="button" onClick={() => setLoc('/login')} style={{
+              Already a partner?{' '}
+              <button type="button" onClick={() => setLoc('/login?staff=1')} style={{
                 background: 'none', border: 'none', padding: 0, cursor: 'pointer',
                 color: 'var(--gold)', fontWeight: 700, fontSize: 13, textDecoration: 'underline',
               }}>
-                Sign in
-              </button>
-            </div>
-
-            <div style={{ marginTop: 10, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
-              Are you a plant owner?{' '}
-              <button type="button" onClick={() => setLoc('/partner')} style={{
-                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                color: 'var(--gold)', fontWeight: 700, fontSize: 13, textDecoration: 'underline',
-              }}>
-                Register your plant
+                Staff sign in
               </button>
             </div>
           </>

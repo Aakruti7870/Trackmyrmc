@@ -276,65 +276,114 @@ router.post('/invite', async (req, res) => {
     // sit watching the Onboarding-requests tab. Repeat/de-duplicated requests are
     // intentionally silent to avoid spam. Fire-and-forget AFTER responding so a
     // slow SMTP server never delays the customer's request.
-    if (!deduped) {
-        void (async () => {
-            // Resolve the configured audience once. On any failure fall back to the
-            // built-in defaults so the in-app toast still reaches admins.
-            let notifyCfg;
-            try {
-                notifyCfg = await getPlantInviteNotifyConfig();
-            }
-            catch (err) {
-                console.error('[plants] Failed to load plant-request notification config:', err);
-                notifyCfg = {
-                    emailEnabled: DEFAULT_PLANT_INVITE_EMAIL_ENABLED,
-                    roles: DEFAULT_PLANT_INVITE_NOTIFY_ROLES,
-                    recipients: [],
-                };
-            }
-            // In-app SSE toast, scoped to the chosen staff roles. When no roles are
-            // selected we still alert admins + authority so the in-app heads-up is
-            // never silently lost (the `authority` super-admin is outside STAFF_ROLES,
-            // hence an explicit allow-list either way).
-            const toastRoles = notifyCfg.roles.length > 0 ? notifyCfg.roles : DEFAULT_PLANT_INVITE_NOTIFY_ROLES;
-            emitSSEEvent('plant.invite', {
-                id: row.id,
-                name: row.name,
-                address: row.address,
-                requestedByName: row.lastRequestedByName,
-            }, { roles: toastRoles });
-            // The toast above always fires (cheap, non-intrusive). The email is
-            // opt-out via an admin setting; its audience = active users in the chosen
-            // roles PLUS any explicit extra recipient mailboxes.
-            try {
-                if (!notifyCfg.emailEnabled)
-                    return;
-                const emails = new Set();
-                for (const e of notifyCfg.recipients)
-                    emails.add(e);
-                if (notifyCfg.roles.length > 0) {
-                    const staff = await db
-                        .select({ email: users.email })
-                        .from(users)
-                        .where(and(isNull(users.deletedAt), eq(users.isActive, true), inArray(users.role, notifyCfg.roles)));
-                    for (const s of staff)
-                        if (s.email)
-                            emails.add(s.email);
-                }
-                if (emails.size > 0) {
-                    await sendPlantInviteNotification([...emails], {
-                        plantName: row.name,
-                        address: row.address,
-                        contactNumber: row.contactNumber,
-                        requestedByName: row.lastRequestedByName,
-                    });
-                }
-            }
-            catch (err) {
-                console.error('[plants] Failed to notify admins of a new plant request:', err);
-            }
-        })();
+    if (!deduped)
+        void notifyNewPlantRequest(row);
+});
+// Shared admin alert for a brand-new plant request — whether a signed-in
+// customer asking us to chase a plant they found (/invite) or a plant owner
+// volunteering their own plant (/partner-request). Fire-and-forget AFTER the
+// response so a slow SMTP server never delays the caller.
+async function notifyNewPlantRequest(row) {
+    // Resolve the configured audience once. On any failure fall back to the
+    // built-in defaults so the in-app toast still reaches admins.
+    let notifyCfg;
+    try {
+        notifyCfg = await getPlantInviteNotifyConfig();
     }
+    catch (err) {
+        console.error('[plants] Failed to load plant-request notification config:', err);
+        notifyCfg = {
+            emailEnabled: DEFAULT_PLANT_INVITE_EMAIL_ENABLED,
+            roles: DEFAULT_PLANT_INVITE_NOTIFY_ROLES,
+            recipients: [],
+        };
+    }
+    // In-app SSE toast, scoped to the chosen staff roles. When no roles are
+    // selected we still alert admins + authority so the in-app heads-up is never
+    // silently lost (the `authority` super-admin is outside STAFF_ROLES, hence an
+    // explicit allow-list either way).
+    const toastRoles = notifyCfg.roles.length > 0 ? notifyCfg.roles : DEFAULT_PLANT_INVITE_NOTIFY_ROLES;
+    emitSSEEvent('plant.invite', {
+        id: row.id,
+        name: row.name,
+        address: row.address,
+        requestedByName: row.lastRequestedByName,
+    }, { roles: toastRoles });
+    // The toast above always fires (cheap, non-intrusive). The email is opt-out
+    // via an admin setting; its audience = active users in the chosen roles PLUS
+    // any explicit extra recipient mailboxes.
+    try {
+        if (!notifyCfg.emailEnabled)
+            return;
+        const emails = new Set();
+        for (const e of notifyCfg.recipients)
+            emails.add(e);
+        if (notifyCfg.roles.length > 0) {
+            const staff = await db
+                .select({ email: users.email })
+                .from(users)
+                .where(and(isNull(users.deletedAt), eq(users.isActive, true), inArray(users.role, notifyCfg.roles)));
+            for (const s of staff)
+                if (s.email)
+                    emails.add(s.email);
+        }
+        if (emails.size > 0) {
+            await sendPlantInviteNotification([...emails], {
+                plantName: row.name,
+                address: row.address,
+                contactNumber: row.contactNumber,
+                requestedByName: row.lastRequestedByName,
+            });
+        }
+    }
+    catch (err) {
+        console.error('[plants] Failed to notify admins of a new plant request:', err);
+    }
+}
+// Public: a plant OWNER volunteers their own plant for partnership review.
+// Unlike /invite this carries no Google placeId, so we mint a synthetic one per
+// submission. The lead lands in the same staff onboarding queue as a pending,
+// unverified entry — approve-first: staff verify & provision the owner login
+// before the plant ever becomes visible to customers.
+const partnerRequestLimiter = rateLimit({ windowMs: 60_000, max: 5, name: 'partner-request' });
+const partnerRequestSchema = z.object({
+    ownerName: z.string().trim().min(1, 'Your name is required').max(120),
+    plantName: z.string().trim().min(1, 'Plant / company name is required').max(160),
+    phone: z.string().trim().min(5, 'A contact number is required').max(40),
+    email: z.string().trim().email('Enter a valid email').max(160).optional().or(z.literal('')),
+    city: z.string().trim().max(120).optional(),
+    address: z.string().trim().max(400).optional(),
+    note: z.string().trim().max(1000).optional(),
+});
+router.post('/partner-request', partnerRequestLimiter, async (req, res) => {
+    const parse = partnerRequestSchema.safeParse(req.body ?? {});
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.flatten().fieldErrors });
+        return;
+    }
+    const { ownerName, plantName, phone, email, city, address, note } = parse.data;
+    // Fold the free-text bits into the single address line staff read in the queue
+    // (the leads table has no dedicated city/note columns).
+    const addressParts = [address, city, note ? `Note: ${note}` : null].filter(Boolean);
+    const fullAddress = addressParts.length ? addressParts.join(' \u00b7 ') : null;
+    const contactNumber = email ? `${phone} \u00b7 ${email}` : phone;
+    const requestedByName = `${ownerName} (plant owner)`;
+    const placeId = `partner:${randomBytes(8).toString('hex')}`;
+    const [row] = await db
+        .insert(plantInvites)
+        .values({
+        placeId,
+        name: plantName,
+        address: fullAddress,
+        contactNumber,
+        requestCount: 1,
+        status: 'pending',
+        firstRequestedByName: requestedByName,
+        lastRequestedByName: requestedByName,
+    })
+        .returning();
+    res.status(201).json({ ok: true, id: row.id });
+    void notifyNewPlantRequest(row);
 });
 // Staff-only: the queue of submitted invites, most-requested / most-recent first.
 // ---------------------------------------------------------------------------

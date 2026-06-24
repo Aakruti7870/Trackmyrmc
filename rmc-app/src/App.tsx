@@ -8,6 +8,7 @@ import { ThemeProvider } from '@/lib/theme-providers';
 import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
+import PartnerRequest from '@/pages/PartnerRequest';
 import SetPassword from '@/pages/SetPassword';
 import ForgotPassword from '@/pages/ForgotPassword';
 import Landing from '@/pages/Landing';
@@ -151,6 +152,7 @@ export default function App() {
           <Switch>
             <Route path="/login" component={LoginRoute} />
             <Route path="/register" component={RegisterRoute} />
+            <Route path="/partner" component={PartnerRequest} />
             <Route path="/privacy" component={Privacy} />
             <Route path="/set-password" component={SetPassword} />
             <Route path="/forgot-password" component={ForgotPassword} />

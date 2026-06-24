@@ -275,11 +275,12 @@ export default function Landing() {
           </button>
 
           {/* Desktop nav */}
-          <nav className="ck-nav-desktop" style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+          <nav className="ck-nav-desktop" style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
             <button onClick={() => scrollTo('why')} style={navLink}>Why Us</button>
             <button onClick={() => scrollTo('feed')} style={navLink}>Live Feed</button>
+            <button onClick={() => setLoc('/partner')} style={navLink}>List your plant</button>
             <button onClick={() => scrollTo('contact')} style={navLink}>Contact</button>
-            <button onClick={() => setLoc('/login')} style={{ ...btnGhost, padding: '10px 18px', fontSize: 14 }}>Login</button>
+            <button onClick={() => setLoc('/login?staff=1')} style={{ ...btnGhost, padding: '10px 18px', fontSize: 14 }}>Staff Login</button>
             <button onClick={() => setLoc('/register')} style={{ ...btnGold, padding: '11px 20px', fontSize: 14 }}>Get Started <ArrowRight size={16} /></button>
           </nav>
 
@@ -303,8 +304,9 @@ export default function Landing() {
           <nav className="ck-mobile-menu" style={{ ...section, paddingTop: 6, paddingBottom: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
             <button onClick={() => { setMenuOpen(false); scrollTo('why'); }} style={{ ...navLink, textAlign: 'left', padding: '13px 4px', fontSize: 16, borderBottom: '1px solid var(--line)' }}>Why Us</button>
             <button onClick={() => { setMenuOpen(false); scrollTo('feed'); }} style={{ ...navLink, textAlign: 'left', padding: '13px 4px', fontSize: 16, borderBottom: '1px solid var(--line)' }}>Live Feed</button>
+            <button onClick={() => { setMenuOpen(false); setLoc('/partner'); }} style={{ ...navLink, textAlign: 'left', padding: '13px 4px', fontSize: 16, borderBottom: '1px solid var(--line)' }}>List your plant</button>
             <button onClick={() => { setMenuOpen(false); scrollTo('contact'); }} style={{ ...navLink, textAlign: 'left', padding: '13px 4px', fontSize: 16, borderBottom: '1px solid var(--line)' }}>Contact</button>
-            <button onClick={() => { setMenuOpen(false); setLoc('/login'); }} style={{ ...btnGhost, justifyContent: 'center', marginTop: 10 }}>Login</button>
+            <button onClick={() => { setMenuOpen(false); setLoc('/login?staff=1'); }} style={{ ...btnGhost, justifyContent: 'center', marginTop: 10 }}>Staff Login</button>
             <button onClick={() => { setMenuOpen(false); setLoc('/register'); }} style={{ ...btnGold, justifyContent: 'center' }}>Get Started <ArrowRight size={16} /></button>
           </nav>
         )}

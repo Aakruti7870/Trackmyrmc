@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useLocation } from 'wouter';
+import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
-import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft } from 'lucide-react';
+import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft, ChevronDown } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 import logoCk from '@/assets/logo-ck.png';
 import InstallAppButton from '@/components/InstallAppButton';
@@ -25,10 +25,13 @@ const DEMO = [
 export default function Login() {
   const { login, updateUser } = useAuth();
   const [, setLoc] = useLocation();
+  const search = useSearch();
 
-  // 'phone' is the default — most customers have no email. 'email' is the
-  // collapsible staff / existing-account path.
-  const [mode, setMode] = useState<'phone' | 'email'>('phone');
+  // 'phone' is the default — most customers have no email. Arriving via the
+  // landing "Staff Login" door (/login?staff=1) opens the email path directly.
+  const staffFirst = new URLSearchParams(search).get('staff') != null;
+  const [mode, setMode] = useState<'phone' | 'email'>(staffFirst ? 'email' : 'phone');
+  const [showDemo, setShowDemo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [demoBusy, setDemoBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -123,7 +126,7 @@ export default function Login() {
       backgroundImage: `linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 94%, transparent)), url(${bg})`,
       backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 20, fontFamily: 'var(--font-app)',
+      padding: 20, paddingTop: 'calc(20px + env(safe-area-inset-top, 0px))', fontFamily: 'var(--font-app)',
     }}>
       <div className="ck-login-grid" style={{ width: '100%', maxWidth: 900, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
 
@@ -161,9 +164,15 @@ export default function Login() {
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '1px', marginBottom: 10, textTransform: 'uppercase' }}>
+            <button type="button" onClick={() => setShowDemo(s => !s)} style={{
+              display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+              padding: 0, cursor: 'pointer', marginBottom: 10,
+              fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase',
+            }}>
+              <ChevronDown size={13} style={{ transform: showDemo ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }} />
               Demo Accounts
-            </div>
+            </button>
+            {showDemo && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {DEMO.map(d => (
                 <button key={d.role} type="button" onClick={() => loginDemo(d)} disabled={!!demoBusy} style={{
@@ -180,6 +189,7 @@ export default function Login() {
                 </button>
               ))}
             </div>
+            )}
           </div>
         </div>
 
@@ -191,6 +201,13 @@ export default function Login() {
           backdropFilter: 'blur(12px)',
           boxShadow: '0 30px 70px -30px rgba(30,41,90,.28)',
         }}>
+          <button onClick={() => setLoc('/')} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 18,
+            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+            color: 'var(--muted)', fontSize: 13, fontWeight: 600,
+          }}>
+            <ArrowLeft size={15} /> Back to home
+          </button>
           {mode === 'phone' ? (
             <>
               {clerkEnabled ? (
