@@ -2,6 +2,7 @@ import { Route, Switch, Redirect } from 'wouter';
 import { lazy, Suspense, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth-provider';
+import { ConfigProvider } from '@/lib/config-provider';
 import { useToast } from '@/lib/toast';
 import { ToastProvider } from '@/lib/toast-provider';
 import { ThemeProvider } from '@/lib/theme-providers';
@@ -148,6 +149,7 @@ function RegisterRoute() {
 export default function App() {
   return (
     <ThemeProvider>
+      <ConfigProvider>
       <AuthProvider>
         <ToastProvider>
           <Switch>
@@ -165,6 +167,7 @@ export default function App() {
           </Switch>
         </ToastProvider>
       </AuthProvider>
+      </ConfigProvider>
     </ThemeProvider>
   );
 }

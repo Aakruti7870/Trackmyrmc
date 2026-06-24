@@ -7,6 +7,7 @@ import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 import { notifyChallanStatus } from '../lib/deliveryNotify.js';
 import { plantScope, clientInScope } from '../lib/tenancy.js';
+import { registerUploadedFilesSafe, unregisterUploadedFilesSafe } from '../lib/uploadedFiles.js';
 
 const WRITE_ROLES = ['admin', 'dispatcher'];
 // Roles allowed to read the staff challan surface. Customers are deliberately
@@ -362,6 +363,19 @@ router.put('/:id', async (req, res) => {
       const retained = new Set(storedPhotos);
       const orphaned = previousPhotos.filter(photo => !retained.has(photo));
       await Promise.allSettled(orphaned.map(photo => proofPhotoStore.remove(photo)));
+      // Mirror into the unified file vault (additive bookkeeping). Only register
+      // object-storage entity paths — legacy base64 photos have no object.
+      await unregisterUploadedFilesSafe(orphaned.filter(isObjectStoragePath));
+      await registerUploadedFilesSafe(
+        storedPhotos.filter(isObjectStoragePath).map(photo => ({
+          storagePath: photo,
+          fileType: 'proof_photo' as const,
+          plantId: row.plantId,
+          orderId: row.orderId,
+          challanId,
+          userId: req.user!.id,
+        })),
+      );
     }
     const hasProofPhoto = storedPhotos !== undefined
       ? storedPhotos.length > 0

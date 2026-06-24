@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users, HandHeart, Inbox, Sparkles, Upload, AlertTriangle, CheckCircle2, Copy } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ImportResult } from '@/lib/importCsv';
@@ -41,7 +41,28 @@ interface Plant {
   grades: string[];
   openTime: string | null;
   closeTime: string | null;
+  commissionPct: string | null;
   ownerCount: number;
+}
+
+// Per-plant ₹/m³ rate per concrete grade.
+interface RateCard {
+  id: number;
+  plantId: number;
+  grade: string;
+  ratePerM3: string;
+  effectiveFrom: string | null;
+  notes: string | null;
+  isActive: boolean;
+}
+
+interface VaultFile {
+  id: number;
+  fileType: string;
+  fileName: string | null;
+  storagePath: string;
+  uploadedAt: string;
+  url: string | null;
 }
 
 type OwnerRole = 'plant_owner' | 'admin' | 'supervisor' | 'dispatcher' | 'plant_operator' | 'driver';
@@ -98,6 +119,8 @@ interface FormState {
   subscriptionPlan: SubscriptionPlan;
   isActive: boolean; locationVerified: boolean; verified: boolean; deliveryRadiusKm: number;
   grades: string[]; openTime: string; closeTime: string;
+  // Per-plant commission override (percent). '' = inherit the platform default.
+  commissionPct: string;
 }
 
 const emptyForm: FormState = {
@@ -106,6 +129,7 @@ const emptyForm: FormState = {
   plantStatus: 'pending', subscriptionStatus: 'trial', subscriptionPlan: 'free',
   isActive: true, locationVerified: false, verified: false, deliveryRadiusKm: 25,
   grades: [], openTime: '06:00', closeTime: '20:00',
+  commissionPct: '',
 };
 
 const GST_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
@@ -332,6 +356,7 @@ export default function Plants() {
       subscriptionStatus: p.subscriptionStatus ?? 'trial', subscriptionPlan: p.subscriptionPlan ?? 'free',
       isActive: p.isActive, locationVerified: p.locationVerified, verified: p.verified, deliveryRadiusKm: p.deliveryRadiusKm,
       grades: p.grades, openTime: p.openTime ?? '', closeTime: p.closeTime ?? '',
+      commissionPct: p.commissionPct ?? '',
     });
     setEditId(p.id);
     resetExtractionState();
@@ -921,6 +946,15 @@ export default function Plants() {
                     {SUBSCRIPTION_PLAN_OPTIONS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
                   </select>
                 </Field>
+                <Field label="Commission % (override)">
+                  <input
+                    type="number" min={0} max={100} step={0.01}
+                    value={form.commissionPct}
+                    onChange={e => setForm(f => ({ ...f, commissionPct: e.target.value }))}
+                    placeholder="Platform default"
+                    style={input}
+                  />
+                </Field>
                 <label style={checkRow}><input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} /> Active</label>
                 <label style={checkRow}><input type="checkbox" checked={form.locationVerified} onChange={e => setForm(f => ({ ...f, locationVerified: e.target.checked }))} /> Map pin verified</label>
                 <label style={{ ...checkRow, color: 'var(--green)' }}><input type="checkbox" checked={form.verified} onChange={e => setForm(f => ({ ...f, verified: e.target.checked }))} /> Verified partner (visible to customers)</label>
@@ -936,6 +970,14 @@ export default function Plants() {
                 </div>
               )}
             </div>
+
+            {editId != null && (
+              <RateCardsSection plantId={editId} grades={form.grades} />
+            )}
+
+            {editId != null && (
+              <FilesSection plantId={editId} />
+            )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
               <button type="button" onClick={() => { setShowForm(false); resetExtractionState(); }} style={ghostBtn}>Cancel</button>
@@ -1229,6 +1271,148 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>{label}</span>
       {children}
     </label>
+  );
+}
+
+// Per-plant rate-card editor embedded in the plant form. Loads its own data
+// (the plant id is only available when editing) and manages ₹/m³ per grade.
+function RateCardsSection({ plantId, grades }: { plantId: number; grades: string[] }) {
+  const [cards, setCards] = useState<RateCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [grade, setGrade] = useState('');
+  const [rate, setRate] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Promise-chain loader: state is only set inside async callbacks (never
+  // synchronously in the effect body), satisfying react-hooks purity rules.
+  const refresh = useCallback(() => {
+    return api.get<RateCard[]>(`/plants/${plantId}/rate-cards`)
+      .then(rows => { setCards(rows); setErr(''); })
+      .catch((e: Error) => setErr(e.message || 'Could not load rate cards.'))
+      .finally(() => setLoading(false));
+  }, [plantId]);
+  useEffect(() => { refresh(); }, [refresh]);
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!grade.trim() || rate === '') return;
+    setSaving(true);
+    setErr('');
+    try {
+      await api.post(`/plants/${plantId}/rate-cards`, { grade: grade.trim(), ratePerM3: Number(rate) });
+      setGrade(''); setRate('');
+      await refresh();
+    } catch (e2) {
+      setErr((e2 as Error).message || 'Could not save rate.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(id: number) {
+    setErr('');
+    try {
+      await api.delete(`/plants/${plantId}/rate-cards/${id}`);
+      await refresh();
+    } catch (e2) {
+      setErr((e2 as Error).message || 'Could not delete rate.');
+    }
+  }
+
+  // Suggest grades the plant offers that don't yet have a rate card.
+  const gradeOptions = grades.filter(g => !cards.some(c => c.grade === g));
+
+  return (
+    <div style={{ ...softCard, marginTop: 16 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 7 }}>
+        <BadgeCheck size={15} style={{ color: 'var(--gold)' }} /> Rate card (₹ / m³)
+      </div>
+      {err && <div style={{ fontSize: 12.5, color: 'var(--red)', marginBottom: 8 }}>{err}</div>}
+      {loading ? (
+        <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Loading rates…</div>
+      ) : cards.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>No rates set yet.</div>
+      ) : (
+        <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+          {cards.map(c => (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 10px', borderRadius: 8, background: 'var(--panel)', border: '1px solid var(--line)' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{c.grade}</span>
+              <span style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 'auto' }}>₹{Number(c.ratePerM3).toLocaleString('en-IN')}</span>
+              <button type="button" onClick={() => remove(c.id)} title="Remove rate" style={{ ...iconBtn, padding: 6 }}>
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 130px' }}>
+          <Field label="Grade">
+            <input list={`rc-grades-${plantId}`} value={grade} onChange={e => setGrade(e.target.value)} placeholder="e.g. M-25" style={input} />
+            <datalist id={`rc-grades-${plantId}`}>
+              {gradeOptions.map(g => <option key={g} value={g} />)}
+            </datalist>
+          </Field>
+        </div>
+        <div style={{ flex: '1 1 110px' }}>
+          <Field label="₹ / m³">
+            <input type="number" min={0} step={1} value={rate} onChange={e => setRate(e.target.value)} placeholder="0" style={input} />
+          </Field>
+        </div>
+        <button type="button" onClick={add} disabled={saving || !grade.trim() || rate === ''} style={{ ...ghostBtn, opacity: saving || !grade.trim() || rate === '' ? 0.5 : 1 }}>
+          <Plus size={14} /> {saving ? 'Saving…' : 'Set rate'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Per-plant file vault — read-only listing of proof photos & fuel bills mirrored
+// into the unified uploaded_files registry. Files are registered automatically on
+// upload elsewhere; this is the searchable catalogue for the plant.
+function FilesSection({ plantId }: { plantId: number }) {
+  const [files, setFiles] = useState<VaultFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+
+  const refresh = useCallback(() => {
+    return api.get<VaultFile[]>(`/files/plant/${plantId}`)
+      .then(rows => { setFiles(rows); setErr(''); })
+      .catch((e: Error) => setErr(e.message || 'Could not load files.'))
+      .finally(() => setLoading(false));
+  }, [plantId]);
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const label = (t: string) => t === 'proof_photo' ? 'Proof photo' : t === 'fuel_bill' ? 'Fuel bill' : t;
+
+  return (
+    <div style={{ ...softCard, marginTop: 16 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 7 }}>
+        <Inbox size={15} style={{ color: 'var(--gold)' }} /> File vault ({files.length})
+      </div>
+      {err && <div style={{ fontSize: 12.5, color: 'var(--red)', marginBottom: 8 }}>{err}</div>}
+      {loading ? (
+        <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Loading files…</div>
+      ) : files.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>No files uploaded for this plant yet.</div>
+      ) : (
+        <div style={{ display: 'grid', gap: 6 }}>
+          {files.map(f => (
+            <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 8, background: 'var(--panel)', border: '1px solid var(--line)' }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--gold)', background: 'color-mix(in srgb, var(--gold) 13%, transparent)', borderRadius: 6, padding: '2px 7px' }}>{label(f.fileType)}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--muted)', marginLeft: 'auto' }}>{new Date(f.uploadedAt).toLocaleDateString('en-IN')}</span>
+              {f.url && (
+                <a href={f.url} target="_blank" rel="noreferrer" style={{ ...iconBtn, padding: 6, textDecoration: 'none', display: 'inline-flex' }} title="Open file">
+                  <Upload size={13} style={{ transform: 'rotate(180deg)' }} />
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

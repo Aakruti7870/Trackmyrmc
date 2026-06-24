@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { canAccess, defaultPath, ROLE_ALLOWED_PATHS } from './permissions';
+import { describe, it, expect, afterEach } from 'vitest';
+import { canAccess, defaultPath, ROLE_ALLOWED_PATHS, setPermissionOverrides, allowedPaths } from './permissions';
 
 describe('permissions — AUTHORITY super-role', () => {
   it('authority can reach every admin screen', () => {
@@ -30,5 +30,34 @@ describe('permissions — AUTHORITY super-role', () => {
   it('an unknown role is denied everywhere', () => {
     expect(canAccess('superuser', '/')).toBe(false);
     expect(defaultPath('superuser')).toBe('/');
+  });
+});
+
+describe('permissions — DB-backed overrides', () => {
+  afterEach(() => setPermissionOverrides(null));
+
+  it('falls back to static defaults when no overrides are loaded', () => {
+    setPermissionOverrides(null);
+    expect(allowedPaths('dispatcher')).toEqual(ROLE_ALLOWED_PATHS.dispatcher);
+    expect(canAccess('dispatcher', '/orders')).toBe(true);
+  });
+
+  it('an override replaces the static default for that role only', () => {
+    setPermissionOverrides({ dispatcher: ['/orders'] });
+    expect(canAccess('dispatcher', '/orders')).toBe(true);
+    expect(canAccess('dispatcher', '/reports')).toBe(false);
+    // Other roles are untouched.
+    expect(canAccess('admin', '/reports')).toBe(true);
+  });
+
+  it('an empty-array override revokes all access for that role', () => {
+    setPermissionOverrides({ client: [] });
+    expect(canAccess('client', '/my-orders')).toBe(false);
+  });
+
+  it('ignores unknown roles and non-string paths in overrides', () => {
+    setPermissionOverrides({ nope: ['/x'], dispatcher: ['/orders', 123 as unknown as string] });
+    expect(canAccess('nope', '/x')).toBe(false);
+    expect(allowedPaths('dispatcher')).toEqual(['/orders']);
   });
 });

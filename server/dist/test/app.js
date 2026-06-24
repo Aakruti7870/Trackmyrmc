@@ -15,12 +15,14 @@ import recurringRoutes from '../routes/recurring.js';
 import reportRoutes from '../routes/reports.js';
 import dashboardRoutes from '../routes/dashboard.js';
 import fuelRoutes from '../routes/fuel.js';
+import fileRoutes from '../routes/files.js';
 import vehicleRoutes from '../routes/vehicles.js';
 import plantRoutes from '../routes/plants.js';
 import whatsappRoutes from '../routes/whatsapp.js';
 import webhookRoutes from '../routes/webhooks.js';
 import aiRoutes from '../routes/ai.js';
 import pushRoutes from '../routes/push.js';
+import configRoutes from '../routes/config.js';
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
 // app.listen and registers background intervals).
@@ -51,11 +53,13 @@ export function buildTestApp() {
     app.use('/api/reports', reportRoutes);
     app.use('/api/dashboard', dashboardRoutes);
     app.use('/api/fuel', fuelRoutes);
+    app.use('/api/files', fileRoutes);
     app.use('/api/vehicles', vehicleRoutes);
     app.use('/api/plants', plantRoutes);
     app.use('/api/whatsapp', whatsappRoutes);
     app.use('/api/webhooks', webhookRoutes);
     app.use('/api/ai', aiRoutes);
     app.use('/api/push', pushRoutes);
+    app.use('/api/config', configRoutes);
     return app;
 }

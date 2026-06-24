@@ -2,7 +2,7 @@ import { Router, type RequestHandler } from 'express';
 import { eq, and, isNull, sql, inArray, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { plants, users, auditLogs, plantInvites, passwordSetupTokens } from '../db/schema.js';
+import { plants, users, auditLogs, plantInvites, passwordSetupTokens, rateCards } from '../db/schema.js';
 import { randomBytes } from 'node:crypto';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { hashPassword } from '../lib/password.js';
@@ -613,6 +613,12 @@ function parseBody(body: Record<string, unknown>) {
   if (body.subscriptionPlan !== undefined && SUBSCRIPTION_PLANS.includes(body.subscriptionPlan as SubscriptionPlan)) {
     out.subscriptionPlan = body.subscriptionPlan;
   }
+  if (body.commissionPct !== undefined) {
+    // null/'' clears the override (inherit global); otherwise clamp 0–100 with 2dp.
+    out.commissionPct = body.commissionPct === null || body.commissionPct === ''
+      ? null
+      : String(Math.min(100, Math.max(0, Math.round(Number(body.commissionPct) * 100) / 100)));
+  }
   if (body.isActive !== undefined) out.isActive = Boolean(body.isActive);
   if (body.locationVerified !== undefined) out.locationVerified = Boolean(body.locationVerified);
   if (body.verified !== undefined) out.verified = Boolean(body.verified);
@@ -1117,6 +1123,120 @@ router.get('/:id/owner', OWNER_PROVISIONERS, async (req, res) => {
     .orderBy(users.createdAt);
 
   res.json(rows);
+});
+
+// ---------------------------------------------------------------------------
+// Rate cards: per-plant ₹/m³ price per concrete grade.
+// Manageable by platform staff (any plant) and a plant's own admin/owner/
+// supervisor/dispatcher (their plant only). Hard tenant-scoped by :id.
+// ---------------------------------------------------------------------------
+const RATE_CARD_MANAGERS = requireRole('authority', 'admin', 'plant_owner', 'supervisor', 'dispatcher');
+
+// Resolve + authorize the :id plant for a rate-card request. Returns the plant
+// id on success, or null after already writing the error response.
+async function resolveRateCardPlant(
+  req: import('express').Request,
+  res: import('express').Response,
+): Promise<number | null> {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: 'Invalid id' }); return null; }
+  if (!isPlatformStaff(req.user!) && req.user!.plantId !== id) {
+    res.status(403).json({ error: 'You can only manage your own plant.' });
+    return null;
+  }
+  const [plant] = await db.select({ id: plants.id }).from(plants).where(eq(plants.id, id));
+  if (!plant) { res.status(404).json({ error: 'Plant not found' }); return null; }
+  return id;
+}
+
+router.get('/:id/rate-cards', RATE_CARD_MANAGERS, async (req, res) => {
+  const id = await resolveRateCardPlant(req, res);
+  if (id == null) return;
+  const rows = await db
+    .select()
+    .from(rateCards)
+    .where(eq(rateCards.plantId, id))
+    .orderBy(rateCards.grade);
+  res.json(rows);
+});
+
+const rateCardSchema = z.object({
+  grade: z.string().trim().min(1, 'Grade is required').max(40),
+  ratePerM3: z.coerce.number().finite('Rate must be a number').min(0, 'Rate must be 0 or more'),
+  effectiveFrom: z.string().trim().optional().nullable(),
+  notes: z.string().trim().max(500).optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+// Upsert by (plantId, grade): editing a grade that already has a card updates it.
+router.post('/:id/rate-cards', RATE_CARD_MANAGERS, async (req, res) => {
+  const id = await resolveRateCardPlant(req, res);
+  if (id == null) return;
+  const parse = rateCardSchema.safeParse(req.body);
+  if (!parse.success) { res.status(400).json({ error: parse.error.flatten().fieldErrors }); return; }
+  const { grade, ratePerM3, effectiveFrom, notes, isActive } = parse.data;
+  const effFrom = effectiveFrom ? new Date(effectiveFrom) : null;
+  const [row] = await db
+    .insert(rateCards)
+    .values({
+      plantId: id,
+      grade,
+      ratePerM3: String(ratePerM3),
+      effectiveFrom: effFrom && !Number.isNaN(effFrom.getTime()) ? effFrom : null,
+      notes: notes || null,
+      isActive: isActive ?? true,
+    })
+    .onConflictDoUpdate({
+      target: [rateCards.plantId, rateCards.grade],
+      set: {
+        ratePerM3: String(ratePerM3),
+        effectiveFrom: effFrom && !Number.isNaN(effFrom.getTime()) ? effFrom : null,
+        notes: notes || null,
+        isActive: isActive ?? true,
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
+  res.status(201).json(row);
+});
+
+router.put('/:id/rate-cards/:rcId', RATE_CARD_MANAGERS, async (req, res) => {
+  const id = await resolveRateCardPlant(req, res);
+  if (id == null) return;
+  const rcId = Number(req.params.rcId);
+  if (!Number.isInteger(rcId)) { res.status(400).json({ error: 'Invalid rate card id' }); return; }
+  const parse = rateCardSchema.partial().safeParse(req.body);
+  if (!parse.success) { res.status(400).json({ error: parse.error.flatten().fieldErrors }); return; }
+  const d = parse.data;
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if (d.grade !== undefined) set.grade = d.grade;
+  if (d.ratePerM3 !== undefined) set.ratePerM3 = String(d.ratePerM3);
+  if (d.effectiveFrom !== undefined) {
+    const eff = d.effectiveFrom ? new Date(d.effectiveFrom) : null;
+    set.effectiveFrom = eff && !Number.isNaN(eff.getTime()) ? eff : null;
+  }
+  if (d.notes !== undefined) set.notes = d.notes || null;
+  if (d.isActive !== undefined) set.isActive = d.isActive;
+  const [row] = await db
+    .update(rateCards)
+    .set(set)
+    .where(and(eq(rateCards.id, rcId), eq(rateCards.plantId, id)))
+    .returning();
+  if (!row) { res.status(404).json({ error: 'Rate card not found' }); return; }
+  res.json(row);
+});
+
+router.delete('/:id/rate-cards/:rcId', RATE_CARD_MANAGERS, async (req, res) => {
+  const id = await resolveRateCardPlant(req, res);
+  if (id == null) return;
+  const rcId = Number(req.params.rcId);
+  if (!Number.isInteger(rcId)) { res.status(400).json({ error: 'Invalid rate card id' }); return; }
+  const [row] = await db
+    .delete(rateCards)
+    .where(and(eq(rateCards.id, rcId), eq(rateCards.plantId, id)))
+    .returning();
+  if (!row) { res.status(404).json({ error: 'Rate card not found' }); return; }
+  res.json({ ok: true });
 });
 
 // Plant-owner roles a staff member may provision at onboarding. An owner account

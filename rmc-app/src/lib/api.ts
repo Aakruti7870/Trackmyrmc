@@ -93,9 +93,15 @@ export const api = {
   },
 };
 
+export interface AppConfig {
+  appVersion: string;
+  rolePermissionOverrides: Partial<Record<string, string[]>>;
+}
+
 export type User = {
   id: number; name: string; email: string; role: string;
   phone?: string | null;
+  plantId?: number | null;
   linkedClientId?: number | null;
   linkedDriverId?: number | null;
 };

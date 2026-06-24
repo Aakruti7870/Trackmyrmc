@@ -5,6 +5,7 @@ import { fuelLogs, vehicles } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 import { plantScope } from '../lib/tenancy.js';
+import { registerUploadedFileSafe, unregisterUploadedFilesSafe } from '../lib/uploadedFiles.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -126,7 +127,7 @@ router.post('/', async (req, res) => {
   if (!vehicleId) { res.status(400).json({ error: 'Vehicle is required' }); return; }
   const scope = plantScope(req.user!.plantId, vehicles.plantId);
   const vIdEq = eq(vehicles.id, +vehicleId);
-  const [vehicle] = await db.select({ id: vehicles.id }).from(vehicles).where(scope ? and(vIdEq, scope) : vIdEq);
+  const [vehicle] = await db.select({ id: vehicles.id, plantId: vehicles.plantId }).from(vehicles).where(scope ? and(vIdEq, scope) : vIdEq);
   if (!vehicle) { res.status(400).json({ error: 'Vehicle not found' }); return; }
 
   let litres: string, amount: string | null, odometer: number | null, filledAt: Date, billPhoto: string | null | undefined;
@@ -159,6 +160,15 @@ router.post('/', async (req, res) => {
     recordedBy: actor.id,
     recordedByName: actor.name,
   }).returning();
+  // Mirror the fuel bill into the unified vault (additive, best-effort).
+  if (storedBillPhoto && isObjectStoragePath(storedBillPhoto)) {
+    await registerUploadedFileSafe({
+      storagePath: storedBillPhoto,
+      fileType: 'fuel_bill',
+      plantId: vehicle.plantId,
+      userId: actor.id,
+    });
+  }
   res.status(201).json(row);
 });
 
@@ -195,6 +205,7 @@ router.put('/:id', async (req, res) => {
       // Clean up a replaced/removed photo's backing object (best-effort).
       if (existing.billPhoto && existing.billPhoto !== billPhoto) {
         await proofPhotoStore.remove(existing.billPhoto).catch(() => {});
+        await unregisterUploadedFilesSafe([existing.billPhoto]);
       }
     }
   } catch (e) {
@@ -211,7 +222,10 @@ router.delete('/:id', async (req, res) => {
   if (!(await fuelLogInScope(id, req.user!.plantId))) { res.status(404).json({ error: 'Not found' }); return; }
   const [existing] = await db.select({ billPhoto: fuelLogs.billPhoto }).from(fuelLogs).where(eq(fuelLogs.id, id));
   await db.delete(fuelLogs).where(eq(fuelLogs.id, id));
-  if (existing?.billPhoto) await proofPhotoStore.remove(existing.billPhoto).catch(() => {});
+  if (existing?.billPhoto) {
+    await proofPhotoStore.remove(existing.billPhoto).catch(() => {});
+    await unregisterUploadedFilesSafe([existing.billPhoto]);
+  }
   res.json({ ok: true });
 });
 

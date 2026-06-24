@@ -12,6 +12,11 @@ export const vehicleStatusEnum = pgEnum('vehicle_status', ['active', 'maintenanc
 export const ledgerTypeEnum = pgEnum('ledger_type', ['debit', 'credit']);
 export const recurringFrequencyEnum = pgEnum('recurring_frequency', ['weekly', 'monthly']);
 export const plantStatusEnum = pgEnum('plant_status', ['pending', 'approved', 'rejected']);
+// Billing lifecycle for a plant's platform subscription. `trial`/`active` allow
+// normal login; `past_due` still logs in (a soft warning, grace period);
+// `suspended`/`cancelled` block plant-scoped staff at login (defence in depth).
+export const subscriptionStatusEnum = pgEnum('subscription_status', ['trial', 'active', 'past_due', 'suspended', 'cancelled']);
+export const subscriptionPlanEnum = pgEnum('subscription_plan', ['free', 'basic', 'pro', 'enterprise']);
 export const clients = pgTable('clients', {
     id: serial('id').primaryKey(),
     // The plant that owns this customer record. NULL only for legacy rows before
@@ -372,6 +377,14 @@ export const plants = pgTable('plants', {
     latitude: decimal('latitude', { precision: 10, scale: 7 }).notNull(),
     longitude: decimal('longitude', { precision: 10, scale: 7 }).notNull(),
     plantStatus: plantStatusEnum('plant_status').notNull().default('pending'),
+    // Platform billing lifecycle. New plants start on a trial; staff move them
+    // through active/past_due/suspended/cancelled from the admin plant editor.
+    subscriptionStatus: subscriptionStatusEnum('subscription_status').notNull().default('trial'),
+    subscriptionPlan: subscriptionPlanEnum('subscription_plan').notNull().default('free'),
+    // Per-plant platform-commission override (percent). NULL = use the global
+    // platform_commission_pct app setting. Lets staff negotiate a bespoke rate
+    // for a single partner without changing the platform default.
+    commissionPct: decimal('commission_pct', { precision: 5, scale: 2 }),
     isActive: boolean('is_active').notNull().default(true),
     locationVerified: boolean('location_verified').notNull().default(false),
     // Partner verification, distinct from locationVerified (which only attests the
@@ -435,11 +448,64 @@ export const plantInvites = pgTable('plant_invites', {
 }, (t) => [
     uniqueIndex('plant_invites_place_id_unique').on(t.placeId),
 ]);
+// Per-plant rate card: the price (₹ per m³) a plant charges for each concrete
+// grade it sells on the marketplace. One active row per (plant, grade) — staff
+// edit these from the plant editor; customers see them when ordering.
+export const rateCards = pgTable('rate_cards', {
+    id: serial('id').primaryKey(),
+    plantId: integer('plant_id').notNull().references(() => plants.id, { onDelete: 'cascade' }),
+    grade: text('grade').notNull(),
+    ratePerM3: decimal('rate_per_m3', { precision: 12, scale: 2 }).notNull(),
+    // Optional date the rate takes effect (informational; the active row is the
+    // current price regardless). Nullable.
+    effectiveFrom: timestamp('effective_from'),
+    notes: text('notes'),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+    uniqueIndex('rate_cards_plant_grade_unique').on(t.plantId, t.grade),
+]);
+// Unified registry of every file uploaded across the platform (proof-of-delivery
+// photos, fuel bills, and future document types). This is an ADDITIVE catalogue:
+// the source tables (challan_proof_photos.photo, fuel_logs.bill_photo) remain the
+// authoritative owners of each storage path; a row is mirrored here on upload so
+// staff get one searchable vault and super-admins can see storage usage. The
+// storage path format matches the source (`/objects/<uuid>`).
+export const uploadedFiles = pgTable('uploaded_files', {
+    id: serial('id').primaryKey(),
+    plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
+    userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+    orderId: integer('order_id').references(() => orders.id, { onDelete: 'set null' }),
+    challanId: integer('challan_id').references(() => challans.id, { onDelete: 'set null' }),
+    // 'proof_photo' | 'fuel_bill' (extensible)
+    fileType: text('file_type').notNull(),
+    fileName: text('file_name'),
+    storagePath: text('storage_path').notNull(),
+    // 'plant' (plant staff) | 'admin' (platform staff only)
+    accessLevel: text('access_level').notNull().default('plant'),
+    uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
+}, (t) => [
+    index('uploaded_files_plant_idx').on(t.plantId),
+    index('uploaded_files_type_idx').on(t.fileType),
+    uniqueIndex('uploaded_files_path_unique').on(t.storagePath),
+]);
 export const plantsRelations = relations(plants, ({ many }) => ({
     clients: many(clients),
     orders: many(orders),
     challans: many(challans),
     plantCustomers: many(plantCustomers),
+    rateCards: many(rateCards),
+    uploadedFiles: many(uploadedFiles),
+}));
+export const uploadedFilesRelations = relations(uploadedFiles, ({ one }) => ({
+    plant: one(plants, { fields: [uploadedFiles.plantId], references: [plants.id] }),
+    user: one(users, { fields: [uploadedFiles.userId], references: [users.id] }),
+    order: one(orders, { fields: [uploadedFiles.orderId], references: [orders.id] }),
+    challan: one(challans, { fields: [uploadedFiles.challanId], references: [challans.id] }),
+}));
+export const rateCardsRelations = relations(rateCards, ({ one }) => ({
+    plant: one(plants, { fields: [rateCards.plantId], references: [plants.id] }),
 }));
 export const plantCustomersRelations = relations(plantCustomers, ({ one }) => ({
     plant: one(plants, { fields: [plantCustomers.plantId], references: [plants.id] }),

@@ -7,6 +7,17 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { sendTestEmail, getSmtpSettings, verifySmtpConnection, getSmtpConfig, SMTP_KEYS } from '../lib/email.js';
 import { setSetting } from '../lib/settings.js';
 import { getVarianceTolerance, VARIANCE_KEYS, DEFAULT_VARIANCE_ABS, DEFAULT_VARIANCE_PCT } from '../lib/variance.js';
+import { getPlatformCommissionPct, setPlatformCommissionPct, normalizeCommissionPct, DEFAULT_COMMISSION_PCT } from '../lib/commission.js';
+import {
+  getRolePermissionOverrides,
+  setRolePermissionOverrides,
+  normalizeOverrides,
+  OVERRIDABLE_ROLES,
+  getAppVersion,
+  setAppVersion,
+  buildDatabaseExport,
+} from '../lib/adminConfig.js';
+import { isPlatformStaff } from '../lib/roleHierarchy.js';
 import {
   getPlantInviteNotifyConfig,
   parseRecipients,
@@ -263,6 +274,157 @@ router.post('/variance-tolerance', async (req, res) => {
   }
 
   res.json({ ...after, defaults: { abs: DEFAULT_VARIANCE_ABS, pct: DEFAULT_VARIANCE_PCT } });
+});
+
+// Platform commission: the global percentage the marketplace takes per order.
+router.get('/commission', async (_req, res) => {
+  res.json({ pct: await getPlatformCommissionPct(), default: DEFAULT_COMMISSION_PCT });
+});
+
+const commissionSchema = z.object({
+  pct: z
+    .string()
+    .trim()
+    .optional()
+    .refine(
+      v => v === undefined || v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 100),
+      'Commission must be between 0 and 100',
+    ),
+});
+
+router.post('/commission', async (req, res) => {
+  const raw = { pct: req.body?.pct == null ? undefined : String(req.body.pct) };
+  const parse = commissionSchema.safeParse(raw);
+  if (!parse.success) { res.status(400).json({ error: parse.error.flatten().fieldErrors }); return; }
+
+  const before = await getPlatformCommissionPct();
+  const { pct } = parse.data;
+  if (pct !== undefined) {
+    await setPlatformCommissionPct(pct.trim() === '' ? null : normalizeCommissionPct(pct));
+  }
+  const after = await getPlatformCommissionPct();
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'platform_commission_updated',
+      status: 'success',
+      detail: before === after
+        ? 'Platform commission saved from the admin panel. No value changed.'
+        : `Platform commission updated: ${before}% → ${after}%.`,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write commission audit log:', err);
+  }
+
+  res.json({ pct: after, default: DEFAULT_COMMISSION_PCT });
+});
+
+// ── Role-permission overrides ────────────────────────────────────────────────
+// DB-backed role→allowed-paths overrides. The frontend merges these over its
+// static defaults; an empty/absent map means "use the built-in defaults".
+// These are platform-wide policy, so they are gated to platform staff (authority
+// or a global admin with plantId == null) — a plant-scoped admin must not be
+// able to rewrite route policy for every tenant.
+router.get('/role-permissions', async (req, res) => {
+  if (!isPlatformStaff(req.user!)) { res.status(403).json({ error: 'Only platform staff can manage role permissions.' }); return; }
+  res.json({ overrides: await getRolePermissionOverrides(), roles: OVERRIDABLE_ROLES });
+});
+
+router.post('/role-permissions', async (req, res) => {
+  if (!isPlatformStaff(req.user!)) { res.status(403).json({ error: 'Only platform staff can manage role permissions.' }); return; }
+  const body = req.body?.overrides;
+  if (body !== undefined && body !== null && typeof body !== 'object') {
+    res.status(400).json({ error: 'overrides must be an object' });
+    return;
+  }
+  const before = await getRolePermissionOverrides();
+  const normalized = body == null ? {} : normalizeOverrides(body);
+  await setRolePermissionOverrides(normalized);
+  const after = await getRolePermissionOverrides();
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'role_permissions_updated',
+      status: 'success',
+      detail: JSON.stringify(before) === JSON.stringify(after)
+        ? 'Role permissions saved from the admin panel. No value changed.'
+        : `Role permission overrides updated (${Object.keys(after).length} role override(s)).`,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write role-permissions audit log:', err);
+  }
+
+  res.json({ overrides: after, roles: OVERRIDABLE_ROLES });
+});
+
+// ── App version ──────────────────────────────────────────────────────────────
+// Platform-wide, client-visible label — gated to platform staff for the same
+// cross-tenant reason as role permissions.
+router.get('/app-version', async (req, res) => {
+  if (!isPlatformStaff(req.user!)) { res.status(403).json({ error: 'Only platform staff can manage the app version.' }); return; }
+  res.json({ version: await getAppVersion() });
+});
+
+const appVersionSchema = z.object({
+  version: z.string().trim().max(40).optional(),
+});
+
+router.post('/app-version', async (req, res) => {
+  if (!isPlatformStaff(req.user!)) { res.status(403).json({ error: 'Only platform staff can manage the app version.' }); return; }
+  const parse = appVersionSchema.safeParse({ version: req.body?.version == null ? undefined : String(req.body.version) });
+  if (!parse.success) { res.status(400).json({ error: parse.error.flatten().fieldErrors }); return; }
+  const before = await getAppVersion();
+  await setAppVersion(parse.data.version ?? null);
+  const after = await getAppVersion();
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'app_version_updated',
+      status: 'success',
+      detail: before === after ? 'App version saved. No value changed.' : `App version updated: "${before}" → "${after}".`,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write app-version audit log:', err);
+  }
+
+  res.json({ version: after });
+});
+
+// ── Full database export (authority only) ────────────────────────────────────
+// Returns a JSON snapshot of the core tables. Authority is the platform super-
+// admin; plant-scoped admins are denied to avoid cross-tenant data exfiltration.
+router.get('/export', async (req, res) => {
+  if (req.user!.role !== 'authority') {
+    res.status(403).json({ error: 'Only the platform authority can export the database.' });
+    return;
+  }
+  const snapshot = await buildDatabaseExport();
+  try {
+    await db.insert(auditLogs).values({
+      actorId: req.user!.id,
+      actorName: req.user!.name,
+      action: 'database_exported',
+      status: 'success',
+      detail: `Full database export downloaded (${snapshot.tables.length} tables, ${snapshot.totalRows} rows).`,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write export audit log:', err);
+  }
+  res.setHeader('Content-Disposition', `attachment; filename="trackmyrmc-export-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.json(snapshot);
 });
 
 const PLANT_INVITE_NOTIFY_DEFAULTS = {

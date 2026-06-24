@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox } from 'lucide-react';
 import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult, type PlantDirectoryEntry } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { ThemeSwitcher } from '@/lib/theme-providers';
 import NotificationsCard from '@/components/NotificationsCard';
+import { ROLE_ALLOWED_PATHS } from '@/lib/permissions';
 import type { User } from '@/lib/api';
 
 interface SmtpSettings {
@@ -263,6 +264,27 @@ export default function ProfileSettings() {
   const [varianceLoading, setVarianceLoading] = useState(false);
   const [varianceSaving, setVarianceSaving] = useState(false);
 
+  const [commissionForm, setCommissionForm] = useState('');
+  const [commissionDefault, setCommissionDefault] = useState(0);
+  const [commissionLoading, setCommissionLoading] = useState(false);
+  const [commissionSaving, setCommissionSaving] = useState(false);
+
+  const [storageUsage, setStorageUsage] = useState<{ totalFiles: number; byPlant: { plantId: number | null; plantName: string; fileType: string; fileCount: number }[] } | null>(null);
+  const [storageLoading, setStorageLoading] = useState(false);
+
+  // Role-permission overrides: a textarea per role holding the effective allowed
+  // paths (one per line). On save we diff each role against the static default —
+  // unchanged roles are dropped so they keep tracking future default changes.
+  const [rolePermForm, setRolePermForm] = useState<Record<string, string>>({});
+  const [rolePermLoading, setRolePermLoading] = useState(false);
+  const [rolePermSaving, setRolePermSaving] = useState(false);
+
+  const [appVersionForm, setAppVersionForm] = useState('');
+  const [appVersionLoading, setAppVersionLoading] = useState(false);
+  const [appVersionSaving, setAppVersionSaving] = useState(false);
+
+  const [exporting, setExporting] = useState(false);
+
   const [aiForm, setAiForm] = useState({ enabled: false, persona: '', greeting: '' });
   const [aiDefaults, setAiDefaults] = useState({ persona: '', greeting: '' });
   const [aiLoading, setAiLoading] = useState(false);
@@ -435,6 +457,77 @@ export default function ProfileSettings() {
     loadVariance();
     return () => { cancelled = true; };
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    async function loadCommission() {
+      setCommissionLoading(true);
+      try {
+        const v = await api.get<{ pct: number; default: number }>('/admin/commission');
+        if (cancelled) return;
+        setCommissionForm(String(v.pct));
+        setCommissionDefault(v.default);
+      } catch {
+        /* non-fatal — keep defaults */
+      } finally {
+        if (!cancelled) setCommissionLoading(false);
+      }
+    }
+    loadCommission();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  const isPlatformStaff = isAdmin && (user?.plantId == null);
+  useEffect(() => {
+    if (!isPlatformStaff) return;
+    let cancelled = false;
+    function loadStorage() {
+      setStorageLoading(true);
+      api.get<{ totalFiles: number; byPlant: { plantId: number | null; plantName: string; fileType: string; fileCount: number }[] }>('/files/usage')
+        .then(v => { if (!cancelled) setStorageUsage(v); })
+        .catch(() => { /* non-fatal */ })
+        .finally(() => { if (!cancelled) setStorageLoading(false); });
+    }
+    loadStorage();
+    return () => { cancelled = true; };
+  }, [isPlatformStaff]);
+
+  useEffect(() => {
+    if (!isPlatformStaff) return;
+    let cancelled = false;
+    function loadRolePerms() {
+      setRolePermLoading(true);
+      api.get<{ overrides: Record<string, string[]>; roles: string[] }>('/admin/role-permissions')
+        .then(v => {
+          if (cancelled) return;
+          const form: Record<string, string> = {};
+          for (const role of Object.keys(ROLE_ALLOWED_PATHS)) {
+            const paths = v.overrides[role] ?? ROLE_ALLOWED_PATHS[role as keyof typeof ROLE_ALLOWED_PATHS];
+            form[role] = paths.join('\n');
+          }
+          setRolePermForm(form);
+        })
+        .catch(() => { /* non-fatal — leave editor empty */ })
+        .finally(() => { if (!cancelled) setRolePermLoading(false); });
+    }
+    loadRolePerms();
+    return () => { cancelled = true; };
+  }, [isPlatformStaff]);
+
+  useEffect(() => {
+    if (!isPlatformStaff) return;
+    let cancelled = false;
+    function loadAppVersion() {
+      setAppVersionLoading(true);
+      api.get<{ version: string }>('/admin/app-version')
+        .then(v => { if (!cancelled) setAppVersionForm(v.version ?? ''); })
+        .catch(() => { /* non-fatal */ })
+        .finally(() => { if (!cancelled) setAppVersionLoading(false); });
+    }
+    loadAppVersion();
+    return () => { cancelled = true; };
+  }, [isPlatformStaff]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -908,6 +1001,86 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setVarianceSaving(false);
+    }
+  }
+
+  async function handleCommissionSave(e: React.FormEvent) {
+    e.preventDefault();
+    const pct = commissionForm.trim();
+    if (pct && (!Number.isFinite(Number(pct)) || Number(pct) < 0 || Number(pct) > 100)) {
+      showToast('Commission must be between 0 and 100.', 'error');
+      return;
+    }
+    setCommissionSaving(true);
+    try {
+      const updated = await api.post<{ pct: number; default: number }>('/admin/commission', { pct });
+      setCommissionForm(String(updated.pct));
+      setCommissionDefault(updated.default);
+      showToast('Platform commission saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save commission';
+      showToast(msg, 'error');
+    } finally {
+      setCommissionSaving(false);
+    }
+  }
+
+  async function handleRolePermsSave(e: React.FormEvent) {
+    e.preventDefault();
+    // Build the overrides map: only roles whose path list differs from the
+    // built-in default are sent. Unchanged roles are omitted so they keep
+    // tracking future default changes.
+    const overrides: Record<string, string[]> = {};
+    for (const role of Object.keys(ROLE_ALLOWED_PATHS)) {
+      const edited = (rolePermForm[role] ?? '')
+        .split('\n')
+        .map(p => p.trim())
+        .filter(p => p.startsWith('/'));
+      const def = ROLE_ALLOWED_PATHS[role as keyof typeof ROLE_ALLOWED_PATHS];
+      const same = edited.length === def.length && edited.every((p, i) => p === def[i]);
+      if (!same) overrides[role] = edited;
+    }
+    setRolePermSaving(true);
+    try {
+      const updated = await api.post<{ overrides: Record<string, string[]> }>('/admin/role-permissions', { overrides });
+      const form: Record<string, string> = {};
+      for (const role of Object.keys(ROLE_ALLOWED_PATHS)) {
+        const paths = updated.overrides[role] ?? ROLE_ALLOWED_PATHS[role as keyof typeof ROLE_ALLOWED_PATHS];
+        form[role] = paths.join('\n');
+      }
+      setRolePermForm(form);
+      const count = Object.keys(updated.overrides).length;
+      showToast(count ? `Saved ${count} role override(s). Users see changes on next load.` : 'Cleared all overrides — defaults restored.', 'success');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to save role permissions', 'error');
+    } finally {
+      setRolePermSaving(false);
+    }
+  }
+
+  async function handleAppVersionSave(e: React.FormEvent) {
+    e.preventDefault();
+    setAppVersionSaving(true);
+    try {
+      const updated = await api.post<{ version: string }>('/admin/app-version', { version: appVersionForm.trim() });
+      setAppVersionForm(updated.version ?? '');
+      showToast('App version saved.', 'success');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to save app version', 'error');
+    } finally {
+      setAppVersionSaving(false);
+    }
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await api.download('/admin/export', `trackmyrmc-export-${new Date().toISOString().slice(0, 10)}.json`);
+      showToast('Database export downloaded.', 'success');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to export database', 'error');
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -1744,6 +1917,253 @@ export default function ProfileSettings() {
               </button>
             </form>
           )}
+        </div>
+      )}
+
+      {/* Platform commission card — admins only */}
+      {isAdmin && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Percent size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Platform Commission</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>The default percentage the marketplace takes on each order</div>
+            </div>
+          </div>
+
+          {commissionLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
+          ) : (
+            <form onSubmit={handleCommissionSave}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <SmtpTextField
+                  label="Commission (%)"
+                  type="number"
+                  value={commissionForm}
+                  onChange={v => setCommissionForm(v)}
+                  placeholder={String(commissionDefault)}
+                />
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+                Applied to every order platform-wide. Individual plants can override this from their
+                plant editor. Clear the field to fall back to the default ({commissionDefault}%).
+              </div>
+
+              <button
+                type="submit"
+                disabled={commissionSaving}
+                style={{
+                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
+                  background: commissionSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: commissionSaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14,
+                  transition: 'opacity .15s',
+                }}
+              >
+                {commissionSaving ? 'Saving…' : 'Save commission'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Storage usage — platform staff only */}
+      {isPlatformStaff && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Inbox size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Storage Usage</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Files uploaded across all plants (proof photos & fuel bills)</div>
+            </div>
+          </div>
+
+          {storageLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading usage…</div>
+          ) : !storageUsage || storageUsage.byPlant.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>No files registered yet.</div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
+                {storageUsage.totalFiles} file{storageUsage.totalFiles === 1 ? '' : 's'} total
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {storageUsage.byPlant.map((u, i) => (
+                  <div key={`${u.plantId}-${u.fileType}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, background: 'var(--panel, color-mix(in srgb, var(--gold) 5%, transparent))', border: '1px solid var(--line, color-mix(in srgb, var(--gold) 18%, transparent))' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{u.plantName}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--gold)', background: 'color-mix(in srgb, var(--gold) 13%, transparent)', borderRadius: 6, padding: '2px 7px' }}>
+                      {u.fileType === 'proof_photo' ? 'Proof photo' : u.fileType === 'fuel_bill' ? 'Fuel bill' : u.fileType}
+                    </span>
+                    <span style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 'auto', fontWeight: 700 }}>{u.fileCount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Role-permission editor — platform staff only (cross-tenant policy) */}
+      {isPlatformStaff && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Lock size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Role Permissions</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Which app pages each role can open (one path per line)</div>
+            </div>
+          </div>
+
+          {rolePermLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading permissions…</div>
+          ) : (
+            <form onSubmit={handleRolePermsSave}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                {Object.keys(ROLE_ALLOWED_PATHS).map(role => (
+                  <div key={role}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--text)', marginBottom: 6, textTransform: 'capitalize' }}>
+                      {role.replace(/_/g, ' ')}
+                    </label>
+                    <textarea
+                      value={rolePermForm[role] ?? ''}
+                      onChange={e => setRolePermForm(prev => ({ ...prev, [role]: e.target.value }))}
+                      rows={6}
+                      spellCheck={false}
+                      style={{
+                        width: '100%', boxSizing: 'border-box', resize: 'vertical',
+                        padding: '8px 10px', borderRadius: 8, fontSize: 12, fontFamily: 'monospace',
+                        background: 'var(--panel, color-mix(in srgb, var(--gold) 5%, transparent))',
+                        border: '1px solid var(--line, color-mix(in srgb, var(--gold) 18%, transparent))',
+                        color: 'var(--text)',
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+                Edit the allowed paths per role. A role left exactly matching its built-in default is not overridden
+                (so it keeps tracking future updates). Changes apply to each user on their next page load.
+              </div>
+
+              <button
+                type="submit"
+                disabled={rolePermSaving}
+                style={{
+                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
+                  background: rolePermSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: rolePermSaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14, transition: 'opacity .15s',
+                }}
+              >
+                {rolePermSaving ? 'Saving…' : 'Save permissions'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* App version card — platform staff only (client-visible, cross-tenant) */}
+      {isPlatformStaff && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <PlugZap size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>App Version</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>A version label surfaced to every client</div>
+            </div>
+          </div>
+
+          {appVersionLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading version…</div>
+          ) : (
+            <form onSubmit={handleAppVersionSave}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <SmtpTextField
+                  label="Version"
+                  value={appVersionForm}
+                  onChange={v => setAppVersionForm(v)}
+                  placeholder="e.g. 2.4.0"
+                />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+                Clear the field to hide the version. It loads from the public app config on every client.
+              </div>
+              <button
+                type="submit"
+                disabled={appVersionSaving}
+                style={{
+                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
+                  background: appVersionSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: appVersionSaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14, transition: 'opacity .15s',
+                }}
+              >
+                {appVersionSaving ? 'Saving…' : 'Save version'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Full database export — authority only */}
+      {user?.role === 'authority' && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <History size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Database Export</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Download a full JSON backup of the core tables</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+            Exports business data (clients, orders, challans, plants, files, audit logs and more). User password
+            hashes and auth secrets are excluded. Authority access only.
+          </div>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            style={{
+              padding: '10px 22px', borderRadius: 10,
+              background: exporting ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+              border: 'none', cursor: exporting ? 'not-allowed' : 'pointer',
+              color: '#111', fontWeight: 800, fontSize: 14, transition: 'opacity .15s',
+            }}
+          >
+            {exporting ? 'Exporting…' : 'Download export'}
+          </button>
         </div>
       )}
 

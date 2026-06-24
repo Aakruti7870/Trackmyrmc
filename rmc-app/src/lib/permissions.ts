@@ -27,9 +27,30 @@ export const ROLE_DEFAULT_PATH: Record<Role, string> = {
   driver: '/my-trips',
 };
 
+// DB-backed overrides, merged over the static defaults at runtime. Loaded once
+// from /api/config at app bootstrap (see config-provider). When a role has no
+// override (or none were loaded) the built-in ROLE_ALLOWED_PATHS apply, so the
+// app is fully functional even if the config call fails — a non-breaking fallback.
+let permissionOverrides: Partial<Record<Role, string[]>> = {};
+
+export function setPermissionOverrides(overrides: Partial<Record<string, string[]>> | null | undefined): void {
+  const next: Partial<Record<Role, string[]>> = {};
+  if (overrides) {
+    for (const role of Object.keys(ROLE_ALLOWED_PATHS) as Role[]) {
+      const paths = overrides[role];
+      if (Array.isArray(paths)) next[role] = paths.filter(p => typeof p === 'string');
+    }
+  }
+  permissionOverrides = next;
+}
+
+export function allowedPaths(role: string): string[] {
+  return permissionOverrides[role as Role] ?? ROLE_ALLOWED_PATHS[role as Role] ?? [];
+}
+
 export function canAccess(role: string, path: string): boolean {
-  const allowed = ROLE_ALLOWED_PATHS[role as Role];
-  if (!allowed) return false;
+  const allowed = allowedPaths(role);
+  if (!allowed.length) return false;
   return allowed.some(p => {
     if (p === '/') return path === '/';
     return path === p || path.startsWith(p + '/');

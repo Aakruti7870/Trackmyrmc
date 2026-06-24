@@ -19,12 +19,14 @@ import adminRoutes from './routes/admin.js';
 import positionRoutes from './routes/positions.js';
 import recurringRoutes from './routes/recurring.js';
 import fuelRoutes from './routes/fuel.js';
+import fileRoutes from './routes/files.js';
 import plantRoutes from './routes/plants.js';
 import eventsRoutes from './routes/events.js';
 import whatsappRoutes from './routes/whatsapp.js';
 import webhookRoutes from './routes/webhooks.js';
 import aiRoutes from './routes/ai.js';
 import pushRoutes from './routes/push.js';
+import configRoutes from './routes/config.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
 import { runDueWhatsAppRetries } from './lib/whatsappRetry.js';
@@ -119,11 +121,13 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/positions', positionRoutes);
 app.use('/api/recurring', recurringRoutes);
 app.use('/api/fuel', fuelRoutes);
+app.use('/api/files', fileRoutes);
 app.use('/api/plants', plantRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/config', configRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
