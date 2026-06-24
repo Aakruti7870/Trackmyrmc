@@ -103,15 +103,15 @@ export default function LiveGPSTracker() {
       ctx.moveTo(road[0][0] * W, road[0][1] * H); ctx.lineTo(road[1][0] * W, road[1][1] * H); ctx.stroke();
     });
 
-    [{ label: 'PLANT', x: 0.5, y: 0.5, col: '#f7c948' }, { label: 'Panvel Site', x: 0.12, y: 0.2, col: '#22c55e' }, { label: 'Thane Tower', x: 0.82, y: 0.3, col: '#22c55e' }, { label: 'Kharghar', x: 0.75, y: 0.78, col: '#22c55e' }].forEach(s => {
-      const r = s.col === '#f7c948' ? 8 : 5;
+    [{ label: 'PLANT', x: 0.5, y: 0.5, col: '#178a6e' }, { label: 'Panvel Site', x: 0.12, y: 0.2, col: '#22c55e' }, { label: 'Thane Tower', x: 0.82, y: 0.3, col: '#22c55e' }, { label: 'Kharghar', x: 0.75, y: 0.78, col: '#22c55e' }].forEach(s => {
+      const r = s.col === '#178a6e' ? 8 : 5;
       ctx.beginPath(); ctx.arc(s.x * W, s.y * H, r, 0, Math.PI * 2); ctx.fillStyle = s.col + '30'; ctx.fill();
       ctx.beginPath(); ctx.arc(s.x * W, s.y * H, r, 0, Math.PI * 2); ctx.strokeStyle = s.col; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = s.col; ctx.font = `bold ${r === 8 ? 10 : 8}px Inter, sans-serif`; ctx.textAlign = 'center';
       ctx.fillText(s.label, s.x * W, s.y * H - (r === 8 ? 14 : 11));
     });
 
-    const colors = ['#f7c948', '#22c55e', '#38bdf8', '#a78bfa', '#f97316'];
+    const colors = ['#178a6e', '#22c55e', '#38bdf8', '#a78bfa', '#f97316'];
     vehicles.forEach((v, i) => {
       const px = (v.x / 100) * W, py = (v.y / 100) * H;
       const isSel = selected === v.id;
@@ -119,10 +119,10 @@ export default function LiveGPSTracker() {
       if (v.trail.length > 1) {
         ctx.beginPath(); ctx.moveTo((v.trail[0].x / 100) * W, (v.trail[0].y / 100) * H);
         v.trail.forEach(pt => ctx.lineTo((pt.x / 100) * W, (pt.y / 100) * H));
-        ctx.lineTo(px, py); ctx.strokeStyle = isSel ? 'rgba(247,201,72,0.4)' : 'rgba(56,189,248,0.25)';
+        ctx.lineTo(px, py); ctx.strokeStyle = isSel ? 'rgba(23,138,110,0.4)' : 'rgba(56,189,248,0.25)';
         ctx.lineWidth = isSel ? 2 : 1.5; ctx.setLineDash([3, 4]); ctx.stroke(); ctx.setLineDash([]);
       }
-      if (isSel) { ctx.beginPath(); ctx.arc(px, py, 18, 0, Math.PI * 2); ctx.fillStyle = 'rgba(247,201,72,0.12)'; ctx.fill(); }
+      if (isSel) { ctx.beginPath(); ctx.arc(px, py, 18, 0, Math.PI * 2); ctx.fillStyle = 'rgba(23,138,110,0.12)'; ctx.fill(); }
       ctx.beginPath(); ctx.arc(px, py, isSel ? 10 : 7, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
       ctx.beginPath(); ctx.arc(px, py, isSel ? 10 : 7, 0, Math.PI * 2); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
       const rad = (v.heading * Math.PI) / 180;
@@ -160,7 +160,7 @@ export default function LiveGPSTracker() {
           <div style={{ position: 'absolute', bottom: 8, left: 10, display: 'flex', gap: 10, fontSize: 10, color: '#9fb0c7' }}>
             {vehicles.map((v, i) => (
               <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: ['#f7c948','#22c55e','#38bdf8','#a78bfa','#f97316'][i % 5] }} />
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: ['#178a6e','#22c55e','#38bdf8','#a78bfa','#f97316'][i % 5] }} />
                 {v.vehicleNo.split(' ').slice(-1)[0]}
               </div>
             ))}
@@ -173,7 +173,7 @@ export default function LiveGPSTracker() {
           )}
           {vehicles.map((v, i) => {
             const isSel = selected === v.id;
-            const col = ['#f7c948','#22c55e','#38bdf8','#a78bfa','#f97316'][i % 5];
+            const col = ['#178a6e','#22c55e','#38bdf8','#a78bfa','#f97316'][i % 5];
             return (
               <div key={v.id} onClick={() => setSelected(v.id)} style={{ padding: '10px 12px', borderBottom: '1px solid var(--line)', cursor: 'pointer', background: isSel ? 'var(--menu-hover)' : 'transparent', transition: 'background .15s' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -194,7 +194,7 @@ export default function LiveGPSTracker() {
 
       {selVehicle && (
         <div style={{ borderTop: '1px solid var(--line)', padding: '10px 16px', display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Truck size={14} color="#f7c948" /><span style={{ fontWeight: 800, fontSize: 13, fontFamily: 'monospace' }}>{selVehicle.vehicleNo}</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Truck size={14} color="#178a6e" /><span style={{ fontWeight: 800, fontSize: 13, fontFamily: 'monospace' }}>{selVehicle.vehicleNo}</span></div>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}><span style={{ color: 'var(--text)', fontWeight: 600 }}>{selVehicle.driver}</span></div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}><MapPin size={12} color="#22c55e" /><span style={{ color: 'var(--muted)' }}>{selVehicle.site}</span></div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}><Clock size={12} color="#38bdf8" /><span style={{ color: 'var(--text)', fontWeight: 700 }}>ETA {selVehicle.eta} min</span></div>

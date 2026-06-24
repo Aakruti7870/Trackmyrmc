@@ -34,15 +34,15 @@ export default function Privacy() {
             <div style={{
               width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center',
               background: 'rgba(255,255,255,.6)',
-              border: '1px solid rgba(247,201,72,.4)',
-              boxShadow: '0 0 24px -8px rgba(247,201,72,.6)',
+              border: '1px solid rgba(23,138,110,.4)',
+              boxShadow: '0 0 24px -8px rgba(23,138,110,.6)',
             }}>
-              <Crown size={24} color="var(--gold, #f7c948)" strokeWidth={2.2} fill="rgba(247,201,72,.18)" />
+              <Crown size={24} color="var(--gold, #178a6e)" strokeWidth={2.2} fill="rgba(23,138,110,.18)" />
             </div>
             <div style={{ lineHeight: 1 }}>
               <div style={{ fontWeight: 800, letterSpacing: 0.5, fontSize: 18 }}>
                 <span style={{ color: 'var(--text)' }}>CONCRETE </span>
-                <span style={{ color: 'var(--gold, #f7c948)' }}>KING</span>
+                <span style={{ color: 'var(--gold, #178a6e)' }}>KING</span>
               </div>
               <div style={{ fontSize: 9.5, color: 'var(--muted, #8aa0bd)', letterSpacing: 2, marginTop: 4, textTransform: 'uppercase' }}>
                 Powered by GOLD-e Tech
@@ -67,10 +67,10 @@ export default function Privacy() {
           marginTop: 14, padding: '30px 30px', borderRadius: 20,
           background: 'rgba(255,255,255,.78)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
           border: '1px solid rgba(255,255,255,.85)',
-          boxShadow: '0 30px 70px -40px rgba(30,41,90,.28)',
+          boxShadow: '0 30px 70px -40px rgba(18,64,58,.28)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <ShieldCheck size={28} color="var(--gold, #f7c948)" />
+            <ShieldCheck size={28} color="var(--gold, #178a6e)" />
             <h1 style={{ fontSize: 30, fontWeight: 800, margin: 0, color: 'var(--text)', letterSpacing: 0.2 }}>
               Privacy Policy
             </h1>
@@ -84,7 +84,7 @@ export default function Privacy() {
         <p style={{ color: 'var(--muted, #8aa0bd)', fontSize: 15, lineHeight: 1.7, marginTop: 26 }}>
           CONCRETE KING (operated by GOLD-e Tech, the "Company", "we", "us") provides a Ready-Mix
           Concrete (RMC) marketplace and plant-management platform at{' '}
-          <span style={{ color: 'var(--gold, #f7c948)' }}>trackmyrmc.com</span>. This Privacy Policy
+          <span style={{ color: 'var(--gold, #178a6e)' }}>trackmyrmc.com</span>. This Privacy Policy
           explains what information we collect, how we use it, and the choices you have. By using our
           website, app, or WhatsApp notifications, you agree to the practices described here.
         </p>
@@ -176,15 +176,15 @@ export default function Privacy() {
           }}>
             <div style={{ marginBottom: 6 }}>
               <span style={{ color: 'var(--text)' }}>Email: </span>
-              <a href={`mailto:${MAIL}`} style={{ color: 'var(--gold, #f7c948)', textDecoration: 'none' }}>{MAIL}</a>
+              <a href={`mailto:${MAIL}`} style={{ color: 'var(--gold, #178a6e)', textDecoration: 'none' }}>{MAIL}</a>
             </div>
             <div style={{ marginBottom: 6 }}>
               <span style={{ color: 'var(--text)' }}>Phone: </span>
-              <a href={`tel:${PHONE.replace(/\s/g, '')}`} style={{ color: 'var(--gold, #f7c948)', textDecoration: 'none' }}>{PHONE}</a>
+              <a href={`tel:${PHONE.replace(/\s/g, '')}`} style={{ color: 'var(--gold, #178a6e)', textDecoration: 'none' }}>{PHONE}</a>
             </div>
             <div>
               <span style={{ color: 'var(--text)' }}>Website: </span>
-              <span style={{ color: 'var(--gold, #f7c948)' }}>trackmyrmc.com</span>
+              <span style={{ color: 'var(--gold, #178a6e)' }}>trackmyrmc.com</span>
             </div>
           </div>
         </Section>

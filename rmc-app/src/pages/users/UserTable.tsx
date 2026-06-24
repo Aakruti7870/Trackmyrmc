@@ -244,8 +244,8 @@ export default function UserTable({
                           title={`View activity history (${u.auditCount} ${u.auditCount === 1 ? 'entry' : 'entries'})`}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 5,
-                            background: historyUserId === u.id ? 'rgba(247,201,72,.16)' : 'rgba(247,201,72,.08)',
-                            border: `1px solid ${historyUserId === u.id ? 'rgba(247,201,72,.4)' : 'rgba(247,201,72,.18)'}`,
+                            background: historyUserId === u.id ? 'rgba(23,138,110,.16)' : 'rgba(23,138,110,.08)',
+                            border: `1px solid ${historyUserId === u.id ? 'rgba(23,138,110,.4)' : 'rgba(23,138,110,.18)'}`,
                             borderRadius: 7, color: 'var(--gold)', cursor: 'pointer', padding: '5px 8px', fontSize: 11, fontWeight: 700,
                           }}
                         >
@@ -289,8 +289,8 @@ export default function UserTable({
                       title={`View activity history (${u.auditCount} ${u.auditCount === 1 ? 'entry' : 'entries'})`}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 5,
-                        background: historyUserId === u.id ? 'rgba(247,201,72,.16)' : 'rgba(247,201,72,.08)',
-                        border: `1px solid ${historyUserId === u.id ? 'rgba(247,201,72,.4)' : 'rgba(247,201,72,.18)'}`,
+                        background: historyUserId === u.id ? 'rgba(23,138,110,.16)' : 'rgba(23,138,110,.08)',
+                        border: `1px solid ${historyUserId === u.id ? 'rgba(23,138,110,.4)' : 'rgba(23,138,110,.18)'}`,
                         borderRadius: 7, color: 'var(--gold)', cursor: 'pointer', padding: '5px 8px', fontSize: 11, fontWeight: 700,
                       }}
                     >
@@ -322,7 +322,7 @@ export default function UserTable({
                       disabled={resendingId === u.id}
                       title="Resend welcome email"
                       style={{
-                        background: 'rgba(247,201,72,.1)', border: '1px solid rgba(247,201,72,.25)',
+                        background: 'rgba(23,138,110,.1)', border: '1px solid rgba(23,138,110,.25)',
                         borderRadius: 7, color: 'var(--gold)',
                         cursor: resendingId === u.id ? 'not-allowed' : 'pointer',
                         padding: '5px 8px', opacity: resendingId === u.id ? 0.6 : 1,

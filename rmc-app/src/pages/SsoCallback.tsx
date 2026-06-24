@@ -82,7 +82,7 @@ export default function SsoCallback() {
         <>
           <div style={{
             width: 32, height: 32, borderRadius: '50%',
-            border: '3px solid rgba(255,255,255,.15)', borderTopColor: 'var(--gold, #f7c948)',
+            border: '3px solid rgba(255,255,255,.15)', borderTopColor: 'var(--gold, #178a6e)',
             animation: 'spin 0.8s linear infinite',
           }} />
           <p style={{ fontSize: 14, color: 'var(--muted, #94a3b8)', margin: 0 }}>Completing sign-in…</p>

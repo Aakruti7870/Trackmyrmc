@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
-  Timer, TrendingUp, Fuel, MapPin, Factory,
+  Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -313,22 +313,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               }}>
                 Theme
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 6 }}>
                 {themes.map(t => {
                   const selected = t.id === theme.id;
+                  const Icon = t.id === 'night' ? Moon : Sun;
                   return (
                     <button
                       key={t.id}
-                      title={t.name}
                       onClick={() => setTheme(t.id)}
                       style={{
-                        width: 24, height: 24, borderRadius: 8, cursor: 'pointer', padding: 0,
-                        background: `linear-gradient(135deg, ${t.tokens['--gold-hi']}, ${t.tokens['--gold']} 55%, ${t.tokens['--gold-dark']})`,
-                        border: selected ? '2px solid var(--text)' : `2px solid ${t.tokens['--line']}`,
-                        boxShadow: selected ? `0 0 0 2px color-mix(in srgb, ${t.tokens['--gold']} 45%, transparent)` : 'none',
-                        transition: 'box-shadow .15s, border-color .15s',
+                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        padding: '8px 10px', borderRadius: 9, cursor: 'pointer',
+                        fontSize: 12.5, fontWeight: 700,
+                        background: selected ? 'color-mix(in srgb, var(--gold) 16%, transparent)' : 'var(--chip-bg)',
+                        border: selected ? '1px solid color-mix(in srgb, var(--gold) 55%, transparent)' : '1px solid var(--line)',
+                        color: selected ? 'var(--gold)' : 'var(--muted)',
+                        transition: 'all .15s',
                       }}
-                    />
+                    >
+                      <Icon size={14} />
+                      {t.name}
+                    </button>
                   );
                 })}
               </div>

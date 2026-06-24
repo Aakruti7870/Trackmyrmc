@@ -342,7 +342,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
             style={{
               width: '100%', padding: '11px 0', borderRadius: 10, border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)',
               cursor: leaving ? 'not-allowed' : 'pointer',
-              background: leaving ? 'rgba(247,201,72,.12)' : 'color-mix(in srgb, var(--gold) 14%, transparent)',
+              background: leaving ? 'rgba(23,138,110,.12)' : 'color-mix(in srgb, var(--gold) 14%, transparent)',
               color: 'var(--gold)', fontSize: 13, fontWeight: 700,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}
@@ -829,7 +829,7 @@ export default function MyTrips() {
           style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
             background: viewAll ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'var(--chip-bg)',
-            border: `1px solid ${viewAll ? '#f7c94844' : 'var(--line)'}`,
+            border: `1px solid ${viewAll ? '#178a6e44' : 'var(--line)'}`,
             borderRadius: 10, cursor: 'pointer', color: viewAll ? 'var(--gold)' : 'var(--muted)',
             fontSize: 12, fontWeight: 600, transition: 'all .2s',
           }}

@@ -159,7 +159,7 @@ export async function exportAuditPdf(
       overflow: 'linebreak',
     },
     headStyles: {
-      fillColor: [247, 201, 72], // #f7c948
+      fillColor: [23, 138, 110], // #178a6e
       textColor: [27, 36, 51],
       fontStyle: 'bold',
     },

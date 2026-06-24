@@ -1399,8 +1399,8 @@ export default function ProfileSettings() {
                   marginBottom: 14, display: 'inline-flex', alignItems: 'center', gap: 6,
                   fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
                   color: smtpSettings.configured ? 'var(--green)' : 'var(--gold)',
-                  background: smtpSettings.configured ? 'rgba(34,197,94,.12)' : 'rgba(247,201,72,.12)',
-                  border: `1px solid ${smtpSettings.configured ? 'rgba(34,197,94,.3)' : 'rgba(247,201,72,.3)'}`,
+                  background: smtpSettings.configured ? 'rgba(34,197,94,.12)' : 'rgba(23,138,110,.12)',
+                  border: `1px solid ${smtpSettings.configured ? 'rgba(34,197,94,.3)' : 'rgba(23,138,110,.3)'}`,
                 }}>
                   {smtpSettings.configured ? 'Configured' : 'Incomplete (password missing)'}
                 </div>
@@ -2003,7 +2003,7 @@ export default function ProfileSettings() {
                     <div key={r.id} style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: '12px 14px', borderRadius: 12,
-                      background: 'rgba(247,201,72,.06)', border: '1px solid rgba(247,201,72,.18)',
+                      background: 'rgba(23,138,110,.06)', border: '1px solid rgba(23,138,110,.18)',
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>

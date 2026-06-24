@@ -89,7 +89,7 @@ function dot(color: string, glyph: string) {
   });
 }
 const meIcon = dot('#38bdf8', '🧍');
-const plantIcon = dot('var(--gold, #f7c948)', '🏭');
+const plantIcon = dot('var(--gold, #178a6e)', '🏭');
 // Muted grey marker for unverified, not-yet-onboarded leads from the live map directory.
 const leadIcon = dot('var(--muted)', '🏭');
 

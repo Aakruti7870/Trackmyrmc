@@ -724,7 +724,7 @@ export default function Plants() {
             </div>
 
             {/* AI Document Extraction Panel */}
-            <div style={{ ...softCard, marginBottom: 16, borderColor: showDocPanel ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'var(--line)', background: showDocPanel ? 'rgba(247,201,72,.04)' : 'var(--chip-bg)' }}>
+            <div style={{ ...softCard, marginBottom: 16, borderColor: showDocPanel ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'var(--line)', background: showDocPanel ? 'rgba(23,138,110,.04)' : 'var(--chip-bg)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Sparkles size={15} style={{ color: 'var(--gold)' }} />
@@ -847,7 +847,7 @@ export default function Plants() {
               </Field>
 
               {dupeNearby && !dupeDismissed && (
-                <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--gold) 50%, transparent)', background: 'rgba(247,201,72,.04)', color: 'var(--gold)', fontSize: 13, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--gold) 50%, transparent)', background: 'rgba(23,138,110,.04)', color: 'var(--gold)', fontSize: 13, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
                   <span style={{ flex: 1 }}>
                     Another verified plant (<strong style={{ color: 'var(--text)' }}>{dupeNearby.name}</strong>

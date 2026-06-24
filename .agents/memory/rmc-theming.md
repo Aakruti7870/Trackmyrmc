@@ -1,61 +1,19 @@
 ---
 name: RMC runtime theming
-description: How the multi-theme system works and the migration pitfalls when adding/editing themes in rmc-app.
+description: How CONCRETE KING's single teal Day/Night theme is wired and the override traps to avoid.
 ---
 
-# RMC runtime multi-theme system
+# RMC theming (teal Day/Night)
 
-The app ships 6 dark themes + 1 LIGHT theme (`daylight-glass`, THEMES[0] = the
-DEFAULT) via CSS custom properties swapped on `document.documentElement`
-(provider in `rmc-app/src/lib/theme.tsx`, tokens defined in
-`rmc-app/src/index.css`). Theme id persists in localStorage (`rmc-theme`) and is
-applied at module load to avoid a flash.
+The app ships ONE universal teal-green + white corporate theme with two modes, Day (light, default) and Night (dark). Defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied to `documentElement`. Accent tokens keep legacy `--gold*` key names but now hold a teal ramp.
 
-## Surface-kit completeness rule (light/dark)
-`applyTheme()` only writes the keys present in a theme's `tokens`, so a key set
-by a previous theme but ABSENT from the next stays stale on switch. The shell
-surfaces (shadow-rgb, glass-*, sidebar-*, header-bg, menu-bg/hover, overlay,
-chip-bg, sheen) live in two kits — `LIGHT_SURFACES` / `DARK_SURFACES` — and
-EVERY theme must spread the matching kit (light spreads LIGHT, all 6 darks spread
-DARK). Add a new surface token to BOTH kits or switching half-themes the shell.
-**Why:** the light default introduced surfaces the old dark-only themes never
-declared; without spreading the kit you get dark-on-dark / white-on-white.
+**Why:** legacy keys (`--gold`, `--gold-hi/mid/dark`) are referenced all over the codebase; renaming them would be a huge churn, so the teal values live under the old names.
 
-## Public/auth pages are pinned LIGHT by design
-Landing (`Landing.tsx`/`Landing.css` local `.ck` palette), Login/Register/
-SetPassword and Privacy are intentionally fixed to the Daylight Glass light look
-— logged-out pages have NO theme switcher, so they don't need to track dark
-themes. Clerk's `appearance.variables` in `main.tsx` must also be LIGHT
-(`colorBackground:#fff`, ink `#0f172a`, primary `#d68a0a`) or the Clerk auth UI
-renders dark on the now-light login page.
+**Override trap (cost a debugging cycle):** `var(--gold)` rendered as the OLD amber on the Landing page even after theme.tsx was teal, because **other CSS layers redefined the same custom property closer to the element**:
+- `src/index.css :root { --gold: ... }` (stylesheet baseline)
+- `src/pages/Landing.css .ck { --gold: ... }` (scoped to Landing's `.ck` wrapper — this beats the inline `documentElement` token for descendants because the nearest ancestor that defines a custom property wins)
+- `rmc-app/index.html` static pre-React shell uses hardcoded hex inline styles
 
-## Token model
-Base: `--bg/--bg-top/--bg-deep/--panel/--panel2/--surface/--line`;
-text: `--text/--muted`; accent ramp: `--gold-hi/--gold-mid/--gold/--gold-dark`;
-glow: `--glow-1/--glow-2`; font: `--font-app`. Semantic
-`--green/--green-dark/--blue/--red` are pinned IDENTICALLY in every theme so
-status meaning never shifts — do not theme them.
+**How to apply:** when changing accent colors, the teal value must be set in ALL of: theme.tsx tokens, `src/index.css`, `src/pages/Landing.css`, and the static `index.html` shell — or one layer silently overrides the others. After any accent change, scan `rmc-app/src` + `index.html` for legacy literals (`#d68a0a #f5b942 #f7c948 #e59a16`, rgba `247,201,72` / `214,138,10`).
 
-## The accent-tint pitfall (most important)
-This started as a single gold (`#f7c948` = rgb 247,201,72) design. When making
-it multi-theme, it is NOT enough to migrate accent *text/border* colors to
-`var(--gold)`. Any **tinted background** built from the old accent —
-`rgba(247,201,72,α)` or amber shadows `rgba(255,183,3,α)` — stays yellow on
-non-gold themes, producing e.g. cyan/pink text on a faint yellow chip.
-
-**Rule:** every accent-derived tint must become
-`color-mix(in srgb, var(--gold) N%, transparent)` (N = α×100), and brand
-gradient mid/end stops must use the ramp (`var(--gold-mid)`, `var(--gold-dark)`)
-not literal `#ffb703/#a16207`. **Why:** the accent hue changes per theme; literal
-amber tints/gradients are the single most visible source of mismatched combos.
-
-## Intentional exclusions (do NOT migrate to vars)
-- `ChallanPrint.tsx` — printed challan must stay fixed; has `@media print` white bg.
-- `LiveGPSTracker.tsx` — marker/route colors are dynamic, not themed.
-- Per-theme glow literals inside `theme.tsx` THEMES maps and the `:root`
-  fallback defaults in `index.css` are real rgba values by design — keep them.
-
-## Capturing per-theme samples
-There is no `?theme=` URL override in committed code. To screenshot each theme,
-temporarily let `readStored()` honor a `?theme=` query param, capture
-`/login?theme=<id>`, then REVERT the override and rebuild before finishing.
+**Intentional non-teal:** `--orange` token + semantic amber (`#f59e0b/#facc15/#f97316`) for warnings, lock-expiring badges, role badges (plant_owner), and unverified-plant alerts stay distinct — do NOT tealify them. The Landing mixer-truck SVG illustration keeps amber gradient stops (`#fbd36b/#f0b429`) as a realistic vehicle.

@@ -64,13 +64,13 @@ export default function ActivityLogPanel({
   return (
     <div id="activity-log" style={{ marginTop: 32, scrollMarginTop: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14, flexWrap: 'wrap' }}>
-        <ClipboardList size={18} color="#f7c948" />
+        <ClipboardList size={18} color="#178a6e" />
         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
           {historyUserName ? `Activity Log — ${historyUserName}` : 'Activity Log'}
         </h3>
         <span style={{
           fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
-          background: 'rgba(247,201,72,.12)', color: '#f7c948', border: '1px solid rgba(247,201,72,.25)',
+          background: 'rgba(23,138,110,.12)', color: '#178a6e', border: '1px solid rgba(23,138,110,.25)',
         }}>
           {auditLog.length} {auditLog.length === 1 ? 'entry' : 'entries'}
         </span>
@@ -168,7 +168,7 @@ export default function ActivityLogPanel({
               style={{
                 display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px',
                 borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-                background: 'rgba(247,201,72,.12)', border: '1px solid rgba(247,201,72,.3)', color: '#f7c948',
+                background: 'rgba(23,138,110,.12)', border: '1px solid rgba(23,138,110,.3)', color: '#178a6e',
               }}
             >
               <Download size={13} /> Export
@@ -200,7 +200,7 @@ export default function ActivityLogPanel({
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--menu-hover)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
-                    <span style={{ color: '#f7c948', display: 'flex' }}>{item.icon}</span>
+                    <span style={{ color: '#178a6e', display: 'flex' }}>{item.icon}</span>
                     {item.label}
                   </button>
                 ))}

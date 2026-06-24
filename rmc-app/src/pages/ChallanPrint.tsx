@@ -80,7 +80,7 @@ export default function ChallanPrint() {
         }}><Share2 size={14} /> WhatsApp</button>
         <button onClick={() => window.print()} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-          background: 'linear-gradient(135deg,#ffe08a,#f6b818)',
+          background: 'linear-gradient(135deg,#7ee5c7,#1f9e80)',
           borderRadius: 8, color: '#111827', cursor: 'pointer', fontSize: 13, fontWeight: 800, border: 'none',
         }}><Printer size={14} /> Print</button>
       </div>
@@ -98,7 +98,7 @@ export default function ChallanPrint() {
           const meta = [plant.gstNo ? `GST: ${plant.gstNo}` : null, plant.contact ? `Ph: ${plant.contact}` : null]
             .filter(Boolean).join(' | ');
           return (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #d97706', paddingBottom: 16, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #0f6e57', paddingBottom: 16, marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a1a' }}>{plant.legalName}</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>Ready Mix Concrete{plant.code ? ` · Plant ${plant.code}` : ''}</div>
@@ -106,7 +106,7 @@ export default function ChallanPrint() {
             {meta && <div style={{ fontSize: 11, color: '#888' }}>{meta}</div>}
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 28, fontWeight: 900, color: '#d97706', letterSpacing: '-1px' }}>CHALLAN</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#0f6e57', letterSpacing: '-1px' }}>CHALLAN</div>
             <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'monospace', color: '#1a1a1a' }}>#{challan.challanNo}</div>
             <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
               Date: {challan.dispatchTime ? new Date(challan.dispatchTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}
@@ -134,7 +134,7 @@ export default function ChallanPrint() {
         {/* Material table */}
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20, fontSize: 13 }}>
           <thead>
-            <tr style={{ background: '#d97706', color: '#fff' }}>
+            <tr style={{ background: '#0f6e57', color: '#fff' }}>
               {['Sr.', 'Description', 'Grade', 'Quantity (m³)', 'Pump Required'].map(h => (
                 <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, fontSize: 12 }}>{h}</th>
               ))}
@@ -144,7 +144,7 @@ export default function ChallanPrint() {
             <tr style={{ background: '#fffbf0', borderBottom: '1px solid #eee' }}>
               <td style={{ padding: '12px' }}>1</td>
               <td style={{ padding: '12px', fontWeight: 600 }}>Ready Mix Concrete (RMC)</td>
-              <td style={{ padding: '12px', fontWeight: 800, color: '#d97706' }}>{challan.grade}</td>
+              <td style={{ padding: '12px', fontWeight: 800, color: '#0f6e57' }}>{challan.grade}</td>
               <td style={{ padding: '12px', fontWeight: 800, fontSize: 16 }}>{challan.quantity}</td>
               <td style={{ padding: '12px', color: challan.pumpRequired ? '#16a34a' : '#555' }}>
                 {challan.pumpRequired ? '✓ Yes' : 'No'}

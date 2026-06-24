@@ -99,7 +99,7 @@ export const ACTION_COLOR: Record<string, string> = {
   welcome_email: '#a78bfa',
   lockout_cleared: '#22c55e',
   name_change: '#a78bfa',
-  role_change: '#f7c948',
+  role_change: '#178a6e',
   account_activated: '#22c55e',
   account_deactivated: '#ef4444',
   client_link_change: '#38bdf8',

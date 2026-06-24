@@ -32,16 +32,16 @@
   --line: rgba(30,41,90,0.12);
   --text: #0f172a;
   --muted: #5a6b85;
-  --gold-hi: #f5b942;
-  --gold-mid: #e59a16;
-  --gold: #d68a0a;
-  --gold-dark: #a96a06;
+  --gold-hi: #3fc7a4;
+  --gold-mid: #1f9e80;
+  --gold: #178a6e;
+  --gold-dark: #0f6e57;
   --green: #15a06a;
   --green-dark: #0f7a4f;
   --blue: #2a83d6;
   --red: #e11d57;
   --orange: #d97706;
-  --glow-1: rgba(214,138,10,.16);
+  --glow-1: rgba(23,138,110,.16);
   --glow-2: rgba(14,154,167,.16);
   --font-app: 'Sora', system-ui, -apple-system, sans-serif;
 
@@ -178,7 +178,7 @@ button { cursor: pointer; border: 0; }
   right: 52px; bottom: 54px;
   width: 112px; height: 44px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #facc15, #f59e0b);
+  background: linear-gradient(135deg, #3fc7a4, #0f6e57);
   transform: translateZ(96px);
   box-shadow: 0 18px 34px rgba(0,0,0,.42);
 }

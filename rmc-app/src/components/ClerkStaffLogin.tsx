@@ -49,11 +49,11 @@ export default function ClerkStaffLogin({ onError }: { onError: (msg: string) =>
   return (
     <div style={{ marginTop: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 16px' }}>
-        <div style={{ flex: 1, height: 1, background: 'rgba(30,41,90,.12)' }} />
+        <div style={{ flex: 1, height: 1, background: 'rgba(18,64,58,.12)' }} />
         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase' }}>
           Staff
         </span>
-        <div style={{ flex: 1, height: 1, background: 'rgba(30,41,90,.12)' }} />
+        <div style={{ flex: 1, height: 1, background: 'rgba(18,64,58,.12)' }} />
       </div>
 
       <SignInButton mode="modal" fallbackRedirectUrl="/login">

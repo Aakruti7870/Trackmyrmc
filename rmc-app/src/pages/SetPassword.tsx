@@ -88,7 +88,7 @@ export default function SetPassword() {
           border: '1px solid rgba(255,255,255,.85)',
           borderRadius: 20, padding: '36px 32px',
           backdropFilter: 'blur(12px)',
-          boxShadow: '0 30px 70px -30px rgba(30,41,90,.28)',
+          boxShadow: '0 30px 70px -30px rgba(18,64,58,.28)',
         }}>
           {checking ? (
             <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14, padding: '20px 0' }}>
@@ -170,7 +170,7 @@ export default function SetPassword() {
 
 const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 };
 const field: React.CSSProperties = {
-  width: '100%', background: 'rgba(255,255,255,.7)', border: '1px solid rgba(30,41,90,.14)',
+  width: '100%', background: 'rgba(255,255,255,.7)', border: '1px solid rgba(18,64,58,.14)',
   borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none', boxSizing: 'border-box',
 };
 const leftIcon: React.CSSProperties = { color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' };

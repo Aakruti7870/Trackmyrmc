@@ -29,7 +29,7 @@ function dot(color: string, glyph: string) {
   });
 }
 
-const truckIcon = dot('var(--gold, #f7c948)', '🚚');
+const truckIcon = dot('var(--gold, #178a6e)', '🚚');
 const siteIcon = dot('#22c55e', '📍');
 
 // Refits the map to every visible marker whenever the set of coordinates

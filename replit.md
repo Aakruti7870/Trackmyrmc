@@ -6,7 +6,7 @@ A full-stack RMC (Ready-Mix Concrete) marketplace and plant management web appli
 
 - **Frontend**: React 19 + TypeScript + Vite
 - **Routing**: Wouter
-- **Styling**: Tailwind CSS v4 + inline styles (dark navy premium theme)
+- **Styling**: Tailwind CSS v4 + inline styles (teal-green corporate theme, Day/Night modes)
 - **Data**: localStorage (no backend required)
 - **Icons**: lucide-react
 
@@ -52,12 +52,13 @@ Runs on port 5000.
 
 ## Design System
 
-- Background: dark navy `#08111f`
-- Gold accent: `#f7c948` (primary actions)
-- Green: `#22c55e` (dispatch/positive)
-- Blue: `#38bdf8` (info/grade badges)
-- Red: `#ef4444` (delete/danger)
-- Glass cards: gradient + frosted border + subtle inner glow
+One universal teal-green + white corporate theme with two modes (Day / Night), selectable from the user menu. Defined in `rmc-app/src/lib/theme.tsx` as CSS variables; the whole app re-themes via these tokens.
+
+- **Day (default)**: white/light surfaces, dark teal text `#0f2e29`, teal accent ramp (`--gold` = `#178a6e`)
+- **Night**: deep teal surfaces (`--bg` `#0a221e`), light text `#eaf6f1`, brighter emerald accent (`--gold` = `#1f9e80`)
+- Accent tokens are still named `--gold*` (legacy key names) but hold the teal-green ramp
+- Green: `#22c55e` (dispatch/positive), Blue: `#38bdf8` (info), Red: `#ef4444` (danger)
+- Glass cards via `--glass-1/2/-border`; surfaces flip per mode (DAY_SURFACES / NIGHT_SURFACES)
 
 ## User Preferences
 

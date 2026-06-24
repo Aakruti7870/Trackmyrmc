@@ -59,10 +59,10 @@ function Logo({ size = 1 }: { size?: number }) {
         width: 46 * size, height: 46 * size, borderRadius: 13 * size,
         display: 'grid', placeItems: 'center',
         background: 'linear-gradient(160deg, #1a2c46, #0c1828)',
-        border: '1px solid rgba(247,201,72,.4)',
-        boxShadow: '0 0 24px -8px rgba(247,201,72,.6), inset 0 1px 0 rgba(255,255,255,.06)',
+        border: '1px solid rgba(23,138,110,.4)',
+        boxShadow: '0 0 24px -8px rgba(23,138,110,.6), inset 0 1px 0 rgba(255,255,255,.06)',
       }}>
-        <Crown size={26 * size} color="var(--gold)" strokeWidth={2.2} fill="rgba(247,201,72,.18)" />
+        <Crown size={26 * size} color="var(--gold)" strokeWidth={2.2} fill="rgba(23,138,110,.18)" />
       </div>
       <div style={{ lineHeight: 1 }}>
         <div style={{ fontWeight: 800, letterSpacing: 0.5, fontSize: 19 * size }}>
@@ -83,13 +83,13 @@ function LiveTrackingMap() {
       position: 'relative', borderRadius: 22, overflow: 'hidden',
       border: '1px solid var(--line)', height: '100%', minHeight: 360,
       background: 'radial-gradient(120% 120% at 70% 10%, #f4f7fc 0%, #e8eef7 55%, #dde6f2 100%)',
-      boxShadow: '0 30px 70px -30px rgba(30,41,90,.28)',
+      boxShadow: '0 30px 70px -30px rgba(18,64,58,.28)',
     }}>
       {/* moving grid */}
       <div style={{
         position: 'absolute', inset: 0, opacity: 0.5,
         backgroundImage:
-          'linear-gradient(rgba(30,41,90,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(30,41,90,.08) 1px, transparent 1px)',
+          'linear-gradient(rgba(18,64,58,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(18,64,58,.08) 1px, transparent 1px)',
         backgroundSize: '48px 48px',
         animation: 'ck-grid 6s linear infinite',
         maskImage: 'radial-gradient(120% 100% at 50% 30%, #000 40%, transparent 95%)',
@@ -99,13 +99,13 @@ function LiveTrackingMap() {
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}>
         <defs>
           <linearGradient id="ck-route" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#f7c948" />
+            <stop offset="0" stopColor="#178a6e" />
             <stop offset="1" stopColor="#38bdf8" />
           </linearGradient>
         </defs>
 
         {/* route glow + animated dashes */}
-        <path d={CK_ROUTE} fill="none" stroke="rgba(247,201,72,.18)" strokeWidth="10" strokeLinecap="round" />
+        <path d={CK_ROUTE} fill="none" stroke="rgba(23,138,110,.18)" strokeWidth="10" strokeLinecap="round" />
         <path d={CK_ROUTE} fill="none" stroke="url(#ck-route)" strokeWidth="3.5" strokeLinecap="round"
           strokeDasharray="14 16" style={{ animation: 'ck-dash 18s linear infinite' }} />
 
@@ -146,7 +146,7 @@ function MixerTruckGlyph() {
         <linearGradient id="ck-drum-grad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#fbd36b" />
           <stop offset="0.5" stopColor="#f0b429" />
-          <stop offset="1" stopColor="#d68a0a" />
+          <stop offset="1" stopColor="#0f6e57" />
         </linearGradient>
         <linearGradient id="ck-cab-grad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#2b3a52" />
@@ -191,7 +191,7 @@ function MixerTruckGlyph() {
       <path d="M47.6 15 H54 a1.5 1.5 0 0 1 1.5 1.5 V21 H46 V16.5 A1.5 1.5 0 0 1 47.6 15 z" fill="#bcd6f5" />
       <rect x="43" y="24" width="14" height="3" rx="1.5" fill="#0e1726" />
       {/* headlight */}
-      <circle cx="56.6" cy="25" r="1.1" fill="#ffe08a" />
+      <circle cx="56.6" cy="25" r="1.1" fill="#7ee5c7" />
 
       {/* wheels — front + rear tandem */}
       {[16, 25, 33, 51].map((cx) => (
@@ -242,8 +242,8 @@ export default function Landing() {
   const btnGold: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 22px',
     borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: 'none',
-    background: 'linear-gradient(160deg,#f5b942,#d68a0a)', color: '#fff',
-    boxShadow: '0 14px 30px -12px rgba(214,138,10,.6)', fontFamily: 'inherit',
+    background: 'linear-gradient(160deg,#3fc7a4,#0f6e57)', color: '#fff',
+    boxShadow: '0 14px 30px -12px rgba(23,138,110,.45)', fontFamily: 'inherit',
   };
   const btnGhost: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 22px',
@@ -260,7 +260,7 @@ export default function Landing() {
   const panel: React.CSSProperties = {
     background: 'linear-gradient(160deg, rgba(255,255,255,.82), rgba(255,255,255,.6))',
     border: '1px solid rgba(255,255,255,.85)', borderRadius: 18,
-    boxShadow: '0 18px 44px -22px rgba(30,41,90,.18)',
+    boxShadow: '0 18px 44px -22px rgba(18,64,58,.18)',
   };
 
   return (
@@ -325,14 +325,14 @@ export default function Landing() {
           <div style={{ position: 'absolute', inset: 0,
             background: 'linear-gradient(180deg, rgba(238,242,249,.55) 0%, rgba(238,242,249,.82) 55%, var(--bg) 100%)' }} />
           <div style={{ position: 'absolute', inset: 0,
-            background: 'radial-gradient(80% 60% at 15% 30%, rgba(247,201,72,.12), transparent 60%)' }} />
+            background: 'radial-gradient(80% 60% at 15% 30%, rgba(23,138,110,.12), transparent 60%)' }} />
         </div>
         <div style={{ ...section, position: 'relative', padding: '64px 24px 72px',
           display: 'grid', gridTemplateColumns: '1.05fr .95fr', gap: 48, alignItems: 'center' }}
           className="ck-hero-grid">
           <div className="ck-fade">
             <span style={{ ...kicker, display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '7px 13px', borderRadius: 999, background: 'rgba(247,201,72,.1)', border: '1px solid rgba(247,201,72,.3)' }}>
+              padding: '7px 13px', borderRadius: 999, background: 'rgba(23,138,110,.1)', border: '1px solid rgba(23,138,110,.3)' }}>
               <Radio size={13} /> Real-time Ready-Mix Concrete
             </span>
             <h1 className="ck-h1" style={{ fontSize: 58, lineHeight: 1.03, fontWeight: 800, letterSpacing: -1.5, margin: '20px 0 0' }}>
@@ -435,7 +435,7 @@ export default function Landing() {
           background: 'linear-gradient(135deg, rgba(255,255,255,.85), rgba(255,255,255,.65))',
           overflow: 'hidden', position: 'relative' }} className="ck-contact-grid">
           <div style={{ position: 'absolute', right: -60, top: -60, width: 240, height: 240, borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(247,201,72,.18), transparent 70%)' }} />
+            background: 'radial-gradient(circle, rgba(23,138,110,.18), transparent 70%)' }} />
           <div style={{ position: 'relative' }}>
             <span style={kicker}>Onboarding & Support</span>
             <h2 style={{ ...h2, fontSize: 30 }}>Run a plant? Get listed on Concrete King.</h2>
@@ -451,7 +451,7 @@ export default function Landing() {
             <a href={`mailto:${MAIL}`} style={{ ...panel, padding: 18, display: 'flex', alignItems: 'center', gap: 14,
               textDecoration: 'none', color: 'var(--text)' }} className="ck-card-hover">
               <span style={{ width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center',
-                background: 'rgba(247,201,72,.1)', border: '1px solid rgba(247,201,72,.25)' }}>
+                background: 'rgba(23,138,110,.1)', border: '1px solid rgba(23,138,110,.25)' }}>
                 <Mail size={20} color="var(--gold)" />
               </span>
               <div>
@@ -586,7 +586,7 @@ function OnboardForm({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} style={{
           marginTop: 20, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 22px',
           borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: 'none',
-          background: 'linear-gradient(160deg,#f5b942,#d68a0a)', color: '#fff', fontFamily: 'inherit',
+          background: 'linear-gradient(160deg,#3fc7a4,#0f6e57)', color: '#fff', fontFamily: 'inherit',
         }}>Done</button>
       </div>
     );
@@ -642,7 +642,7 @@ function OnboardForm({ onClose }: { onClose: () => void }) {
         <button type="submit" style={{
           flex: 1, minWidth: 160, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           padding: '14px 22px', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer', border: 'none',
-          background: 'linear-gradient(160deg,#f5b942,#d68a0a)', color: '#fff', fontFamily: 'inherit',
+          background: 'linear-gradient(160deg,#3fc7a4,#0f6e57)', color: '#fff', fontFamily: 'inherit',
         }}>Submit inquiry <ArrowRight size={16} /></button>
         <button type="button" onClick={onClose} style={{
           padding: '14px 22px', borderRadius: 12, fontWeight: 600, fontSize: 15, cursor: 'pointer',
@@ -661,9 +661,9 @@ function Modal({ children, onClose, wide }: { children: React.ReactNode; onClose
         position: 'relative', width: '100%', maxWidth: wide ? 640 : 460,
         maxHeight: 'calc(100vh - 48px)', overflowY: 'auto',
         background: 'linear-gradient(160deg, rgba(255,255,255,.96), rgba(255,255,255,.86))', border: '1px solid rgba(255,255,255,.85)',
-        borderRadius: 20, padding: 28, boxShadow: '0 40px 90px -30px rgba(30,41,90,.4)' }}>
+        borderRadius: 20, padding: 28, boxShadow: '0 40px 90px -30px rgba(18,64,58,.4)' }}>
         <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, width: 34, height: 34, borderRadius: 10,
-          display: 'grid', placeItems: 'center', cursor: 'pointer', background: 'rgba(30,41,90,.05)',
+          display: 'grid', placeItems: 'center', cursor: 'pointer', background: 'rgba(18,64,58,.05)',
           border: '1px solid var(--line)', color: 'var(--muted)' }}>
           <X size={18} />
         </button>
