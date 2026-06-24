@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { api, type User as AuthUser } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle, User, Phone, MapPin, FileText, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle, User, Phone, MapPin, FileText, CheckCircle2, ArrowLeft, Check } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
+import AuthLegalFooter from '@/components/AuthLegalFooter';
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '11px 14px 11px 38px',
@@ -40,12 +41,17 @@ export default function Register() {
   const [city, setCity] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!consent) {
+      setError('Please accept the Terms of Service and Privacy Policy to continue.');
+      return;
+    }
     setError('');
     setLoading(true);
     try {
@@ -190,12 +196,38 @@ export default function Register() {
                 </div>
               )}
 
-              <button type="submit" disabled={loading} style={{
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 18,
+                fontSize: 13, color: 'var(--muted)', lineHeight: 1.5,
+              }}>
+                <button
+                  type="button" role="checkbox" aria-checked={consent}
+                  aria-label="Accept Terms of Service and Privacy Policy"
+                  onClick={() => setConsent(c => !c)}
+                  style={{
+                    flexShrink: 0, width: 20, height: 20, marginTop: 1, borderRadius: 6,
+                    display: 'grid', placeItems: 'center', cursor: 'pointer', padding: 0,
+                    border: `1px solid ${consent ? 'var(--gold)' : 'var(--line)'}`,
+                    background: consent ? 'var(--gold)' : 'var(--surface)',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {consent && <Check size={14} color="#111827" strokeWidth={3} />}
+                </button>
+                <span>
+                  I agree to the{' '}
+                  <button type="button" onClick={() => setLoc('/terms')} style={inlineLink}>Terms of Service</button>{' '}
+                  and{' '}
+                  <button type="button" onClick={() => setLoc('/privacy')} style={inlineLink}>Privacy Policy</button>.
+                </span>
+              </div>
+
+              <button type="submit" disabled={loading || !consent} style={{
                 width: '100%', padding: '12px', borderRadius: 12,
-                background: loading ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+                background: (loading || !consent) ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
                 color: '#111827', fontWeight: 800, fontSize: 15,
                 boxShadow: '0 12px 30px color-mix(in srgb, var(--gold) 20%, transparent)',
-                cursor: loading ? 'not-allowed' : 'pointer', border: 'none',
+                cursor: (loading || !consent) ? 'not-allowed' : 'pointer', border: 'none',
                 transition: 'all .15s',
               }}>
                 {loading ? 'Submitting...' : 'Create Account →'}
@@ -221,9 +253,16 @@ export default function Register() {
                 Register your plant
               </button>
             </div>
+
+            <AuthLegalFooter />
           </>
         )}
       </div>
     </div>
   );
 }
+
+const inlineLink: React.CSSProperties = {
+  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+  color: 'var(--gold)', fontWeight: 700, fontSize: 13, textDecoration: 'underline',
+};

@@ -7,6 +7,11 @@ import type { Challan } from './api';
 export const PLATFORM_NAME = 'CONCRETE KING';
 export const PLATFORM_TAGLINE = 'RMC Marketplace & Plant Management';
 
+// Support contacts shown on auth screens and legal pages.
+export const SUPPORT_EMAIL = 'support@goldetech.com';
+export const SUPPORT_PHONE = '+91 74982 86760';
+export const SUPPORT_WHATSAPP_URL = 'https://wa.me/917498286760';
+
 // The plant identity to print on a challan/receipt. Falls back gracefully when a
 // field is absent so a legacy/unbranded challan still renders something sensible,
 // but never substitutes a hardcoded company name.

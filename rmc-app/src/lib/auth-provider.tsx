@@ -72,8 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  async function login(email: string, password: string) {
-    const data = await api.post<{ token: string; user: User }>('/auth/login', { email, password });
+  async function login(email: string, password: string, plantCode?: string) {
+    const data = await api.post<{ token: string; user: User }>('/auth/login', {
+      email, password, ...(plantCode ? { plantCode } : {}),
+    });
     localStorage.setItem('rmc_token', data.token);
     localStorage.setItem('rmc_user', JSON.stringify(data.user));
     setUser(data.user);

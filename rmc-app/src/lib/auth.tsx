@@ -4,7 +4,7 @@ import { type User } from './api';
 export interface AuthCtx {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<User>;
+  login: (email: string, password: string, plantCode?: string) => Promise<User>;
   logout: () => void;
   updateUser: (updated: User, token?: string) => void;
 }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
-import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft, ChevronDown } from 'lucide-react';
+import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft, ChevronDown, Hash, Users } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 import logoCk from '@/assets/logo-ck.png';
 import InstallAppButton from '@/components/InstallAppButton';
@@ -12,6 +12,7 @@ import ClerkStaffLogin from '@/components/ClerkStaffLogin';
 import ClerkCustomerLogin from '@/components/ClerkCustomerLogin';
 import { inputStyle } from '@/components/loginStyles';
 import { ErrorBox, SubmitButton } from '@/components/loginUi';
+import AuthLegalFooter from '@/components/AuthLegalFooter';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 
 const DEMO = [
@@ -39,6 +40,7 @@ export default function Login() {
   // Email / password (staff)
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [plantCode, setPlantCode] = useState('');
   const [showPw, setShowPw] = useState(false);
 
   // Phone OTP (customers)
@@ -53,7 +55,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const loggedIn = await login(email, password);
+      const loggedIn = await login(email, password, plantCode.trim() || undefined);
       setLoc(defaultPath(loggedIn.role));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -208,6 +210,39 @@ export default function Login() {
           }}>
             <ArrowLeft size={15} /> Back to home
           </button>
+
+          {/* Portal / role selector — switches between the customer (phone) and
+              staff (email) sign-in flows. */}
+          {!clerkEnabled && (
+            <div role="tablist" aria-label="Sign in as" style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 22,
+              background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: 4,
+            }}>
+              {([
+                { key: 'phone', label: 'Customer', icon: <Phone size={14} /> },
+                { key: 'email', label: 'Plant Staff', icon: <Users size={14} /> },
+              ] as const).map(opt => {
+                const active = mode === opt.key;
+                return (
+                  <button
+                    key={opt.key} type="button" role="tab" aria-selected={active}
+                    onClick={() => { setMode(opt.key); setError(''); }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      padding: '9px 10px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                      fontSize: 13, fontWeight: 700,
+                      background: active ? 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))' : 'transparent',
+                      color: active ? '#111827' : 'var(--muted)',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    {opt.icon}{opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {mode === 'phone' ? (
             <>
               {clerkEnabled ? (
@@ -347,6 +382,25 @@ export default function Login() {
                   </div>
                 </div>
 
+                <div style={{ marginBottom: 10, marginTop: 18 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
+                    Plant ID <span style={{ fontWeight: 500, textTransform: 'none' }}>(optional)</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Hash size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text" value={plantCode}
+                      onChange={e => setPlantCode(e.target.value)}
+                      placeholder="e.g. RMC-001"
+                      autoCapitalize="characters" autoComplete="off"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <p style={{ margin: '6px 2px 0', fontSize: 11, color: 'var(--muted)' }}>
+                    Enter your plant's code to confirm you're signing into the right plant.
+                  </p>
+                </div>
+
                 <div style={{ marginBottom: 24, textAlign: 'right' }}>
                   <button type="button" onClick={() => setLoc('/forgot-password')} style={linkBtnStyle}>
                     Forgot password?
@@ -368,6 +422,8 @@ export default function Login() {
               {clerkEnabled && <ClerkStaffLogin onError={setError} />}
             </>
           )}
+
+          <AuthLegalFooter consentPrefix="By continuing, you agree to our Terms of Service and Privacy Policy." />
         </div>
       </div>
     </div>

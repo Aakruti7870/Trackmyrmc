@@ -4,7 +4,7 @@ import { hashPassword } from '../lib/password.js';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { users, clients, auditLogs } from '../db/schema.js';
+import { users, clients, auditLogs, plants } from '../db/schema.js';
 import { verifyToken as clerkVerifyToken, createClerkClient } from '@clerk/backend';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { isAuthorityEmail } from '../lib/authority.js';
@@ -18,6 +18,7 @@ import { normalizePhone, isOtpProviderConfigured, sendOtp, verifyOtp } from '../
 const router = Router();
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
+    const plantCode = typeof req.body.plantCode === 'string' ? req.body.plantCode.trim() : '';
     if (!email || !password) {
         res.status(400).json({ error: 'Email and password required' });
         return;
@@ -70,6 +71,19 @@ router.post('/login', async (req, res) => {
     if (user.role === 'authority' && !isAuthorityEmail(user.email)) {
         res.status(403).json({ error: 'This account is not on the AUTHORITY allow-list.' });
         return;
+    }
+    // Optional Plant ID: when staff supply their plant code, it must match the
+    // plant their account is linked to (defence in depth against signing into the
+    // wrong tenant). Left blank, login proceeds as before.
+    if (plantCode) {
+        const [plant] = user.plantId
+            ? await db.select({ code: plants.plantCode }).from(plants).where(eq(plants.id, user.plantId))
+            : [];
+        if (!plant?.code || plant.code.toLowerCase() !== plantCode.toLowerCase()) {
+            await resetAttempts(lockoutKey);
+            res.status(403).json({ error: 'This account is not linked to that Plant ID.' });
+            return;
+        }
     }
     await resetAttempts(lockoutKey);
     const token = signToken({
