@@ -367,6 +367,10 @@ export const passwordSetupTokens = pgTable('password_setup_tokens', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   tokenHash: text('token_hash').notNull(),
+  // 'invite' (owner onboarding — redeeming activates the account) vs 'reset'
+  // (forgot-password — redeeming only changes the password and must NEVER
+  // reactivate a suspended account). Defaults to 'invite' for legacy rows.
+  kind: text('kind').notNull().default('invite'),
   expiresAt: timestamp('expires_at').notNull(),
   usedAt: timestamp('used_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

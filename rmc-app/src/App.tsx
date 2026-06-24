@@ -9,6 +9,7 @@ import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import SetPassword from '@/pages/SetPassword';
+import ForgotPassword from '@/pages/ForgotPassword';
 import Landing from '@/pages/Landing';
 import Privacy from '@/pages/Privacy';
 import { canAccess, defaultPath } from '@/lib/permissions';
@@ -152,6 +153,7 @@ export default function App() {
             <Route path="/register" component={RegisterRoute} />
             <Route path="/privacy" component={Privacy} />
             <Route path="/set-password" component={SetPassword} />
+            <Route path="/forgot-password" component={ForgotPassword} />
             <Route path="/sso-callback" component={() => (
               <Suspense fallback={PageSpinner}><SsoCallback /></Suspense>
             )} />

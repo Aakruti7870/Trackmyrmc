@@ -433,6 +433,116 @@ export async function sendOwnerInviteEmail(
   return true;
 }
 
+// Send a password-reset link to a user who asked to reset their own password.
+// Mirrors the owner-invite email's best-effort contract: returns false (and
+// logs) when SMTP is unconfigured rather than throwing, so the request path
+// never fails because email is unavailable.
+export async function sendPasswordResetEmail(
+  toEmail: string,
+  toName: string,
+  resetUrl: string,
+  expiresAt: Date,
+): Promise<boolean> {
+  const cfg = await getSmtpConfig();
+  const transporter = transporterFor(cfg);
+
+  if (!transporter) {
+    console.warn(
+      '[email] SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing). ' +
+      'Skipping password-reset email.',
+    );
+    return false;
+  }
+
+  const from = cfg.from || cfg.user || undefined;
+  const expires = expiresAt.toUTCString();
+
+  await transporter.sendMail({
+    from,
+    to: toEmail,
+    subject: 'Reset your Aakruti Infra RMC Plant password',
+    text: [
+      `Hello ${toName},`,
+      '',
+      'We received a request to reset the password for your Aakruti Infra RMC Plant Management System account.',
+      '',
+      'Choose a new password using the secure link below:',
+      '',
+      `  ${resetUrl}`,
+      '',
+      `This link can be used once and expires on ${expires}.`,
+      'If you did not request a password reset, you can safely ignore this email — your password will stay unchanged.',
+      '',
+      '— Aakruti Infra RMC Plant Management System',
+    ].join('\n'),
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+        <tr>
+          <td style="background:#08111f;padding:24px 32px">
+            <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
+              Aakruti Infra RMC Plant
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px">
+            <h2 style="margin:0 0 16px;color:#1a1a1a;font-size:18px">
+              Reset Your Password
+            </h2>
+            <p style="color:#444;line-height:1.6;margin:0 0 16px">
+              Hello <strong>${toName}</strong>,
+            </p>
+            <p style="color:#444;line-height:1.6;margin:0 0 20px">
+              We received a request to reset the password for your
+              <strong>Aakruti Infra RMC Plant Management System</strong> account.
+              Choose a new password below:
+            </p>
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 24px">
+              <tr>
+                <td style="border-radius:8px;background:#f7c948">
+                  <a href="${resetUrl}"
+                     style="display:inline-block;padding:12px 28px;font-size:15px;font-weight:700;
+                            color:#1a1a1a;text-decoration:none;border-radius:8px">
+                    Reset your password
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="color:#666;line-height:1.6;margin:0 0 8px;font-size:13px">
+              Or paste this link into your browser:
+            </p>
+            <p style="margin:0 0 24px;font-size:13px;word-break:break-all">
+              <a href="${resetUrl}" style="color:#2563eb">${resetUrl}</a>
+            </p>
+            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin:0 0 24px">
+              <p style="color:#92400e;margin:0;font-size:13px;line-height:1.5">
+                This link can be used <strong>once</strong> and expires on <strong>${expires}</strong>.
+                If you did not request a password reset, you can safely ignore this email —
+                your password will stay unchanged.
+              </p>
+            </div>
+            <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
+            <p style="color:#888;font-size:13px;margin:0">
+              — Aakruti Infra RMC Plant Management System
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+  });
+  return true;
+}
+
 export interface DeliveryNotificationDetails {
   challanNo: string;
   grade: string;

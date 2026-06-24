@@ -309,7 +309,7 @@ export default function Login() {
                   </div>
                 </div>
 
-                <div style={{ marginBottom: 24 }}>
+                <div style={{ marginBottom: 10 }}>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
                     Password
                   </label>
@@ -328,6 +328,12 @@ export default function Login() {
                       {showPw ? <EyeOff size={15} style={{ color: 'var(--muted)' }} /> : <Eye size={15} style={{ color: 'var(--muted)' }} />}
                     </button>
                   </div>
+                </div>
+
+                <div style={{ marginBottom: 24, textAlign: 'right' }}>
+                  <button type="button" onClick={() => setLoc('/forgot-password')} style={linkBtnStyle}>
+                    Forgot password?
+                  </button>
                 </div>
 
                 {error && <ErrorBox message={error} />}

@@ -11,7 +11,8 @@ import { isAuthorityEmail } from '../lib/authority.js';
 import { resolveStaffSsoUser } from '../lib/staffSso.js';
 import { resolveCustomerByPhone, resolveCustomerByEmail } from '../lib/customerAccount.js';
 import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.js';
-import { peekInviteToken, redeemInviteToken } from '../lib/inviteToken.js';
+import { peekInviteToken, redeemInviteToken, createInviteToken } from '../lib/inviteToken.js';
+import { sendPasswordResetEmail } from '../lib/email.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { normalizePhone, isOtpProviderConfigured, sendOtp, verifyOtp } from '../lib/otp.js';
 const router = Router();
@@ -426,6 +427,79 @@ router.post('/clerk/customer/google', async (req, res) => {
         },
     });
 });
+// --- Forgot password -------------------------------------------------------
+// A user who knows their email but not their password can request a single-use
+// reset link. We reuse the same password-setup token machinery as the owner
+// invite (tagged kind='reset' so redeeming never reactivates a suspended
+// account), and the same /set-password page redeems it. Always responds 200 with
+// a generic message so the endpoint can't be used to discover which emails have
+// accounts. Rate-limited per IP to blunt abuse / email bombing.
+// Build the reset-link origin from TRUSTED configuration only — never from the
+// request Host / X-Forwarded-Host headers, which an attacker can forge to make
+// us email a victim a link pointing at attacker-controlled domain (token
+// exfiltration → account takeover). Falls back to the Replit dev domain so the
+// flow is testable in development; returns null when no trusted origin exists.
+export function trustedResetBaseUrl() {
+    const env = (process.env.APP_URL || process.env.PUBLIC_URL || '').trim();
+    if (env)
+        return env.replace(/\/+$/, '');
+    const dev = (process.env.REPLIT_DEV_DOMAIN || '').trim();
+    if (dev)
+        return `https://${dev.replace(/\/+$/, '')}`;
+    return null;
+}
+const forgotPasswordLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, name: 'forgot-password' });
+const forgotPasswordSchema = z.object({
+    email: z.string().trim().email('A valid email address is required').max(320),
+});
+router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
+    const parse = forgotPasswordSchema.safeParse(req.body ?? {});
+    // Even on a malformed email we return the same generic success, so the caller
+    // learns nothing about which addresses are registered.
+    const generic = {
+        ok: true,
+        message: 'If an account exists for that email, a password reset link has been sent.',
+    };
+    if (!parse.success) {
+        res.json(generic);
+        return;
+    }
+    const email = parse.data.email.toLowerCase();
+    // Only real, ACTIVE, non-deleted accounts that sign in with a password (i.e.
+    // not phone-OTP placeholder @otp.local users) can reset a password this way.
+    // Suspended (isActive=false) accounts are intentionally excluded so reset is
+    // never a path back into a disabled account.
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    if (user && user.isActive && !user.deletedAt && !user.email.endsWith('@otp.local')) {
+        try {
+            const base = trustedResetBaseUrl();
+            if (!base) {
+                console.error('[auth] forgot-password: no trusted base URL (set APP_URL); skipping reset email.');
+            }
+            else {
+                const { token, expiresAt } = await createInviteToken(user.id, undefined, 'reset');
+                const resetUrl = `${base}/set-password?token=${token}`;
+                const sent = await sendPasswordResetEmail(user.email, user.name, resetUrl, expiresAt);
+                await db.insert(auditLogs).values({
+                    actorId: user.id,
+                    actorName: user.name,
+                    action: 'password_reset_requested',
+                    targetUserId: user.id,
+                    targetUserEmail: user.email,
+                    status: sent ? 'success' : 'failure',
+                    detail: sent
+                        ? 'Password reset link emailed'
+                        : 'Password reset requested but email could not be sent (SMTP not configured)',
+                });
+            }
+        }
+        catch (err) {
+            // Never surface internal failures to the caller; just log for operators.
+            console.error('[auth] forgot-password failed:', err);
+        }
+    }
+    res.json(generic);
+});
 // --- Password-setup invite (plant-owner onboarding) ------------------------
 // A newly provisioned account is emailed a single-use link; these two public
 // endpoints back the "set your password" page. GET validates the token so the
@@ -452,7 +526,16 @@ router.post('/set-password', async (req, res) => {
     const passwordHash = await hashPassword(password);
     const result = await redeemInviteToken(token, passwordHash);
     if (!result.ok) {
-        res.status(400).json({ error: 'This invite link is invalid or has expired.', reason: result.reason });
+        // A reset token whose account has since been suspended/deleted is rejected
+        // outright — resetting a password must never reactivate a disabled account.
+        if (result.reason === 'disabled') {
+            res.status(403).json({
+                error: 'This account is not active. Please contact an administrator.',
+                reason: result.reason,
+            });
+            return;
+        }
+        res.status(400).json({ error: 'This link is invalid or has expired.', reason: result.reason });
         return;
     }
     // Reload the full account so the issued session token carries the same fields
@@ -465,7 +548,7 @@ router.post('/set-password', async (req, res) => {
         targetUserId: user.id,
         targetUserEmail: user.email,
         status: 'success',
-        detail: 'Password set via invite link',
+        detail: result.kind === 'reset' ? 'Password changed via reset link' : 'Password set via invite link',
     });
     // Log the owner straight in so they land in their plant dashboard without a
     // second sign-in step. Mirrors the /login response shape.
