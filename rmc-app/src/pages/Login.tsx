@@ -177,7 +177,7 @@ export default function Login() {
               {DEMO.map(d => (
                 <button key={d.role} type="button" onClick={() => loginDemo(d)} disabled={!!demoBusy} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-                  background: 'rgba(255,255,255,.5)', border: '1px solid rgba(30,41,90,.1)',
+                  background: 'var(--panel2)', border: '1px solid var(--line)',
                   borderRadius: 10, cursor: demoBusy ? 'wait' : 'pointer', textAlign: 'left', transition: 'all .15s',
                   color: 'var(--text)', opacity: demoBusy && demoBusy !== d.role ? 0.5 : 1,
                 }}>
@@ -195,11 +195,11 @@ export default function Login() {
 
         {/* Right — login form */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(255,255,255,.82), rgba(255,255,255,.62))',
-          border: '1px solid rgba(255,255,255,.85)',
+          background: 'linear-gradient(135deg, var(--glass-1), var(--glass-2))',
+          border: '1px solid var(--glass-border)',
           borderRadius: 20, padding: '40px 32px',
           backdropFilter: 'blur(12px)',
-          boxShadow: '0 30px 70px -30px rgba(30,41,90,.28)',
+          boxShadow: '0 30px 70px -30px rgba(var(--shadow-rgb),.28)',
         }}>
           <button onClick={() => setLoc('/')} style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 18,

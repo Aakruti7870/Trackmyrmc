@@ -3,7 +3,7 @@
 
 export const inputStyle: React.CSSProperties = {
   width: '100%', padding: '11px 14px 11px 38px',
-  background: 'rgba(255,255,255,.7)', border: '1px solid rgba(30,41,90,.14)',
+  background: 'var(--surface)', border: '1px solid var(--line)',
   borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
   boxSizing: 'border-box',
 };

@@ -8,7 +8,7 @@ import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '11px 14px 11px 38px',
-  background: 'rgba(255,255,255,.7)', border: '1px solid rgba(30,41,90,.14)',
+  background: 'var(--surface)', border: '1px solid var(--line)',
   borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none',
   boxSizing: 'border-box',
 };
@@ -74,11 +74,11 @@ export default function Register() {
     }}>
       <div style={{
         width: '100%', maxWidth: 520,
-        background: 'linear-gradient(135deg, rgba(255,255,255,.82), rgba(255,255,255,.62))',
-        border: '1px solid rgba(255,255,255,.85)',
+        background: 'linear-gradient(135deg, var(--glass-1), var(--glass-2))',
+        border: '1px solid var(--glass-border)',
         borderRadius: 20, padding: '36px 32px',
         backdropFilter: 'blur(12px)',
-        boxShadow: '0 30px 70px -30px rgba(30,41,90,.28)',
+        boxShadow: '0 30px 70px -30px rgba(var(--shadow-rgb),.28)',
       }}>
         <button onClick={() => setLoc('/')} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 18,

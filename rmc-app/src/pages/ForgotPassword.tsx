@@ -50,11 +50,11 @@ export default function ForgotPassword() {
         </div>
 
         <div style={{
-          background: 'linear-gradient(135deg, rgba(255,255,255,.82), rgba(255,255,255,.62))',
-          border: '1px solid rgba(255,255,255,.85)',
+          background: 'linear-gradient(135deg, var(--glass-1), var(--glass-2))',
+          border: '1px solid var(--glass-border)',
           borderRadius: 20, padding: '36px 32px',
           backdropFilter: 'blur(12px)',
-          boxShadow: '0 30px 70px -30px rgba(30,41,90,.28)',
+          boxShadow: '0 30px 70px -30px rgba(var(--shadow-rgb),.28)',
         }}>
           {done ? (
             <div style={{ textAlign: 'center' }}>
@@ -126,7 +126,7 @@ export default function ForgotPassword() {
 
 const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 };
 const field: React.CSSProperties = {
-  width: '100%', background: 'rgba(255,255,255,.7)', border: '1px solid rgba(30,41,90,.14)',
+  width: '100%', background: 'var(--surface)', border: '1px solid var(--line)',
   borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none', boxSizing: 'border-box',
 };
 const leftIcon: React.CSSProperties = { color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' };
