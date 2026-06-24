@@ -19,6 +19,7 @@ mock.module('../lib/email.js', {
         },
         sendWelcomeEmail: async () => true,
         sendOwnerInviteEmail: async () => true,
+        sendPasswordResetEmail: async () => true,
         sendPasswordResetNotification: async () => false,
         sendDeliveryNotificationEmail: async () => true,
         sendOrderPlacedEmail: async () => true,
