@@ -57,3 +57,4 @@
 - [RMC web push](rmc-web-push.md) — order/delivery alerts via email+VAPID web push (SW importScripts); unsubscribe MUST scope deleteSubscription by userId (endpoint-only = IDOR).
 - [RMC password reset vs invite](rmc-password-reset.md) — reset shares invite token table via a `kind` col; reset link origin must be config-only (not Host header) & reset must NOT reactivate suspended accounts.
 - [RMC plant-owner onboarding](rmc-partner-onboarding.md) — owners self-request via public /plants/partner-request into the plantInvites lead queue (approve-first, synthetic partner:<hex> placeId); 3 landing doors (customer/?staff=1/partner); Back-to-home on every public auth page.
+- [WhatsApp SMB /register block](whatsapp-smb-register-block.md) — SMB (Business App) numbers can't /register to Cloud API ("not available for SMB businesses"); WABA GET demanding partner_ids = shared/SMB; needs coexistence Embedded Signup or a fresh number.
