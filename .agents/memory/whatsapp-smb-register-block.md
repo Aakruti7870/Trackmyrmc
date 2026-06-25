@@ -3,15 +3,18 @@ name: WhatsApp SMB account cannot use /register (coexistence required)
 description: Why Cloud API /register migration fails for an existing WhatsApp Business App number, and the real paths forward.
 ---
 
-If a WhatsApp number is owned by an SMB (WhatsApp Business App) account, `POST /{PHONE_ID}/register` fails with **"Register endpoint is not available for SMB businesses."** You CANNOT migrate such a number to Cloud API via a system-user token / Graph API alone.
+A WABA created from the WhatsApp **Business (consumer) app** is consumer-grade, NOT a Cloud-API WABA. Such a WABA is permanently blocked from the two operations a Cloud API needs — you CANNOT reuse it for Cloud API:
+- `POST /{PHONE_ID}/register` → **"Register endpoint is not available for SMB businesses."**
+- `POST /{WABA}/message_templates` → **"This WABA is not allowed to create or update templates."** (`error_subcode 2494160`, `code 100`, non-transient).
+Both are Meta **policy blocks**, not transient errors and not formatting bugs. A system-user token / Graph API alone cannot lift them.
 
-Signals that a WABA is SMB / shared (coexistence) rather than directly owned:
+Signals that a WABA is consumer-grade / SMB / shared rather than a real Cloud-API WABA:
 - `GET /{WABA}?fields=...` returns `(#100) The parameter partner_ids is required.`
 - The number shows `platform_type=ON_PREMISE`, `status=DISCONNECTED`, `is_official_business_account=false`, `throughput.level=NOT_APPLICABLE`.
 
 **Why:** Meta routes SMB (Business App) numbers through the Coexistence onboarding, not the partner/BSP register flow. The number stays usable in the phone app; API access is granted via Meta's Embedded Signup (browser) flow, which a system-user token cannot perform.
 
-**How to apply:** Do NOT keep retrying `/register` (or `request_code`) for an SMB app number — it's a Meta policy block, not a transient error. Realistic paths: (1) Coexistence Embedded Signup — user does a browser/Facebook login flow, keeps the app + their number; (2) provision a FRESH dedicated number directly on Cloud API (cleanest/most reliable, NOT a demo/test number). Email + VAPID web push already work as a no-Meta fallback to ship without blocking.
+**How to apply:** Do NOT keep retrying `/register` (or `request_code`) or `/message_templates` against a consumer-grade WABA — they are Meta policy blocks, not transient errors. To put an EXISTING consumer-app number on Cloud API self-serve: (1) user frees it — WhatsApp Business app → Settings → Account → Delete my account → wait ~3 min (loses chat history + app use of that number; get explicit consent); (2) user re-onboards the freed number through Meta's **Embedded Signup wizard** in the developer console (App → WhatsApp → API Setup → add phone number), which mints a NEW Cloud-API-grade WABA + a NEW `phone_number_id` — the old consumer WABA/IDs are dead and stay blocked. Then update `WHATSAPP_META_PHONE_NUMBER_ID` to the new id, create templates (now allowed), and test. Embedded Signup is a browser flow a system-user token cannot perform, so this step is unavoidably user-driven. Other paths: provision a FRESH dedicated number directly on Cloud API; or real Coexistence (keeps the app) which needs a Meta Tech Provider. Email + VAPID web push already work as a no-Meta fallback to ship without blocking.
 
 **Coexistence is heavier than it sounds (2025/2026):** real Coexistence (number live in BOTH the WhatsApp Business App AND Cloud API) requires the connecting platform to be a **Meta Tech Provider** with Embedded Signup configured + Advanced access to `whatsapp_business_messaging`/`whatsapp_business_management` via App Review (days/weeks). A self-serve owner app is NOT a Tech Provider, so this is not a quick step. The number must already be active in the WhatsApp Business App on a phone for the QR pairing to work.
 
