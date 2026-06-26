@@ -232,6 +232,20 @@ export default function AIHelpAgent() {
                 {voiceOut ? <Volume2 size={17} /> : <VolumeX size={17} />}
               </button>
             )}
+            {tts.supported && voiceOut && (
+              <button
+                onClick={() => {
+                  const next = tts.voiceGender === 'female' ? 'male' : 'female';
+                  tts.setVoiceGender(next);
+                  tts.cancel();
+                }}
+                title={`Voice: ${tts.voiceGender === 'female' ? 'Female' : 'Male'} — tap to switch`}
+                aria-label={`Switch assistant voice, currently ${tts.voiceGender}`}
+                style={{ ...iconBtn(true), fontSize: 16, fontWeight: 800, lineHeight: 1 }}
+              >
+                {tts.voiceGender === 'female' ? '♀' : '♂'}
+              </button>
+            )}
             <button onClick={() => { setOpen(false); tts.cancel(); }} aria-label="Close" style={iconBtn(false)}>
               <X size={18} />
             </button>

@@ -204,26 +204,59 @@ export function useSpeechToText(
   return { supported, listening, transcribing, start, stop };
 }
 
+export type VoiceGender = 'female' | 'male';
+
+const VOICE_GENDER_KEY = 'rmc_ai_voice_gender';
+
+// Name heuristics across the common TTS engines (Google, Apple, Microsoft,
+// Samsung, Indian-English voices). \bmale\b does NOT match "female" because the
+// 'm' in "female" is preceded by a word char, so there's no word boundary.
+const FEMALE_RE = /\bfemale\b|Samantha|Victoria|Karen|Tessa|Veena|Fiona|Moira|Zira|Susan|Catherine|Heera|Swara|Kalpana|Google US English/i;
+const MALE_RE = /\bmale\b|Daniel|Alex|Fred|David|Mark|Rishi|Aaron|George|James|Ravi|Hemant|Prabhat|Madhur/i;
+
+function readGenderPref(): VoiceGender {
+  if (typeof window === 'undefined') return 'female';
+  try {
+    return localStorage.getItem(VOICE_GENDER_KEY) === 'male' ? 'male' : 'female';
+  } catch {
+    return 'female';
+  }
+}
+
 export function useTextToSpeech() {
   const [speaking, setSpeaking] = useState(false);
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
 
-  // Choose a stable English voice once so the spoken reply is as consistent as
-  // the browser allows. Voices load asynchronously, so resolve lazily at speak
-  // time rather than caching a possibly-empty list.
-  const pickVoice = useCallback((): SpeechSynthesisVoice | null => {
+  const [voiceGender, setVoiceGenderState] = useState<VoiceGender>(readGenderPref);
+  // Mirror the gender into a ref so the (stable) speak callback always reads the
+  // latest selection without being re-created on every toggle.
+  const genderRef = useRef(voiceGender);
+  useEffect(() => { genderRef.current = voiceGender; }, [voiceGender]);
+
+  const setVoiceGender = useCallback((g: VoiceGender) => {
+    setVoiceGenderState(g);
+    try { localStorage.setItem(VOICE_GENDER_KEY, g); } catch { /* ignore */ }
+  }, []);
+
+  // Choose the best English voice for the requested gender. Voices load
+  // asynchronously, so resolve lazily at speak time rather than caching a
+  // possibly-empty list.
+  const pickVoice = useCallback((gender: VoiceGender): SpeechSynthesisVoice | null => {
     if (!supported) return null;
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices.length) return null;
-    const byName = (re: RegExp) => voices.find(v => re.test(v.name));
+    const all = window.speechSynthesis.getVoices();
+    if (!all.length) return null;
+    const en = all.filter(v => /^en/i.test(v.lang));
+    const pool = en.length ? en : all;
+    const wantRe = gender === 'male' ? MALE_RE : FEMALE_RE;
+    const otherRe = gender === 'male' ? FEMALE_RE : MALE_RE;
+    const isIN = (v: SpeechSynthesisVoice) => /^en[-_]IN/i.test(v.lang);
     return (
-      byName(/Google US English/i)
-      || byName(/Google UK English Female/i)
-      || voices.find(v => /^en[-_]IN/i.test(v.lang))
-      || voices.find(v => /^en[-_]GB/i.test(v.lang))
-      || voices.find(v => /^en[-_]US/i.test(v.lang))
-      || voices.find(v => /^en/i.test(v.lang))
-      || voices[0]
+      pool.find(v => wantRe.test(v.name) && isIN(v))
+      || pool.find(v => wantRe.test(v.name))
+      || pool.find(v => !otherRe.test(v.name) && isIN(v))
+      || pool.find(v => isIN(v))
+      || pool.find(v => !otherRe.test(v.name))
+      || pool[0]
       || null
     );
   }, [supported]);
@@ -231,12 +264,17 @@ export function useTextToSpeech() {
   const speak = useCallback((text: string) => {
     if (!supported || !text.trim()) return;
     window.speechSynthesis.cancel();
+    const gender = genderRef.current;
     const utter = new SpeechSynthesisUtterance(text);
-    const voice = pickVoice();
+    const voice = pickVoice(gender);
     if (voice) { utter.voice = voice; utter.lang = voice.lang; }
     else utter.lang = 'en-IN';
+    // If the picked voice already matches the requested gender keep a neutral
+    // pitch; otherwise nudge pitch so male/female still sound distinct on
+    // browsers that only ship a single voice.
+    const matched = voice ? (gender === 'male' ? MALE_RE : FEMALE_RE).test(voice.name) : false;
     utter.rate = 1;
-    utter.pitch = 1;
+    utter.pitch = matched ? 1 : (gender === 'male' ? 0.8 : 1.15);
     utter.onstart = () => setSpeaking(true);
     utter.onend = () => setSpeaking(false);
     utter.onerror = () => setSpeaking(false);
@@ -251,5 +289,5 @@ export function useTextToSpeech() {
 
   useEffect(() => () => { if (supported) window.speechSynthesis.cancel(); }, [supported]);
 
-  return { supported, speaking, speak, cancel };
+  return { supported, speaking, speak, cancel, voiceGender, setVoiceGender };
 }
