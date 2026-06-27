@@ -76,6 +76,9 @@ mock.module('../lib/whatsapp.js', {
     },
     WHATSAPP_KEYS: {},
     DEFAULT_WHATSAPP_ENABLED: true,
+    // otp.ts statically imports this from whatsapp.js; the mock must expose it or
+    // ESM binding fails. Meta is not under test here, so report it unconfigured.
+    metaWhatsAppConfig: () => null,
   },
 });
 
