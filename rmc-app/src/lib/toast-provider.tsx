@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { ToastContext, type Toast, type ToastType } from './toast';
+import { playAlertSound, unlockAlertSound } from './alertSound';
 
 let _counter = 0;
 
@@ -14,6 +15,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = ++_counter;
     setToasts(prev => [...prev, { id, message, type }]);
+    playAlertSound(type);
     const handle = setTimeout(() => {
       timers.current.delete(handle);
       setToasts(prev => prev.filter(t => t.id !== id));
@@ -27,9 +29,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const pending = timers.current;
+    // The browser autoplay policy keeps audio locked until the first user
+    // gesture; unlock once so later event-driven alert chimes can play.
+    const unlock = () => unlockAlertSound();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
     return () => {
       pending.forEach(clearTimeout);
       pending.clear();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
     };
   }, []);
 

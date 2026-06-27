@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, BellOff } from 'lucide-react';
+import { Bell, BellOff, Volume2, VolumeX } from 'lucide-react';
 import {
   getPushStatus,
   subscribeToPush,
@@ -7,6 +7,12 @@ import {
   isPushSupported,
   type PushStatus,
 } from '@/lib/push';
+import {
+  isAlertSoundEnabled,
+  setAlertSoundEnabled,
+  playAlertSound,
+  unlockAlertSound,
+} from '@/lib/alertSound';
 import { useToast } from '@/lib/toast';
 
 const card: React.CSSProperties = {
@@ -26,6 +32,19 @@ export default function NotificationsCard() {
   const [status, setStatus] = useState<PushStatus>('unsubscribed');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => isAlertSoundEnabled());
+
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    setAlertSoundEnabled(next);
+    if (next) {
+      // This runs inside a click handler, so it doubles as the gesture that
+      // unlocks audio, and previews the chime so the user hears the change.
+      unlockAlertSound();
+      playAlertSound('success');
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -138,6 +157,80 @@ export default function NotificationsCard() {
             ? 'Turn off notifications'
             : 'Enable notifications'}
       </button>
+
+      {/* Alert sounds — in-app chime that plays when a new alert arrives */}
+      <div
+        style={{
+          borderTop: '1px solid var(--line)',
+          marginTop: 22,
+          paddingTop: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 14,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 10,
+              background: `color-mix(in srgb, ${soundOn ? 'var(--green)' : 'var(--gold)'} 13%, transparent)`,
+              border: `1px solid color-mix(in srgb, ${soundOn ? 'var(--green)' : 'var(--gold)'} 27%, transparent)`,
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {soundOn ? (
+              <Volume2 size={15} style={{ color: 'var(--green)' }} />
+            ) : (
+              <VolumeX size={15} style={{ color: 'var(--gold)' }} />
+            )}
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Alert Sounds</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+              Play a chime when a new alert arrives while the app is open
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={soundOn}
+          aria-label="Toggle alert sounds"
+          onClick={toggleSound}
+          style={{
+            position: 'relative',
+            width: 46,
+            height: 26,
+            flexShrink: 0,
+            borderRadius: 999,
+            border: '1px solid var(--line)',
+            background: soundOn ? 'var(--green)' : 'var(--menu-bg)',
+            cursor: 'pointer',
+            transition: 'background .15s',
+            padding: 0,
+          }}
+        >
+          <span
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: soundOn ? 22 : 2,
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              background: '#fff',
+              boxShadow: '0 1px 3px rgba(0,0,0,.3)',
+              transition: 'left .15s',
+            }}
+          />
+        </button>
+      </div>
     </div>
   );
 }

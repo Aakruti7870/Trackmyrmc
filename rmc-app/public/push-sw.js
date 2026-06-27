@@ -16,6 +16,7 @@ self.addEventListener('push', (event) => {
     badge: '/pwa-192.png',
     tag: data.tag || undefined,
     renotify: Boolean(data.tag),
+    vibrate: [180, 90, 180],
     data: { url: data.url || '/' },
   };
   event.waitUntil(self.registration.showNotification(title, options));
