@@ -353,7 +353,13 @@ try {
   createdDbs.push(templateName);
 
   console.log('[test] Pushing schema to template database...');
-  const push = spawnSync('pnpm', ['exec', 'drizzle-kit', 'push', '--force'], {
+  // Invoke the local drizzle-kit binary directly rather than via `pnpm exec`.
+  // When this harness is launched through `pnpm test`, a nested `pnpm exec`
+  // deadlocks against the outer pnpm process and the push stalls indefinitely
+  // (the run never reaches a single test). The .bin shim runs drizzle-kit with
+  // no pnpm layer in between, so the push completes in ~2s as expected.
+  const drizzleKitBin = path.join(serverDir, 'node_modules', '.bin', 'drizzle-kit');
+  const push = spawnSync(drizzleKitBin, ['push', '--force'], {
     stdio: 'inherit',
     env: { ...baseEnv, DATABASE_URL: urlFor(templateName) },
     cwd: serverDir,
