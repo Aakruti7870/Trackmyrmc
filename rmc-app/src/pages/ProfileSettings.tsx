@@ -1993,7 +1993,7 @@ export default function ProfileSettings() {
 
           {storageLoading ? (
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading usage…</div>
-          ) : !storageUsage || storageUsage.byPlant.length === 0 ? (
+          ) : !storageUsage || !storageUsage.byPlant || storageUsage.byPlant.length === 0 ? (
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>No files registered yet.</div>
           ) : (
             <div>

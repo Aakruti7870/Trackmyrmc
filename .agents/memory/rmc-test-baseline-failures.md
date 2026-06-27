@@ -57,6 +57,18 @@ Heuristics for the failures that keep recurring in the test gate (server
   not deterministic bugs. Re-run the named file in ISOLATION to confirm it
   passes before "fixing" it. See rmc-frontend-test-flakiness.md.
 
+## ProfileSettings Storage Usage — nested field on async state (fixed)
+- A render that reads a *nested* field of async-loaded API state (e.g.
+  `storageUsage.byPlant.length`) must guard the nested field, not just the
+  parent (`!storageUsage || !storageUsage.byPlant || …`). When a test mocks the
+  parent object but omits the array, the fetch resolves AFTER the test body, so
+  every assertion passes (`Tests N passed`) yet vitest still exits 1 with an
+  `Uncaught Exception` + `Errors 1`. The blamed test is collateral — the crash
+  is the unguarded nested read, reproducible by running that file alone.
+- **Why:** the TS type marked `byPlant` as always-present, so the guard trusted
+  it; partial test mocks (and a defensive real-API contract) break that
+  assumption only at runtime, during an async re-render outside any test.
+
 ## MyOrders.quick-actions receipt assertion (fixed)
 - `downloadDeliveryReceipt(challan, {freeMin, ratePerHour})` takes a SECOND
   pricing arg since idle-charges landed on the receipt. `toHaveBeenCalledWith`
