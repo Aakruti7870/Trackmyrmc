@@ -63,6 +63,7 @@ const ROLE_COLOR: Record<string, string> = {
   supervisor: '#14b8a6',
   dispatcher: 'var(--blue)',
   plant_operator: 'var(--green)',
+  accountant: '#06b6d4',
   client: '#a78bfa',
   driver: '#f97316',
 };

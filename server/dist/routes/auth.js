@@ -6,8 +6,9 @@ import { z } from 'zod';
 import { db } from '../db/index.js';
 import { users, clients, auditLogs, plants } from '../db/schema.js';
 import { verifyToken as clerkVerifyToken, createClerkClient } from '@clerk/backend';
-import { signToken, requireAuth } from '../middleware/auth.js';
+import { signToken, requireAuth, bumpSessionVersion, STAFF_TOKEN_TTL } from '../middleware/auth.js';
 import { isAuthorityEmail } from '../lib/authority.js';
+import { resolveStaffForOtp, sendStaffLoginCode, verifyStaffLoginCode, isSuperAdminUser, } from '../lib/staffAuth.js';
 import { resolveStaffSsoUser } from '../lib/staffSso.js';
 import { resolveCustomerByPhone, resolveCustomerByEmail } from '../lib/customerAccount.js';
 import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.js';
@@ -34,9 +35,10 @@ router.post('/login', async (req, res) => {
         return;
     }
     const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
-    // A non-existent or soft-deleted account stays an opaque "invalid credentials"
-    // so the endpoint can't be used to enumerate accounts.
-    if (!user || user.deletedAt) {
+    // A non-existent / soft-deleted / passwordless account (passwordless staff and
+    // phone-OTP customers have no hash) stays an opaque "invalid credentials" so
+    // the endpoint can't be used to enumerate accounts.
+    if (!user || user.deletedAt || !user.passwordHash) {
         await recordFailure(lockoutKey);
         res.status(401).json({ error: 'Invalid credentials' });
         return;
@@ -104,6 +106,34 @@ router.post('/login', async (req, res) => {
         }
     }
     await resetAttempts(lockoutKey);
+    // Super Admin (authority): password is only the FIRST factor. Send a one-time
+    // code and require /auth/superadmin/verify to complete login — no token yet.
+    if (user.role === 'authority') {
+        const send = await sendStaffLoginCode(user);
+        if (!send.ok) {
+            res.status(502).json({ error: send.error ?? 'Could not send your verification code. Please try again.' });
+            return;
+        }
+        res.json({
+            otpRequired: true,
+            email: user.email,
+            channel: send.channel,
+            devMode: send.channel === 'dev',
+            devCode: send.devCode,
+        });
+        return;
+    }
+    // Every other staff/owner role is now PASSWORDLESS — they must use the
+    // one-time-code door. Refuse the password path even if a legacy hash exists,
+    // so the password can never be a second way in for a provisioned staff account.
+    if (user.role !== 'client') {
+        res.status(403).json({
+            error: 'This account now signs in with a one-time code. Please go back and use the code option.',
+            useOtp: true,
+        });
+        return;
+    }
+    // Customer (client) email+password login — unchanged: long-lived, multi-session.
     const token = signToken({
         id: user.id, email: user.email, role: user.role, name: user.name,
         linkedClientId: user.linkedClientId,
@@ -164,11 +194,17 @@ router.put('/me', requireAuth, async (req, res) => {
         id: users.id, name: users.name, email: users.email, role: users.role,
         linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
     }).from(users).where(eq(users.id, req.user.id));
-    const token = signToken({
+    // Re-issue a token carrying the updated profile. Preserve the session shape:
+    // staff/super-admin tokens keep their sessionVersion + short TTL (single
+    // session, idle window), customer tokens stay long-lived & multi-session.
+    const basePayload = {
         id: updated.id, email: updated.email, role: updated.role, name: updated.name,
         linkedClientId: updated.linkedClientId,
         linkedDriverId: updated.linkedDriverId,
-    });
+    };
+    const token = req.user.sessionVersion !== undefined
+        ? signToken({ ...basePayload, sessionVersion: req.user.sessionVersion }, { expiresIn: STAFF_TOKEN_TTL })
+        : signToken(basePayload);
     res.json({ token, user: updated });
 });
 router.put('/change-password', requireAuth, async (req, res) => {
@@ -197,6 +233,11 @@ router.put('/change-password', requireAuth, async (req, res) => {
         res.status(429).json({
             error: `Too many failed attempts. Try again in ${minutes} minute${minutes !== 1 ? 's' : ''}.`,
         });
+        return;
+    }
+    // Passwordless accounts have no current password to verify against.
+    if (!user.passwordHash) {
+        res.status(400).json({ error: 'This account does not use a password. Sign in with a one-time code instead.' });
         return;
     }
     const match = await bcrypt.compare(currentPassword, user.passwordHash);
@@ -583,12 +624,22 @@ router.post('/set-password', async (req, res) => {
         detail: result.kind === 'reset' ? 'Password changed via reset link' : 'Password set via invite link',
     });
     // Log the owner straight in so they land in their plant dashboard without a
-    // second sign-in step. Mirrors the /login response shape.
-    const appToken = signToken({
+    // second sign-in step. Mirrors the /login response shape. Staff/owner accounts
+    // get a single-session, short-TTL token (bump the version so this becomes the
+    // only valid session); a customer who reset a password keeps the legacy token.
+    const basePayload = {
         id: user.id, email: user.email, role: user.role, name: user.name,
         linkedClientId: user.linkedClientId,
         linkedDriverId: user.linkedDriverId,
-    });
+    };
+    let appToken;
+    if (user.role === 'client') {
+        appToken = signToken(basePayload);
+    }
+    else {
+        const sessionVersion = await bumpSessionVersion(user.id);
+        appToken = signToken({ ...basePayload, sessionVersion }, { expiresIn: STAFF_TOKEN_TTL });
+    }
     res.json({
         token: appToken,
         user: {
@@ -777,5 +828,163 @@ router.post('/otp/verify', otpVerifyLimiter, async (req, res) => {
             linkedDriverId: user.linkedDriverId,
         },
     });
+});
+// --- Staff / owner passwordless login (provisioned-only) --------------------
+// Staff and owners (everyone except the Super Admin) sign in WITHOUT a password:
+// they enter their email, receive a one-time code (email, or WhatsApp when a
+// phone is on file) and verify it. Accounts are never created here — only a
+// Super Admin provisions logins — so an unknown email silently no-ops.
+// Probe which factor a typed email uses, WITHOUT revealing whether the account
+// exists: only a recognized, active Super Admin gets the password form; everyone
+// else (staff, customers, unknown) is told to use the one-time-code path.
+router.post('/staff/login-method', async (req, res) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email : '';
+    if (!email.trim()) {
+        res.status(400).json({ error: 'Email is required' });
+        return;
+    }
+    const [user] = await db
+        .select({ role: users.role, email: users.email, isActive: users.isActive, deletedAt: users.deletedAt })
+        .from(users)
+        .where(eq(users.email, email.toLowerCase().trim()));
+    const superAdmin = Boolean(user) && !user.deletedAt && user.isActive && isSuperAdminUser(user);
+    res.json({ method: superAdmin ? 'password' : 'otp' });
+});
+// Send a login code to a provisioned, active staff/owner account. Returns a
+// generic success for unknown emails so the endpoint can't enumerate accounts;
+// a genuine delivery failure for a real account surfaces as a 502 so the user
+// knows to retry / contact their admin.
+router.post('/staff/otp/send', otpSendLimiter, async (req, res) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email : '';
+    if (!email.trim()) {
+        res.status(400).json({ error: 'Email is required' });
+        return;
+    }
+    const user = await resolveStaffForOtp(email);
+    if (!user) {
+        // Provisioned-only: no account, no code — but an indistinguishable response.
+        res.json({ ok: true, sent: true });
+        return;
+    }
+    const send = await sendStaffLoginCode(user);
+    if (!send.ok) {
+        res.status(502).json({ error: send.error ?? 'Could not send your login code. Please try again.' });
+        return;
+    }
+    res.json({
+        ok: true,
+        sent: true,
+        channel: send.channel,
+        devMode: send.channel === 'dev',
+        devCode: send.devCode,
+    });
+});
+// Verify a staff/owner login code and issue a single-session, short-TTL token.
+router.post('/staff/otp/verify', otpVerifyLimiter, async (req, res) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email : '';
+    const code = typeof req.body?.code === 'string' ? req.body.code : '';
+    const GENERIC = 'That code is incorrect or has expired. Please request a new one.';
+    if (!email.trim() || !code.trim()) {
+        res.status(400).json({ error: 'Email and code are required' });
+        return;
+    }
+    const user = await resolveStaffForOtp(email);
+    if (!user) {
+        res.status(401).json({ error: GENERIC });
+        return;
+    }
+    const check = await verifyStaffLoginCode(user.id, code.trim());
+    if (!check.ok) {
+        res.status(401).json({ error: check.error ?? GENERIC });
+        return;
+    }
+    // Billing gate (mirrors the password /login path): once the code proves the
+    // user's identity, a plant-scoped account cannot complete login while its
+    // plant's subscription is suspended or cancelled. Platform staff (no plant)
+    // are never gated. Enforced here (post-identity) so it can't be used to
+    // enumerate which plants are blocked from the unauthenticated send step.
+    if (user.plantId) {
+        const [plant] = await db
+            .select({ status: plants.subscriptionStatus })
+            .from(plants)
+            .where(eq(plants.id, user.plantId));
+        if (plant && isSubscriptionBlocking(plant.status)) {
+            res.status(403).json({
+                error: subscriptionBlockMessage(plant.status),
+                subscriptionBlocked: true,
+            });
+            return;
+        }
+    }
+    const sessionVersion = await bumpSessionVersion(user.id);
+    const token = signToken({
+        id: user.id, email: user.email, role: user.role, name: user.name,
+        plantId: user.plantId,
+        linkedClientId: user.linkedClientId,
+        linkedDriverId: user.linkedDriverId,
+        sessionVersion,
+    }, { expiresIn: STAFF_TOKEN_TTL });
+    res.json({
+        token,
+        user: {
+            id: user.id, name: user.name, email: user.email, role: user.role,
+            plantId: user.plantId,
+            linkedClientId: user.linkedClientId,
+            linkedDriverId: user.linkedDriverId,
+        },
+    });
+});
+// Super Admin second factor: /login verifies the password and sends a code; this
+// completes the 2FA by verifying that code and issuing the single-session token.
+router.post('/superadmin/verify', otpVerifyLimiter, async (req, res) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email : '';
+    const code = typeof req.body?.code === 'string' ? req.body.code : '';
+    const GENERIC = 'That code is incorrect or has expired. Please request a new one.';
+    if (!email.trim() || !code.trim()) {
+        res.status(400).json({ error: 'Email and code are required' });
+        return;
+    }
+    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
+    if (!user || user.deletedAt || !user.isActive || !isSuperAdminUser(user)) {
+        res.status(401).json({ error: GENERIC });
+        return;
+    }
+    const check = await verifyStaffLoginCode(user.id, code.trim());
+    if (!check.ok) {
+        res.status(401).json({ error: check.error ?? GENERIC });
+        return;
+    }
+    const sessionVersion = await bumpSessionVersion(user.id);
+    const token = signToken({
+        id: user.id, email: user.email, role: user.role, name: user.name,
+        linkedClientId: user.linkedClientId,
+        linkedDriverId: user.linkedDriverId,
+        sessionVersion,
+    }, { expiresIn: STAFF_TOKEN_TTL });
+    res.json({
+        token,
+        user: {
+            id: user.id, name: user.name, email: user.email, role: user.role,
+            linkedClientId: user.linkedClientId,
+            linkedDriverId: user.linkedDriverId,
+        },
+    });
+});
+// Silent session renewal: the frontend calls this on user activity to mint a
+// fresh short-lived token (sliding 30-min idle window) WITHOUT bumping the
+// session version, so the current session stays the single valid one. Customers
+// (no sessionVersion) simply get a fresh long-lived token.
+router.post('/refresh', requireAuth, async (req, res) => {
+    const u = req.user;
+    const basePayload = {
+        id: u.id, email: u.email, role: u.role, name: u.name,
+        plantId: u.plantId,
+        linkedClientId: u.linkedClientId,
+        linkedDriverId: u.linkedDriverId,
+    };
+    const token = u.sessionVersion !== undefined
+        ? signToken({ ...basePayload, sessionVersion: u.sessionVersion }, { expiresIn: STAFF_TOKEN_TTL })
+        : signToken(basePayload);
+    res.json({ token });
 });
 export default router;

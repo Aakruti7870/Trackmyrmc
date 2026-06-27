@@ -5,8 +5,9 @@ import { hashPassword } from '../lib/password.js';
 import { and, eq, sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, auditLogs, clients, drivers } from '../db/schema.js';
+import { users, auditLogs, clients, drivers, staffOtpCodes } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
+import { hashOtpCode } from '../lib/otp.js';
 let app;
 const PASSWORD = 'secret123';
 async function createUser(opts) {
@@ -24,8 +25,27 @@ async function createUser(opts) {
 function tokenFor(u) {
     return signToken({ id: u.id, email: u.email, role: u.role, name: u.name });
 }
-async function loginToken(email, password = PASSWORD) {
-    const res = await request(app).post('/api/auth/login').send({ email, password });
+// Staff/owner accounts are passwordless, so "can this account sign in?" is now
+// answered via the one-time-code door rather than POST /auth/login. We seed a
+// known code straight into the store and complete /auth/staff/otp/verify; the
+// verify route resolves only provisioned, active, non-deleted staff, so a
+// soft-deleted account naturally fails with 401 just like before.
+async function loginToken(email) {
+    const [u] = await db.select({ id: users.id })
+        .from(users).where(eq(users.email, email.toLowerCase().trim()));
+    if (u) {
+        const code = '135790';
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        await db.insert(staffOtpCodes).values({
+            userId: u.id, codeHash: hashOtpCode(code), channel: 'dev', expiresAt, attempts: 0,
+        }).onConflictDoUpdate({
+            target: staffOtpCodes.userId,
+            set: { codeHash: hashOtpCode(code), expiresAt, attempts: 0 },
+        });
+        const res = await request(app).post('/api/auth/staff/otp/verify').send({ email, code });
+        return { status: res.status, body: res.body, token: res.body?.token };
+    }
+    const res = await request(app).post('/api/auth/staff/otp/verify').send({ email, code: '135790' });
     return { status: res.status, body: res.body, token: res.body?.token };
 }
 before(() => {

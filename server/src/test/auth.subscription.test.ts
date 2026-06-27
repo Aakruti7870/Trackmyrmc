@@ -1,17 +1,16 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import { hashPassword } from '../lib/password.js';
-import { sql, eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { Express } from 'express';
 
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, plants } from '../db/schema.js';
+import { users, plants, staffOtpCodes } from '../db/schema.js';
+import { hashOtpCode } from '../lib/otp.js';
 import type { SubscriptionStatus } from '../lib/subscription.js';
 
 let app: Express;
-const PASSWORD = 'secret123';
 
 async function createPlant(status: SubscriptionStatus) {
   const [row] = await db.insert(plants).values({
@@ -24,22 +23,34 @@ async function createPlant(status: SubscriptionStatus) {
   return row;
 }
 
+// Provisioned, passwordless staff: they sign in with a one-time code, so the
+// billing gate is exercised through /auth/staff/otp/verify rather than the
+// password /login path.
 async function createStaff(email: string, plantId: number | null) {
-  const passwordHash = await hashPassword(PASSWORD);
   const [row] = await db.insert(users).values({
-    name: 'Staff', email, passwordHash, role: 'dispatcher', isActive: true, plantId,
+    name: 'Staff', email, role: 'dispatcher', isActive: true, plantId,
   }).returning();
   return row;
 }
 
-function login(body: Record<string, unknown>) {
-  return request(app).post('/api/auth/login').send(body);
+async function seedCode(userId: number, code: string) {
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  await db.insert(staffOtpCodes).values({
+    userId, codeHash: hashOtpCode(code), channel: 'dev', expiresAt, attempts: 0,
+  }).onConflictDoUpdate({
+    target: staffOtpCodes.userId,
+    set: { codeHash: hashOtpCode(code), expiresAt, attempts: 0 },
+  });
+}
+
+function verify(email: string, code: string) {
+  return request(app).post('/api/auth/staff/otp/verify').send({ email, code });
 }
 
 before(() => { app = buildTestApp(); });
 
 beforeEach(async () => {
-  await db.execute(sql`TRUNCATE TABLE audit_logs, users, plants, login_attempts RESTART IDENTITY CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE audit_logs, staff_otp_codes, users, plants, login_attempts RESTART IDENTITY CASCADE`);
 });
 
 after(async () => { await pool.end(); });
@@ -47,8 +58,9 @@ after(async () => { await pool.end(); });
 for (const status of ['trial', 'active', 'past_due'] as const) {
   test(`a ${status} subscription allows login`, async () => {
     const plant = await createPlant(status);
-    await createStaff('a@test.com', plant.id);
-    const res = await login({ email: 'a@test.com', password: PASSWORD });
+    const u = await createStaff('a@test.com', plant.id);
+    await seedCode(u.id, '123456');
+    const res = await verify('a@test.com', '123456');
     assert.equal(res.status, 200);
     assert.ok(res.body.token);
   });
@@ -56,8 +68,9 @@ for (const status of ['trial', 'active', 'past_due'] as const) {
 
 test('a suspended subscription blocks login with 403', async () => {
   const plant = await createPlant('suspended');
-  await createStaff('a@test.com', plant.id);
-  const res = await login({ email: 'a@test.com', password: PASSWORD });
+  const u = await createStaff('a@test.com', plant.id);
+  await seedCode(u.id, '123456');
+  const res = await verify('a@test.com', '123456');
   assert.equal(res.status, 403);
   assert.equal(res.body.subscriptionBlocked, true);
   assert.match(res.body.error, /suspended/i);
@@ -66,25 +79,36 @@ test('a suspended subscription blocks login with 403', async () => {
 
 test('a cancelled subscription blocks login with 403', async () => {
   const plant = await createPlant('cancelled');
-  await createStaff('a@test.com', plant.id);
-  const res = await login({ email: 'a@test.com', password: PASSWORD });
+  const u = await createStaff('a@test.com', plant.id);
+  await seedCode(u.id, '123456');
+  const res = await verify('a@test.com', '123456');
   assert.equal(res.status, 403);
   assert.equal(res.body.subscriptionBlocked, true);
   assert.match(res.body.error, /cancelled/i);
 });
 
 test('platform staff (no plant) are never billing-gated', async () => {
-  await createStaff('platform@test.com', null);
-  const res = await login({ email: 'platform@test.com', password: PASSWORD });
+  const u = await createStaff('platform@test.com', null);
+  await seedCode(u.id, '123456');
+  const res = await verify('platform@test.com', '123456');
   assert.equal(res.status, 200);
   assert.ok(res.body.token);
 });
 
-test('a wrong password on a suspended plant still returns generic 401 (no billing leak)', async () => {
+test('a wrong code on a suspended plant returns a generic 401 (no billing leak)', async () => {
   const plant = await createPlant('suspended');
-  await createStaff('a@test.com', plant.id);
-  const res = await login({ email: 'a@test.com', password: 'wrongpass' });
+  const u = await createStaff('a@test.com', plant.id);
+  await seedCode(u.id, '123456');
+  const res = await verify('a@test.com', '000000');
+  // The billing gate sits AFTER code verification, so a wrong code must fail at
+  // the OTP step with the same generic 401 a healthy plant would return — never
+  // hinting that this plant is suspended (which would leak billing state to an
+  // attacker who hasn't even proven possession of a valid code).
   assert.equal(res.status, 401);
-  assert.match(res.body.error, /invalid credentials/i);
   assert.equal(res.body.subscriptionBlocked, undefined);
+  const body = JSON.stringify(res.body).toLowerCase();
+  for (const leak of ['subscription', 'suspend', 'cancel', 'billing', 'plan']) {
+    assert.ok(!body.includes(leak), `401 body must not leak billing state ("${leak}"): ${body}`);
+  }
+  assert.match(res.body.error, /code is incorrect or has expired/i);
 });

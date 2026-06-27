@@ -10,7 +10,10 @@ import { relations, sql } from 'drizzle-orm';
 // `client`. `plant_owner` and `supervisor` were added for the owner-onboarding
 // hierarchy; the original six are kept in place (additive) so existing rows and
 // the enum's stored order are untouched.
-export const userRoleEnum = pgEnum('user_role', ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor']);
+// `accountant` is additive (appended last so the enum's stored order and every
+// existing row are untouched): a finance-facing staff role provisioned like any
+// other plant staff.
+export const userRoleEnum = pgEnum('user_role', ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor', 'accountant']);
 export const orderStatusEnum = pgEnum('order_status', ['pending', 'in_progress', 'completed', 'cancelled']);
 export const challanStatusEnum = pgEnum('challan_status', ['pending', 'dispatched', 'delivered', 'cancelled']);
 export const vehicleStatusEnum = pgEnum('vehicle_status', ['active', 'maintenance', 'inactive']);
@@ -67,9 +70,16 @@ export const users = pgTable('users', {
   // normalized E.164 form (e.g. +919876543210). Uniqueness across LIVE accounts
   // is enforced by the partial index below.
   phone: text('phone'),
-  passwordHash: text('password_hash').notNull(),
+  // Nullable: only the Super Admin (authority) and legacy accounts carry a
+  // password. Provisioned staff/owner accounts are PASSWORDLESS — they sign in
+  // with a one-time code (email or WhatsApp), so their hash stays NULL.
+  passwordHash: text('password_hash'),
   role: userRoleEnum('role').notNull().default('dispatcher'),
   isActive: boolean('is_active').notNull().default(true),
+  // Monotonic counter bumped on every successful login so only the most recent
+  // session's token stays valid (single active session). requireAuth rejects a
+  // token whose embedded sessionVersion is behind the row's current value.
+  sessionVersion: integer('session_version').notNull().default(0),
   // For plant-scoped staff/owner accounts: the single plant this user may see and
   // manage. NULL means a legacy global/superuser or marketplace authority (not
   // bound to one plant). Plant owners provisioned at onboarding always have it.
@@ -692,6 +702,23 @@ export const otpCodes = pgTable('otp_codes', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('otp_codes_phone_unique').on(t.phone),
+]);
+
+// Staff/owner passwordless login codes. Kept SEPARATE from otp_codes (which is
+// the customer phone-OTP store) so the customer flow is untouched. Keyed by the
+// provisioned user id (one live code per account, latest send wins). Only the
+// SHA-256 hash of the code is stored, never the plaintext. `channel` records how
+// the code was delivered (email/whatsapp) for the audit trail.
+export const staffOtpCodes = pgTable('staff_otp_codes', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  codeHash: text('code_hash').notNull(),
+  channel: text('channel').notNull().default('email'),
+  expiresAt: timestamp('expires_at').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('staff_otp_codes_user_unique').on(t.userId),
 ]);
 
 // ---- AI Virtual Help Agent -------------------------------------------------

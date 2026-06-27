@@ -16,7 +16,7 @@ const WRITE_ROLES = ['admin', 'dispatcher'];
 // must read their own deliveries through the plant-scoped /api/me/challans
 // instead. Drivers legitimately list/inspect their assigned challans; authority
 // and plant_operator keep their existing global/owner visibility.
-const READ_ROLES = ['admin', 'dispatcher', 'driver', 'authority', 'plant_operator'];
+const READ_ROLES = ['admin', 'dispatcher', 'driver', 'authority', 'plant_operator', 'accountant'];
 const DRIVER_ALLOWED_STATUS = ['delivered'];
 
 const router = Router();

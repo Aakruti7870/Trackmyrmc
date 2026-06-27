@@ -2,66 +2,168 @@ import { useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
-import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft, ChevronDown, Hash, Users } from 'lucide-react';
+import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft, Users, ShieldCheck, KeyRound } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 import logoCk from '@/assets/logo-king.png';
 import InstallAppButton from '@/components/InstallAppButton';
-import { clerkEnabled } from '@/lib/clerk';
+import OtpInput from '@/components/OtpInput';
 import { defaultPath } from '@/lib/permissions';
-import ClerkStaffLogin from '@/components/ClerkStaffLogin';
 import { inputStyle } from '@/components/loginStyles';
 import { ErrorBox, SubmitButton } from '@/components/loginUi';
 import AuthLegalFooter from '@/components/AuthLegalFooter';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 
-const DEMO = [
-  { role: 'Admin', email: 'admin@concreteking.example', password: 'admin123', color: 'var(--gold)' },
-  { role: 'Dispatcher', email: 'dispatcher@concreteking.example', password: 'dispatch123', color: 'var(--blue)' },
-  { role: 'Plant Operator', email: 'operator@concreteking.example', password: 'operator123', color: 'var(--green)' },
-  { role: 'Client', email: 'client@concreteking.example', password: 'client123', color: '#a78bfa' },
-  { role: 'Driver', email: 'driver@concreteking.example', password: 'driver123', color: '#f97316' },
-];
+// Small dev-only banner that reveals the generated code when no real delivery
+// channel is configured (never shown in production).
+function DevCodeBanner({ code }: { code: string }) {
+  return (
+    <div style={{
+      marginBottom: 18, padding: '10px 14px', borderRadius: 10,
+      background: 'color-mix(in srgb, var(--blue) 10%, transparent)',
+      border: '1px solid color-mix(in srgb, var(--blue) 25%, transparent)',
+      fontSize: 13, color: 'var(--blue)',
+    }}>
+      <strong>Dev mode</strong> — your code is <strong style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{code}</strong>
+    </div>
+  );
+}
 
 export default function Login() {
-  const { login, updateUser } = useAuth();
+  const { updateUser } = useAuth();
   const [, setLoc] = useLocation();
   const search = useSearch();
 
   // 'phone' is the default — most customers have no email. Arriving via the
-  // landing "Staff Login" door (/login?staff=1) opens the email path directly.
+  // landing "Staff Login" door (/login?staff=1) opens the staff path directly.
   const staffFirst = new URLSearchParams(search).get('staff') != null;
   const [mode, setMode] = useState<'phone' | 'email'>(staffFirst ? 'email' : 'phone');
-  const [showDemo, setShowDemo] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [demoBusy, setDemoBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  // Email / password (staff)
+  // Staff / owner sign-in (provisioned-only, passwordless except the Super Admin).
+  //  email    → look up the sign-in method for this address
+  //  password → Super Admin only: first 2FA factor
+  //  code     → one-time code (staff OTP) or the Super Admin's second factor
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [plantCode, setPlantCode] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [staffStep, setStaffStep] = useState<'email' | 'password' | 'code'>('email');
+  const [staffCodeMode, setStaffCodeMode] = useState<'staff' | 'superadmin'>('staff');
+  const [staffCode, setStaffCode] = useState('');
+  const [staffDevCode, setStaffDevCode] = useState<string | null>(null);
 
-  // Phone OTP (customers)
+  // Phone OTP (customers) — unchanged flow, now using the shared 6-box input.
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
   const [code, setCode] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
 
-  async function handleEmailSubmit(e: React.FormEvent) {
+  // ---- Staff flow -----------------------------------------------------------
+
+  async function sendStaffOtp() {
+    const res = await api.post<{ ok: boolean; devMode?: boolean; devCode?: string }>(
+      '/auth/staff/otp/send', { email: email.trim() },
+    );
+    setStaffDevCode(res.devCode ?? null);
+    setStaffCodeMode('staff');
+    setStaffCode('');
+    setStaffStep('code');
+  }
+
+  async function handleStaffEmailContinue(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const loggedIn = await login(email, password, plantCode.trim() || undefined);
-      setLoc(defaultPath(loggedIn.role));
+      const res = await api.post<{ method: 'password' | 'otp' }>(
+        '/auth/staff/login-method', { email: email.trim() },
+      );
+      if (res.method === 'password') {
+        setPassword('');
+        setStaffStep('password');
+      } else {
+        await sendStaffOtp();
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not continue. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Super Admin first factor: password verifies, then the server sends a code and
+  // we move to the second-factor (code) step. No token is issued until the code
+  // is verified at /auth/superadmin/verify.
+  async function handleSuperAdminPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await api.post<{ otpRequired?: boolean; devCode?: string; token?: string; user?: User }>(
+        '/auth/login', { email: email.trim(), password },
+      );
+      if (res.otpRequired) {
+        setStaffDevCode(res.devCode ?? null);
+        setStaffCodeMode('superadmin');
+        setStaffCode('');
+        setStaffStep('code');
+      } else if (res.token && res.user) {
+        updateUser(res.user, res.token);
+        setLoc(defaultPath(res.user.role));
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoading(false);
     }
   }
+
+  async function verifyStaffCode(c = staffCode) {
+    if (c.length < 6) return;
+    setError('');
+    setLoading(true);
+    try {
+      const endpoint = staffCodeMode === 'superadmin' ? '/auth/superadmin/verify' : '/auth/staff/otp/verify';
+      const data = await api.post<{ token: string; user: User }>(endpoint, { email: email.trim(), code: c });
+      updateUser(data.user, data.token);
+      setLoc(defaultPath(data.user.role));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Verification failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendStaffCode() {
+    setError('');
+    setLoading(true);
+    try {
+      if (staffCodeMode === 'superadmin') {
+        const res = await api.post<{ otpRequired?: boolean; devCode?: string }>(
+          '/auth/login', { email: email.trim(), password },
+        );
+        setStaffDevCode(res.devCode ?? null);
+      } else {
+        await sendStaffOtp();
+      }
+      setStaffCode('');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not resend the code.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetStaff() {
+    setStaffStep('email');
+    setPassword('');
+    setStaffCode('');
+    setStaffDevCode(null);
+    setError('');
+  }
+
+  // ---- Customer phone flow (unchanged endpoints) ----------------------------
 
   async function handleSendOtp(e: React.FormEvent) {
     e.preventDefault();
@@ -72,6 +174,7 @@ export default function Login() {
         '/auth/otp/send', { phone, name: name || undefined },
       );
       setDevCode(res.devCode ?? null);
+      setCode('');
       setOtpStep('code');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not send the code');
@@ -80,13 +183,13 @@ export default function Login() {
     }
   }
 
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
+  async function verifyPhoneOtp(c = code) {
+    if (c.length < 6) return;
     setError('');
     setLoading(true);
     try {
       const data = await api.post<{ token: string; user: User }>(
-        '/auth/otp/verify', { phone, code, name: name || undefined },
+        '/auth/otp/verify', { phone, code: c, name: name || undefined },
       );
       updateUser(data.user, data.token);
       setLoc('/');
@@ -102,23 +205,6 @@ export default function Login() {
     setCode('');
     setDevCode(null);
     setError('');
-  }
-
-  // One-click demo sign-in: fill the staff form AND log straight in.
-  async function loginDemo(d: { role: string; email: string; password: string }) {
-    setMode('email');
-    setEmail(d.email);
-    setPassword(d.password);
-    setError('');
-    setDemoBusy(d.role);
-    try {
-      const loggedIn = await login(d.email, d.password);
-      setLoc(defaultPath(loggedIn.role));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
-      setDemoBusy(null);
-    }
   }
 
   return (
@@ -156,41 +242,13 @@ export default function Login() {
             Ready Mix Concrete<br />
             <span style={{ color: 'var(--gold)' }}>Management Platform</span>
           </h1>
-          <p style={{ color: 'var(--muted)', lineHeight: 1.7, marginBottom: 20, fontSize: 14 }}>
+          <p style={{ color: 'var(--muted)', lineHeight: 1.7, marginBottom: 24, fontSize: 14 }}>
             End-to-end RMC plant operations — orders, dispatch, production, fleet & financials in one premium dashboard.
           </p>
 
-          <div style={{ marginBottom: 28, maxWidth: 260 }}>
+          {/* Prominent install / download (PWA) call-to-action */}
+          <div style={{ maxWidth: 320 }}>
             <InstallAppButton />
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <button type="button" onClick={() => setShowDemo(s => !s)} style={{
-              display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
-              padding: 0, cursor: 'pointer', marginBottom: 10,
-              fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase',
-            }}>
-              <ChevronDown size={13} style={{ transform: showDemo ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }} />
-              Demo Accounts
-            </button>
-            {showDemo && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {DEMO.map(d => (
-                <button key={d.role} type="button" onClick={() => loginDemo(d)} disabled={!!demoBusy} style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-                  background: 'var(--panel2)', border: '1px solid var(--line)',
-                  borderRadius: 10, cursor: demoBusy ? 'wait' : 'pointer', textAlign: 'left', transition: 'all .15s',
-                  color: 'var(--text)', opacity: demoBusy && demoBusy !== d.role ? 0.5 : 1,
-                }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, minWidth: 100, color: d.color }}>{d.role}</span>
-                  <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>
-                    {demoBusy === d.role ? 'Signing in…' : d.email}
-                  </span>
-                </button>
-              ))}
-            </div>
-            )}
           </div>
         </div>
 
@@ -210,37 +268,34 @@ export default function Login() {
             <ArrowLeft size={15} /> Back to home
           </button>
 
-          {/* Portal / role selector — switches between the customer (phone) and
-              staff (email) sign-in flows. */}
-          {(
-            <div role="tablist" aria-label="Sign in as" style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 22,
-              background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: 4,
-            }}>
-              {([
-                { key: 'phone', label: 'Customer', icon: <Phone size={14} /> },
-                { key: 'email', label: 'Plant Staff', icon: <Users size={14} /> },
-              ] as const).map(opt => {
-                const active = mode === opt.key;
-                return (
-                  <button
-                    key={opt.key} type="button" role="tab" aria-selected={active}
-                    onClick={() => { setMode(opt.key); setError(''); }}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      padding: '9px 10px', borderRadius: 9, border: 'none', cursor: 'pointer',
-                      fontSize: 13, fontWeight: 700,
-                      background: active ? 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))' : 'transparent',
-                      color: active ? '#111827' : 'var(--muted)',
-                      transition: 'all .15s',
-                    }}
-                  >
-                    {opt.icon}{opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {/* Portal selector — customer (phone) vs plant staff (email) */}
+          <div role="tablist" aria-label="Sign in as" style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 22,
+            background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: 4,
+          }}>
+            {([
+              { key: 'phone', label: 'Customer', icon: <Phone size={14} /> },
+              { key: 'email', label: 'Plant Staff', icon: <Users size={14} /> },
+            ] as const).map(opt => {
+              const active = mode === opt.key;
+              return (
+                <button
+                  key={opt.key} type="button" role="tab" aria-selected={active}
+                  onClick={() => { setMode(opt.key); setError(''); }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: '9px 10px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                    fontSize: 13, fontWeight: 700,
+                    background: active ? 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))' : 'transparent',
+                    color: active ? '#111827' : 'var(--muted)',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {opt.icon}{opt.label}
+                </button>
+              );
+            })}
+          </div>
 
           {mode === 'phone' ? (
             <>
@@ -286,31 +341,14 @@ export default function Login() {
                   <SubmitButton loading={loading} label={loading ? 'Sending code…' : 'Send code via WhatsApp'} icon={<MessageCircle size={16} />} />
                 </form>
               ) : (
-                <form onSubmit={handleVerifyOtp}>
-                  {devCode && (
-                    <div style={{
-                      marginBottom: 18, padding: '10px 14px', borderRadius: 10,
-                      background: 'color-mix(in srgb, var(--blue) 10%, transparent)',
-                      border: '1px solid color-mix(in srgb, var(--blue) 25%, transparent)',
-                      fontSize: 13, color: 'var(--blue)',
-                    }}>
-                      <strong>Dev mode</strong> — your code is <strong style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{devCode}</strong>
-                    </div>
-                  )}
+                <form onSubmit={e => { e.preventDefault(); verifyPhoneOtp(); }}>
+                  {devCode && <DevCodeBanner code={devCode} />}
 
                   <div style={{ marginBottom: 24 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 }}>
                       Verification Code
                     </label>
-                    <div style={{ position: 'relative' }}>
-                      <Lock size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                      <input
-                        type="text" inputMode="numeric" value={code}
-                        onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder="123456" required autoFocus
-                        style={{ ...inputStyle, letterSpacing: 4, fontFamily: 'monospace' }}
-                      />
-                    </div>
+                    <OtpInput value={code} onChange={setCode} onComplete={verifyPhoneOtp} disabled={loading} autoFocus />
                   </div>
 
                   {error && <ErrorBox message={error} />}
@@ -337,73 +375,108 @@ export default function Login() {
           ) : (
             <>
               <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Staff Sign In</h2>
-              <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>Enter your email and password to access the platform</p>
+              <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>
+                {staffStep === 'email' && 'Enter your work email to continue.'}
+                {staffStep === 'password' && 'Super Admin — enter your password, then a one-time code.'}
+                {staffStep === 'code' && `Enter the 6-digit code sent to ${email || 'your email'}.`}
+              </p>
 
-              <form onSubmit={handleEmailSubmit}>
-                <div style={{ marginBottom: 18 }}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                    Email Address
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Mail size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                    <input
-                      type="email" value={email} onChange={e => setEmail(e.target.value)}
-                      placeholder="you@company.com" required
-                      style={inputStyle}
-                    />
+              {staffStep === 'email' && (
+                <form onSubmit={handleStaffEmailContinue}>
+                  <div style={{ marginBottom: 24 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
+                      Email Address
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Mail size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="email" value={email} onChange={e => setEmail(e.target.value)}
+                        placeholder="you@company.com" required autoFocus
+                        style={inputStyle}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div style={{ marginBottom: 10 }}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                    Password
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Lock size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                    <input
-                      type={showPw ? 'text' : 'password'} value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••" required
-                      style={{ ...inputStyle, padding: '11px 40px 11px 38px' }}
-                    />
-                    <button type="button" onClick={() => setShowPw(s => !s)} style={{
-                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                    }}>
-                      {showPw ? <EyeOff size={15} style={{ color: 'var(--muted)' }} /> : <Eye size={15} style={{ color: 'var(--muted)' }} />}
+                  {error && <ErrorBox message={error} />}
+
+                  <SubmitButton loading={loading} label={loading ? 'Checking…' : 'Continue →'} />
+
+                  <p style={{ margin: '16px 2px 0', fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
+                    Staff accounts are created by your administrator. No sign-up here.
+                  </p>
+                </form>
+              )}
+
+              {staffStep === 'password' && (
+                <form onSubmit={handleSuperAdminPassword}>
+                  <div style={{ marginBottom: 16, fontSize: 13, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <ShieldCheck size={15} style={{ color: 'var(--gold)' }} />
+                    <span style={{ fontWeight: 700 }}>{email}</span>
+                    <button type="button" onClick={resetStaff} style={{ ...linkBtnStyle, fontSize: 12 }}>change</button>
+                  </div>
+
+                  <div style={{ marginBottom: 18 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
+                      Password
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type={showPw ? 'text' : 'password'} value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        placeholder="••••••••" required autoFocus
+                        style={{ ...inputStyle, padding: '11px 40px 11px 38px' }}
+                      />
+                      <button type="button" onClick={() => setShowPw(s => !s)} style={{
+                        position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                      }}>
+                        {showPw ? <EyeOff size={15} style={{ color: 'var(--muted)' }} /> : <Eye size={15} style={{ color: 'var(--muted)' }} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 24, textAlign: 'right' }}>
+                    <button type="button" onClick={() => setLoc('/forgot-password')} style={linkBtnStyle}>
+                      Forgot password?
                     </button>
                   </div>
-                </div>
 
-                <div style={{ marginBottom: 10, marginTop: 18 }}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                    Plant ID <span style={{ fontWeight: 500, textTransform: 'none' }}>(optional)</span>
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Hash size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                    <input
-                      type="text" value={plantCode}
-                      onChange={e => setPlantCode(e.target.value)}
-                      placeholder="e.g. RMC-001"
-                      autoCapitalize="characters" autoComplete="off"
-                      style={inputStyle}
-                    />
+                  {error && <ErrorBox message={error} />}
+
+                  <SubmitButton loading={loading} label={loading ? 'Verifying…' : 'Continue →'} icon={<Lock size={15} />} />
+                </form>
+              )}
+
+              {staffStep === 'code' && (
+                <form onSubmit={e => { e.preventDefault(); verifyStaffCode(); }}>
+                  {staffDevCode && <DevCodeBanner code={staffDevCode} />}
+
+                  <div style={{ marginBottom: 24 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 }}>
+                      {staffCodeMode === 'superadmin' ? 'Two-Factor Code' : 'Login Code'}
+                    </label>
+                    <OtpInput value={staffCode} onChange={setStaffCode} onComplete={verifyStaffCode} disabled={loading} autoFocus />
                   </div>
-                  <p style={{ margin: '6px 2px 0', fontSize: 11, color: 'var(--muted)' }}>
-                    Enter your plant's code to confirm you're signing into the right plant.
-                  </p>
-                </div>
 
-                <div style={{ marginBottom: 24, textAlign: 'right' }}>
-                  <button type="button" onClick={() => setLoc('/forgot-password')} style={linkBtnStyle}>
-                    Forgot password?
-                  </button>
-                </div>
+                  {error && <ErrorBox message={error} />}
 
-                {error && <ErrorBox message={error} />}
+                  <SubmitButton loading={loading} label={loading ? 'Verifying…' : 'Verify & continue →'} icon={<KeyRound size={15} />} />
 
-                <SubmitButton loading={loading} label={loading ? 'Signing in...' : 'Sign In →'} />
-              </form>
+                  <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <button type="button" onClick={resetStaff} style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                      color: 'var(--muted)', fontSize: 13, fontWeight: 600,
+                    }}>
+                      <ArrowLeft size={14} /> Use a different email
+                    </button>
+                    <button type="button" onClick={resendStaffCode} disabled={loading} style={linkBtnStyle}>
+                      Resend code
+                    </button>
+                  </div>
+                </form>
+              )}
 
               <div style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
                 Customer?{' '}
@@ -411,8 +484,6 @@ export default function Login() {
                   Sign in with your phone
                 </button>
               </div>
-
-              {clerkEnabled && <ClerkStaffLogin onError={setError} />}
             </>
           )}
 

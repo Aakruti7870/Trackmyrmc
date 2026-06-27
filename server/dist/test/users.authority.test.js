@@ -17,6 +17,15 @@ const ORIGINAL_AUTHORITY_EMAILS = process.env.AUTHORITY_EMAILS;
 function setAllowList(value) {
     process.env.AUTHORITY_EMAILS = value;
 }
+// The workspace has real SMTP_* / WHATSAPP_META_* values; an allow-listed
+// AUTHORITY now triggers a real second-factor send on /login. Clear the delivery
+// channels so that send falls back to the deterministic dev path (no real
+// email/WhatsApp), and restore them afterwards.
+const DELIVERY_ENV_KEYS = [
+    'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
+    'WHATSAPP_META_PHONE_NUMBER_ID', 'WHATSAPP_META_ACCESS_TOKEN',
+];
+const savedDeliveryEnv = {};
 async function createUser(role, email) {
     const passwordHash = await hashPassword(PASSWORD);
     const [user] = await db.insert(users).values({
@@ -28,6 +37,10 @@ function tokenFor(u) {
     return signToken({ id: u.id, email: u.email, role: u.role, name: u.name });
 }
 before(() => {
+    for (const k of DELIVERY_ENV_KEYS) {
+        savedDeliveryEnv[k] = process.env[k];
+        delete process.env[k];
+    }
     app = buildTestApp();
 });
 beforeEach(async () => {
@@ -41,6 +54,12 @@ after(async () => {
         delete process.env.AUTHORITY_EMAILS;
     else
         process.env.AUTHORITY_EMAILS = ORIGINAL_AUTHORITY_EMAILS;
+    for (const k of DELIVERY_ENV_KEYS) {
+        if (savedDeliveryEnv[k] === undefined)
+            delete process.env[k];
+        else
+            process.env[k] = savedDeliveryEnv[k];
+    }
     await pool.end();
 });
 test('GET /users/authority-emails returns the env allow-list, normalised (trimmed + lowercased)', async () => {
@@ -120,13 +139,16 @@ test('legacy login is refused for an AUTHORITY account whose email fell off the 
     assert.equal(res.status, 403);
     assert.match(res.body.error, /allow-list/i);
 });
-test('legacy login succeeds for an allow-listed AUTHORITY account', async () => {
+test('login passes the password factor for an allow-listed AUTHORITY account and asks for the second factor', async () => {
     setAllowList('boss@aakruti.com');
     await createUser('authority', 'boss@aakruti.com');
     const res = await request(app)
         .post('/api/auth/login')
         .send({ email: 'boss@aakruti.com', password: PASSWORD });
+    // Super Admin login is two-factor: a correct password no longer issues a token
+    // directly — it clears the allow-list gate and requests a one-time code, which
+    // is completed at /auth/superadmin/verify (covered in staffAuth.test.ts).
     assert.equal(res.status, 200);
-    assert.ok(res.body.token, 'a JWT is issued');
-    assert.equal(res.body.user.role, 'authority');
+    assert.equal(res.body.otpRequired, true, 'the second factor is required');
+    assert.equal(res.body.token, undefined, 'no token until the code is verified');
 });

@@ -16,7 +16,7 @@ async function createUser(opts) {
         name: opts.name,
         email: opts.email,
         passwordHash,
-        role: opts.role ?? 'dispatcher',
+        role: opts.role ?? 'client',
         isActive: opts.isActive ?? true,
     }).returning();
     return row;

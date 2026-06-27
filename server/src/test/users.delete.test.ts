@@ -7,8 +7,9 @@ import type { Express } from 'express';
 
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, auditLogs, clients, drivers } from '../db/schema.js';
+import { users, auditLogs, clients, drivers, staffOtpCodes } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
+import { hashOtpCode } from '../lib/otp.js';
 
 type Role = 'admin' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
 
@@ -40,8 +41,27 @@ function tokenFor(u: { id: number; email: string; role: string; name: string }) 
   return signToken({ id: u.id, email: u.email, role: u.role, name: u.name });
 }
 
-async function loginToken(email: string, password = PASSWORD) {
-  const res = await request(app).post('/api/auth/login').send({ email, password });
+// Staff/owner accounts are passwordless, so "can this account sign in?" is now
+// answered via the one-time-code door rather than POST /auth/login. We seed a
+// known code straight into the store and complete /auth/staff/otp/verify; the
+// verify route resolves only provisioned, active, non-deleted staff, so a
+// soft-deleted account naturally fails with 401 just like before.
+async function loginToken(email: string) {
+  const [u] = await db.select({ id: users.id })
+    .from(users).where(eq(users.email, email.toLowerCase().trim()));
+  if (u) {
+    const code = '135790';
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await db.insert(staffOtpCodes).values({
+      userId: u.id, codeHash: hashOtpCode(code), channel: 'dev', expiresAt, attempts: 0,
+    }).onConflictDoUpdate({
+      target: staffOtpCodes.userId,
+      set: { codeHash: hashOtpCode(code), expiresAt, attempts: 0 },
+    });
+    const res = await request(app).post('/api/auth/staff/otp/verify').send({ email, code });
+    return { status: res.status, body: res.body, token: res.body?.token as string | undefined };
+  }
+  const res = await request(app).post('/api/auth/staff/otp/verify').send({ email, code: '135790' });
   return { status: res.status, body: res.body, token: res.body?.token as string | undefined };
 }
 
@@ -247,7 +267,7 @@ test('guard: deleting an already-deleted user returns 404', async () => {
   assert.equal(missing.status, 404);
 });
 
-test('a soft-deleted user can no longer authenticate via /auth/login', async () => {
+test('a soft-deleted user can no longer authenticate via the staff one-time-code door', async () => {
   const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
   const user = await createUser({ name: 'Login User', email: 'login@test.com', role: 'dispatcher' });
   const token = tokenFor(admin);
@@ -261,9 +281,12 @@ test('a soft-deleted user can no longer authenticate via /auth/login', async () 
     .set('Authorization', `Bearer ${token}`);
   assert.equal(del.status, 200);
 
+  // After soft-deletion the staff resolver no longer finds the account, so even
+  // a correct code is refused. The response is the generic code-rejection
+  // message (never "no such user") so a soft-deleted email can't be enumerated.
   const blocked = await loginToken(user.email);
   assert.equal(blocked.status, 401, 'soft-deleted user cannot log in');
-  assert.match(blocked.body.error, /invalid credentials/i);
+  assert.match(blocked.body.error, /code is incorrect or has expired/i);
 });
 
 test('reactivate: PUT isActive=true on a deactivated (not deleted) user writes account_activated', async () => {

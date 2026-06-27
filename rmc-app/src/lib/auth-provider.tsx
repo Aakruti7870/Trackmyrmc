@@ -3,6 +3,12 @@ import { api, type User } from './api';
 import { AuthContext } from './auth';
 import { clerkSignOutIfEnabled } from './clerk';
 
+// Auto-logout after 30 minutes with no user interaction.
+const IDLE_LOGOUT_MS = 30 * 60 * 1000;
+// Renew the token on activity at most this often (keeps the sliding window fresh
+// without hammering /auth/refresh on every mouse move).
+const REFRESH_THROTTLE_MS = 5 * 60 * 1000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,6 +96,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // member who used SSO isn't silently re-authenticated on the next visit.
     void clerkSignOutIfEnabled();
   }
+
+  // Idle auto-logout + sliding session renewal. While someone is signed in we
+  // arm a 30-minute inactivity timer that logs them out, and on real activity
+  // (throttled) we mint a fresh short-lived token via /auth/refresh so an active
+  // user is never kicked mid-task. Backend short TTL + this renewal together
+  // enforce the 30-min idle window; staff tokens are single-session, so a 401
+  // from a superseded session is handled by the api layer (clear + redirect).
+  useEffect(() => {
+    if (!user) return;
+    let idleTimer: ReturnType<typeof setTimeout>;
+    let lastRefresh = Date.now();
+
+    const resetIdle = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => logout(), IDLE_LOGOUT_MS);
+    };
+
+    const onActivity = () => {
+      resetIdle();
+      const now = Date.now();
+      if (now - lastRefresh >= REFRESH_THROTTLE_MS) {
+        lastRefresh = now;
+        api.post<{ token: string }>('/auth/refresh', {})
+          .then(r => { if (r?.token) localStorage.setItem('rmc_token', r.token); })
+          .catch(() => { /* 401 → cleared+redirected by the api layer */ });
+      }
+    };
+
+    const events: (keyof WindowEventMap)[] = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(e => window.addEventListener(e, onActivity, { passive: true }));
+    resetIdle();
+    return () => {
+      clearTimeout(idleTimer);
+      events.forEach(e => window.removeEventListener(e, onActivity));
+    };
+  }, [user]);
 
   function updateUser(updated: User, token?: string) {
     setUser(updated);

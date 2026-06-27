@@ -94,33 +94,57 @@ export default function UserFormModal({
             />
           </label>
 
-          {/* Password — required on create, optional on edit */}
-          <label>
-            <span style={labelStyle}>
-              {modal === 'create' ? 'Password' : 'New Password'}
-            </span>
-            <div style={{ position: 'relative' }}>
-              <input
-                value={form.password}
-                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                type={showPassword ? 'text' : 'password'}
-                placeholder={modal === 'create' ? 'Min. 6 characters' : 'Leave blank to keep current password'}
-                style={{ ...inputStyle, paddingRight: 38 }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(s => !s)}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 2 }}
-              >
-                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
-            </div>
-            {modal === 'edit' && (
-              <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
-                Leave blank to keep current password. Must be at least 6 characters if changed.
+          {/* Phone — optional, create only. Enables WhatsApp one-time codes for
+              a passwordless staff/owner account (email is the default channel). */}
+          {modal === 'create' && (
+            <label>
+              <span style={labelStyle}>
+                Phone <span style={{ textTransform: 'none', fontWeight: 500, color: 'var(--muted)' }}>(optional — enables WhatsApp codes)</span>
               </span>
-            )}
-          </label>
+              <input
+                value={form.phone}
+                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                placeholder="e.g. +91 98765 43210"
+                type="tel"
+                style={inputStyle}
+              />
+            </label>
+          )}
+
+          {/* Password — only the Super Admin (Authority) uses a password; every
+              other role is passwordless and signs in with a one-time code. */}
+          {form.role === 'authority' ? (
+            <label>
+              <span style={labelStyle}>
+                {modal === 'create' ? 'Password' : 'New Password'}
+              </span>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={form.password}
+                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder={modal === 'create' ? 'Min. 6 characters' : 'Leave blank to keep current password'}
+                  style={{ ...inputStyle, paddingRight: 38 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(s => !s)}
+                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 2 }}
+                >
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
+                {modal === 'create'
+                  ? 'Super Admin signs in with this password plus a one-time code (2FA).'
+                  : 'Leave blank to keep current password. Must be at least 6 characters if changed.'}
+              </span>
+            </label>
+          ) : modal === 'create' ? (
+            <div style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 12px' }}>
+              Passwordless account — the user signs in with a one-time code sent to their email{form.phone.trim() ? ' or WhatsApp' : ''}. No password needed.
+            </div>
+          ) : null}
 
           {/* Role */}
           <label>

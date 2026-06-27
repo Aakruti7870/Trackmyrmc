@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { eq } from 'drizzle-orm';
+import jwt, { type SignOptions } from 'jsonwebtoken';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 
@@ -21,7 +21,19 @@ export interface AuthPayload {
   plantId?: number | null;
   linkedClientId?: number | null;
   linkedDriverId?: number | null;
+  // Single-active-session marker. Set on staff/owner/super-admin tokens; when
+  // present it must equal the account's current users.sessionVersion or the
+  // token is rejected (a newer login elsewhere has superseded this session).
+  // Omitted on customer tokens, which are intentionally left multi-session.
+  sessionVersion?: number;
 }
+
+// Staff/owner/super-admin sessions are short-lived so an idle session lapses
+// (the frontend silently renews this token while the user is active and stops
+// renewing when idle → it expires → auto sign-out). Customer sessions keep the
+// long legacy lifetime so their flow is unchanged.
+export const STAFF_TOKEN_TTL = '30m';
+export const CUSTOMER_TOKEN_TTL = '7d';
 
 declare global {
   namespace Express {
@@ -31,12 +43,25 @@ declare global {
   }
 }
 
-export function signToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+export function signToken(payload: AuthPayload, opts?: { expiresIn?: SignOptions['expiresIn'] }): string {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: opts?.expiresIn ?? CUSTOMER_TOKEN_TTL });
 }
 
 export function verifyToken(token: string): AuthPayload {
   return jwt.verify(token, JWT_SECRET) as AuthPayload;
+}
+
+// Invalidate every other live session for an account by advancing its
+// session_version, then return the new value so the caller can embed it in the
+// token it is about to issue. Called on each successful staff/super-admin login
+// so the most recent login is the only one that stays valid.
+export async function bumpSessionVersion(userId: number): Promise<number> {
+  const [row] = await db
+    .update(users)
+    .set({ sessionVersion: sql`${users.sessionVersion} + 1` })
+    .where(eq(users.id, userId))
+    .returning({ v: users.sessionVersion });
+  return row?.v ?? 0;
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -57,10 +82,20 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     id: users.id, email: users.email, role: users.role, name: users.name,
     isActive: users.isActive, plantId: users.plantId,
     linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
+    sessionVersion: users.sessionVersion,
   }).from(users).where(eq(users.id, payload.id));
 
   if (!user || !user.isActive) {
     res.status(401).json({ error: 'Account deactivated or not found' });
+    return;
+  }
+
+  // Single active session: a token that carries a sessionVersion must match the
+  // account's current value. A newer login elsewhere advances the version,
+  // silently invalidating this (older) token. Tokens minted before this feature
+  // (and customer tokens) carry no sessionVersion and are exempt.
+  if (payload.sessionVersion !== undefined && payload.sessionVersion !== user.sessionVersion) {
+    res.status(401).json({ error: 'Your session has ended because this account signed in elsewhere.', sessionEnded: true });
     return;
   }
 
@@ -72,6 +107,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     plantId: user.plantId,
     linkedClientId: user.linkedClientId,
     linkedDriverId: user.linkedDriverId,
+    sessionVersion: user.sessionVersion,
   };
   next();
 }

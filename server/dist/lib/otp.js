@@ -227,3 +227,22 @@ export async function verifyOtp(phone, code) {
     await db.delete(otpCodes).where(eq(otpCodes.phone, phone));
     return { ok: true };
 }
+// --- Shared primitives for the staff (passwordless) OTP flow -----------------
+// The staff login flow lives in lib/staffAuth.ts but reuses the exact same code
+// generation, hashing and Meta-WhatsApp delivery as the customer flow, so the
+// security properties (6-digit, SHA-256-at-rest, never logged) stay identical.
+export function generateOtpCode() {
+    return generateCode();
+}
+export function hashOtpCode(code) {
+    return hashCode(code);
+}
+// Deliver an already-generated code over Meta WhatsApp (used by the staff flow,
+// which generates + verifies the code locally). Twilio Verify is NOT usable here
+// because it generates its own code; staff WhatsApp delivery is Meta-only.
+export async function sendCodeViaMetaWhatsApp(phone, code) {
+    const meta = metaWhatsAppConfig();
+    if (!meta)
+        return { ok: false, channel: 'whatsapp', error: 'WhatsApp sender is not configured.' };
+    return sendViaMetaOtp(meta, phone, code);
+}

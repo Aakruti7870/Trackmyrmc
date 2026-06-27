@@ -21,7 +21,7 @@ router.get('/variance-tolerance', async (_req, res) => {
 // Restrict to staff/owner roles — customers use /api/me/* — and every query is
 // additionally hard-scoped by the actor's plantId (see dateRange / plantScope)
 // so one plant can never read another plant's figures.
-router.use(requireRole('admin', 'dispatcher', 'authority', 'plant_operator'));
+router.use(requireRole('admin', 'dispatcher', 'authority', 'plant_operator', 'accountant'));
 function dateRange(req) {
     const { from, to } = req.query;
     const filters = [];
@@ -211,7 +211,7 @@ async function computeFuelReconciliation(from, to, actorPlantId) {
     });
     return { config, rows };
 }
-router.get('/fuel-reconciliation', requireRole('admin', 'dispatcher', 'authority'), async (req, res) => {
+router.get('/fuel-reconciliation', requireRole('admin', 'dispatcher', 'authority', 'accountant'), async (req, res) => {
     const { from, to } = req.query;
     res.json(await computeFuelReconciliation(from ? new Date(from) : undefined, to ? new Date(to) : undefined, req.user?.plantId));
 });

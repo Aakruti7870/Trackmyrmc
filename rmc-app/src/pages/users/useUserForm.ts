@@ -79,7 +79,7 @@ export function useUserForm({ reloadAll, clearHistory, historyUserId, setShowDel
 
   function openEdit(u: UserRecord, focusLink = false) {
     setForm({
-      name: u.name, email: u.email, password: '',
+      name: u.name, email: u.email, password: '', phone: '',
       role: u.role as Role, isActive: u.isActive,
       linkedClientId: u.linkedClientId, linkedDriverId: u.linkedDriverId,
     });
@@ -94,13 +94,21 @@ export function useUserForm({ reloadAll, clearHistory, historyUserId, setShowDel
     setSaving(true); setError(''); setSoftDeletedMatch(null);
     try {
       if (modal === 'create') {
-        if (!form.password || form.password.length < 6) {
+        // Only the Super Admin (authority) needs a password; every other role is
+        // passwordless and signs in with a one-time code.
+        if (form.role === 'authority' && (!form.password || form.password.length < 6)) {
+          setError('A Super Admin account needs a password of at least 6 characters.'); setSaving(false); return;
+        }
+        if (form.password && form.password.length < 6) {
           setError('Password must be at least 6 characters'); setSaving(false); return;
         }
-        await api.post('/users', {
-          name: form.name, email: form.email, password: form.password,
-          role: form.role, linkedClientId: form.linkedClientId, linkedDriverId: form.linkedDriverId,
-        });
+        const payload: Record<string, unknown> = {
+          name: form.name, email: form.email, role: form.role,
+          linkedClientId: form.linkedClientId, linkedDriverId: form.linkedDriverId,
+        };
+        if (form.role === 'authority' && form.password) payload.password = form.password;
+        if (form.phone.trim()) payload.phone = form.phone.trim();
+        await api.post('/users', payload);
       } else {
         if (form.password && form.password.length < 6) {
           setError('New password must be at least 6 characters'); setSaving(false); return;

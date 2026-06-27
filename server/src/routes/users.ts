@@ -31,12 +31,18 @@ router.use((req, res, next) => {
   next();
 });
 
-const ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor'] as const;
+const ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor', 'accountant'] as const;
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  // Passwordless by design: only the Super Admin (authority) keeps a password
+  // (their first 2FA factor). Every other provisioned account signs in with a
+  // one-time code, so password is optional here and ignored for non-authority.
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  // Optional mobile number so a provisioned staff/owner can receive their login
+  // code over WhatsApp; email remains the default channel when absent.
+  phone: z.string().trim().min(5, 'Enter a valid phone number').optional(),
   role: z.enum(ROLES),
   linkedClientId: z.number().int().positive().nullable().optional(),
   linkedDriverId: z.number().int().positive().nullable().optional(),
@@ -240,10 +246,18 @@ router.post('/', async (req, res) => {
     res.status(400).json({ error: parse.error.flatten().fieldErrors });
     return;
   }
-  const { name, email, password, role, linkedClientId, linkedDriverId } = parse.data;
+  const { name, email, password, phone, role, linkedClientId, linkedDriverId } = parse.data;
 
   if (role === 'authority' && !isAuthorityEmail(email)) {
     res.status(403).json({ error: 'This email is not on the AUTHORITY allow-list, so it cannot be granted the AUTHORITY role.' });
+    return;
+  }
+
+  // The Super Admin keeps a password (their first 2FA factor); everyone else is
+  // passwordless and signs in with a one-time code, so a password is required
+  // only for authority and ignored for any other role.
+  if (role === 'authority' && !password) {
+    res.status(400).json({ error: 'A password is required for a Super Admin (Authority) account.' });
     return;
   }
 
@@ -276,11 +290,26 @@ router.post('/', async (req, res) => {
     return;
   }
 
-  const passwordHash = await hashPassword(password);
+  // Reject a phone already in use by another live account (the phone-OTP login
+  // key is unique per active user), so the insert can't fail opaquely later.
+  if (phone) {
+    const [phoneClash] = await db.select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.phone, phone), isNull(users.deletedAt)));
+    if (phoneClash) {
+      res.status(409).json({ error: 'This phone number is already linked to another account.' });
+      return;
+    }
+  }
+
+  // Only the Super Admin stores a password hash; every other role is passwordless
+  // (logs in by one-time code) so the hash stays NULL.
+  const passwordHash = role === 'authority' && password ? await hashPassword(password) : null;
   let user;
   try {
     [user] = await db.insert(users).values({
       name, email, passwordHash, role,
+      phone: phone ?? null,
       linkedClientId: linkedClientId ?? null,
       linkedDriverId: linkedDriverId ?? null,
       createdBy: req.user!.id,

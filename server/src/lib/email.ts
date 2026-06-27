@@ -543,6 +543,90 @@ export async function sendPasswordResetEmail(
   return true;
 }
 
+// Send a one-time login code to a staff/owner (or the Super Admin's 2FA step).
+// Best-effort like the other notifications: returns false (and logs) when SMTP
+// is unconfigured rather than throwing, so the caller can fall back to another
+// channel. The plaintext code is only ever placed in the email body itself.
+export async function sendLoginCodeEmail(
+  toEmail: string,
+  toName: string,
+  code: string,
+  expiresMinutes: number,
+): Promise<boolean> {
+  const cfg = await getSmtpConfig();
+  const transporter = transporterFor(cfg);
+
+  if (!transporter) {
+    console.warn(
+      '[email] SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing). ' +
+      'Skipping login-code email.',
+    );
+    return false;
+  }
+
+  const from = cfg.from || cfg.user || undefined;
+  const spaced = code.split('').join(' ');
+
+  await transporter.sendMail({
+    from,
+    to: toEmail,
+    subject: `${code} is your CONCRETE KING login code`,
+    text: [
+      `Hello ${toName},`,
+      '',
+      'Use this one-time code to sign in to CONCRETE KING:',
+      '',
+      `  ${code}`,
+      '',
+      `This code expires in ${expiresMinutes} minutes and can be used once.`,
+      'If you did not try to sign in, you can safely ignore this email — your account stays secure.',
+      '',
+      '— CONCRETE KING',
+    ].join('\n'),
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+        <tr>
+          <td style="background:#0a221e;padding:24px 32px">
+            <h1 style="margin:0;color:#1f9e80;font-size:20px;font-weight:700">
+              CONCRETE KING
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px">
+            <h2 style="margin:0 0 16px;color:#1a1a1a;font-size:18px">
+              Your Login Code
+            </h2>
+            <p style="color:#444;line-height:1.6;margin:0 0 20px">
+              Hello <strong>${toName}</strong>, use this one-time code to sign in:
+            </p>
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px;margin:0 0 24px;text-align:center">
+              <span style="color:#0f2e29;font-size:34px;font-weight:800;letter-spacing:8px">${spaced}</span>
+            </div>
+            <p style="color:#444;line-height:1.6;margin:0 0 24px">
+              This code expires in <strong>${expiresMinutes} minutes</strong> and can be used once.
+              If you did not try to sign in, you can safely ignore this email.
+            </p>
+            <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
+            <p style="color:#888;font-size:13px;margin:0">— CONCRETE KING</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+  });
+  return true;
+}
+
 export interface DeliveryNotificationDetails {
   challanNo: string;
   grade: string;

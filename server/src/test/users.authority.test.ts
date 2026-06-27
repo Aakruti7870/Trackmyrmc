@@ -7,8 +7,9 @@ import type { Express } from 'express';
 
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users } from '../db/schema.js';
+import { users, staffOtpCodes } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
+import { hashOtpCode } from '../lib/otp.js';
 import { PERMANENT_AUTHORITY_EMAILS } from '../lib/authority.js';
 
 let app: Express;
@@ -21,6 +22,28 @@ const PASSWORD = 'secret123';
 const ORIGINAL_AUTHORITY_EMAILS = process.env.AUTHORITY_EMAILS;
 function setAllowList(value: string) {
   process.env.AUTHORITY_EMAILS = value;
+}
+
+// The workspace has real SMTP_* / WHATSAPP_META_* values; an allow-listed
+// AUTHORITY now triggers a real second-factor send on /login. Clear the delivery
+// channels so the suite can never open a real network connection. Note the Super
+// Admin path has NO dev-code fallback (unlike ordinary staff): with no channel
+// configured the send fails with 502, so the positive test below seeds a known
+// code and completes the 2FA via /superadmin/verify, mirroring staffAuth.test.ts.
+const DELIVERY_ENV_KEYS = [
+  'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
+  'WHATSAPP_META_PHONE_NUMBER_ID', 'WHATSAPP_META_ACCESS_TOKEN',
+] as const;
+const savedDeliveryEnv: Record<string, string | undefined> = {};
+
+async function seedCode(userId: number, code: string) {
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  await db.insert(staffOtpCodes).values({
+    userId, codeHash: hashOtpCode(code), channel: 'dev', expiresAt, attempts: 0,
+  }).onConflictDoUpdate({
+    target: staffOtpCodes.userId,
+    set: { codeHash: hashOtpCode(code), expiresAt, attempts: 0 },
+  });
 }
 
 async function createUser(role: string, email: string) {
@@ -36,6 +59,10 @@ function tokenFor(u: { id: number; email: string; role: string; name: string }) 
 }
 
 before(() => {
+  for (const k of DELIVERY_ENV_KEYS) {
+    savedDeliveryEnv[k] = process.env[k];
+    delete process.env[k];
+  }
   app = buildTestApp();
 });
 
@@ -52,6 +79,10 @@ afterEach(() => {
 after(async () => {
   if (ORIGINAL_AUTHORITY_EMAILS === undefined) delete process.env.AUTHORITY_EMAILS;
   else process.env.AUTHORITY_EMAILS = ORIGINAL_AUTHORITY_EMAILS;
+  for (const k of DELIVERY_ENV_KEYS) {
+    if (savedDeliveryEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedDeliveryEnv[k];
+  }
   await pool.end();
 });
 
@@ -155,15 +186,26 @@ test('legacy login is refused for an AUTHORITY account whose email fell off the 
   assert.match(res.body.error, /allow-list/i);
 });
 
-test('legacy login succeeds for an allow-listed AUTHORITY account', async () => {
+test('an allow-listed AUTHORITY clears the allow-list gate and logs in via the second factor', async () => {
   setAllowList('boss@aakruti.com');
-  await createUser('authority', 'boss@aakruti.com');
+  const boss = await createUser('authority', 'boss@aakruti.com');
 
-  const res = await request(app)
+  // Super Admin login is two-factor. A correct password passes the password +
+  // allow-list gates (it is NOT the 403 /allow-list/ rejection a non-listed
+  // authority gets) and proceeds to the second factor. With no delivery channel
+  // configured the send fails with 502 — but crucially it never issues a token.
+  const first = await request(app)
     .post('/api/auth/login')
     .send({ email: 'boss@aakruti.com', password: PASSWORD });
+  assert.equal(first.status, 502, 'past the allow-list gate, into the (undeliverable) 2FA send');
+  assert.equal(first.body.token, undefined, 'no token on the first factor alone');
 
+  // Seeding a known code and completing the second factor issues the token.
+  await seedCode(boss.id, '424242');
+  const res = await request(app)
+    .post('/api/auth/superadmin/verify')
+    .send({ email: 'boss@aakruti.com', code: '424242' });
   assert.equal(res.status, 200);
-  assert.ok(res.body.token, 'a JWT is issued');
+  assert.ok(res.body.token, 'a JWT is issued after the second factor');
   assert.equal(res.body.user.role, 'authority');
 });

@@ -107,9 +107,12 @@ test('POST /auth/set-password consumes the token, sets the password, and logs th
   assert.ok(set.body.token, 'returns a session token for auto-login');
   assert.equal(set.body.user.email, 'owner@test.com');
 
-  // The chosen password now works at the normal login endpoint.
+  // Staff/owner accounts are passwordless: the password set during onboarding
+  // only powers the one-time auto-login above. A later password /login is now
+  // refused and steered to the one-time-code door.
   const login = await request(app).post('/api/auth/login').send({ email: 'owner@test.com', password: 'chosenpass1' });
-  assert.equal(login.status, 200);
+  assert.equal(login.status, 403);
+  assert.equal(login.body.useOtp, true);
 
   // The token is now consumed.
   const [created] = await db.select().from(users).where(eq(users.email, 'owner@test.com'));
@@ -169,7 +172,7 @@ test('re-issuing an invite invalidates the previous one', async () => {
   assert.equal(peekSecond.status, 200);
 });
 
-test('the typed-password flow still works (backward compatible)', async () => {
+test('the typed-password provisioning path stores a password but staff still sign in passwordless', async () => {
   const admin = await createAdmin();
   const plant = await createPlant();
   const res = await request(app)
@@ -179,8 +182,11 @@ test('the typed-password flow still works (backward compatible)', async () => {
   assert.equal(res.status, 201);
   assert.notEqual(res.body.invited, true);
 
+  // Even with a correct stored password, a staff/owner account is refused the
+  // password door and steered to the one-time-code login.
   const login = await request(app).post('/api/auth/login').send({ email: 'owner@test.com', password: 'typedpass1' });
-  assert.equal(login.status, 200);
+  assert.equal(login.status, 403);
+  assert.equal(login.body.useOtp, true);
 
   // No invite token is created for the typed-password path.
   const [created] = await db.select().from(users).where(eq(users.email, 'owner@test.com'));

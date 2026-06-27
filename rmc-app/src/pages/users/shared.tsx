@@ -51,7 +51,7 @@ export type AuditPage = {
 
 export type LinkOption = { id: number; name: string };
 
-export const ROLES = ['authority', 'plant_owner', 'admin', 'supervisor', 'dispatcher', 'plant_operator', 'client', 'driver'] as const;
+export const ROLES = ['authority', 'plant_owner', 'admin', 'supervisor', 'dispatcher', 'plant_operator', 'accountant', 'client', 'driver'] as const;
 export type Role = typeof ROLES[number];
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -61,6 +61,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   supervisor: 'Supervisor',
   dispatcher: 'Dispatcher',
   plant_operator: 'Plant Operator',
+  accountant: 'Accountant',
   client: 'Client',
   driver: 'Driver',
 };
@@ -72,6 +73,7 @@ export const ROLE_COLOR: Record<Role, string> = {
   supervisor: '#14b8a6',
   dispatcher: 'var(--blue)',
   plant_operator: 'var(--green)',
+  accountant: '#06b6d4',
   client: '#a78bfa',
   driver: '#f97316',
 };
@@ -127,6 +129,7 @@ export type FormData = {
   name: string;
   email: string;
   password: string;
+  phone: string;
   role: Role;
   isActive: boolean;
   linkedClientId: number | null;
@@ -134,7 +137,7 @@ export type FormData = {
 };
 
 export const emptyForm = (): FormData => ({
-  name: '', email: '', password: '', role: 'dispatcher',
+  name: '', email: '', password: '', phone: '', role: 'dispatcher',
   isActive: true, linkedClientId: null, linkedDriverId: null,
 });
 

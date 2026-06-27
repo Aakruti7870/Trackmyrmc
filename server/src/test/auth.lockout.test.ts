@@ -10,6 +10,10 @@ import { db, pool } from '../db/index.js';
 import { users, loginAttempts } from '../db/schema.js';
 import { MAX_ATTEMPTS } from '../lib/loginAttempts.js';
 
+// These tests exercise the role-agnostic lockout machinery via the password
+// /login path. Staff/owner roles are now passwordless (the password door is
+// refused with useOtp), so we use a `client` account here — clients still sign
+// in with email + password, which is what the lockout counter guards.
 type Role = 'admin' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
 
 let app: Express;
@@ -25,7 +29,7 @@ async function createUser(opts: {
     name: opts.name,
     email: opts.email,
     passwordHash,
-    role: opts.role ?? 'dispatcher',
+    role: opts.role ?? 'client',
     isActive: opts.isActive ?? true,
   }).returning();
   return row;
