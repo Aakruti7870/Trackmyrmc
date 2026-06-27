@@ -1,7 +1,8 @@
 import crypto from 'crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { otpCodes } from '../db/schema.js';
+import { metaWhatsAppConfig, type MetaWhatsAppConfig } from './whatsapp.js';
 
 // Phone-OTP provider abstraction.
 //
@@ -23,6 +24,29 @@ export function isOtpProviderConfigured(): boolean {
       process.env.TWILIO_AUTH_TOKEN &&
       process.env.TWILIO_VERIFY_SERVICE_SID,
   );
+}
+
+// The Meta Cloud API can also deliver login codes, but unlike Twilio Verify it
+// only *sends* a message — we generate the code, store its hash, and verify it
+// ourselves (the same local path as the dev fallback). It's usable as an OTP
+// channel whenever the shared Meta WhatsApp sender is configured.
+export function isMetaOtpConfigured(): boolean {
+  return Boolean(metaWhatsAppConfig());
+}
+
+// True when ANY real delivery channel exists (Twilio Verify OR Meta), i.e. a code
+// can actually reach the user. Drives the client "dev mode" hint: only when this
+// is false does the API echo the code back for local testing.
+export function isOtpDeliveryConfigured(): boolean {
+  return isOtpProviderConfigured() || isMetaOtpConfigured();
+}
+
+// The Meta AUTHENTICATION-template name used for login codes. Overridable via env
+// so the template can be renamed without a redeploy; defaults to the name created
+// on the production WABA.
+const DEFAULT_META_OTP_TEMPLATE = 'login_code';
+export function metaOtpTemplateName(): string {
+  return process.env.WHATSAPP_META_OTP_TEMPLATE?.trim() || DEFAULT_META_OTP_TEMPLATE;
 }
 
 function isProd(): boolean {
@@ -55,6 +79,24 @@ function hashCode(code: string): string {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
 
+// A fresh 6-digit numeric code, zero-padded so it is always 6 characters.
+function generateCode(): string {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+}
+
+// Persist (or replace) the hashed code for a phone with a fresh TTL + attempt
+// counter. Shared by the Meta and dev paths, which both verify locally.
+async function storeCode(phone: string, code: string): Promise<void> {
+  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+  await db
+    .insert(otpCodes)
+    .values({ phone, codeHash: hashCode(code), expiresAt, attempts: 0 })
+    .onConflictDoUpdate({
+      target: otpCodes.phone,
+      set: { codeHash: hashCode(code), expiresAt, attempts: 0, createdAt: new Date() },
+    });
+}
+
 const twilioAuthHeader = () =>
   'Basic ' +
   Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
@@ -66,6 +108,50 @@ export interface SendResult {
   // lets the client show the code so the flow is testable end-to-end.
   devCode?: string;
   error?: string;
+}
+
+// Deliver a login code through the Meta WhatsApp Cloud API using an approved
+// AUTHENTICATION-category template. Such templates carry the code in BOTH the
+// message body and the OTP button, so the code is passed twice. Mirrors the otp
+// send contract — never throws, always returns a SendResult.
+async function sendViaMetaOtp(
+  cfg: MetaWhatsAppConfig,
+  phone: string,
+  code: string,
+): Promise<SendResult> {
+  try {
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: phone.replace(/^\+/, ''),
+      type: 'template',
+      template: {
+        name: metaOtpTemplateName(),
+        language: { code: cfg.lang },
+        components: [
+          { type: 'body', parameters: [{ type: 'text', text: code }] },
+          { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] },
+        ],
+      },
+    };
+    const res = await fetch(
+      `https://graph.facebook.com/${cfg.version}/${cfg.phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cfg.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      return { ok: false, channel: 'whatsapp', error: `Verification provider error (${res.status}). ${detail.slice(0, 200)}` };
+    }
+    return { ok: true, channel: 'whatsapp' };
+  } catch {
+    return { ok: false, channel: 'whatsapp', error: 'Could not reach the verification provider. Please try again.' };
+  }
 }
 
 export async function sendOtp(phone: string): Promise<SendResult> {
@@ -92,6 +178,27 @@ export async function sendOtp(phone: string): Promise<SendResult> {
     }
   }
 
+  // --- Meta WhatsApp Cloud API ---------------------------------------------
+  // No Twilio Verify, but the shared Meta sender is configured: generate our own
+  // code, store its hash for local verification, and deliver it via the approved
+  // AUTHENTICATION template. On a failed send we drop the stored code so a live
+  // code can't linger waiting on a message that never arrived.
+  const meta = metaWhatsAppConfig();
+  if (meta) {
+    const code = generateCode();
+    await storeCode(phone, code);
+    const sent = await sendViaMetaOtp(meta, phone, code);
+    if (!sent.ok) {
+      // Delete only the code we just stored (match on its hash), so a concurrent
+      // newer send for the same phone isn't clobbered by this failure cleanup.
+      await db
+        .delete(otpCodes)
+        .where(and(eq(otpCodes.phone, phone), eq(otpCodes.codeHash, hashCode(code))));
+      return sent;
+    }
+    return { ok: true, channel: 'whatsapp' };
+  }
+
   // --- Dev fallback ---------------------------------------------------------
   // Fail CLOSED in production: with no provider there is no way to actually
   // deliver a code, so returning ok would silently lock real users out (they'd
@@ -101,17 +208,9 @@ export async function sendOtp(phone: string): Promise<SendResult> {
     return { ok: false, channel: 'dev', error: 'Phone verification is not available right now. Please contact support.' };
   }
 
-  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
-  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-  await db
-    .insert(otpCodes)
-    .values({ phone, codeHash: hashCode(code), expiresAt, attempts: 0 })
-    .onConflictDoUpdate({
-      target: otpCodes.phone,
-      set: { codeHash: hashCode(code), expiresAt, attempts: 0, createdAt: new Date() },
-    });
-
-  return { ok: true, channel: 'dev', devCode: isProd() ? undefined : code };
+  const code = generateCode();
+  await storeCode(phone, code);
+  return { ok: true, channel: 'dev', devCode: code };
 }
 
 export interface VerifyResult {

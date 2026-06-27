@@ -11,11 +11,14 @@ import { users, clients, otpCodes, rateLimitHits } from '../db/schema.js';
 let app: Express;
 
 before(() => {
-  // These tests rely on the dev fallback (no Twilio configured). Guard against a
-  // stray env var making the suite hit the real provider.
+  // These tests rely on the dev fallback (no provider configured). Guard against a
+  // stray env var making the suite hit a real provider — both Twilio Verify and
+  // the Meta Cloud API OTP path now count as real delivery channels.
   delete process.env.TWILIO_ACCOUNT_SID;
   delete process.env.TWILIO_AUTH_TOKEN;
   delete process.env.TWILIO_VERIFY_SERVICE_SID;
+  delete process.env.WHATSAPP_META_PHONE_NUMBER_ID;
+  delete process.env.WHATSAPP_META_ACCESS_TOKEN;
   app = buildTestApp();
 });
 
@@ -107,4 +110,25 @@ test('verify rejects a wrong code without creating an account', async () => {
 
   const rows = await db.select().from(users).where(eq(users.phone, phone));
   assert.equal(rows.length, 0, 'no account created on failed verification');
+});
+
+test('with Meta configured, /otp/send reports a real channel and never leaks the code', async () => {
+  // Route-level guard for the devMode wiring: a real Meta send must NOT be flagged
+  // as dev mode and must NOT echo the code back in the response.
+  process.env.WHATSAPP_META_PHONE_NUMBER_ID = 'pn-test';
+  process.env.WHATSAPP_META_ACCESS_TOKEN = 'tok-test';
+  const realFetch = global.fetch;
+  global.fetch = (async () =>
+    new Response(JSON.stringify({ messages: [{ id: 'wamid.test' }] }), { status: 200 })) as unknown as typeof fetch;
+  try {
+    const res = await send({ phone: '+919812345000' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.channel, 'whatsapp');
+    assert.equal(res.body.devMode, false);
+    assert.equal(res.body.devCode, undefined, 'never echo the code over a real channel');
+  } finally {
+    delete process.env.WHATSAPP_META_PHONE_NUMBER_ID;
+    delete process.env.WHATSAPP_META_ACCESS_TOKEN;
+    global.fetch = realFetch;
+  }
 });

@@ -14,7 +14,7 @@ import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.
 import { peekInviteToken, redeemInviteToken, createInviteToken } from '../lib/inviteToken.js';
 import { sendPasswordResetEmail } from '../lib/email.js';
 import { rateLimit } from '../lib/rateLimit.js';
-import { normalizePhone, isOtpProviderConfigured, sendOtp, verifyOtp } from '../lib/otp.js';
+import { normalizePhone, isOtpDeliveryConfigured, sendOtp, verifyOtp } from '../lib/otp.js';
 import { isSubscriptionBlocking, subscriptionBlockMessage } from '../lib/subscription.js';
 const router = Router();
 router.post('/login', async (req, res) => {
@@ -732,7 +732,7 @@ router.post('/otp/send', otpSendLimiter, async (req, res) => {
     res.json({
         ok: true,
         channel: result.channel,
-        devMode: !isOtpProviderConfigured(),
+        devMode: !isOtpDeliveryConfigured(),
         // Only present in dev mode (no provider) and never in production.
         devCode: result.devCode,
     });
