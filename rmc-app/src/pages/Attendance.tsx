@@ -82,8 +82,11 @@ export default function Attendance() {
 
   const checkedIn = status?.checkedIn ?? false;
 
+  const accent = checkedIn ? '#22c55e' : 'var(--gold)';
+
   return (
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
+      <style>{ATT_CSS}</style>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
         <CalendarClock size={22} color="var(--gold)" />
         <div>
@@ -104,23 +107,28 @@ export default function Attendance() {
 
       {/* My status card */}
       <div style={{
-        borderRadius: 16, padding: 20, marginBottom: 24,
-        background: 'var(--surface)', border: '1px solid var(--line)',
+        position: 'relative', overflow: 'hidden', borderRadius: 18, padding: 20, marginBottom: 24,
+        background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 14%, var(--surface)), var(--surface) 70%)`,
+        border: `1px solid color-mix(in srgb, ${accent} 28%, var(--line))`,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999,
-            fontSize: 12, fontWeight: 700,
-            background: checkedIn ? 'color-mix(in srgb, #22c55e 18%, transparent)' : 'var(--chip-bg)',
-            color: checkedIn ? '#16a34a' : 'var(--muted)',
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+          <div style={{
+            flexShrink: 0, width: 52, height: 52, borderRadius: 15, display: 'grid', placeItems: 'center',
+            background: accent, color: '#fff',
           }}>
-            <Clock size={13} /> {checkedIn ? 'Checked in' : 'Not checked in'}
-          </span>
-          {checkedIn && status?.open && (
-            <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-              Since {fmt(status.open.checkInAt)} · {duration(status.open.checkInAt, null)}
-            </span>
-          )}
+            {checkedIn ? <LogIn size={24} /> : <Clock size={24} />}
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 17, fontWeight: 800 }}>
+              {checkedIn ? 'You are checked in' : 'Not checked in'}
+              {checkedIn && <span className="att-live-dot" />}
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3, fontWeight: 600 }}>
+              {checkedIn && status?.open
+                ? `Since ${fmt(status.open.checkInAt)} · ${duration(status.open.checkInAt, null)} on shift`
+                : 'Tap check in to start your shift'}
+            </div>
+          </div>
         </div>
 
         <input
@@ -250,3 +258,9 @@ function Th({ children }: { children: React.ReactNode }) {
 function Td({ children }: { children: React.ReactNode }) {
   return <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>{children}</td>;
 }
+
+const ATT_CSS = `
+@keyframes attBlink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+.att-live-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; display: inline-block; animation: attBlink 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .att-live-dot { animation: none; } }
+`;
