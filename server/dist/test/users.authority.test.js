@@ -5,8 +5,9 @@ import { hashPassword } from '../lib/password.js';
 import { eq, sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users } from '../db/schema.js';
+import { users, staffOtpCodes } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
+import { hashOtpCode } from '../lib/otp.js';
 import { PERMANENT_AUTHORITY_EMAILS } from '../lib/authority.js';
 let app;
 const PASSWORD = 'secret123';
@@ -19,13 +20,24 @@ function setAllowList(value) {
 }
 // The workspace has real SMTP_* / WHATSAPP_META_* values; an allow-listed
 // AUTHORITY now triggers a real second-factor send on /login. Clear the delivery
-// channels so that send falls back to the deterministic dev path (no real
-// email/WhatsApp), and restore them afterwards.
+// channels so the suite can never open a real network connection. Note the Super
+// Admin path has NO dev-code fallback (unlike ordinary staff): with no channel
+// configured the send fails with 502, so the positive test below seeds a known
+// code and completes the 2FA via /superadmin/verify, mirroring staffAuth.test.ts.
 const DELIVERY_ENV_KEYS = [
     'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
     'WHATSAPP_META_PHONE_NUMBER_ID', 'WHATSAPP_META_ACCESS_TOKEN',
 ];
 const savedDeliveryEnv = {};
+async function seedCode(userId, code) {
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await db.insert(staffOtpCodes).values({
+        userId, codeHash: hashOtpCode(code), channel: 'dev', expiresAt, attempts: 0,
+    }).onConflictDoUpdate({
+        target: staffOtpCodes.userId,
+        set: { codeHash: hashOtpCode(code), expiresAt, attempts: 0 },
+    });
+}
 async function createUser(role, email) {
     const passwordHash = await hashPassword(PASSWORD);
     const [user] = await db.insert(users).values({
@@ -139,16 +151,24 @@ test('legacy login is refused for an AUTHORITY account whose email fell off the 
     assert.equal(res.status, 403);
     assert.match(res.body.error, /allow-list/i);
 });
-test('login passes the password factor for an allow-listed AUTHORITY account and asks for the second factor', async () => {
+test('an allow-listed AUTHORITY clears the allow-list gate and logs in via the second factor', async () => {
     setAllowList('boss@aakruti.com');
-    await createUser('authority', 'boss@aakruti.com');
-    const res = await request(app)
+    const boss = await createUser('authority', 'boss@aakruti.com');
+    // Super Admin login is two-factor. A correct password passes the password +
+    // allow-list gates (it is NOT the 403 /allow-list/ rejection a non-listed
+    // authority gets) and proceeds to the second factor. With no delivery channel
+    // configured the send fails with 502 — but crucially it never issues a token.
+    const first = await request(app)
         .post('/api/auth/login')
         .send({ email: 'boss@aakruti.com', password: PASSWORD });
-    // Super Admin login is two-factor: a correct password no longer issues a token
-    // directly — it clears the allow-list gate and requests a one-time code, which
-    // is completed at /auth/superadmin/verify (covered in staffAuth.test.ts).
+    assert.equal(first.status, 502, 'past the allow-list gate, into the (undeliverable) 2FA send');
+    assert.equal(first.body.token, undefined, 'no token on the first factor alone');
+    // Seeding a known code and completing the second factor issues the token.
+    await seedCode(boss.id, '424242');
+    const res = await request(app)
+        .post('/api/auth/superadmin/verify')
+        .send({ email: 'boss@aakruti.com', code: '424242' });
     assert.equal(res.status, 200);
-    assert.equal(res.body.otpRequired, true, 'the second factor is required');
-    assert.equal(res.body.token, undefined, 'no token until the code is verified');
+    assert.ok(res.body.token, 'a JWT is issued after the second factor');
+    assert.equal(res.body.user.role, 'authority');
 });

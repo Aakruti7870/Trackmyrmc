@@ -209,7 +209,7 @@ test('guard: deleting an already-deleted user returns 404', async () => {
         .set('Authorization', `Bearer ${token}`);
     assert.equal(missing.status, 404);
 });
-test('a soft-deleted user can no longer authenticate via /auth/login', async () => {
+test('a soft-deleted user can no longer authenticate via the staff one-time-code door', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
     const user = await createUser({ name: 'Login User', email: 'login@test.com', role: 'dispatcher' });
     const token = tokenFor(admin);
@@ -220,9 +220,12 @@ test('a soft-deleted user can no longer authenticate via /auth/login', async () 
         .delete(`/api/users/${user.id}`)
         .set('Authorization', `Bearer ${token}`);
     assert.equal(del.status, 200);
+    // After soft-deletion the staff resolver no longer finds the account, so even
+    // a correct code is refused. The response is the generic code-rejection
+    // message (never "no such user") so a soft-deleted email can't be enumerated.
     const blocked = await loginToken(user.email);
     assert.equal(blocked.status, 401, 'soft-deleted user cannot log in');
-    assert.match(blocked.body.error, /invalid credentials/i);
+    assert.match(blocked.body.error, /code is incorrect or has expired/i);
 });
 test('reactivate: PUT isActive=true on a deactivated (not deleted) user writes account_activated', async () => {
     const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });

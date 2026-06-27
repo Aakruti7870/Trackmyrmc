@@ -84,6 +84,15 @@ test('a wrong code on a suspended plant returns a generic 401 (no billing leak)'
     const u = await createStaff('a@test.com', plant.id);
     await seedCode(u.id, '123456');
     const res = await verify('a@test.com', '000000');
+    // The billing gate sits AFTER code verification, so a wrong code must fail at
+    // the OTP step with the same generic 401 a healthy plant would return — never
+    // hinting that this plant is suspended (which would leak billing state to an
+    // attacker who hasn't even proven possession of a valid code).
     assert.equal(res.status, 401);
     assert.equal(res.body.subscriptionBlocked, undefined);
+    const body = JSON.stringify(res.body).toLowerCase();
+    for (const leak of ['subscription', 'suspend', 'cancel', 'billing', 'plan']) {
+        assert.ok(!body.includes(leak), `401 body must not leak billing state ("${leak}"): ${body}`);
+    }
+    assert.match(res.body.error, /code is incorrect or has expired/i);
 });
