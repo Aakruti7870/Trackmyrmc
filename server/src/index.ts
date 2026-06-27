@@ -151,7 +151,12 @@ if (isProd) {
     '/',
     '/login',
     '/register',
+    '/partner',
+    '/privacy',
+    '/terms',
     '/set-password',
+    '/forgot-password',
+    '/sso-callback',
     '/kiosk',
     '/my-orders',
     '/nearby-plants',
@@ -176,8 +181,8 @@ if (isProd) {
     '/profile',
   ]);
 
-  // Dynamic SPA routes (e.g. /challans/:id/print)
-  const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/];
+  // Dynamic SPA routes (e.g. /challans/:id/print, /track/:token)
+  const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/, /^\/track\/[^/]+$/];
 
   app.get('*', (req, res) => {
     const p = req.path;
