@@ -89,6 +89,27 @@ export async function sendPushToClientUsers(clientId, payload) {
         .where(inArray(pushSubscriptions.userId, ids));
     return sendToSubs(subs, payload);
 }
+// Send to active, non-deleted staff in the given roles. When plantId is set the
+// fan-out is scoped to that plant (a batch/production alert is plant-private);
+// pass null to reach matching staff regardless of plant. Best-effort like the
+// rest of push.
+export async function sendPushToStaff(plantId, roles, payload) {
+    if (!ensureConfigured())
+        return 0;
+    const roleVals = [...roles];
+    const conds = [eq(users.isActive, true), isNull(users.deletedAt), inArray(users.role, roleVals)];
+    if (plantId != null)
+        conds.push(eq(users.plantId, plantId));
+    const staff = await db.select({ id: users.id }).from(users).where(and(...conds));
+    if (staff.length === 0)
+        return 0;
+    const ids = staff.map((u) => u.id);
+    const subs = await db
+        .select()
+        .from(pushSubscriptions)
+        .where(inArray(pushSubscriptions.userId, ids));
+    return sendToSubs(subs, payload);
+}
 // Deliver one payload to a set of subscriptions in parallel, pruning endpoints
 // the push service reports as gone (404/410). Returns how many were accepted.
 async function sendToSubs(subs, payload) {

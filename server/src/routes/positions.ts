@@ -59,6 +59,12 @@ export type LivePosition = {
 // + small deployment); positions are ephemeral and rebuilt as drivers report.
 const livePositions = new Map<number, LivePosition>();
 
+// Read-only accessor for the latest live fix of one challan. Used by the public
+// tracking endpoint (which must not import the in-memory Map directly).
+export function getLivePosition(challanId: number): LivePosition | null {
+  return livePositions.get(challanId) ?? null;
+}
+
 function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;

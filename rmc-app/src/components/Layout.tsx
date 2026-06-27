@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
-  Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon,
+  Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon, CalendarClock,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -32,6 +32,7 @@ const ALL_NAV_ITEMS = [
   { path: '/vehicles',    label: 'Fleet',      icon: CarFront },
   { path: '/drivers',     label: 'Drivers',    icon: UserCheck },
   { path: '/batch-report', label: 'Production', icon: FileText },
+  { path: '/attendance',  label: 'Attendance', icon: CalendarClock },
   { path: '/mix-design',  label: 'Mix Design', icon: FlaskConical },
   { path: '/reports',     label: 'Reports',    icon: BarChart3 },
   { path: '/shift-report', label: 'Shift Report', icon: ClipboardCheck },

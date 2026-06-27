@@ -42,6 +42,8 @@ const AuditLog       = lazy(() => import('@/pages/AuditLog'));
 const ProfileSettings = lazy(() => import('@/pages/ProfileSettings'));
 const Kiosk          = lazy(() => import('@/pages/Kiosk'));
 const SsoCallback    = lazy(() => import('@/pages/SsoCallback'));
+const TrackTrip      = lazy(() => import('@/pages/TrackTrip'));
+const Attendance     = lazy(() => import('@/pages/Attendance'));
 
 const PageSpinner = (
   <div style={{
@@ -113,6 +115,7 @@ function ProtectedRoutes() {
         <Route path="/vehicles"     component={() => <GuardedRoute path="/vehicles"     component={Vehicles}    />} />
         <Route path="/drivers"      component={() => <GuardedRoute path="/drivers"      component={Drivers}     />} />
         <Route path="/batch-report" component={() => <GuardedRoute path="/batch-report" component={BatchReport} />} />
+        <Route path="/attendance"   component={() => <GuardedRoute path="/attendance"   component={Attendance}  />} />
         <Route path="/mix-design"   component={() => <GuardedRoute path="/mix-design"   component={MixDesign}   />} />
         <Route path="/reports"      component={() => <GuardedRoute path="/reports"      component={Reports}     />} />
         <Route path="/freshness"    component={() => <GuardedRoute path="/freshness"    component={FreshnessGuard}  />} />
@@ -162,6 +165,10 @@ export default function App() {
             <Route path="/forgot-password" component={ForgotPassword} />
             <Route path="/sso-callback" component={() => (
               <Suspense fallback={PageSpinner}><SsoCallback /></Suspense>
+            )} />
+            {/* PUBLIC, no-login: anyone with the share link can watch the trip. */}
+            <Route path="/track/:token" component={() => (
+              <Suspense fallback={PageSpinner}><TrackTrip /></Suspense>
             )} />
             <Route component={ProtectedRoutes} />
           </Switch>

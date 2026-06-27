@@ -792,6 +792,97 @@ export async function sendOrderPlacedEmail(
   return true;
 }
 
+export interface BatchLoggedDetails {
+  batchNo: string;
+  grade: string;
+  quantity: string;
+  operator?: string | null;
+  plantName?: string | null;
+}
+
+// Internal staff alert when a production batch is logged. Sent to plant staff
+// (admins/owners/supervisors/dispatchers), not customers. Best-effort: returns
+// false (and logs) when SMTP is unconfigured or there are no recipients.
+export async function sendBatchLoggedEmail(
+  toEmails: string[],
+  details: BatchLoggedDetails,
+): Promise<boolean> {
+  if (toEmails.length === 0) return false;
+  const cfg = await getSmtpConfig();
+  const transporter = transporterFor(cfg);
+  if (!transporter) {
+    console.warn(
+      '[email] SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS missing). ' +
+      'Skipping batch-logged email.',
+    );
+    return false;
+  }
+
+  const from = cfg.from || cfg.user || undefined;
+  const plant = details.plantName || 'the plant';
+  const subject = `Batch Logged: ${details.batchNo} — ${details.grade}`;
+  const lead = `A new concrete batch has been logged at ${plant}.`;
+
+  await transporter.sendMail({
+    from,
+    to: toEmails,
+    subject,
+    text: [
+      lead,
+      '',
+      `  Batch:    ${details.batchNo}`,
+      `  Grade:    ${details.grade}`,
+      `  Qty:      ${details.quantity} m³`,
+      `  Operator: ${details.operator || '—'}`,
+      `  Plant:    ${plant}`,
+      '',
+      '— Concrete King RMC Plant Management System',
+    ].join('\n'),
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+        <tr>
+          <td style="background:#08111f;padding:24px 32px">
+            <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">Concrete King RMC Plant</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px">
+            <h2 style="margin:0 0 16px;color:#1a1a1a;font-size:18px">New Batch Logged</h2>
+            <p style="color:#444;line-height:1.6;margin:0 0 16px">${lead}</p>
+            <table cellpadding="0" cellspacing="0"
+                   style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
+                          padding:16px 20px;margin:0 0 24px;width:100%">
+              <tr><td style="color:#555;font-size:14px;padding:4px 0;width:90px">Batch</td>
+                  <td style="color:#b45309;font-size:14px;font-weight:700;padding:4px 0">${details.batchNo}</td></tr>
+              <tr><td style="color:#555;font-size:14px;padding:4px 0">Grade</td>
+                  <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${details.grade}</td></tr>
+              <tr><td style="color:#555;font-size:14px;padding:4px 0">Quantity</td>
+                  <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${details.quantity} m³</td></tr>
+              <tr><td style="color:#555;font-size:14px;padding:4px 0">Operator</td>
+                  <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${details.operator || '—'}</td></tr>
+              <tr><td style="color:#555;font-size:14px;padding:4px 0">Plant</td>
+                  <td style="color:#1a1a1a;font-size:14px;font-weight:600;padding:4px 0">${plant}</td></tr>
+            </table>
+            <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
+            <p style="color:#888;font-size:13px;margin:0">— Concrete King RMC Plant Management System</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+  });
+  return true;
+}
+
 export async function sendPasswordResetNotification(
   toEmail: string,
   toName: string,

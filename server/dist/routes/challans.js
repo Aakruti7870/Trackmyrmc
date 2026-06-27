@@ -7,6 +7,7 @@ import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 import { notifyChallanStatus } from '../lib/deliveryNotify.js';
 import { plantScope, clientInScope } from '../lib/tenancy.js';
+import { createTrackingToken } from '../lib/trackingTokens.js';
 import { registerUploadedFilesSafe, unregisterUploadedFilesSafe } from '../lib/uploadedFiles.js';
 const WRITE_ROLES = ['admin', 'dispatcher'];
 // Roles allowed to read the staff challan surface. Customers are deliberately
@@ -549,5 +550,31 @@ router.delete('/:id', requireRole(...WRITE_ROLES), async (req, res) => {
         await Promise.allSettled(storedPhotos.map(photo => proofPhotoStore.remove(photo)));
     }
     res.json({ ok: deleted.length > 0 });
+});
+// Mint a public, no-login tracking link for a single challan. Staff-only and
+// plant-scoped: you can only share a trip that belongs to your plant. The token
+// is hashed at rest (only the raw value is returned here, once) and resolves to
+// a minimal no-PII payload on the PUBLIC GET /api/track/:token route. The link
+// origin comes from TRUSTED config (APP_URL / PUBLIC_URL) — never the Host
+// header — and falls back to a relative path so dev still works.
+router.post('/:id/share', requireRole(...WRITE_ROLES), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+        res.status(400).json({ error: 'Invalid challan id' });
+        return;
+    }
+    const [row] = await db.select({ id: challans.id }).from(challans)
+        .where(and(eq(challans.id, id), plantScope(req.user.plantId, challans.plantId))).limit(1);
+    if (!row) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
+    // Public links carry live logistics data, so they must expire. A single trip
+    // is short-lived; 24h comfortably covers a delivery while bounding exposure.
+    const SHARE_TTL_MS = 24 * 60 * 60 * 1000;
+    const token = await createTrackingToken(id, req.user.id, SHARE_TTL_MS);
+    const base = (process.env.APP_URL || process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
+    const url = base ? `${base}/track/${token}` : `/track/${token}`;
+    res.status(201).json({ token, url });
 });
 export default router;

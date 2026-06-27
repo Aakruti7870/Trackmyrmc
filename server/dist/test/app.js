@@ -23,6 +23,8 @@ import webhookRoutes from '../routes/webhooks.js';
 import aiRoutes from '../routes/ai.js';
 import pushRoutes from '../routes/push.js';
 import configRoutes from '../routes/config.js';
+import attendanceRoutes from '../routes/attendance.js';
+import trackingRoutes from '../routes/tracking.js';
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
 // app.listen and registers background intervals).
@@ -61,5 +63,7 @@ export function buildTestApp() {
     app.use('/api/ai', aiRoutes);
     app.use('/api/push', pushRoutes);
     app.use('/api/config', configRoutes);
+    app.use('/api/attendance', attendanceRoutes);
+    app.use('/api/track', trackingRoutes);
     return app;
 }

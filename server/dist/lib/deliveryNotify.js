@@ -1,9 +1,9 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { challans, clients, sites, orders, plants, users, whatsappMessages } from '../db/schema.js';
+import { batchRecords, challans, clients, sites, orders, plants, users, whatsappMessages } from '../db/schema.js';
 import { normalizePhone } from './otp.js';
-import { sendDeliveryNotificationEmail, sendWhatsAppFailureAlertEmail, sendOrderPlacedEmail } from './email.js';
-import { sendPushToClientUsers } from './push.js';
+import { sendDeliveryNotificationEmail, sendWhatsAppFailureAlertEmail, sendOrderPlacedEmail, sendBatchLoggedEmail } from './email.js';
+import { sendPushToClientUsers, sendPushToStaff } from './push.js';
 import { emitSSEEvent } from './sseEmitter.js';
 import { getWhatsAppConfig, eventEnabled, } from './whatsapp.js';
 import { sendWhatsAppWithRetry } from './whatsappRetry.js';
@@ -192,6 +192,69 @@ export async function notifyOrderPlaced(orderId) {
     }
     catch (err) {
         console.warn(`[notify] Failed to send order-placed notification for order ${orderId}:`, err);
+    }
+}
+// Plant staff alerted when a production batch is logged.
+const BATCH_NOTIFY_ROLES = ['admin', 'plant_owner', 'supervisor', 'dispatcher'];
+// A production batch was logged — alert the plant's staff (NOT customers) by web
+// push and email so production is visible in real time. Scoped to the batch's
+// own plant; legacy null-plant batches have no plant audience and are skipped.
+// Best-effort: never throws back into the originating request.
+export async function notifyBatchLogged(batchId) {
+    try {
+        const [row] = await db
+            .select({
+            plantId: batchRecords.plantId,
+            batchNo: batchRecords.batchNo,
+            grade: batchRecords.grade,
+            quantity: batchRecords.quantity,
+            operator: batchRecords.operator,
+            plantName: plants.name,
+        })
+            .from(batchRecords)
+            .leftJoin(plants, eq(batchRecords.plantId, plants.id))
+            .where(eq(batchRecords.id, batchId));
+        if (!row || row.plantId == null)
+            return;
+        // Web push to plant staff — pops up even when the app is closed.
+        try {
+            await sendPushToStaff(row.plantId, BATCH_NOTIFY_ROLES, {
+                title: 'New batch logged',
+                body: `Batch ${row.batchNo} — ${row.quantity} m³ ${row.grade}${row.operator ? ` by ${row.operator}` : ''}.`,
+                url: '/batch-report',
+                tag: `batch-${batchId}`,
+            });
+        }
+        catch (err) {
+            console.warn(`[notify] batch-logged push failed for batch ${batchId}:`, err);
+        }
+        // Email to active plant staff in the notify roles (excluding phone-only
+        // @otp.local placeholder mailboxes).
+        try {
+            const staff = await db
+                .select({ email: users.email })
+                .from(users)
+                .where(and(isNull(users.deletedAt), eq(users.isActive, true), eq(users.plantId, row.plantId), inArray(users.role, [...BATCH_NOTIFY_ROLES])));
+            const emails = new Set();
+            for (const s of staff)
+                if (s.email && !s.email.endsWith('@otp.local'))
+                    emails.add(s.email);
+            if (emails.size > 0) {
+                await sendBatchLoggedEmail([...emails], {
+                    batchNo: row.batchNo,
+                    grade: row.grade,
+                    quantity: row.quantity,
+                    operator: row.operator,
+                    plantName: row.plantName,
+                });
+            }
+        }
+        catch (err) {
+            console.warn(`[notify] batch-logged email failed for batch ${batchId}:`, err);
+        }
+    }
+    catch (err) {
+        console.warn(`[notify] Failed to send batch-logged notification for batch ${batchId}:`, err);
     }
 }
 // A WhatsApp customer update (order/dispatch/delivery) was reported by Twilio's

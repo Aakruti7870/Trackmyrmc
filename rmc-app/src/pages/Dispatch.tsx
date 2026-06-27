@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Search, X, Printer, Check, Truck, StickyNote, Camera, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
+import { Plus, Search, X, Printer, Check, Truck, StickyNote, Camera, ChevronLeft, ChevronRight, ZoomIn, Share2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site, type IdleConfig } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
@@ -27,6 +27,8 @@ export default function Dispatch() {
   const [photoView, setPhotoView] = useState<{ challanNo: string; srcs: string[]; loading: boolean } | null>(null);
   const [photoIdx, setPhotoIdx] = useState(0);
   const [photoZoom, setPhotoZoom] = useState(false);
+  const [sharedId, setSharedId] = useState<number | null>(null);
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
   const touchRef = useRef<{ x: number; y: number; t: number; multi: boolean } | null>(null);
   const swipedRef = useRef(false);
   const lastTapRef = useRef(0);
@@ -131,6 +133,27 @@ export default function Dispatch() {
     await api.put(`/challans/${ch.id}`, { status: 'delivered' });
   }
 
+  // Mint a public, no-login tracking link for this trip and copy it to the
+  // clipboard so staff can share it with the customer.
+  async function shareTrip(ch: Challan) {
+    setSharedId(ch.id);
+    try {
+      const { url } = await api.post<{ token: string; url: string }>(`/challans/${ch.id}/share`, {});
+      const link = url.startsWith('http') ? url : `${window.location.origin}${url}`;
+      try {
+        await navigator.clipboard.writeText(link);
+        setShareMsg('Tracking link copied to clipboard');
+      } catch {
+        setShareMsg(link);
+      }
+    } catch {
+      setShareMsg('Could not create tracking link');
+    } finally {
+      setSharedId(null);
+      window.setTimeout(() => setShareMsg(null), 4000);
+    }
+  }
+
   const filtered = challans.filter(ch => {
     const matchSearch = ch.challanNo.toLowerCase().includes(search.toLowerCase()) ||
       (ch.clientName || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -166,6 +189,16 @@ export default function Dispatch() {
           color: '#052e16', fontWeight: 800, fontSize: 13, borderRadius: 10, border: 'none', cursor: 'pointer',
         }}><Plus size={15} /> Create Challan</button>
       </div>
+
+      {shareMsg && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 10, marginBottom: 14, fontSize: 13, wordBreak: 'break-all',
+          background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))',
+          border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)', color: 'var(--text)',
+        }}>
+          {shareMsg}
+        </div>
+      )}
 
       {/* Active orders ready to dispatch */}
       {orders.length > 0 && (
@@ -295,6 +328,13 @@ export default function Dispatch() {
                           background: 'color-mix(in srgb, var(--gold) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 28%, transparent)',
                           borderRadius: 7, cursor: 'pointer', color: 'var(--gold)', fontSize: 11, fontWeight: 700,
                         }}><Camera size={11} /> Photo</button>
+                      )}
+                      {ch.status === 'dispatched' && (
+                        <button onClick={() => shareTrip(ch)} disabled={sharedId === ch.id} title="Copy public live-tracking link" style={{
+                          display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                          background: 'color-mix(in srgb, var(--gold) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 28%, transparent)',
+                          borderRadius: 7, cursor: sharedId === ch.id ? 'wait' : 'pointer', color: 'var(--gold)', fontSize: 11, fontWeight: 700,
+                        }}><Share2 size={11} /> {sharedId === ch.id ? 'Sharing…' : 'Share'}</button>
                       )}
                       <Link href={`/challans/${ch.id}/print`}>
                         <button style={{

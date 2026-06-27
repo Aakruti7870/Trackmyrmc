@@ -1,7 +1,7 @@
 export type Role = 'authority' | 'plant_owner' | 'admin' | 'supervisor' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
 
 // AUTHORITY is a super-admin: it can reach everything an admin can.
-const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/plants', '/users', '/activity-log', '/audit-log', '/profile', '/kiosk'];
+const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/plants', '/users', '/activity-log', '/audit-log', '/profile', '/kiosk'];
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   authority:      ADMIN_PATHS,
@@ -9,11 +9,11 @@ export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   plant_owner:    ADMIN_PATHS,
   admin:          ADMIN_PATHS,
   // Supervisor oversees plant operations & dispatch (no user/plant admin).
-  supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile', '/kiosk'],
-  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile', '/kiosk'],
-  plant_operator: ['/', '/freshness', '/batch-report', '/mix-design', '/shift-report', '/profile'],
+  supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile', '/kiosk'],
+  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile', '/kiosk'],
+  plant_operator: ['/', '/freshness', '/batch-report', '/attendance', '/mix-design', '/shift-report', '/profile'],
   client:         ['/my-orders', '/nearby-plants', '/challans', '/profile'],
-  driver:         ['/my-trips', '/challans', '/profile'],
+  driver:         ['/my-trips', '/attendance', '/challans', '/profile'],
 };
 
 export const ROLE_DEFAULT_PATH: Record<Role, string> = {

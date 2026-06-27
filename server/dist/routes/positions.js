@@ -24,6 +24,11 @@ const RELEASE_RADIUS_M = 300;
 // Latest known position per challan. In-memory by design (single-process dev
 // + small deployment); positions are ephemeral and rebuilt as drivers report.
 const livePositions = new Map();
+// Read-only accessor for the latest live fix of one challan. Used by the public
+// tracking endpoint (which must not import the in-memory Map directly).
+export function getLivePosition(challanId) {
+    return livePositions.get(challanId) ?? null;
+}
 function haversineM(lat1, lon1, lat2, lon2) {
     const R = 6371000;
     const toRad = (d) => (d * Math.PI) / 180;

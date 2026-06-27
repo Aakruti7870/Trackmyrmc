@@ -293,6 +293,24 @@ export const batchRecords = pgTable('batch_records', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Staff/driver attendance — a check-in opens a row, a check-out closes it. Each
+// record is stamped with the actor's plant so the report stays plant-private
+// (a null-plant global admin sees all). A partial unique index allows only one
+// OPEN (not-yet-checked-out) record per user at a time, so the DB itself blocks
+// a double check-in even under a race.
+export const attendanceRecords = pgTable('attendance_records', {
+  id: serial('id').primaryKey(),
+  plantId: integer('plant_id').references(() => plants.id),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  checkInAt: timestamp('check_in_at').defaultNow().notNull(),
+  checkOutAt: timestamp('check_out_at'),
+  checkInNote: text('check_in_note'),
+  checkOutNote: text('check_out_note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('attendance_open_unique').on(t.userId).where(sql`${t.checkOutAt} IS NULL`),
+]);
+
 export const ledgerEntries = pgTable('ledger_entries', {
   id: serial('id').primaryKey(),
   clientId: integer('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
@@ -381,6 +399,22 @@ export const passwordSetupTokens = pgTable('password_setup_tokens', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('password_setup_tokens_hash_unique').on(t.tokenHash),
+]);
+
+// Public, shareable live-tracking links for a single challan (trip). A staff
+// member mints a token for a challan; anyone holding the link can watch that one
+// trip on a no-login map. Only a hash of the token is stored (the raw token
+// lives only in the shared URL); links can be revoked or time-limited.
+export const trackingTokens = pgTable('tracking_tokens', {
+  id: serial('id').primaryKey(),
+  challanId: integer('challan_id').notNull().references(() => challans.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull(),
+  createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+  expiresAt: timestamp('expires_at'),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('tracking_tokens_hash_unique').on(t.tokenHash),
 ]);
 
 // Marketplace directory of RMC plants. A customer only ever sees rows that are

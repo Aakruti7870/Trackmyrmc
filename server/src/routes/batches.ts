@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { batchRecords } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
+import { notifyBatchLogged } from '../lib/deliveryNotify.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -74,6 +75,9 @@ router.post('/', async (req, res) => {
     aggregateKg: aggregateKg ? +aggregateKg : null,
     operator, remarks,
   }).returning();
+  // Alert plant staff that a batch was logged (email + web push). Fire-and-forget
+  // so a notification hiccup never fails the create.
+  void notifyBatchLogged(row.id);
   res.status(201).json(row);
 });
 
