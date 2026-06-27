@@ -74,10 +74,11 @@ describe('Users page — restore prompt when reusing a deleted email', () => {
     const heading = await screen.findByRole('heading', { name: 'Add New User' });
     const modal = heading.closest('div')!.parentElement!.parentElement!;
 
-    // Fill in the conflicting email + a valid password and submit.
+    // Fill in name + the conflicting email and submit. The default role is a
+    // passwordless staff account (signs in with a one-time code), so the create
+    // form has no password field — only the Super Admin (authority) role does.
     await user.type(within(modal).getByPlaceholderText('e.g. Rajesh Kumar'), 'Sunita Rao');
     await user.type(within(modal).getByPlaceholderText('user@example.com'), REUSED_EMAIL);
-    await user.type(within(modal).getByPlaceholderText('Min. 6 characters'), 'secret123');
     await user.click(within(modal).getByRole('button', { name: 'Create Account' }));
 
     // The create attempt hit POST /users...
