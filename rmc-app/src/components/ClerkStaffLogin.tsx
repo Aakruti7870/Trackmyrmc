@@ -56,7 +56,7 @@ export default function ClerkStaffLogin({ onError }: { onError: (msg: string) =>
         <div style={{ flex: 1, height: 1, background: 'var(--line, rgba(212,175,55,.16))' }} />
       </div>
 
-      <SignInButton mode="modal" fallbackRedirectUrl="/login">
+      <SignInButton mode="modal" forceRedirectUrl="/login" fallbackRedirectUrl="/login">
         <button type="button" disabled={exchanging} className="crown-sso-btn">
           <img src={logoKing} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} />
           {exchanging ? 'Signing in…' : 'Staff Sign-In'}

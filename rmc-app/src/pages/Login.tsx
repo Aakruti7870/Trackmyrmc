@@ -9,7 +9,6 @@ import InstallAppButton from '@/components/InstallAppButton';
 import { clerkEnabled } from '@/lib/clerk';
 import { defaultPath } from '@/lib/permissions';
 import ClerkStaffLogin from '@/components/ClerkStaffLogin';
-import ClerkCustomerLogin from '@/components/ClerkCustomerLogin';
 import { inputStyle } from '@/components/loginStyles';
 import { ErrorBox, SubmitButton } from '@/components/loginUi';
 import AuthLegalFooter from '@/components/AuthLegalFooter';
@@ -213,7 +212,7 @@ export default function Login() {
 
           {/* Portal / role selector — switches between the customer (phone) and
               staff (email) sign-in flows. */}
-          {!clerkEnabled && (
+          {(
             <div role="tablist" aria-label="Sign in as" style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 22,
               background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: 4,
@@ -245,10 +244,6 @@ export default function Login() {
 
           {mode === 'phone' ? (
             <>
-              {clerkEnabled ? (
-              <ClerkCustomerLogin />
-              ) : (
-              <>
               <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Sign in with your phone</h2>
               <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>
                 {otpStep === 'phone'
@@ -330,8 +325,6 @@ export default function Login() {
                     <ArrowLeft size={14} /> Use a different number
                   </button>
                 </form>
-              )}
-              </>
               )}
 
               <div style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
