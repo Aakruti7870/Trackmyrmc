@@ -38,3 +38,14 @@ retry with payload tweaks. The user must create the `login_code` AUTHENTICATION 
 in WhatsApp Manager on an eligible (production/verified) WABA, and OTP login only works
 once that template is **APPROVED**. The template name is overridable via
 `WHATSAPP_META_OTP_TEMPLATE` (default `login_code`).
+
+## Twilio Verify bypasses the auth-template blocker entirely
+If the Meta AUTHENTICATION template is blocked, switch to **Twilio Verify** — it is the
+*first*-priority tier and needs **NO WhatsApp template at all** (Twilio generates,
+delivers, and verifies the code). Activation requires all three of `TWILIO_ACCOUNT_SID`,
+`TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`. The Verify **Service SID** (starts
+`VA…`) is a non-secret identifier — list existing services via
+`GET https://verify.twilio.com/v2/Services` (auth = account SID + auth token) and set it
+with `setEnvVars` (no need to `requestEnvVar`). Caveat: the code sends `Channel: 'whatsapp'`,
+so the Twilio account must have **WhatsApp enabled for Verify**; if not, the send 4xx's and
+you'd either enable WhatsApp Verify or change the channel to `sms`.
