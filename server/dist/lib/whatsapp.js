@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import { db } from '../db/index.js';
+import { appSettings } from '../db/schema.js';
 import { getSettings } from './settings.js';
 import { normalizePhone } from './otp.js';
 // WhatsApp business-notification sender (Twilio Programmable Messaging).
@@ -28,6 +30,16 @@ export const WHATSAPP_KEYS = {
 // Twilio WhatsApp sender + the matching template SID are configured, so these
 // defaults are safe.
 export const DEFAULT_WHATSAPP_ENABLED = true;
+// Out-of-the-box per-event Meta template NAMES. When the Meta Cloud API sender is
+// configured, the per-event "template" settings hold a Meta template name (not a
+// Twilio Content SID); these values match the approved templates on the
+// production WABA. Seeded on boot (see ensureWhatsAppTemplateDefaults) so
+// order/dispatch/delivery alerts deliver without an admin first filling them in.
+export const DEFAULT_META_TEMPLATE_NAMES = {
+    order: 'order_confirmation',
+    dispatch: 'dispatch_update',
+    delivery: 'delivery_confirmation',
+};
 function isProd() {
     return process.env.NODE_ENV === 'production';
 }
@@ -117,6 +129,32 @@ export function eventEnabled(cfg, event) {
     if (event === 'dispatch')
         return cfg.dispatchEnabled && !!cfg.dispatchTemplateSid;
     return cfg.deliveryEnabled && !!cfg.deliveryTemplateSid;
+}
+// Seed the per-event Meta template NAMES the first time the app boots with a Meta
+// Cloud API sender configured, so business-initiated alerts fire out of the box.
+// Idempotent (onConflictDoNothing): it never overwrites a name an admin set in the
+// Settings UI, and it no-ops when Meta isn't configured (Twilio mode needs Content
+// SIDs, not template names, so seeding names there would be wrong). Mirrors
+// ensurePlantDirectory — runs on every dev restart and prod publish, and is
+// prod-safe via the conflict guard. Best-effort; callers swallow failures.
+export async function ensureWhatsAppTemplateDefaults() {
+    if (!metaWhatsAppConfig())
+        return 0;
+    const now = new Date();
+    const rows = [
+        { key: WHATSAPP_KEYS.orderTemplateSid, value: DEFAULT_META_TEMPLATE_NAMES.order, updatedAt: now },
+        { key: WHATSAPP_KEYS.dispatchTemplateSid, value: DEFAULT_META_TEMPLATE_NAMES.dispatch, updatedAt: now },
+        { key: WHATSAPP_KEYS.deliveryTemplateSid, value: DEFAULT_META_TEMPLATE_NAMES.delivery, updatedAt: now },
+    ];
+    const inserted = await db
+        .insert(appSettings)
+        .values(rows)
+        .onConflictDoNothing({ target: appSettings.key })
+        .returning({ key: appSettings.key });
+    if (inserted.length) {
+        console.log(`ensureWhatsAppTemplateDefaults: seeded ${inserted.length} template name(s)`);
+    }
+    return inserted.length;
 }
 const twilioAuthHeader = () => 'Basic ' +
     Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
