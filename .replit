@@ -134,3 +134,4 @@ VAPID_PUBLIC_KEY = "BL0iTHXdZu_N0yD8IYBdGUX-_6GBFXy_lp4hsXOzgz7Yoe-N_xIcx2aCw040
 VAPID_PRIVATE_KEY = "zrdOKRBc57KgzrQQND7NZlvVSCq9jIORouYhhzBLfjk"
 VAPID_SUBJECT = "mailto:notifications@concreteking.app"
 TWILIO_VERIFY_SERVICE_SID = "VAa36a1c5af68b0226f11cd3c0eb151239"
+APP_URL = "https://trackmyrmc.com"
