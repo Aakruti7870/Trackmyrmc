@@ -33,3 +33,14 @@ reflects Twilio status callbacks.
 **Go-live (per-tenant, in app_settings via Settings → WhatsApp Notifications):**
 set the 3 approved Meta template names + enable toggles; `eventEnabled()` needs a
 template name per event in addition to the global switch.
+
+**Out-of-the-box defaults:** `ensureWhatsAppTemplateDefaults()` (in whatsapp.ts,
+called ONLY from index.ts `app.listen`, NOT buildTestApp) seeds the 3 approved
+template NAMES into app_settings with `onConflictDoNothing`, but ONLY when
+`metaWhatsAppConfig()` is set — so alerts work without manual Settings entry, an
+admin override is never clobbered, and it's prod-safe (self-seeds on publish like
+ensurePlantDirectory, since the prod DB is read-only to the agent).
+`getWhatsAppConfig()` stays null-default, so the test DB is never seeded and no
+real sends arm in tests. CAVEAT: a send still fails at Meta if the approved
+template body's `{{n}}` count ≠ the vars the code sends (order=6, dispatch/
+delivery=5) — verify each template body, not just its name.

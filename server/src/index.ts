@@ -32,6 +32,7 @@ import trackingRoutes from './routes/tracking.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
 import { runDueWhatsAppRetries } from './lib/whatsappRetry.js';
+import { ensureWhatsAppTemplateDefaults } from './lib/whatsapp.js';
 import { tickFreshnessAlerts } from './lib/freshnessAlerts.js';
 import { cleanupExpiredRateLimits } from './lib/rateLimit.js';
 import { cleanupExpiredCache } from './lib/places.js';
@@ -262,6 +263,7 @@ app.listen(PORT, () => {
   console.log(`TrackMyRMC API running on port ${PORT}`);
   ensureMasterAccounts().catch((e) => console.error('ensureMasterAccounts failed', e));
   ensurePlantDirectory().catch((e) => console.error('ensurePlantDirectory failed', e));
+  ensureWhatsAppTemplateDefaults().catch((e) => console.error('ensureWhatsAppTemplateDefaults failed', e));
   cleanupOldAttempts().catch(() => {});
   setInterval(() => cleanupOldAttempts().catch(() => {}), 60 * 60 * 1000);
   tickRecurringOrders();

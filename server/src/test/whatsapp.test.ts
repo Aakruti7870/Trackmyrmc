@@ -6,8 +6,10 @@ import { db, pool } from '../db/index.js';
 import { setSetting } from '../lib/settings.js';
 import {
   WHATSAPP_KEYS,
+  DEFAULT_META_TEMPLATE_NAMES,
   getWhatsAppConfig,
   eventEnabled,
+  ensureWhatsAppTemplateDefaults,
   sendWhatsAppTemplate,
   type WhatsAppConfig,
 } from '../lib/whatsapp.js';
@@ -114,4 +116,62 @@ test('sendWhatsAppTemplate fails CLOSED in production when unconfigured', async 
   } finally {
     process.env.NODE_ENV = prev;
   }
+});
+
+// Run `fn` with the Meta Cloud API env either configured or cleared, restoring
+// the prior values afterwards so the boot-seed branch is exercised deterministically
+// regardless of the ambient (stripped) test env.
+const META_ENV_KEYS = ['WHATSAPP_META_PHONE_NUMBER_ID', 'WHATSAPP_META_ACCESS_TOKEN'] as const;
+async function withMetaEnv(configured: boolean, fn: () => Promise<void>): Promise<void> {
+  const saved: Record<string, string | undefined> = {};
+  for (const k of META_ENV_KEYS) saved[k] = process.env[k];
+  if (configured) {
+    process.env.WHATSAPP_META_PHONE_NUMBER_ID = 'pn-test';
+    process.env.WHATSAPP_META_ACCESS_TOKEN = 'tok-test';
+  } else {
+    for (const k of META_ENV_KEYS) delete process.env[k];
+  }
+  try {
+    await fn();
+  } finally {
+    for (const k of META_ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  }
+}
+
+test('ensureWhatsAppTemplateDefaults no-ops when Meta is not configured', async () => {
+  await withMetaEnv(false, async () => {
+    const n = await ensureWhatsAppTemplateDefaults();
+    assert.equal(n, 0);
+    const c = await getWhatsAppConfig();
+    assert.equal(c.orderTemplateSid, null);
+    assert.equal(c.dispatchTemplateSid, null);
+    assert.equal(c.deliveryTemplateSid, null);
+  });
+});
+
+test('ensureWhatsAppTemplateDefaults seeds the approved names when Meta is configured', async () => {
+  await withMetaEnv(true, async () => {
+    const n = await ensureWhatsAppTemplateDefaults();
+    assert.equal(n, 3);
+    const c = await getWhatsAppConfig();
+    assert.equal(c.orderTemplateSid, DEFAULT_META_TEMPLATE_NAMES.order);
+    assert.equal(c.dispatchTemplateSid, DEFAULT_META_TEMPLATE_NAMES.dispatch);
+    assert.equal(c.deliveryTemplateSid, DEFAULT_META_TEMPLATE_NAMES.delivery);
+  });
+});
+
+test('ensureWhatsAppTemplateDefaults never overwrites an admin-set template name', async () => {
+  await withMetaEnv(true, async () => {
+    await setSetting(WHATSAPP_KEYS.orderTemplateSid, 'custom_order_tpl');
+    const n = await ensureWhatsAppTemplateDefaults();
+    // order already present → only dispatch + delivery are inserted.
+    assert.equal(n, 2);
+    const c = await getWhatsAppConfig();
+    assert.equal(c.orderTemplateSid, 'custom_order_tpl');
+    assert.equal(c.dispatchTemplateSid, DEFAULT_META_TEMPLATE_NAMES.dispatch);
+    assert.equal(c.deliveryTemplateSid, DEFAULT_META_TEMPLATE_NAMES.delivery);
+  });
 });
