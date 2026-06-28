@@ -7,7 +7,7 @@ import { metaWhatsAppConfig, type MetaWhatsAppConfig } from './whatsapp.js';
 // Phone-OTP provider abstraction.
 //
 // When Twilio Verify is configured (TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN +
-// TWILIO_VERIFY_SERVICE_SID) codes are generated, delivered over WhatsApp, and
+// TWILIO_VERIFY_SERVICE_SID) codes are generated, delivered over SMS, and
 // verified entirely by Twilio — nothing is stored locally. When it is NOT
 // configured we fall back to a local dev flow: a code is generated, its SHA-256
 // hash is stored in otp_codes, and (only outside production) the plaintext is
@@ -103,7 +103,7 @@ const twilioAuthHeader = () =>
 
 export interface SendResult {
   ok: boolean;
-  channel: 'whatsapp' | 'dev';
+  channel: 'whatsapp' | 'sms' | 'dev';
   // Present only in dev mode (no provider configured) and never in production —
   // lets the client show the code so the flow is testable end-to-end.
   devCode?: string;
@@ -165,16 +165,16 @@ export async function sendOtp(phone: string): Promise<SendResult> {
             Authorization: twilioAuthHeader(),
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: new URLSearchParams({ To: phone, Channel: 'whatsapp' }),
+          body: new URLSearchParams({ To: phone, Channel: 'sms' }),
         },
       );
       if (!res.ok) {
         const detail = await res.text().catch(() => '');
-        return { ok: false, channel: 'whatsapp', error: `Verification provider error (${res.status}). ${detail.slice(0, 200)}` };
+        return { ok: false, channel: 'sms', error: `Verification provider error (${res.status}). ${detail.slice(0, 200)}` };
       }
-      return { ok: true, channel: 'whatsapp' };
+      return { ok: true, channel: 'sms' };
     } catch {
-      return { ok: false, channel: 'whatsapp', error: 'Could not reach the verification provider. Please try again.' };
+      return { ok: false, channel: 'sms', error: 'Could not reach the verification provider. Please try again.' };
     }
   }
 

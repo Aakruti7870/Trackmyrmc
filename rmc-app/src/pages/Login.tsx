@@ -302,7 +302,7 @@ export default function Login() {
               <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Sign in with your phone</h2>
               <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>
                 {otpStep === 'phone'
-                  ? 'We\u2019ll send a one-time code to your WhatsApp.'
+                  ? 'We\u2019ll text you a one-time code by SMS.'
                   : `Enter the 6-digit code sent to ${phone || 'your number'}.`}
               </p>
 
@@ -338,7 +338,7 @@ export default function Login() {
 
                   {error && <ErrorBox message={error} />}
 
-                  <SubmitButton loading={loading} label={loading ? 'Sending code…' : 'Send code via WhatsApp'} icon={<MessageCircle size={16} />} />
+                  <SubmitButton loading={loading} label={loading ? 'Sending code…' : 'Send code via SMS'} icon={<MessageCircle size={16} />} />
                 </form>
               ) : (
                 <form onSubmit={e => { e.preventDefault(); verifyPhoneOtp(); }}>
