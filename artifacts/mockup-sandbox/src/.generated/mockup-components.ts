@@ -8,5 +8,6 @@ export const modules: ModuleMap = {
   "./components/mockups/redesign/IndustrialSteel.tsx": () => import("../components/mockups/redesign/IndustrialSteel.tsx"),
   "./components/mockups/rmc-dashboard/CommandCenter.tsx": () => import("../components/mockups/rmc-dashboard/CommandCenter.tsx"),
   "./components/mockups/rmc-dashboard/ExceptionFirst.tsx": () => import("../components/mockups/rmc-dashboard/ExceptionFirst.tsx"),
-  "./components/mockups/rmc-dashboard/ShiftHandover.tsx": () => import("../components/mockups/rmc-dashboard/ShiftHandover.tsx")
+  "./components/mockups/rmc-dashboard/ShiftHandover.tsx": () => import("../components/mockups/rmc-dashboard/ShiftHandover.tsx"),
+  "./components/mockups/superadmin/PlatformControlCenter.tsx": () => import("../components/mockups/superadmin/PlatformControlCenter.tsx")
 };
