@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
-  Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon, CalendarClock,
+  Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon, CalendarClock, Sparkles,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -42,6 +42,7 @@ const ALL_NAV_ITEMS = [
   { path: '/users',       label: 'Users',      icon: ShieldCheck },
   { path: '/activity-log', label: 'Activity Log', icon: History },
   { path: '/audit-log',   label: 'Audit Log',  icon: ScrollText },
+  { path: '/ai-tasks',    label: 'AI Tasks',   icon: Sparkles },
 ];
 
 // Clients get a curated, deep-linked menu. The rich "My Orders" page exposes
