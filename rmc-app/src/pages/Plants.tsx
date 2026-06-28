@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users, HandHeart, Inbox, Sparkles, Upload, AlertTriangle, CheckCircle2, Copy } from 'lucide-react';
+import { Factory, Plus, Pencil, Trash2, X, Check, MapPin, ShieldCheck, ShieldAlert, Power, BadgeCheck, Sprout, KeyRound, UserPlus, Mail, Users, HandHeart, Inbox, Sparkles, Upload, AlertTriangle, CheckCircle2, Copy, Compass } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import type { ImportResult } from '@/lib/importCsv';
 import { useSSE } from '@/lib/useSSE';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 import BulkImportPanel from '@/components/BulkImportPanel';
+import SupplierDiscoveryMap from '@/components/SupplierDiscoveryMap';
 
 type PlantStatus = 'pending' | 'approved' | 'rejected';
 type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';
@@ -187,6 +189,9 @@ function missingVerifyFields(src: {
 const ownerEmpty = { name: '', email: '', password: '', role: 'admin' as OwnerRole, setOwnPassword: true };
 
 export default function Plants() {
+  const { user } = useAuth();
+  // Supplier discovery is a platform-growth tool — Super Admin (authority) only.
+  const isSuperAdmin = user?.role === 'authority';
   const [plants, setPlants] = useState<Plant[] | null>(null);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -198,7 +203,7 @@ export default function Plants() {
   // authoritative hard stop on save.
   const [dupeNearby, setDupeNearby] = useState<NearbyDupe | null>(null);
   const [dupeDismissed, setDupeDismissed] = useState(false);
-  const [tab, setTab] = useState<'leads' | 'verified' | 'invites'>('leads');
+  const [tab, setTab] = useState<'leads' | 'verified' | 'invites' | 'discover'>('leads');
   // Customer-submitted onboarding requests for discovered plants.
   const [invites, setInvites] = useState<PlantInvite[] | null>(null);
   const [invitesError, setInvitesError] = useState('');
@@ -656,6 +661,11 @@ export default function Plants() {
                 </span>
               )}
             </button>
+            {isSuperAdmin && (
+              <button onClick={() => setTab('discover')} style={tabBtn(tab === 'discover', 'var(--gold)')}>
+                <Compass size={14} /> Discover suppliers
+              </button>
+            )}
             {tab === 'leads' && (
               <button
                 onClick={() => setShowImport(v => !v)}
@@ -678,7 +688,9 @@ export default function Plants() {
             />
           )}
 
-          {tab === 'invites' ? (
+          {tab === 'discover' && isSuperAdmin ? (
+            <SupplierDiscoveryMap />
+          ) : tab === 'invites' ? (
             <InvitesPanel
               invites={invites}
               error={invitesError}

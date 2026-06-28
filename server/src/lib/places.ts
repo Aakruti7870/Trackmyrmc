@@ -29,6 +29,33 @@ export interface DiscoveredPlace {
   openNow: boolean | null;
 }
 
+// A discovered supplier additionally carries the supplier category keys it
+// matched (a single real-world business can satisfy more than one query, e.g.
+// a plant that also lists itself as a concrete supplier).
+export interface DiscoveredSupplier extends DiscoveredPlace {
+  categories: string[];
+}
+
+// The RMC-adjacent supplier categories a Super Admin can hunt for on the map.
+// Each runs an independent Places Text Search; results are merged + tagged. The
+// `query` strings are tuned to surface the right business type on Google Maps.
+export const SUPPLIER_CATEGORIES = [
+  { key: 'ready_mix', label: 'Ready-mix concrete plant', query: 'ready mix concrete (RMC) plant' },
+  { key: 'concrete_supplier', label: 'Concrete supplier', query: 'concrete supplier' },
+  { key: 'concrete_contractor', label: 'Concrete contractor', query: 'concrete contractor' },
+  { key: 'cement_supplier', label: 'Cement supplier', query: 'cement supplier' },
+  { key: 'fly_ash', label: 'Fly ash supplier', query: 'fly ash supplier' },
+  { key: 'ggbs', label: 'GGBS supplier', query: 'GGBS ground granulated blast furnace slag supplier' },
+] as const;
+
+export type SupplierCategoryKey = (typeof SUPPLIER_CATEGORIES)[number]['key'];
+
+const VALID_CATEGORY_KEYS = new Set<string>(SUPPLIER_CATEGORIES.map(c => c.key));
+
+export function isSupplierCategoryKey(key: string): key is SupplierCategoryKey {
+  return VALID_CATEGORY_KEYS.has(key);
+}
+
 interface PlacesApiResponse {
   places?: Array<{
     id?: string;
@@ -58,26 +85,43 @@ export function isDiscoveryConfigured(): boolean {
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_PREFIX = 'places:';
 
-export async function discoverConcretePlants(
-  lat: number,
-  lng: number,
-  radiusKm: number,
-): Promise<DiscoveredPlace[]> {
-  const key = placesApiKey();
-  if (!key) throw new Error('Places API key not configured');
-
-  const cacheKey = `${CACHE_PREFIX}${lat.toFixed(2)},${lng.toFixed(2)},${Math.round(radiusKm)}`;
+// Read a cached value by key, treating any read failure as a miss so a flaky
+// cache never blocks discovery.
+async function readCache<T>(cacheKey: string): Promise<T | null> {
   try {
     const [hit] = await db
       .select({ value: responseCache.value })
       .from(responseCache)
       .where(and(eq(responseCache.key, cacheKey), gt(responseCache.expiresAt, new Date())));
-    if (hit) return hit.value as DiscoveredPlace[];
+    return hit ? (hit.value as T) : null;
   } catch (err) {
-    // A cache read failure must not block discovery — fall through to the
-    // upstream call as if it were a miss.
     console.error('places cache read error, treating as miss', err);
+    return null;
   }
+}
+
+// Write a value into the shared cache. A failure is non-fatal — callers still
+// return the fresh upstream data.
+async function writeCache(cacheKey: string, value: unknown): Promise<void> {
+  try {
+    const expiresAt = new Date(Date.now() + CACHE_TTL_MS);
+    await db
+      .insert(responseCache)
+      .values({ key: cacheKey, value, expiresAt })
+      .onConflictDoUpdate({ target: responseCache.key, set: { value, expiresAt } });
+    // Expired rows are purged by the scheduled background job
+    // (cleanupExpiredCache) rather than inline on the discovery path.
+  } catch (err) {
+    console.error('places cache write error, returning uncached', err);
+  }
+}
+
+// One raw Places Text Search around a point. Shared by the customer-facing
+// single-query discovery and the Super Admin multi-category discovery. Not
+// cached itself — callers cache their merged result.
+async function searchPlaces(textQuery: string, lat: number, lng: number, radiusKm: number): Promise<DiscoveredPlace[]> {
+  const key = placesApiKey();
+  if (!key) throw new Error('Places API key not configured');
 
   // Places Text Search circle bias caps at 50km; we still post-filter by the
   // caller's true radius in the route.
@@ -91,7 +135,7 @@ export async function discoverConcretePlants(
       'X-Goog-FieldMask': FIELD_MASK,
     },
     body: JSON.stringify({
-      textQuery: 'ready mix concrete (RMC) plant',
+      textQuery,
       locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: biasRadius } },
       maxResultCount: 20,
     }),
@@ -103,7 +147,7 @@ export async function discoverConcretePlants(
   }
 
   const json = (await resp.json()) as PlacesApiResponse;
-  const data: DiscoveredPlace[] = (json.places ?? [])
+  return (json.places ?? [])
     .map(p => ({
       placeId: p.id ?? '',
       name: p.displayName?.text ?? '',
@@ -114,25 +158,74 @@ export async function discoverConcretePlants(
       openNow: p.currentOpeningHours?.openNow ?? null,
     }))
     .filter(p => p.placeId && p.name && Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+}
 
-  try {
-    const expiresAt = new Date(Date.now() + CACHE_TTL_MS);
-    await db
-      .insert(responseCache)
-      .values({ key: cacheKey, value: data, expiresAt })
-      .onConflictDoUpdate({
-        target: responseCache.key,
-        set: { value: data, expiresAt },
-      });
+export async function discoverConcretePlants(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+): Promise<DiscoveredPlace[]> {
+  const cacheKey = `${CACHE_PREFIX}${lat.toFixed(2)},${lng.toFixed(2)},${Math.round(radiusKm)}`;
+  const cached = await readCache<DiscoveredPlace[]>(cacheKey);
+  if (cached) return cached;
 
-    // Expired rows are purged by the scheduled background job
-    // (cleanupExpiredCache) rather than inline on the discovery path, so a
-    // customer's search never issues an extra DELETE.
-  } catch (err) {
-    // A cache write failure is non-fatal: still return the fresh upstream data.
-    console.error('places cache write error, returning uncached', err);
+  const data = await searchPlaces('ready mix concrete (RMC) plant', lat, lng, radiusKm);
+  await writeCache(cacheKey, data);
+  return data;
+}
+
+// Super-Admin supplier hunt: run one Text Search per requested category, merge
+// by placeId (a place can match several categories, so we collect the matched
+// keys), and tag each result. Cached as one merged payload keyed by coarse
+// coords + radius + the (sorted) category set so an identical search doesn't
+// re-bill the upstream for every category again.
+export async function discoverSuppliers(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  categoryKeys: SupplierCategoryKey[],
+): Promise<DiscoveredSupplier[]> {
+  const key = placesApiKey();
+  if (!key) throw new Error('Places API key not configured');
+
+  const cats = SUPPLIER_CATEGORIES.filter(c => categoryKeys.includes(c.key));
+  if (cats.length === 0) return [];
+
+  const catSig = cats.map(c => c.key).sort().join('+');
+  const cacheKey = `${CACHE_PREFIX}sup:${lat.toFixed(2)},${lng.toFixed(2)},${Math.round(radiusKm)},${catSig}`;
+  const cached = await readCache<DiscoveredSupplier[]>(cacheKey);
+  if (cached) return cached;
+
+  // Run the per-category searches concurrently. A single category failing must
+  // not sink the whole hunt — log it and merge whatever succeeded.
+  const settled = await Promise.allSettled(
+    cats.map(async c => ({ key: c.key, places: await searchPlaces(c.query, lat, lng, radiusKm) })),
+  );
+
+  const byPlaceId = new Map<string, DiscoveredSupplier>();
+  for (const r of settled) {
+    if (r.status === 'rejected') {
+      console.error('supplier category search failed', r.reason);
+      continue;
+    }
+    for (const p of r.value.places) {
+      const existing = byPlaceId.get(p.placeId);
+      if (existing) {
+        if (!existing.categories.includes(r.value.key)) existing.categories.push(r.value.key);
+      } else {
+        byPlaceId.set(p.placeId, { ...p, categories: [r.value.key] });
+      }
+    }
   }
 
+  // If every category search failed we have nothing to merge — surface the
+  // failure rather than caching an empty result as if no suppliers exist.
+  if (byPlaceId.size === 0 && settled.every(r => r.status === 'rejected')) {
+    throw new Error('All supplier category searches failed');
+  }
+
+  const data = [...byPlaceId.values()];
+  await writeCache(cacheKey, data);
   return data;
 }
 

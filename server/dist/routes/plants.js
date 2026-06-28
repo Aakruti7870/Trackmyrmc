@@ -10,7 +10,7 @@ import { sendWelcomeEmail, sendOwnerInviteEmail, sendPlantInviteNotification } f
 import { getPlantInviteNotifyConfig, DEFAULT_PLANT_INVITE_EMAIL_ENABLED, DEFAULT_PLANT_INVITE_NOTIFY_ROLES, } from '../lib/plantInviteNotify.js';
 import { createInviteToken } from '../lib/inviteToken.js';
 import { rateLimit } from '../lib/rateLimit.js';
-import { discoverConcretePlants, isDiscoveryConfigured } from '../lib/places.js';
+import { discoverConcretePlants, discoverSuppliers, isDiscoveryConfigured, isSupplierCategoryKey, SUPPLIER_CATEGORIES, } from '../lib/places.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { canCreateRole, roleLimit, isPlatformStaff } from '../lib/roleHierarchy.js';
 import { extractDocumentFields, isGeminiConfigured } from '../lib/gemini.js';
@@ -183,6 +183,57 @@ router.get('/directory', requireAuth, requireRole('client'), async (_req, res) =
 // The /nearby route above gates itself with requireAuth (customer discovery).
 // Everything below this guard additionally requires authentication.
 router.use(requireAuth);
+// Super-Admin supplier hunt: a live, multi-category Google Places search of all
+// RMC-adjacent suppliers (ready-mix plants, concrete/cement/fly-ash/GGBS
+// suppliers, contractors) around a point, so the platform owner can find and
+// invite real businesses to join. Authority-only (this is a platform growth
+// tool, not a tenant feature) and rate-limited because each call fans out to
+// several paid upstream searches.
+const discoverSuppliersLimiter = rateLimit({ windowMs: 60_000, max: 12, name: 'discover-suppliers' });
+router.get('/discover-suppliers', requireRole('authority'), discoverSuppliersLimiter, async (req, res) => {
+    const lat = parseFloat(String(req.query.lat));
+    const lng = parseFloat(String(req.query.lng));
+    const radius = req.query.radius != null ? parseFloat(String(req.query.radius)) : 40;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        res.status(400).json({ error: 'lat and lng are required' });
+        return;
+    }
+    if (!isDiscoveryConfigured()) {
+        res.status(503).json({ error: 'Live supplier discovery is not configured.', configured: false });
+        return;
+    }
+    // categories is an optional CSV of category keys; default to all of them. We
+    // silently drop unknown keys and fall back to the full set if none are valid.
+    const raw = String(req.query.categories ?? '').trim();
+    const requested = raw
+        ? raw.split(',').map(s => s.trim()).filter(isSupplierCategoryKey)
+        : SUPPLIER_CATEGORIES.map(c => c.key);
+    const categories = requested.length
+        ? requested
+        : SUPPLIER_CATEGORIES.map(c => c.key);
+    const MAX_RADIUS_KM = 250;
+    const effRadius = Math.min(Number.isFinite(radius) && radius > 0 ? radius : 40, MAX_RADIUS_KM);
+    try {
+        const suppliers = await discoverSuppliers(lat, lng, effRadius, categories);
+        // Drop any discovered supplier that is already one of our onboarded,
+        // location-verified partner plants (matched by near-identical coordinates),
+        // so the Super Admin only sees businesses not yet on the platform.
+        const onboarded = (await db.select().from(plants)).filter(p => p.plantStatus === 'approved' && p.isActive && p.locationVerified);
+        const out = suppliers
+            .map(s => ({
+            ...s,
+            distanceKm: Math.round(haversineKm(lat, lng, s.latitude, s.longitude) * 10) / 10,
+        }))
+            .filter(s => s.distanceKm <= effRadius)
+            .filter(s => !onboarded.some(op => haversineKm(s.latitude, s.longitude, parseFloat(op.latitude), parseFloat(op.longitude)) < 0.15))
+            .sort((a, b) => a.distanceKm - b.distanceKm);
+        res.json(out);
+    }
+    catch (e) {
+        console.error('Supplier discovery failed', e);
+        res.status(502).json({ error: 'Could not reach the live supplier directory right now.' });
+    }
+});
 // Lightweight directory of plants a signed-in customer may order from, used to
 // populate the Place Order plant selector (and to surface each plant's offered
 // grades). Mirrors the customer-facing visibility filter of /nearby (approved +
