@@ -21,6 +21,16 @@ The React web app (`rmc-app/`) is wrapped with Capacitor into `rmc-app/android/`
 - **Why:** keeps a single frontend codebase; the normal `pnpm build` (web/PWA) is
   completely unchanged because the env vars default empty.
 
+## The AAB bundles the web build — web publish does NOT reach testers
+- `capacitor.config.ts` sets `webDir: 'dist'` and has **no `server.url`**; the WebView
+  serves the bundled `dist/` from `https://localhost`. It does NOT load trackmyrmc.com.
+- **Therefore the signed AAB is a frozen snapshot of the web build at AAB-build time.**
+  Code/asset changes shipped to trackmyrmc.com are invisible to Android testers until a
+  NEW AAB is built (`pnpm build:native` → `cap sync android` → assembleRelease/bundle),
+  signed, and uploaded to Play Console.
+- Play rejects a duplicate `versionCode`, so bump `android/app/build.gradle`
+  `versionCode` (and usually `versionName`) on every new AAB upload.
+
 ## Constraints / gotchas
 - **Capacitor must stay v7.** v8 CLI requires Node ≥22; this env is Node 20. Do not
   bump the Node runtime to satisfy Capacitor (out of scope, affects main app).

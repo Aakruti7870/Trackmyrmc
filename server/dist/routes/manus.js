@@ -82,7 +82,7 @@ router.get('/tasks/:id/messages', rateLimit({ windowMs: 60_000, max: 60, name: '
     const order = typeof req.query.order === 'string' ? req.query.order : 'desc';
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
     try {
-        const view = await listTaskMessages(req.params.id, { limit, order, cursor });
+        const view = await listTaskMessages(String(req.params.id), { limit, order, cursor });
         res.json(view);
     }
     catch (err) {
