@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MessageCircle, X, Send, Square, Mic, MicOff, Volume2, VolumeX, LifeBuoy, Loader2 } from 'lucide-react';
+import { X, Send, Square, Mic, MicOff, Volume2, VolumeX, LifeBuoy, Loader2 } from 'lucide-react';
 import { aiApi, type AiConfig, type AiPlantOption } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import AvatarPortrait from './AvatarPortrait';
@@ -186,13 +186,12 @@ export default function AIHelpAgent() {
           aria-label="Open help assistant"
           style={{
             position: 'fixed', right: 20, bottom: 20, zIndex: 60,
-            width: 56, height: 56, borderRadius: '50%', cursor: 'pointer', border: 'none',
-            background: 'linear-gradient(145deg,var(--gold-hi),var(--gold-mid) 45%,var(--gold-dark))',
-            display: 'grid', placeItems: 'center', color: '#1a1205',
-            boxShadow: '0 12px 30px color-mix(in srgb, var(--gold) 34%, transparent), inset 0 2px 2px rgba(255,255,255,.55)',
+            width: 60, height: 60, borderRadius: '50%', cursor: 'pointer', border: 'none',
+            padding: 0, background: 'transparent',
+            boxShadow: '0 12px 30px color-mix(in srgb, var(--gold) 34%, transparent)',
           }}
         >
-          <MessageCircle size={26} />
+          <AvatarPortrait size={60} />
         </button>
       )}
 

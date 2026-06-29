@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { isPlatformStaff } from '../lib/roleHierarchy.js';
 import { getAiSettings } from '../lib/aiSettings.js';
+import { RMC_KNOWLEDGE } from '../lib/aiKnowledge.js';
 import { buildAiContext, resolveScopePlantId, REFUSAL } from '../lib/aiContext.js';
 import { chatComplete, chatCompleteStream, GeminiError, isGeminiConfigured, transcribeAudio, STT_ALLOWED_MIME, MAX_AUDIO_BASE64_LEN, } from '../lib/gemini.js';
 const router = Router();
@@ -168,7 +169,7 @@ router.post('/chat', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_chat' }), 
     let reply;
     let source;
     try {
-        const result = await chatComplete({ system: prep.persona, context: prep.context, history: prep.history, message: prep.message });
+        const result = await chatComplete({ system: prep.persona, context: prep.context, knowledge: RMC_KNOWLEDGE, history: prep.history, message: prep.message });
         reply = result.text;
         source = result.source;
     }
@@ -228,7 +229,7 @@ router.post('/chat/stream', rateLimit({ windowMs: 60_000, max: 20, name: 'ai_cha
         aborted = true; });
     let reply = '';
     let source = 'gemini';
-    const gen = chatCompleteStream({ system: prep.persona, context: prep.context, history: prep.history, message: prep.message });
+    const gen = chatCompleteStream({ system: prep.persona, context: prep.context, knowledge: RMC_KNOWLEDGE, history: prep.history, message: prep.message });
     try {
         let next = await gen.next();
         while (!next.done) {

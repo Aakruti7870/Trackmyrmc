@@ -1,10 +1,12 @@
 // Self-contained Gemini client for the AI Help Agent.
 //
-// Talks to the OpenAI-compatible endpoint provisioned by the Replit Gemini AI
-// integration (env: AI_INTEGRATIONS_GEMINI_BASE_URL + AI_INTEGRATIONS_GEMINI_API_KEY,
-// billed to the project's Replit credits — no API key to manage). We deliberately
-// use a raw fetch against the chat-completions endpoint rather than an SDK to
-// avoid a runtime dependency.
+// Talks to the NATIVE Gemini API exposed by the Replit Gemini AI integration
+// (env: AI_INTEGRATIONS_GEMINI_BASE_URL + AI_INTEGRATIONS_GEMINI_API_KEY, billed
+// to the project's Replit credits — no API key to manage). The integration only
+// supports the native `:generateContent` / `:streamGenerateContent` surface
+// (authenticated with `x-goog-api-key`); the older OpenAI-compatible
+// `/chat/completions` path is NOT supported and returns 400. We deliberately use
+// a raw fetch rather than an SDK to avoid a runtime dependency.
 //
 // When the integration is not configured (e.g. local dev or the test suite) we
 // fall back to a deterministic, context-grounded reply so the whole agent flow
@@ -17,8 +19,13 @@ export interface ChatRequest {
   // The system persona + guardrail rules.
   system: string;
   // The pre-scoped grounding data block. The model is told this is the ONLY data
-  // it may use; it is assembled exclusively by the scoped retrieval layer.
+  // it may use for the user's personal/account/plant data; it is assembled
+  // exclusively by the scoped retrieval layer.
   context: string;
+  // Optional PUBLIC domain reference (concrete/RMC/IS codes/units/calculations +
+  // how to use the app). Unlike `context`, the model MAY answer general questions
+  // from this block and its own expertise — it carries no private account data.
+  knowledge?: string;
   // Prior turns of this conversation (already trimmed by the caller).
   history: { role: 'user' | 'assistant'; content: string }[];
   // The user's current message.
@@ -108,6 +115,56 @@ export async function transcribeAudio(audioBase64: string, mimeType: string): Pr
   return parts.map(p => p.text ?? '').join('').trim();
 }
 
+// Build the native-API systemInstruction text. The public knowledge block is
+// kept clearly separate from the strictly-scoped private account context so the
+// model answers general domain questions freely while never inventing or leaking
+// account data.
+function buildSystemText(req: ChatRequest): string {
+  const parts = [req.system];
+  const knowledge = req.knowledge?.trim();
+  if (knowledge) {
+    parts.push(
+      'REFERENCE KNOWLEDGE (public) — you MAY use this, together with your own ' +
+      'general expertise, to answer questions about concrete, ready-mix concrete, ' +
+      'mix design, IS codes, measurements, units, mathematics and how to use this ' +
+      'application. This is general knowledge, not account data:\n' + knowledge,
+    );
+  }
+  parts.push(
+    'ACCOUNT & PLANT DATA — this block is the ONLY source for the user\'s ' +
+    'personal, account, order, delivery, balance or plant-specific data. Never ' +
+    'invent account data, never reveal another plant\'s data, and never reveal ' +
+    'passwords, OTPs, tokens or secrets. If a personal/account question is not ' +
+    'answered by this block, say you don\'t have that information and offer to ' +
+    'connect a human:\n' + req.context,
+  );
+  return parts.join('\n\n');
+}
+
+// Map our ChatRequest into a native generateContent request body. Roles are
+// translated to the native vocabulary (assistant → model) and the persona +
+// knowledge + scoped context ride in systemInstruction. Thinking is disabled so
+// the (limited) output-token budget is spent on the visible answer, not hidden
+// reasoning tokens.
+function buildNativePayload(req: ChatRequest): Record<string, unknown> {
+  const contents = [
+    ...req.history.map(h => ({
+      role: h.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: h.content }],
+    })),
+    { role: 'user', parts: [{ text: req.message }] },
+  ];
+  return {
+    systemInstruction: { parts: [{ text: buildSystemText(req) }] },
+    contents,
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: 1024,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  };
+}
+
 function fallbackReply(req: ChatRequest): string {
   const ctx = req.context.trim();
   if (ctx && ctx !== NO_DATA_MARKER) {
@@ -126,26 +183,12 @@ export async function chatComplete(req: ChatRequest): Promise<ChatResult> {
     return { text: fallbackReply(req), source: 'fallback' };
   }
 
-  const messages = [
-    {
-      role: 'system' as const,
-      content:
-        `${req.system}\n\n` +
-        `Grounded context — this is the ONLY information you may use to answer. ` +
-        `Never invent data, never reveal credentials/secrets, and if the answer ` +
-        `is not in this context say you don't have that information and offer to ` +
-        `connect a human:\n${req.context}`,
-    },
-    ...req.history,
-    { role: 'user' as const, content: req.message },
-  ];
-
   let res: Response;
   try {
-    res = await fetch(`${base.replace(/\/$/, '')}/chat/completions`, {
+    res = await fetch(`${base.replace(/\/$/, '')}/models/${GEMINI_MODEL}:generateContent`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: GEMINI_MODEL, messages, temperature: 0.3, max_tokens: 700 }),
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify(buildNativePayload(req)),
     });
   } catch (err) {
     throw new GeminiError(`Could not reach the AI service: ${(err as Error).message}`, 502);
@@ -155,9 +198,11 @@ export async function chatComplete(req: ChatRequest): Promise<ChatResult> {
     throw new GeminiError(`AI service returned an error (${res.status}).`, res.status);
   }
 
-  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const content = data?.choices?.[0]?.message?.content;
-  if (typeof content !== 'string' || !content.trim()) {
+  const data = (await res.json()) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  };
+  const content = (data?.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('');
+  if (!content.trim()) {
     throw new GeminiError('The AI service returned an empty response.', 502);
   }
   return { text: content.trim(), source: 'gemini' };
@@ -219,7 +264,7 @@ export async function extractDocumentFields(input: DocInput): Promise<ExtractedF
           { inlineData: { mimeType: input.mimeType, data: input.data } },
         ],
       }],
-      generationConfig: { temperature: 0, maxOutputTokens: 500 },
+      generationConfig: { temperature: 0, maxOutputTokens: 500, thinkingConfig: { thinkingBudget: 0 } },
     };
 
     let res: Response;
@@ -237,29 +282,29 @@ export async function extractDocumentFields(input: DocInput): Promise<ExtractedF
     const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
     responseText = (data?.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('').trim();
   } else {
-    // Plain-text document — use the OpenAI-compatible chat/completions endpoint.
+    // Plain-text document — use the native generateContent endpoint with the
+    // parser prompt carried in systemInstruction.
+    const url = `${base.replace(/\/$/, '')}/models/${GEMINI_MODEL}:generateContent`;
+    const payload = {
+      systemInstruction: { parts: [{ text: EXTRACT_SYSTEM_PROMPT }] },
+      contents: [{ role: 'user', parts: [{ text: input.data.slice(0, 8000) }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: 500, thinkingConfig: { thinkingBudget: 0 } },
+    };
+
     let res: Response;
     try {
-      res = await fetch(`${base.replace(/\/$/, '')}/chat/completions`, {
+      res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({
-          model: GEMINI_MODEL,
-          messages: [
-            { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
-            { role: 'user', content: input.data.slice(0, 8000) },
-          ],
-          temperature: 0,
-          max_tokens: 500,
-        }),
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify(payload),
       });
     } catch (err) {
       throw new GeminiError(`Could not reach the extraction service: ${(err as Error).message}`, 502);
     }
     if (!res.ok) throw new GeminiError(`Extraction service returned an error (${res.status}).`, res.status);
 
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    responseText = (data?.choices?.[0]?.message?.content ?? '').trim();
+    const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    responseText = (data?.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('').trim();
   }
 
   // Strip any accidental markdown fences the model may add.
@@ -294,26 +339,12 @@ export async function* chatCompleteStream(
     return { text, source: 'fallback' };
   }
 
-  const messages = [
-    {
-      role: 'system' as const,
-      content:
-        `${req.system}\n\n` +
-        `Grounded context — this is the ONLY information you may use to answer. ` +
-        `Never invent data, never reveal credentials/secrets, and if the answer ` +
-        `is not in this context say you don't have that information and offer to ` +
-        `connect a human:\n${req.context}`,
-    },
-    ...req.history,
-    { role: 'user' as const, content: req.message },
-  ];
-
   let res: Response;
   try {
-    res = await fetch(`${base.replace(/\/$/, '')}/chat/completions`, {
+    res = await fetch(`${base.replace(/\/$/, '')}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: GEMINI_MODEL, messages, temperature: 0.3, max_tokens: 700, stream: true }),
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify(buildNativePayload(req)),
     });
   } catch (err) {
     throw new GeminiError(`Could not reach the AI service: ${(err as Error).message}`, 502);
@@ -338,9 +369,11 @@ export async function* chatCompleteStream(
       const payload = trimmed.slice(5).trim();
       if (!payload || payload === '[DONE]') continue;
       try {
-        const json = JSON.parse(payload) as { choices?: { delta?: { content?: string } }[] };
-        const delta = json?.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string' && delta) {
+        const json = JSON.parse(payload) as {
+          candidates?: { content?: { parts?: { text?: string }[] } }[];
+        };
+        const delta = (json?.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('');
+        if (delta) {
           full += delta;
           yield delta;
         }

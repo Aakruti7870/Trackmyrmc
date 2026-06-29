@@ -1,10 +1,12 @@
 // Self-contained Gemini client for the AI Help Agent.
 //
-// Talks to the OpenAI-compatible endpoint provisioned by the Replit Gemini AI
-// integration (env: AI_INTEGRATIONS_GEMINI_BASE_URL + AI_INTEGRATIONS_GEMINI_API_KEY,
-// billed to the project's Replit credits — no API key to manage). We deliberately
-// use a raw fetch against the chat-completions endpoint rather than an SDK to
-// avoid a runtime dependency.
+// Talks to the NATIVE Gemini API exposed by the Replit Gemini AI integration
+// (env: AI_INTEGRATIONS_GEMINI_BASE_URL + AI_INTEGRATIONS_GEMINI_API_KEY, billed
+// to the project's Replit credits — no API key to manage). The integration only
+// supports the native `:generateContent` / `:streamGenerateContent` surface
+// (authenticated with `x-goog-api-key`); the older OpenAI-compatible
+// `/chat/completions` path is NOT supported and returns 400. We deliberately use
+// a raw fetch rather than an SDK to avoid a runtime dependency.
 //
 // When the integration is not configured (e.g. local dev or the test suite) we
 // fall back to a deterministic, context-grounded reply so the whole agent flow
@@ -79,6 +81,50 @@ export async function transcribeAudio(audioBase64, mimeType) {
     const parts = data?.candidates?.[0]?.content?.parts ?? [];
     return parts.map(p => p.text ?? '').join('').trim();
 }
+// Build the native-API systemInstruction text. The public knowledge block is
+// kept clearly separate from the strictly-scoped private account context so the
+// model answers general domain questions freely while never inventing or leaking
+// account data.
+function buildSystemText(req) {
+    const parts = [req.system];
+    const knowledge = req.knowledge?.trim();
+    if (knowledge) {
+        parts.push('REFERENCE KNOWLEDGE (public) — you MAY use this, together with your own ' +
+            'general expertise, to answer questions about concrete, ready-mix concrete, ' +
+            'mix design, IS codes, measurements, units, mathematics and how to use this ' +
+            'application. This is general knowledge, not account data:\n' + knowledge);
+    }
+    parts.push('ACCOUNT & PLANT DATA — this block is the ONLY source for the user\'s ' +
+        'personal, account, order, delivery, balance or plant-specific data. Never ' +
+        'invent account data, never reveal another plant\'s data, and never reveal ' +
+        'passwords, OTPs, tokens or secrets. If a personal/account question is not ' +
+        'answered by this block, say you don\'t have that information and offer to ' +
+        'connect a human:\n' + req.context);
+    return parts.join('\n\n');
+}
+// Map our ChatRequest into a native generateContent request body. Roles are
+// translated to the native vocabulary (assistant → model) and the persona +
+// knowledge + scoped context ride in systemInstruction. Thinking is disabled so
+// the (limited) output-token budget is spent on the visible answer, not hidden
+// reasoning tokens.
+function buildNativePayload(req) {
+    const contents = [
+        ...req.history.map(h => ({
+            role: h.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: h.content }],
+        })),
+        { role: 'user', parts: [{ text: req.message }] },
+    ];
+    return {
+        systemInstruction: { parts: [{ text: buildSystemText(req) }] },
+        contents,
+        generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 1024,
+            thinkingConfig: { thinkingBudget: 0 },
+        },
+    };
+}
 function fallbackReply(req) {
     const ctx = req.context.trim();
     if (ctx && ctx !== NO_DATA_MARKER) {
@@ -94,24 +140,12 @@ export async function chatComplete(req) {
     if (!base || !key) {
         return { text: fallbackReply(req), source: 'fallback' };
     }
-    const messages = [
-        {
-            role: 'system',
-            content: `${req.system}\n\n` +
-                `Grounded context — this is the ONLY information you may use to answer. ` +
-                `Never invent data, never reveal credentials/secrets, and if the answer ` +
-                `is not in this context say you don't have that information and offer to ` +
-                `connect a human:\n${req.context}`,
-        },
-        ...req.history,
-        { role: 'user', content: req.message },
-    ];
     let res;
     try {
-        res = await fetch(`${base.replace(/\/$/, '')}/chat/completions`, {
+        res = await fetch(`${base.replace(/\/$/, '')}/models/${GEMINI_MODEL}:generateContent`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-            body: JSON.stringify({ model: GEMINI_MODEL, messages, temperature: 0.3, max_tokens: 700 }),
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+            body: JSON.stringify(buildNativePayload(req)),
         });
     }
     catch (err) {
@@ -121,8 +155,8 @@ export async function chatComplete(req) {
         throw new GeminiError(`AI service returned an error (${res.status}).`, res.status);
     }
     const data = (await res.json());
-    const content = data?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || !content.trim()) {
+    const content = (data?.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('');
+    if (!content.trim()) {
         throw new GeminiError('The AI service returned an empty response.', 502);
     }
     return { text: content.trim(), source: 'gemini' };
@@ -158,7 +192,7 @@ export async function extractDocumentFields(input) {
                         { inlineData: { mimeType: input.mimeType, data: input.data } },
                     ],
                 }],
-            generationConfig: { temperature: 0, maxOutputTokens: 500 },
+            generationConfig: { temperature: 0, maxOutputTokens: 500, thinkingConfig: { thinkingBudget: 0 } },
         };
         let res;
         try {
@@ -177,21 +211,20 @@ export async function extractDocumentFields(input) {
         responseText = (data?.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('').trim();
     }
     else {
-        // Plain-text document — use the OpenAI-compatible chat/completions endpoint.
+        // Plain-text document — use the native generateContent endpoint with the
+        // parser prompt carried in systemInstruction.
+        const url = `${base.replace(/\/$/, '')}/models/${GEMINI_MODEL}:generateContent`;
+        const payload = {
+            systemInstruction: { parts: [{ text: EXTRACT_SYSTEM_PROMPT }] },
+            contents: [{ role: 'user', parts: [{ text: input.data.slice(0, 8000) }] }],
+            generationConfig: { temperature: 0, maxOutputTokens: 500, thinkingConfig: { thinkingBudget: 0 } },
+        };
         let res;
         try {
-            res = await fetch(`${base.replace(/\/$/, '')}/chat/completions`, {
+            res = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-                body: JSON.stringify({
-                    model: GEMINI_MODEL,
-                    messages: [
-                        { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
-                        { role: 'user', content: input.data.slice(0, 8000) },
-                    ],
-                    temperature: 0,
-                    max_tokens: 500,
-                }),
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+                body: JSON.stringify(payload),
             });
         }
         catch (err) {
@@ -200,7 +233,7 @@ export async function extractDocumentFields(input) {
         if (!res.ok)
             throw new GeminiError(`Extraction service returned an error (${res.status}).`, res.status);
         const data = (await res.json());
-        responseText = (data?.choices?.[0]?.message?.content ?? '').trim();
+        responseText = (data?.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('').trim();
     }
     // Strip any accidental markdown fences the model may add.
     const cleaned = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
@@ -231,24 +264,12 @@ export async function* chatCompleteStream(req) {
         yield text;
         return { text, source: 'fallback' };
     }
-    const messages = [
-        {
-            role: 'system',
-            content: `${req.system}\n\n` +
-                `Grounded context — this is the ONLY information you may use to answer. ` +
-                `Never invent data, never reveal credentials/secrets, and if the answer ` +
-                `is not in this context say you don't have that information and offer to ` +
-                `connect a human:\n${req.context}`,
-        },
-        ...req.history,
-        { role: 'user', content: req.message },
-    ];
     let res;
     try {
-        res = await fetch(`${base.replace(/\/$/, '')}/chat/completions`, {
+        res = await fetch(`${base.replace(/\/$/, '')}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-            body: JSON.stringify({ model: GEMINI_MODEL, messages, temperature: 0.3, max_tokens: 700, stream: true }),
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+            body: JSON.stringify(buildNativePayload(req)),
         });
     }
     catch (err) {
@@ -274,8 +295,8 @@ export async function* chatCompleteStream(req) {
                 continue;
             try {
                 const json = JSON.parse(payload);
-                const delta = json?.choices?.[0]?.delta?.content;
-                if (typeof delta === 'string' && delta) {
+                const delta = (json?.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('');
+                if (delta) {
                     full += delta;
                     yield delta;
                 }

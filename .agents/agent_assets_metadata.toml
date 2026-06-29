@@ -66,6 +66,12 @@ uri = "file://play-store-assets/raw/feature_raw.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "8lQbp-FxI62gEG_Q56eT4"
+uri = "file://rmc-app/src/assets/ai-mascot.png"
+type = "image"
+title = "ai shiba mascot avatar"
+
 [[outputs]]
 id = "oaHn9kwGbYywEoOBjUmqg"
 uri = "file://screenshots/theme-1-midnight-gold.jpg"
