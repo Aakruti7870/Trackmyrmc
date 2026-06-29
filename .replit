@@ -10,31 +10,6 @@ integrations = ["javascript_object_storage:2.0.0", "javascript_gemini_ai_integra
 runButton = "Project"
 
 [[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Backend API"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "test"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "build"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "lint"
-
-[[workflows.workflow]]
 name = "Start application"
 author = "agent"
 
@@ -49,6 +24,7 @@ outputType = "webview"
 [[workflows.workflow]]
 name = "Backend API"
 author = "agent"
+mode = "parallel"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
@@ -62,12 +38,12 @@ outputType = "console"
 name = "test"
 author = "agent"
 
-[workflows.workflow.metadata]
-isValidation = true
-
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd server && pnpm test && cd ../rmc-app && pnpm test"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [[workflows.workflow]]
 name = "build"
@@ -90,6 +66,28 @@ args = "cd rmc-app && pnpm lint"
 
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow]]
+name = "artifacts/mockup-sandbox: Component Preview Server"
+author = "agent"
+mode = "sequential"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+artifactId = "artifacts/mockup-sandbox"
+isCanvasWorkflow = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+cwd = "./artifacts/mockup-sandbox"
+waitForPort = 23636
+ensurePreviewReachable = "/"
+router = "path"
+
+[workflows.workflow.tasks.env]
+PORT = "23636"
+BASE_PATH = "/__mockup/"
 
 [[ports]]
 localPort = 3001
