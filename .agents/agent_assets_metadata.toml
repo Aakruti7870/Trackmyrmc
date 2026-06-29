@@ -179,3 +179,57 @@ id = "zN9sbLD_xbCUseWFRqrAl"
 uri = "file://promo-video/CONCRETE_KING_60s_Promo_Script.md"
 type = "text"
 title = "CONCRETE KING — 60s Cinematic Promo Script"
+
+[[outputs]]
+id = "7r16tBUqD74wifDXqVV9y"
+uri = "file://promo-video/login-tutorials/README.md"
+type = "text"
+title = "Login Tutorial Series — Index & Shared Spec"
+
+[[outputs]]
+id = "8CGvH2SKbtPr7SJk_wql4"
+uri = "file://promo-video/login-tutorials/01-customer-phone-otp.md"
+type = "text"
+title = "01 — Customer Phone Sign-In (WhatsApp/SMS OTP)"
+
+[[outputs]]
+id = "iTqZxJ170qv0ET3b42eCd"
+uri = "file://promo-video/login-tutorials/02-customer-clerk-sso.md"
+type = "text"
+title = "02 — Customer Email/Google Sign-In (Clerk SSO)"
+
+[[outputs]]
+id = "ii4PH9iCdg4QHsFvdC0av"
+uri = "file://promo-video/login-tutorials/03-plant-staff-otp.md"
+type = "text"
+title = "03 — Plant Staff Sign-In (Email/WhatsApp OTP)"
+
+[[outputs]]
+id = "Y9jvLDrm1uFzErKSemx7r"
+uri = "file://promo-video/login-tutorials/04-superadmin-2fa.md"
+type = "text"
+title = "04 — Super Admin Sign-In (Password + 2FA)"
+
+[[outputs]]
+id = "VO6yIOgOlnLAhCK08pl09"
+uri = "file://promo-video/login-tutorials/05-customer-registration.md"
+type = "text"
+title = "05 — New Customer Registration"
+
+[[outputs]]
+id = "0oypulCkyMl951WMK5r1C"
+uri = "file://promo-video/login-tutorials/06-plant-owner-invite-setup.md"
+type = "text"
+title = "06 — Plant Owner Onboarding (Invite → Set Password)"
+
+[[outputs]]
+id = "e3ok645rxV6qZnzGto-Is"
+uri = "file://promo-video/login-tutorials/07-partner-owner-request.md"
+type = "text"
+title = "07 — Partner / Register Your Plant Request"
+
+[[outputs]]
+id = "mX8OArI0voKocsBpCRsYW"
+uri = "file://promo-video/login-tutorials/08-password-reset.md"
+type = "text"
+title = "08 — Password Reset / Forgot Password"
