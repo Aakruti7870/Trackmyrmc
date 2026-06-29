@@ -238,14 +238,25 @@ export default function SupplierDiscoveryMap() {
 
   return (
     <div>
-      <div style={{ ...softCard, marginBottom: 14 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
-          <Compass size={20} style={{ color: 'var(--gold)', flexShrink: 0, marginTop: 2 }} />
-          <div style={{ fontSize: 13.5, color: 'var(--muted)' }}>
-            Find real RMC-adjacent suppliers near a location from live Google Maps data, then invite
-            them to join the platform. Results are unverified leads — not yet onboarded partners.
-          </div>
+      {/* Header — mirrors the AI Tasks page treatment (icon square + title + subtitle). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 12, display: 'grid', placeItems: 'center',
+          background: 'color-mix(in srgb, var(--gold) 14%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)', color: 'var(--gold)',
+        }}>
+          <Compass size={20} />
         </div>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Discover Suppliers</h2>
+          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+            Find real RMC-adjacent suppliers from live Google Maps data and invite them to join — results are unverified leads, not yet onboarded partners.
+          </p>
+        </div>
+      </div>
+
+      <div style={{ ...softCard, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>Search area</div>
         <LocationPicker value={coords} onChange={handleLocationChange} />
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--muted)' }}>
@@ -260,6 +271,7 @@ export default function SupplierDiscoveryMap() {
       </div>
 
       {/* Category filter chips (client-side filter over a single fetch). */}
+      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>Filter by category</div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         {CATEGORIES.map(c => {
           const on = activeCats.has(c.key);
@@ -422,7 +434,7 @@ function SupplierCard({ s, invite, inviteError, onWhatsApp, onOnboard }: {
 }
 
 const softCard: React.CSSProperties = {
-  background: 'var(--glass-1)', border: '1px solid var(--line)', borderRadius: 14, padding: 16,
+  background: 'var(--glass-1)', border: '1px solid var(--glass-border)', borderRadius: 16, padding: 18,
 };
 const radiusSelect: React.CSSProperties = {
   background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)',

@@ -31,6 +31,13 @@ link + app link https://trackmyrmc.com), or log them as onboarding leads via /pl
 - "Already onboarded" dedupe drops discovered suppliers within 0.15km of an approved+active+
   locationVerified plant.
 
+## Design convention
+- The Super Admin supplier-discovery screen shares the **AI Tasks (ManusTasks) page look**:
+  a gold-tinted 40x40 rounded-square icon + bold title + muted subtitle header, and
+  `card()`-style panels (`var(--glass-border)`, radius 16, padding 18) with bold section
+  labels. **Why:** the product owner wants Super Admin tools to look consistent — reuse this
+  header + card treatment for any new Super Admin tool rather than inventing a new style.
+
 ## Gotchas
 - The discovery helper name `locateMe` (geolocation) must NOT be prefixed `use*` or the
   react-hooks/rules-of-hooks lint treats it as a hook called inside a callback (ERROR).
