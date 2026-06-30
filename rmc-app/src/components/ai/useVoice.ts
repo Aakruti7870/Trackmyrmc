@@ -12,8 +12,8 @@ import { aiApi } from '@/lib/api';
 //
 // Text-to-speech uses the browser's speechSynthesis. The Replit Gemini
 // integration does not expose audio output, so there is no server voice to swap
-// in here yet; we pick a stable English voice and fixed delivery so the spoken
-// reply is as consistent as the platform allows.
+// in here yet; we pick the best available English voice and tune delivery
+// (rate, pitch, volume) for a calm, natural-sounding assistant experience.
 
 interface SpeechRecognitionLike {
   lang: string;
@@ -208,16 +208,16 @@ export type VoiceGender = 'female' | 'male';
 
 const VOICE_GENDER_KEY = 'rmc_ai_voice_gender';
 
-// Name heuristics across the common TTS engines (Google, Apple, Microsoft,
-// Samsung, Indian-English voices). \bmale\b does NOT match "female" because the
-// 'm' in "female" is preceded by a word char, so there's no word boundary.
+// Voice matching heuristics for common TTS engines (Google, Apple, Microsoft,
+// Samsung, Indian-English voices). \bmale\b does NOT match "female".
 const FEMALE_RE = /\bfemale\b|Samantha|Victoria|Karen|Tessa|Veena|Fiona|Moira|Zira|Susan|Catherine|Heera|Swara|Kalpana|Google US English/i;
 const MALE_RE = /\bmale\b|Daniel|Alex|Fred|David|Mark|Rishi|Aaron|George|James|Ravi|Hemant|Prabhat|Madhur/i;
 
-// Modern engines ship high-quality "neural" voices alongside the old robotic
-// ones; their names carry a tell ("Natural", "Neural", "Online", "Google",
-// "Premium", "Enhanced"). Prefer those so the reply sounds human, not tinny.
-const NATURAL_RE = /natural|neural|online|premium|enhanced|google|siri/i;
+// Modern engines ship high-quality neural/natural voices alongside robotic ones.
+// Their names carry identifiers like "Neural", "Natural", "Online", "Enhanced".
+const NEURAL_RE = /natural|neural|online|premium|enhanced|google|siri/i;
+// Indian-English locale detection
+const LOCALE_IN_RE = /^en[-_]IN/i;
 
 function readGenderPref(): VoiceGender {
   if (typeof window === 'undefined') return 'female';
@@ -228,13 +228,37 @@ function readGenderPref(): VoiceGender {
   }
 }
 
+// Score a voice candidate. Higher = better.
+// Priority: (1) neural/natural quality, (2) Indian English locale, (3) gender match.
+function scoreVoice(v: SpeechSynthesisVoice, gender: VoiceGender): number {
+  const wantRe = gender === 'male' ? MALE_RE : FEMALE_RE;
+  const otherRe = gender === 'male' ? FEMALE_RE : MALE_RE;
+  let n = 0;
+
+  // Quality tier — neural voices sound noticeably better
+  if (NEURAL_RE.test(v.name)) n += 10;
+
+  // Indian English preferred (matches the app's audience)
+  if (LOCALE_IN_RE.test(v.lang)) n += 6;
+  else if (/^en/i.test(v.lang)) n += 2;
+
+  // Gender match
+  if (wantRe.test(v.name)) n += 5;
+  else if (!otherRe.test(v.name)) n += 1; // neutral — not wrong gender at least
+
+  // Cloud/non-local voices tend to be higher quality
+  if (v.localService === false) n += 1;
+
+  return n;
+}
+
 export function useTextToSpeech() {
   const [speaking, setSpeaking] = useState(false);
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
 
   const [voiceGender, setVoiceGenderState] = useState<VoiceGender>(readGenderPref);
-  // Mirror the gender into a ref so the (stable) speak callback always reads the
-  // latest selection without being re-created on every toggle.
+  // Mirror gender into a ref so the stable speak callback always reads latest
+  // without being recreated on every toggle.
   const genderRef = useRef(voiceGender);
   useEffect(() => { genderRef.current = voiceGender; }, [voiceGender]);
 
@@ -243,50 +267,58 @@ export function useTextToSpeech() {
     try { localStorage.setItem(VOICE_GENDER_KEY, g); } catch { /* ignore */ }
   }, []);
 
-  // Choose the best English voice for the requested gender. Voices load
-  // asynchronously, so resolve lazily at speak time rather than caching a
-  // possibly-empty list. We rank by (1) gender match, (2) Indian English,
-  // (3) natural/neural engine, so a natural en-IN voice of the right gender wins.
+  // Choose the best English voice at speak-time (lazy — voices load async on
+  // many platforms and may not be available at mount).
   const pickVoice = useCallback((gender: VoiceGender): SpeechSynthesisVoice | null => {
     if (!supported) return null;
     const all = window.speechSynthesis.getVoices();
     if (!all.length) return null;
+
+    // Prefer English voices; fall back to all if none found
     const en = all.filter(v => /^en/i.test(v.lang));
     const pool = en.length ? en : all;
-    const wantRe = gender === 'male' ? MALE_RE : FEMALE_RE;
-    const otherRe = gender === 'male' ? FEMALE_RE : MALE_RE;
-    const isIN = (v: SpeechSynthesisVoice) => /^en[-_]IN/i.test(v.lang);
-    const score = (v: SpeechSynthesisVoice) => {
-      let n = 0;
-      if (wantRe.test(v.name)) n += 8;          // requested gender
-      else if (!otherRe.test(v.name)) n += 3;   // at least not the wrong gender
-      if (isIN(v)) n += 4;                       // local accent
-      if (NATURAL_RE.test(v.name)) n += 6;       // natural / neural engine
-      if (v.localService === false) n += 1;      // cloud voices are usually nicer
-      return n;
-    };
-    return [...pool].sort((a, b) => score(b) - score(a))[0] ?? null;
+
+    return [...pool].sort((a, b) => scoreVoice(b, gender) - scoreVoice(a, gender))[0] ?? null;
   }, [supported]);
 
   const speak = useCallback((text: string) => {
     if (!supported || !text.trim()) return;
     window.speechSynthesis.cancel();
+
     const gender = genderRef.current;
     const utter = new SpeechSynthesisUtterance(text);
     const voice = pickVoice(gender);
-    if (voice) { utter.voice = voice; utter.lang = voice.lang; }
-    else utter.lang = 'en-IN';
-    // If the picked voice already matches the requested gender keep a neutral
-    // pitch; otherwise nudge pitch so male/female still sound distinct on
-    // browsers that only ship a single voice.
-    const matched = voice ? (gender === 'male' ? MALE_RE : FEMALE_RE).test(voice.name) : false;
-    const natural = voice ? NATURAL_RE.test(voice.name) : false;
-    // A touch under real-time reads more calmly and intelligibly. Natural/neural
-    // voices already sound human, so leave their pitch alone; only nudge pitch
-    // on basic voices to keep the male/female distinction audible.
-    utter.rate = 0.96;
-    utter.pitch = matched || natural ? 1 : (gender === 'male' ? 0.85 : 1.12);
-    utter.volume = 1;
+
+    if (voice) {
+      utter.voice = voice;
+      utter.lang = voice.lang;
+    } else {
+      utter.lang = 'en-IN';
+    }
+
+    const isNeural = voice ? NEURAL_RE.test(voice.name) : false;
+    const isIN = voice ? LOCALE_IN_RE.test(voice.lang) : false;
+    const genderMatched = voice
+      ? (gender === 'male' ? MALE_RE : FEMALE_RE).test(voice.name)
+      : false;
+
+    // Delivery tuning — aim for a calm, clear, assistant-like voice:
+    // • Rate slightly under real-time is easier to follow and sounds less rushed.
+    //   Neural voices already pace well; slow them only slightly.
+    //   Basic voices need a gentler rate to avoid the "robot reading fast" effect.
+    // • Pitch: keep natural pitch when the gender matches or it's a neural voice;
+    //   nudge only when needed to preserve male/female distinction on single-voice
+    //   platforms (common on Android WebView).
+    // • Volume: full. Anything less causes fade-out complaints.
+    if (isNeural) {
+      utter.rate = isIN ? 0.92 : 0.94;   // neural voices at near-native tempo
+      utter.pitch = genderMatched ? 1.0 : (gender === 'male' ? 0.90 : 1.08);
+    } else {
+      utter.rate = 0.88;                  // basic voices benefit from slower read
+      utter.pitch = gender === 'male' ? 0.82 : 1.15;
+    }
+    utter.volume = 1.0;
+
     utter.onstart = () => setSpeaking(true);
     utter.onend = () => setSpeaking(false);
     utter.onerror = () => setSpeaking(false);

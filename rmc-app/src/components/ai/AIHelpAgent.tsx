@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, Send, Square, Mic, MicOff, Volume2, VolumeX, LifeBuoy, Loader2 } from 'lucide-react';
+import { X, Send, Square, Mic, MicOff, Volume2, VolumeX, LifeBuoy, Loader2, Copy, Check, RefreshCw } from 'lucide-react';
 import { aiApi, type AiConfig, type AiPlantOption } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import AvatarPortrait from './AvatarPortrait';
@@ -8,7 +8,6 @@ import { useSpeechToText, useTextToSpeech } from './useVoice';
 interface ChatTurn {
   role: 'user' | 'assistant';
   text: string;
-  // True when this assistant turn arrived while voice output was on.
   spoken?: boolean;
 }
 
@@ -22,6 +21,49 @@ function getSessionId(): string {
   return id;
 }
 
+// Role-aware quick-prompt chips so the user can explore capabilities with one tap.
+const ROLE_CHIPS: Record<string, string[]> = {
+  client: [
+    'My active orders',
+    'Latest delivery status',
+    'My outstanding balance',
+    'How to place an order',
+    'M25 cement per m³',
+  ],
+  driver: [
+    'My trips today',
+    'My assigned vehicle',
+    'How to mark a delivery done',
+    'Slump test for M30',
+    'Transit mixer capacity',
+  ],
+  dispatcher: [
+    'Active orders today',
+    'Available vehicles',
+    'How to generate a challan',
+    'Cement bags for M20 slab',
+    'IS 4926 acceptance criteria',
+  ],
+  admin: [
+    'Today\'s dispatch summary',
+    'Pending orders',
+    'Plant monthly volume',
+    'M25 vs M30 – when to use',
+    'IS 456 exposure classes',
+  ],
+  default: [
+    'Cement bags for M20 per m³',
+    'What is IS 456?',
+    'Design mix vs nominal mix',
+    'Slump test procedure',
+    'How to place an order',
+  ],
+};
+
+function chipsForRole(role: string): string[] {
+  return ROLE_CHIPS[role] ?? ROLE_CHIPS.default;
+}
+
 export default function AIHelpAgent() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -29,14 +71,16 @@ export default function AIHelpAgent() {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  // True only between hitting send and the first streamed chunk, so the
-  // "Thinking…" indicator gives way to the live reply as it streams in.
   const [awaitingReply, setAwaitingReply] = useState(false);
   const [voiceOut, setVoiceOut] = useState(() => {
     try { return localStorage.getItem('rmc_ai_voice_out') === '1'; } catch { return false; }
   });
   const [selectedPlantId, setSelectedPlantId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Last user message kept in state so the Retry button can re-send it.
+  const [lastUserMsg, setLastUserMsg] = useState<string | null>(null);
+  // Per-turn copy confirmation state (keyed by turn index).
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   // Support ticket form
   const [ticketOpen, setTicketOpen] = useState(false);
@@ -47,7 +91,6 @@ export default function AIHelpAgent() {
 
   const sessionId = useMemo(() => getSessionId(), []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  // Lets the user interrupt an in-flight streamed reply via the Stop button.
   const abortRef = useRef<AbortController | null>(null);
   const tts = useTextToSpeech();
 
@@ -56,7 +99,6 @@ export default function AIHelpAgent() {
   }, []);
   const stt = useSpeechToText(sttFinal, { serverEnabled: !!config?.voiceInput });
 
-  // Load config when first authenticated; controls whether the button shows.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -64,13 +106,10 @@ export default function AIHelpAgent() {
     return () => { cancelled = true; };
   }, [user]);
 
-  // The greeting is a static opening bubble derived from config, so it never
-  // needs to live in state (and disappears naturally once the chat scrolls).
   const displayTurns: ChatTurn[] = config?.greeting
     ? [{ role: 'assistant', text: config.greeting }, ...turns]
     : turns;
 
-  // Auto-scroll to the newest message.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [turns, sending, open]);
@@ -80,6 +119,7 @@ export default function AIHelpAgent() {
     if (!message || sending) return;
     setError(null);
     setInput('');
+    setLastUserMsg(message);
     setTurns(prev => [...prev, { role: 'user', text: message }]);
     setSending(true);
     setAwaitingReply(true);
@@ -115,7 +155,6 @@ export default function AIHelpAgent() {
         {
           onDelta: pushDelta,
           onDone: ({ reply }) => {
-            // Reconcile with the server's canonical (trimmed) reply.
             if (reply && reply !== acc) {
               acc = reply;
               setTurns(prev => {
@@ -131,7 +170,6 @@ export default function AIHelpAgent() {
         controller.signal,
       );
     } catch (e) {
-      // A user-initiated Stop aborts the fetch; keep the partial text, no error.
       if (e instanceof DOMException && e.name === 'AbortError') { /* stopped by user */ }
       else setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
     } finally {
@@ -141,9 +179,28 @@ export default function AIHelpAgent() {
     }
   }, [sending, sessionId, voiceOut, config, selectedPlantId, tts]);
 
-  // Interrupt an in-flight reply, keeping whatever text already streamed in.
-  const stop = useCallback(() => {
-    abortRef.current?.abort();
+  const stop = useCallback(() => { abortRef.current?.abort(); }, []);
+
+  const retry = useCallback(() => {
+    const msg = lastUserMsg;
+    if (!msg || sending) return;
+    // Remove the last assistant turn if present so we re-generate cleanly.
+    setTurns(prev => {
+      const next = [...prev];
+      if (next[next.length - 1]?.role === 'assistant') next.pop();
+      // Also remove the user turn so send() re-adds it.
+      if (next[next.length - 1]?.role === 'user') next.pop();
+      return next;
+    });
+    setError(null);
+    void send(msg, false);
+  }, [send, sending, lastUserMsg]);
+
+  const copyTurn = useCallback((text: string, idx: number) => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 1800);
+    }).catch(() => { /* clipboard blocked */ });
   }, []);
 
   const submitTicket = useCallback(async () => {
@@ -174,8 +231,10 @@ export default function AIHelpAgent() {
     });
   }, [tts]);
 
-  // Hide entirely when no user or the agent is disabled.
   if (!user || !config?.enabled) return null;
+
+  const chips = chipsForRole(user.role ?? 'default');
+  const hasHistory = turns.length > 0;
 
   return (
     <>
@@ -202,7 +261,7 @@ export default function AIHelpAgent() {
           aria-label="Help assistant"
           style={{
             position: 'fixed', zIndex: 60, right: 0, bottom: 0,
-            width: 'min(420px, 100vw)', height: 'min(620px, 100dvh)',
+            width: 'min(420px, 100vw)', height: 'min(640px, 100dvh)',
             display: 'flex', flexDirection: 'column',
             background: 'linear-gradient(180deg, var(--panel), var(--panel2))',
             border: '1px solid var(--line)', borderTopLeftRadius: 18, borderTopRightRadius: 18,
@@ -217,8 +276,13 @@ export default function AIHelpAgent() {
             <AvatarPortrait speaking={tts.speaking} thinking={sending} size={44} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Help Assistant</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                {tts.speaking ? 'Speaking…' : sending ? 'Thinking…' : 'Online'}
+              <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {tts.speaking
+                  ? <><span style={{ display: 'inline-block', animation: 'aiAvNod 0.7s ease-in-out infinite', fontSize: 10 }}>🔊</span> Speaking…</>
+                  : sending
+                    ? <ThinkingDots />
+                    : <><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} /> Online</>
+                }
               </div>
             </div>
             {tts.supported && (
@@ -272,9 +336,9 @@ export default function AIHelpAgent() {
           {/* Messages */}
           <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {displayTurns.map((t, i) => (
-              <div key={i} style={{ alignSelf: t.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+              <div key={i} style={{ alignSelf: t.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
                 <div style={{
-                  padding: '9px 13px', borderRadius: 14, fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap',
+                  padding: '9px 13px', borderRadius: 14, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap',
                   background: t.role === 'user'
                     ? 'linear-gradient(135deg,var(--gold-mid),var(--gold-dark))'
                     : 'var(--surface)',
@@ -284,19 +348,85 @@ export default function AIHelpAgent() {
                 }}>
                   {t.text}
                 </div>
+                {/* Copy button — assistant messages only, skip greeting (index 0 when greeting exists) */}
+                {t.role === 'assistant' && i > 0 && (
+                  <button
+                    onClick={() => copyTurn(t.text, i)}
+                    title="Copy reply"
+                    aria-label="Copy reply"
+                    style={{
+                      marginTop: 3, display: 'flex', alignItems: 'center', gap: 4,
+                      padding: '2px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                      background: 'transparent', color: 'var(--muted)', fontSize: 11,
+                      opacity: 0.7, transition: 'opacity .15s',
+                    }}
+                  >
+                    {copiedIdx === i ? <Check size={11} /> : <Copy size={11} />}
+                    {copiedIdx === i ? 'Copied!' : 'Copy'}
+                  </button>
+                )}
               </div>
             ))}
+
+            {/* Thinking / streaming indicator */}
             {awaitingReply && (
-              <div style={{ alignSelf: 'flex-start', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                <Loader2 size={14} className="ai-spin" /> Thinking…
+              <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 8,
+                background: 'var(--surface)', border: '1px solid var(--line)',
+                borderRadius: 14, padding: '10px 14px' }}>
+                <AvatarPortrait thinking size={22} />
+                <ThinkingDots />
               </div>
             )}
+
+            {/* Error with retry */}
             {error && (
               <div style={{
-                alignSelf: 'stretch', padding: '8px 12px', borderRadius: 10, fontSize: 12,
-                background: 'color-mix(in srgb, var(--red) 12%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--red) 35%, transparent)', color: 'var(--red)',
-              }}>{error}</div>
+                alignSelf: 'stretch', padding: '10px 12px', borderRadius: 10, fontSize: 12.5,
+                background: 'color-mix(in srgb, var(--red) 10%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--red) 30%, transparent)',
+                color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{ flex: 1 }}>{error}</span>
+                {lastUserMsg && (
+                  <button
+                    onClick={retry}
+                    title="Retry"
+                    disabled={sending}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+                      padding: '4px 10px', borderRadius: 8, border: '1px solid color-mix(in srgb, var(--red) 40%, transparent)',
+                      background: 'color-mix(in srgb, var(--red) 14%, transparent)',
+                      color: 'var(--red)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+                    }}
+                  >
+                    <RefreshCw size={11} /> Retry
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Quick-prompt chips — show only before first user message */}
+            {!hasHistory && !error && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                {chips.map(chip => (
+                  <button
+                    key={chip}
+                    onClick={() => send(chip, false)}
+                    disabled={sending}
+                    style={{
+                      padding: '6px 12px', borderRadius: 20, fontSize: 11.5, fontWeight: 600,
+                      border: '1px solid var(--line)', cursor: sending ? 'default' : 'pointer',
+                      background: 'var(--surface)', color: 'var(--text)',
+                      opacity: sending ? 0.5 : 1, transition: 'background .15s',
+                      whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { if (!sending) (e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--gold) 12%, var(--surface))'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface)'; }}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
@@ -347,7 +477,7 @@ export default function AIHelpAgent() {
                   onKeyDown={e => {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input, false); }
                   }}
-                  placeholder={stt.transcribing ? 'Transcribing…' : stt.listening ? 'Listening…' : 'Type your message…'}
+                  placeholder={stt.transcribing ? 'Transcribing…' : stt.listening ? 'Listening…' : 'Ask anything about concrete or your account…'}
                   rows={1}
                   style={{ ...fieldStyle, flex: 1, resize: 'none', maxHeight: 96 }}
                 />
@@ -374,10 +504,31 @@ export default function AIHelpAgent() {
           <style>{`
             .ai-spin { animation: aiSpin 1s linear infinite; }
             @keyframes aiSpin { to { transform: rotate(360deg); } }
+            @keyframes aiDot { 0%,80%,100% { transform: scale(0.55); opacity:.4; } 40% { transform: scale(1); opacity:1; } }
           `}</style>
         </div>
       )}
     </>
+  );
+}
+
+// Animated "..." thinking indicator: three dots that pulse in sequence.
+function ThinkingDots() {
+  return (
+    <span style={{ display: 'inline-flex', gap: 3, alignItems: 'center', color: 'var(--muted)', fontSize: 11 }}>
+      Thinking
+      {[0, 1, 2].map(i => (
+        <span
+          key={i}
+          aria-hidden
+          style={{
+            width: 5, height: 5, borderRadius: '50%',
+            background: 'var(--gold)', display: 'inline-block',
+            animation: `aiDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+          }}
+        />
+      ))}
+    </span>
   );
 }
 
