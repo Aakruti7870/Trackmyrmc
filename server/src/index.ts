@@ -25,7 +25,6 @@ import eventsRoutes from './routes/events.js';
 import whatsappRoutes from './routes/whatsapp.js';
 import webhookRoutes from './routes/webhooks.js';
 import aiRoutes from './routes/ai.js';
-import manusRoutes from './routes/manus.js';
 import pushRoutes from './routes/push.js';
 import configRoutes from './routes/config.js';
 import attendanceRoutes from './routes/attendance.js';
@@ -130,7 +129,6 @@ app.use('/api/plants', plantRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/manus', manusRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/attendance', attendanceRoutes);
@@ -180,7 +178,6 @@ if (isProd) {
     '/users',
     '/activity-log',
     '/audit-log',
-    '/ai-tasks',
     '/profile',
   ]);
 

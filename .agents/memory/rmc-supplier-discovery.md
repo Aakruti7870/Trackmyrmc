@@ -32,7 +32,7 @@ link + app link https://trackmyrmc.com), or log them as onboarding leads via /pl
   locationVerified plant.
 
 ## Design convention
-- The Super Admin supplier-discovery screen shares the **AI Tasks (ManusTasks) page look**:
+- The Super Admin supplier-discovery screen uses the shared Super Admin tool look:
   a gold-tinted 40x40 rounded-square icon + bold title + muted subtitle header, and
   `card()`-style panels (`var(--glass-border)`, radius 16, padding 18) with bold section
   labels. **Why:** the product owner wants Super Admin tools to look consistent — reuse this

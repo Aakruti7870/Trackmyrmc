@@ -320,7 +320,7 @@ export default function SupplierDiscoveryMap() {
 
   return (
     <div>
-      {/* Header — mirrors the AI Tasks page treatment (icon square + title + subtitle). */}
+      {/* Header — icon square + title + subtitle treatment. */}
       <div
         style={{
           display: "flex",
