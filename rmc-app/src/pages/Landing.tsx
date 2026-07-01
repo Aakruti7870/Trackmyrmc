@@ -79,7 +79,7 @@ function Slide1(){
   useEffect(()=>{const id=setInterval(()=>setWord(w=>(w+1)%4),2800);return()=>clearInterval(id);},[]);
   return(
     <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"center"}}>
-      <PhotoBg src={drumImg} pos="right center"/>
+      <PhotoBg src={drumImg}/>
       <div style={{position:"relative",zIndex:2,width:"100%",padding:"0 6vw",display:"grid",gridTemplateColumns:"1.15fr 0.85fr",alignItems:"center",gap:40}}>
         <div>
           <Label>READY MIX CONCRETE · OPERATIONS OS</Label>
