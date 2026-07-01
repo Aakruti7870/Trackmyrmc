@@ -4,7 +4,8 @@ export type Role = 'authority' | 'plant_owner' | 'admin' | 'supervisor' | 'dispa
 const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/plants', '/users', '/activity-log', '/audit-log', '/profile', '/kiosk'];
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
-  authority:      ADMIN_PATHS,
+  // Authority (Super Admin) also owns the /command control center.
+  authority:      ['/command', ...ADMIN_PATHS],
   // Plant Owner runs a single plant end-to-end: same surface as an admin.
   plant_owner:    ADMIN_PATHS,
   admin:          ADMIN_PATHS,
@@ -20,7 +21,7 @@ export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
 };
 
 export const ROLE_DEFAULT_PATH: Record<Role, string> = {
-  authority: '/plants',
+  authority: '/command',
   plant_owner: '/',
   admin: '/',
   supervisor: '/',
@@ -45,6 +46,12 @@ export function setPermissionOverrides(overrides: Partial<Record<string, string[
       if (Array.isArray(paths)) next[role] = paths.filter(p => typeof p === 'string');
     }
   }
+  // Authority is the platform super-admin and owns the Command Center. A stale
+  // DB override from before /command existed would otherwise lock authority out
+  // of its own default route, so we always guarantee it here.
+  if (next.authority && !next.authority.includes('/command')) {
+    next.authority = ['/command', ...next.authority];
+  }
   permissionOverrides = next;
 }
 
@@ -62,5 +69,11 @@ export function canAccess(role: string, path: string): boolean {
 }
 
 export function defaultPath(role: string): string {
-  return ROLE_DEFAULT_PATH[role as Role] ?? '/';
+  const preferred = ROLE_DEFAULT_PATH[role as Role] ?? '/';
+  // Guard against a stale DB override whose allow-list omits the role's default
+  // path (which would trap the user in a redirect loop): fall back to the first
+  // path the role can actually reach.
+  if (canAccess(role, preferred)) return preferred;
+  const allowed = allowedPaths(role);
+  return allowed[0] ?? preferred;
 }

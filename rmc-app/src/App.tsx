@@ -45,6 +45,7 @@ const Kiosk          = lazy(() => import('@/pages/Kiosk'));
 const SsoCallback    = lazy(() => import('@/pages/SsoCallback'));
 const TrackTrip      = lazy(() => import('@/pages/TrackTrip'));
 const Attendance     = lazy(() => import('@/pages/Attendance'));
+const CommandCenter  = lazy(() => import('@/pages/CommandCenter'));
 
 const PageSpinner = (
   <div style={{
@@ -106,6 +107,7 @@ function ProtectedRoutes() {
           <Suspense fallback={PageSpinner}>
             <Switch>
         <Route path="/"             component={() => <GuardedRoute path="/"             component={Dashboard}   />} />
+        <Route path="/command"      component={() => <GuardedRoute path="/command"      component={CommandCenter} />} />
         <Route path="/my-orders"    component={() => <GuardedRoute path="/my-orders"    component={MyOrders}    />} />
         <Route path="/nearby-plants" component={() => <GuardedRoute path="/nearby-plants" component={NearbyPlants} />} />
         <Route path="/plants"       component={() => <GuardedRoute path="/plants"       component={Plants}      />} />

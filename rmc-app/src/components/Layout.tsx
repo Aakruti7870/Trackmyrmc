@@ -21,6 +21,7 @@ import InstallAppButton from '@/components/InstallAppButton';
 import { ConcreteKingLogo, BrandCredits } from '@/components/BrandLogo';
 
 const ALL_NAV_ITEMS = [
+  { path: '/command',      label: 'Command Center', icon: Crown },
   { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },
   { path: '/my-orders',   label: 'My Orders',  icon: PackageSearch },
   { path: '/nearby-plants', label: 'Find Plants', icon: MapPin },

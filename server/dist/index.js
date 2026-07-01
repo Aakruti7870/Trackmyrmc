@@ -138,6 +138,7 @@ if (isProd) {
     // 404 so crawlers don't treat unknown URLs as soft-404 200 responses.
     const SPA_ROUTES = new Set([
         '/',
+        '/command',
         '/login',
         '/register',
         '/partner',
