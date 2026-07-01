@@ -889,7 +889,7 @@ export default function Plants() {
                       </span>
                     )}
                     {form.gstNo.trim() && isValidGst(form.gstNo) && (
-                      <span style={{ display: 'block', fontSize: 11.5, color: 'var(--green)', marginTop: 4 }}>✓ Valid GST format</span>
+                      <span style={{ display: 'block', fontSize: 11.5, color: 'var(--green)', marginTop: 4 }}>Valid GST format</span>
                     )}
                   </div>
                 </AiField>

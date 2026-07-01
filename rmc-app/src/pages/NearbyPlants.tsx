@@ -88,10 +88,15 @@ function dot(color: string, glyph: string) {
     iconSize: [30, 30], iconAnchor: [15, 28], popupAnchor: [0, -26],
   });
 }
-const meIcon = dot('#38bdf8', '🧍');
-const plantIcon = dot('var(--gold, #178a6e)', '🏭');
+// Professional white line-icons (no emoji) drawn inside the coloured pin.
+const svgMarker = (inner: string) =>
+  `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const PERSON = '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>';
+const FACTORY = '<path d="M2 20h20V9l-6 4V9l-6 4V4H4a2 2 0 0 0-2 2Z"/><path d="M6 17h.01M10 17h.01M14 17h.01M18 17h.01"/>';
+const meIcon = dot('#38bdf8', svgMarker(PERSON));
+const plantIcon = dot('var(--gold, #178a6e)', svgMarker(FACTORY));
 // Muted grey marker for unverified, not-yet-onboarded leads from the live map directory.
-const leadIcon = dot('var(--muted)', '🏭');
+const leadIcon = dot('var(--muted)', svgMarker(FACTORY));
 
 function FitAll({ points }: { points: [number, number][] }) {
   const map = useMap();

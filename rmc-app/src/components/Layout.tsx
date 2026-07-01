@@ -4,6 +4,7 @@ import {
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
   Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon, CalendarClock,
+  Crown, Building2, HardHat, Wallet, User,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -17,7 +18,7 @@ import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
 import AIHelpAgent from '@/components/ai/AIHelpAgent';
 import InstallAppButton from '@/components/InstallAppButton';
-import logoCk from '@/assets/logo-king.png';
+import { ConcreteKingLogo, BrandCredits } from '@/components/BrandLogo';
 
 const ALL_NAV_ITEMS = [
   { path: '/',             label: 'Dashboard',  icon: LayoutDashboard },
@@ -66,6 +67,20 @@ const ROLE_COLOR: Record<string, string> = {
   accountant: '#06b6d4',
   client: '#a78bfa',
   driver: '#f97316',
+};
+
+// Professional role emblem shown in the user badge — gives at-a-glance
+// recognition of the signed-in user's role (no emoji, theme-aware colour).
+const ROLE_ICON: Record<string, typeof ShieldCheck> = {
+  authority: Crown,
+  plant_owner: Building2,
+  admin: ShieldCheck,
+  supervisor: ClipboardCheck,
+  dispatcher: Truck,
+  plant_operator: HardHat,
+  accountant: Wallet,
+  client: User,
+  driver: CarFront,
 };
 
 function SSEDot({ status, onReconnect }: { status: SSEStatus; onReconnect: () => void }) {
@@ -169,6 +184,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
+  const RoleIcon = user ? (ROLE_ICON[user.role] || User) : User;
 
   const allowedPaths = user ? (ROLE_ALLOWED_PATHS[user.role as Role] ?? []) : [];
   const navItems: { path: string; label: string; icon: typeof LayoutDashboard; tab?: string }[] =
@@ -180,12 +196,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div style={{ marginBottom: 28 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
           <div style={{
-            width: 44, height: 44, borderRadius: 14, flexShrink: 0,
-            background: '#fff', padding: 5,
-            display: 'grid', placeItems: 'center',
-            boxShadow: '0 18px 38px color-mix(in srgb, var(--gold) 22%, transparent),inset 0 2px 2px rgba(255,255,255,.7)',
+            flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 14,
+            boxShadow: '0 18px 38px color-mix(in srgb, var(--gold) 28%, transparent)',
           }}>
-            <img src={logoCk} alt="CONCRETE KING" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <ConcreteKingLogo size={44} />
           </div>
           <div>
             <div style={{
@@ -275,9 +289,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             width: 32, height: 32, borderRadius: 10, flexShrink: 0,
             background: `color-mix(in srgb, ${roleColor} 13%, transparent)`, border: `1px solid color-mix(in srgb, ${roleColor} 27%, transparent)`,
             display: 'grid', placeItems: 'center',
-            fontSize: 13, fontWeight: 800, color: roleColor,
+            color: roleColor,
           }}>
-            {user?.name?.[0] || '?'}
+            <RoleIcon size={16} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -356,6 +370,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </div>
+
+      {/* Sponsor / partner credits */}
+      <div style={{ marginTop: 12 }}>
+        <BrandCredits align="left" />
+      </div>
     </>
   );
 
@@ -372,13 +391,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         position: 'sticky', top: 0, zIndex: 50,
       }} id="mobile-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 12,
-            background: '#fff', padding: 4,
-            display: 'grid', placeItems: 'center',
-          }}>
-            <img src={logoCk} alt="CONCRETE KING" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-          </div>
+          <ConcreteKingLogo size={36} />
           <span style={{ fontWeight: 700, fontSize: 14 }}>TrackMyRMC</span>
           <SSEDot status={sseStatus} onReconnect={reconnect} />
         </div>

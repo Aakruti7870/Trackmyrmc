@@ -7,6 +7,7 @@ import { useToast } from '@/lib/toast';
 import { ToastProvider } from '@/lib/toast-provider';
 import { ThemeProvider } from '@/lib/theme-providers';
 import Layout from '@/components/Layout';
+import AppBackground from '@/components/AppBackground';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import PartnerRequest from '@/pages/PartnerRequest';
@@ -152,6 +153,7 @@ function RegisterRoute() {
 export default function App() {
   return (
     <ThemeProvider>
+      <AppBackground />
       <ConfigProvider>
       <AuthProvider>
         <ToastProvider>

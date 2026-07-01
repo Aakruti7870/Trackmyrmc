@@ -1,4 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+import {
+  Truck, Package, Timer, Wrench, Satellite, Bot, BarChart3,
+  Crown, ShieldCheck, Settings, Lock, Play, AlertTriangle,
+  ArrowUpRight, ChevronLeft, ChevronRight,
+} from "lucide-react";
 import drumImg from "../assets/landing/slide1-drum.png";
 import fleetImg from "../assets/landing/slide2-fleet.png";
 import textureImg from "../assets/landing/slide3-texture.png";
@@ -66,7 +71,7 @@ function Ring({pct,color,size=130,label,grade,client,risk}:{pct:number;color:str
       </svg>
       <div style={{fontSize:12,color:C.text,fontWeight:700,marginBottom:2}}>{label}</div>
       <div style={{fontSize:10,color:C.muted,fontFamily:"'JetBrains Mono',monospace",marginBottom:risk?4:0}}>{client}</div>
-      {risk&&<div style={{fontSize:9,color:"#F5455C",fontWeight:700,display:"flex",alignItems:"center",gap:4}}>⚠ SLUMP RISK</div>}
+      {risk&&<div style={{fontSize:9,color:"#F5455C",fontWeight:700,display:"flex",alignItems:"center",gap:4}}><AlertTriangle size={11}/> SLUMP RISK</div>}
     </Glass>
   );
 }
@@ -89,18 +94,18 @@ function Slide1(){
           <div style={{display:"flex",gap:14,marginBottom:48,flexWrap:"wrap"}}>
             <button onClick={openLogin} style={{padding:"13px 32px",borderRadius:12,border:"none",background:C.teal,color:"#04110E",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"Inter,sans-serif",boxShadow:`0 6px 28px rgba(0,201,167,0.38)`,letterSpacing:"-0.01em"}}>Get Started →</button>
             <button onClick={openLogin} style={{padding:"13px 28px",borderRadius:12,border:`1px solid ${C.border}`,background:"rgba(0,201,167,0.04)",color:C.muted,fontSize:14,fontWeight:500,cursor:"pointer",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",gap:8}}>
-              <span style={{width:22,height:22,borderRadius:"50%",border:`1px solid ${C.muted}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}}>▶</span>Watch Demo
+              <span style={{width:22,height:22,borderRadius:"50%",border:`1px solid ${C.muted}`,display:"flex",alignItems:"center",justifyContent:"center"}}><Play size={9} fill={C.muted} color={C.muted}/></span>Watch Demo
             </button>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
             {[
-              {icon:"🚛",v:"4",l:"Live Pours",s:"3 plants active"},
-              {icon:"📦",v:"143 m³",l:"Today's Output",s:"+18% vs avg"},
-              {icon:"⏱️",v:"96.4%",l:"On-Time Rate",s:"Last 7 days"},
-              {icon:"🔧",v:"12",l:"Fleet Online",s:"2 in maintenance"},
+              {Icon:Truck,v:"4",l:"Live Pours",s:"3 plants active"},
+              {Icon:Package,v:"143 m³",l:"Today's Output",s:"+18% vs avg"},
+              {Icon:Timer,v:"96.4%",l:"On-Time Rate",s:"Last 7 days"},
+              {Icon:Wrench,v:"12",l:"Fleet Online",s:"2 in maintenance"},
             ].map((k,i)=>(
               <Glass key={i} style={{padding:"14px 12px"}}>
-                <div style={{fontSize:18,marginBottom:6}}>{k.icon}</div>
+                <div style={{marginBottom:8,color:C.teal,display:"flex"}}><k.Icon size={18}/></div>
                 <div style={{fontSize:20,fontWeight:900,color:C.teal,fontFamily:"'JetBrains Mono',monospace",lineHeight:1,marginBottom:3}}>{k.v}</div>
                 <div style={{fontSize:11,color:C.text,fontWeight:600,marginBottom:2}}>{k.l}</div>
                 <div style={{fontSize:10,color:C.muted}}>{k.s}</div>
@@ -136,14 +141,14 @@ function Slide2(){
           <div style={{fontSize:10,color:C.teal,fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.14em",fontWeight:700,marginBottom:18}}>FLEET STATUS · LIVE</div>
           {trucks.map((tr,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:i<3?`1px solid rgba(0,201,167,0.07)`:"none"}}>
-              <div style={{width:34,height:34,borderRadius:10,background:"rgba(0,201,167,0.08)",border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🚛</div>
+              <div style={{width:34,height:34,borderRadius:10,background:"rgba(0,201,167,0.08)",border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:C.teal}}><Truck size={16}/></div>
               <div style={{flex:1}}>
                 <div style={{fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:C.text,fontWeight:700}}>{tr.id}</div>
                 <div style={{fontSize:11,color:tr.col,fontWeight:600,marginTop:2}}>{tr.status}</div>
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:12,color:tr.col,fontFamily:"'JetBrains Mono',monospace",fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
-                  {tr.status==="Moving"&&<span style={{fontSize:9}}>↗</span>}{tr.speed}
+                  {tr.status==="Moving"&&<ArrowUpRight size={11}/>}{tr.speed}
                 </div>
               </div>
             </div>
@@ -191,11 +196,11 @@ function Slide3(){
 /* ════════════ SLIDE 4: COMMAND ════════════ */
 function Slide4(){
   const feats=[
-    {icon:"🛰️",title:"GPS Tracking",desc:"Live, always"},
-    {icon:"⏱️",title:"Freshness Guard",desc:"IS-code compliant"},
-    {icon:"🤖",title:"Smart Plant AI",desc:"Voice & text"},
-    {icon:"📊",title:"Demand Forecast",desc:"Hourly insights"},
-    {icon:"🚛",title:"Fleet Control",desc:"Every mixer"},
+    {Icon:Satellite,title:"GPS Tracking",desc:"Live, always"},
+    {Icon:Timer,title:"Freshness Guard",desc:"IS-code compliant"},
+    {Icon:Bot,title:"Smart Plant AI",desc:"Voice & text"},
+    {Icon:BarChart3,title:"Demand Forecast",desc:"Hourly insights"},
+    {Icon:Truck,title:"Fleet Control",desc:"Every mixer"},
   ];
   return(
     <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -208,7 +213,7 @@ function Slide4(){
         <div style={{display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}>
           {feats.map((f,i)=>(
             <Glass key={i} style={{padding:"22px 20px",textAlign:"center",minWidth:150,flex:"1 1 140px",maxWidth:175}}>
-              <div style={{fontSize:28,marginBottom:12}}>{f.icon}</div>
+              <div style={{marginBottom:12,color:C.teal,display:"flex",justifyContent:"center"}}><f.Icon size={26}/></div>
               <div style={{fontSize:13,color:C.text,fontWeight:700,marginBottom:5}}>{f.title}</div>
               <div style={{fontSize:11,color:C.muted}}>{f.desc}</div>
             </Glass>
@@ -221,7 +226,7 @@ function Slide4(){
 
 /* ════════════ SLIDE 5: LOGIN ════════════ */
 function Slide5(){
-  const roles=[{icon:"👑",label:"Owner"},{icon:"🛡️",label:"Admin"},{icon:"⚙️",label:"Operator"},{icon:"🚛",label:"Driver"}];
+  const roles=[{Icon:Crown,label:"Owner"},{Icon:ShieldCheck,label:"Admin"},{Icon:Settings,label:"Operator"},{Icon:Truck,label:"Driver"}];
   return(
     <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"center"}}>
       <PhotoBg src={plantImg} overlay={`linear-gradient(90deg, rgba(5,10,12,0.9) 0%, rgba(5,10,12,0.72) 50%, rgba(5,10,12,0.5) 100%)`}/>
@@ -233,7 +238,7 @@ function Slide5(){
           <p style={{fontSize:15,color:C.muted,lineHeight:1.75,maxWidth:400,marginBottom:32}}>Plant Owner, Admin, Operator, Driver, Fleet Manager and Customer dashboards are separated by Plant ID. Your data stays private and controlled.</p>
           <Glass style={{padding:"18px 20px",marginBottom:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-              <span style={{color:C.teal,fontSize:14}}>🔒</span>
+              <Lock size={14} color={C.teal}/>
               <span style={{fontSize:11,color:C.teal,fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.12em",fontWeight:700}}>PRIVACY PROTECTION</span>
             </div>
             <p style={{fontSize:12,color:C.muted,lineHeight:1.6,margin:0}}>Each plant has separate login access. Owners cannot see other plants. Staff only see assigned plant data.</p>
@@ -257,7 +262,7 @@ function Slide5(){
           <div style={{display:"flex",gap:16,justifyContent:"center",marginBottom:24}}>
             {roles.map(r=>(
               <button key={r.label} onClick={openLogin} style={{textAlign:"center",background:"none",border:"none",cursor:"pointer",padding:0}}>
-                <div style={{width:44,height:44,borderRadius:12,background:"rgba(0,201,167,0.08)",border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,margin:"0 auto 6px"}}>{r.icon}</div>
+                <div style={{width:44,height:44,borderRadius:12,background:"rgba(0,201,167,0.08)",border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:C.teal,margin:"0 auto 6px"}}><r.Icon size={20}/></div>
                 <div style={{fontSize:10,color:C.muted,fontWeight:600}}>{r.label}</div>
               </button>
             ))}
@@ -275,7 +280,7 @@ function NavBar({slide,onGo}:{slide:number;onGo:(i:number)=>void}){
   return(
     <div style={{position:"absolute",top:0,left:0,right:0,zIndex:100,height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 32px",background:"rgba(5,10,12,0.82)",backdropFilter:"blur(22px)",WebkitBackdropFilter:"blur(22px)",borderBottom:"1px solid rgba(0,201,167,0.08)"}}>
       <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-        <div style={{width:32,height:32,borderRadius:9,background:C.teal,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏗️</div>
+        <div style={{width:32,height:32,borderRadius:9,background:C.teal,display:"flex",alignItems:"center",justifyContent:"center"}}><Crown size={18} color="#04110E"/></div>
         <div>
           <div style={{fontSize:14,fontWeight:900,color:C.text,letterSpacing:"-0.02em",lineHeight:1,fontFamily:"Inter,sans-serif"}}>Concrete King</div>
           <div style={{fontSize:8,color:C.muted,fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.15em",lineHeight:1.2}}>RMC OPERATIONS OS</div>
@@ -309,7 +314,7 @@ function Dots({cur,total,onGo}:{cur:number;total:number;onGo:(i:number)=>void}){
 }
 function Arrows({cur,total,onPrev,onNext}:{cur:number;total:number;onPrev:()=>void;onNext:()=>void}){
   const btn=(dir:"left"|"right",onClick:()=>void)=>(
-    <button onClick={onClick} style={{position:"absolute",[dir]:20,top:"50%",transform:"translateY(-50%)",zIndex:100,width:42,height:42,borderRadius:"50%",border:`1px solid ${C.border}`,background:"rgba(5,10,12,0.7)",backdropFilter:"blur(12px)",color:dir==="right"?C.teal:C.muted,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{dir==="left"?"‹":"›"}</button>
+    <button onClick={onClick} style={{position:"absolute",[dir]:20,top:"50%",transform:"translateY(-50%)",zIndex:100,width:42,height:42,borderRadius:"50%",border:`1px solid ${C.border}`,background:"rgba(5,10,12,0.7)",backdropFilter:"blur(12px)",color:dir==="right"?C.teal:C.muted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{dir==="left"?<ChevronLeft size={20}/>:<ChevronRight size={20}/>}</button>
   );
   return(<>{cur>0&&btn("left",onPrev)}{cur<total-1&&btn("right",onNext)}</>);
 }

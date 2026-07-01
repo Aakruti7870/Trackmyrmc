@@ -147,7 +147,7 @@ export default function ChallanPrint() {
               <td style={{ padding: '12px', fontWeight: 800, color: '#0f6e57' }}>{challan.grade}</td>
               <td style={{ padding: '12px', fontWeight: 800, fontSize: 16 }}>{challan.quantity}</td>
               <td style={{ padding: '12px', color: challan.pumpRequired ? '#16a34a' : '#555' }}>
-                {challan.pumpRequired ? '✓ Yes' : 'No'}
+                {challan.pumpRequired ? 'Yes' : 'No'}
               </td>
             </tr>
           </tbody>

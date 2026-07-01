@@ -194,10 +194,10 @@ export default function UserTable({
                         }}
                       >
                         {lockExpiringSoon
-                          ? `⏳ Unlocking in ${lockCountdown ?? '0:00'}`
+                          ? `Unlocking in ${lockCountdown ?? '0:00'}`
                           : lockCountdown
-                            ? `🔒 Locked · ${lockCountdown}`
-                            : `🔒 Locked${lockExpiry ? ` until ${lockExpiry}` : ''}`}
+                            ? `Locked · ${lockCountdown}`
+                            : `Locked${lockExpiry ? ` until ${lockExpiry}` : ''}`}
                       </span>
                     )}
                   </div>

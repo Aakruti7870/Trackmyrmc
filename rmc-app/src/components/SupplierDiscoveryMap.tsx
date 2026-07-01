@@ -36,27 +36,27 @@ interface DiscoveredSupplier {
 
 // Must mirror the server's SUPPLIER_CATEGORIES keys. Colour/glyph are presentation-only.
 const CATEGORIES = [
-  { key: "ready_mix", label: "Ready-mix plant", color: "#178a6e", glyph: "🏭" },
+  { key: "ready_mix", label: "Ready-mix plant", color: "#178a6e", svg: '<path d="M2 20h20V9l-6 4V9l-6 4V4H4a2 2 0 0 0-2 2Z"/><path d="M6 17h.01M10 17h.01M14 17h.01M18 17h.01"/>' },
   {
     key: "concrete_supplier",
     label: "Concrete supplier",
     color: "#2563eb",
-    glyph: "🧱",
+    svg: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/>',
   },
   {
     key: "concrete_contractor",
     label: "Concrete contractor",
     color: "#f59e0b",
-    glyph: "👷",
+    svg: '<path d="M4 15a8 8 0 0 1 16 0"/><path d="M2 18h20"/><path d="M10 7a2 2 0 0 1 4 0v1"/>',
   },
   {
     key: "cement_supplier",
     label: "Cement supplier",
     color: "#64748b",
-    glyph: "🛠️",
+    svg: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z"/>',
   },
-  { key: "fly_ash", label: "Fly ash supplier", color: "#a855f7", glyph: "♻️" },
-  { key: "ggbs", label: "GGBS supplier", color: "#b45309", glyph: "⛏️" },
+  { key: "fly_ash", label: "Fly ash supplier", color: "#a855f7", svg: '<path d="M7 19H4.8a2 2 0 0 1-1.7-3l2.2-3.7"/><path d="m17 5 2.2 3.7a2 2 0 0 1-1.7 3H13"/><path d="M12 3 9.5 7h5Z"/>' },
+  { key: "ggbs", label: "GGBS supplier", color: "#b45309", svg: '<path d="M14.5 3.5a17 17 0 0 1 6 6"/><path d="M3 21l9-9"/><path d="M9 6a17 17 0 0 0-6 3 17 17 0 0 0 3-6"/>' },
 ] as const;
 
 const CAT_BY_KEY = Object.fromEntries(CATEGORIES.map((c) => [c.key, c]));
@@ -140,7 +140,10 @@ function dot(color: string, glyph: string) {
     popupAnchor: [0, -26],
   });
 }
-const meIcon = dot("#38bdf8", "🧭");
+// Wrap a category's inner SVG paths as a white line-icon for the coloured pin.
+const svgMarker = (inner: string) =>
+  `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const meIcon = dot("#38bdf8", svgMarker('<circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 10.5 10.5 8.5 15.5 13.5 13.5"/>'));
 
 function FitAll({ points }: { points: [number, number][] }) {
   const map = useMap();
@@ -447,7 +450,7 @@ export default function SupplierDiscoveryMap() {
               onClick={() => toggleCat(c.key)}
               style={chip(on, c.color)}
             >
-              <span style={{ fontSize: 13 }}>{c.glyph}</span> {c.label}
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, display: 'inline-block', flexShrink: 0 }} /> {c.label}
               {count > 0 && <span style={chipCount}>{count}</span>}
             </button>
           );
@@ -632,7 +635,7 @@ export default function SupplierDiscoveryMap() {
                     <Marker
                       key={s.placeId}
                       position={[s.latitude, s.longitude]}
-                      icon={dot(cat.color, cat.glyph)}
+                      icon={dot(cat.color, svgMarker(cat.svg))}
                     >
                       <Popup>
                         <div style={{ minWidth: 200 }}>
@@ -758,7 +761,7 @@ function SupplierCard({
                 border: `1px solid color-mix(in srgb, ${c.color} 36%, transparent)`,
               }}
             >
-              {c.glyph} {c.label}
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, display: 'inline-block', flexShrink: 0 }} /> {c.label}
             </span>
           );
         })}

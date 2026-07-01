@@ -73,7 +73,7 @@ describe('Users page — unlock a locked account', () => {
 
     // The locked account is listed with its locked badge.
     expect(await screen.findByText('sunita@aakruti.com')).toBeInTheDocument();
-    expect(await screen.findByText(/🔒 Locked/)).toBeInTheDocument();
+    expect(await screen.findByText(/Locked/)).toBeInTheDocument();
 
     // Click the row's Unlock action.
     await user.click(screen.getByTitle('Unlock account'));
@@ -83,7 +83,7 @@ describe('Users page — unlock a locked account', () => {
     // ...surfaced a success toast...
     expect(await screen.findByText("Sunita Rao's account has been unlocked.")).toBeInTheDocument();
     // ...and the locked badge is gone (the handler clears the lockout locally).
-    await waitFor(() => expect(screen.queryByText(/🔒 Locked/)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/Locked/)).not.toBeInTheDocument());
     expect(api.post).toHaveBeenCalledTimes(1);
   });
 });

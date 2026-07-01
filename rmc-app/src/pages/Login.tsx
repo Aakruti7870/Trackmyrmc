@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
 import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft, Users, ShieldCheck, KeyRound } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
-import logoCk from '@/assets/logo-king.png';
+import { ConcreteKingLogo, BrandCredits } from '@/components/BrandLogo';
 import InstallAppButton from '@/components/InstallAppButton';
 import OtpInput from '@/components/OtpInput';
 import { defaultPath } from '@/lib/permissions';
@@ -221,12 +221,10 @@ export default function Login() {
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
             <div style={{
-              width: 52, height: 52, borderRadius: 16,
-              background: '#fff', padding: 6,
-              display: 'grid', placeItems: 'center',
+              display: 'grid', placeItems: 'center', borderRadius: 16,
               boxShadow: '0 8px 24px color-mix(in srgb, var(--gold) 30%, transparent)',
             }}>
-              <img src={logoCk} alt="CONCRETE KING" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              <ConcreteKingLogo size={52} />
             </div>
             <div>
               <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>
@@ -249,6 +247,11 @@ export default function Login() {
           {/* Prominent install / download (PWA) call-to-action */}
           <div style={{ maxWidth: 320 }}>
             <InstallAppButton />
+          </div>
+
+          {/* Powered / sponsored credits */}
+          <div style={{ maxWidth: 320, marginTop: 20 }}>
+            <BrandCredits align="left" />
           </div>
         </div>
 

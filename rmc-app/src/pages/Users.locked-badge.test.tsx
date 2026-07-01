@@ -19,7 +19,7 @@ type LockoutInfo = { locked: boolean; lockedUntil: number | null };
 
 const LOCKED_USER = {
   id: 1,
-  name: 'Locked Larry',
+  name: 'Larry Dispatcher',
   email: 'larry@aakruti.com',
   role: 'dispatcher',
   isActive: true,
@@ -66,10 +66,10 @@ describe('Users locked badge — time-sensitive transitions', () => {
     mockApi(() => ({ 1: { locked: true, lockedUntil } }));
     renderUsers();
 
-    const badge = await screen.findByText(/🔒 Locked/);
+    const badge = await screen.findByText(/Locked/);
     expect(badge).toBeInTheDocument();
     // It must NOT yet be in the amber "expiring soon" warning state.
-    expect(screen.queryByText(/⏳ Unlocking in/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unlocking in/)).not.toBeInTheDocument();
   });
 
   it('switches to the "Unlocking soon" warning when under 2 minutes remain', async () => {
@@ -78,10 +78,10 @@ describe('Users locked badge — time-sensitive transitions', () => {
     mockApi(() => ({ 1: { locked: true, lockedUntil } }));
     renderUsers();
 
-    const warning = await screen.findByText(/⏳ Unlocking in/);
+    const warning = await screen.findByText(/Unlocking in/);
     expect(warning).toBeInTheDocument();
     // The plain "Locked" badge should not be shown in the warning state.
-    expect(screen.queryByText(/🔒 Locked/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Locked/)).not.toBeInTheDocument();
   });
 
   it('clears the badge once the lockout window passes (poll reports unlocked)', async () => {
@@ -104,7 +104,7 @@ describe('Users locked badge — time-sensitive transitions', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.getByText(/⏳ Unlocking in/)).toBeInTheDocument();
+    expect(screen.getByText(/Unlocking in/)).toBeInTheDocument();
 
     // Advance past the lockout window. The 30s poll re-fetches and the server
     // now reports the account as unlocked, so the badge clears on its own.
@@ -112,8 +112,8 @@ describe('Users locked badge — time-sensitive transitions', () => {
       await vi.advanceTimersByTimeAsync(30_000);
     });
 
-    expect(screen.queryByText(/⏳ Unlocking in/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/🔒 Locked/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unlocking in/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Locked/)).not.toBeInTheDocument();
   });
 });
 
@@ -133,7 +133,7 @@ describe('Users locked badge — live countdown', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(screen.getByText(/🔒 Locked · 5:00/)).toBeInTheDocument();
+    expect(screen.getByText(/Locked · 5:00/)).toBeInTheDocument();
   });
 
   it('shows the countdown inside the "Unlocking in" warning when under 2 minutes remain', async () => {
@@ -149,7 +149,7 @@ describe('Users locked badge — live countdown', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(screen.getByText(/⏳ Unlocking in 1:30/)).toBeInTheDocument();
+    expect(screen.getByText(/Unlocking in 1:30/)).toBeInTheDocument();
   });
 
   it('decrements the countdown once per second as time advances toward expiry', async () => {
@@ -170,19 +170,19 @@ describe('Users locked badge — live countdown', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.getByText(/⏳ Unlocking in 1:30/)).toBeInTheDocument();
+    expect(screen.getByText(/Unlocking in 1:30/)).toBeInTheDocument();
 
     // Advance 1 second — the per-second tick re-renders with one less second.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000);
     });
-    expect(screen.getByText(/⏳ Unlocking in 1:29/)).toBeInTheDocument();
+    expect(screen.getByText(/Unlocking in 1:29/)).toBeInTheDocument();
 
     // Advance another 10 seconds — the countdown keeps ticking down while the
     // account stays locked (still well before the 30s status poll fires).
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);
     });
-    expect(screen.getByText(/⏳ Unlocking in 1:19/)).toBeInTheDocument();
+    expect(screen.getByText(/Unlocking in 1:19/)).toBeInTheDocument();
   });
 });

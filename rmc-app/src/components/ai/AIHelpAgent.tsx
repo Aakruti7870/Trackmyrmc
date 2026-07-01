@@ -278,7 +278,7 @@ export default function AIHelpAgent() {
               <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Help Assistant</div>
               <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 {tts.speaking
-                  ? <><span style={{ display: 'inline-block', animation: 'aiAvNod 0.7s ease-in-out infinite', fontSize: 10 }}>🔊</span> Speaking…</>
+                  ? <><span style={{ display: 'inline-flex', animation: 'aiAvNod 0.7s ease-in-out infinite' }}><Volume2 size={11} /></span> Speaking…</>
                   : sending
                     ? <ThinkingDots />
                     : <><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} /> Online</>
@@ -306,7 +306,7 @@ export default function AIHelpAgent() {
                 aria-label={`Switch assistant voice, currently ${tts.voiceGender}`}
                 style={{ ...iconBtn(true), fontSize: 16, fontWeight: 800, lineHeight: 1 }}
               >
-                {tts.voiceGender === 'female' ? '♀' : '♂'}
+                {tts.voiceGender === 'female' ? 'F' : 'M'}
               </button>
             )}
             <button onClick={() => { setOpen(false); tts.cancel(); }} aria-label="Close" style={iconBtn(false)}>
