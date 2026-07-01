@@ -265,12 +265,10 @@ const BRAND_PATHS = {
 };
 
 const SOCIALS: { name: string; color: string; href: string; icon: ReactNode }[] = [
-  { name: 'Instagram', color: '#E4405F', href: '#', icon: <Svg d={BRAND_PATHS.instagram} /> },
-  { name: 'YouTube', color: '#FF0000', href: '#', icon: <Svg d={BRAND_PATHS.youtube} /> },
-  { name: 'Facebook', color: '#1877F2', href: '#', icon: <Svg d={BRAND_PATHS.facebook} /> },
-  { name: 'LinkedIn', color: '#0A66C2', href: '#', icon: <Svg d={BRAND_PATHS.linkedin} /> },
-  { name: 'GitHub', color: '#e5e7eb', href: '#', icon: <Svg d={BRAND_PATHS.github} /> },
-  { name: 'WhatsApp', color: '#25D366', href: '#', icon: <Svg d={BRAND_PATHS.whatsapp} /> },
+  { name: 'Instagram', color: '#E4405F', href: 'https://www.instagram.com/gold_e_tech', icon: <Svg d={BRAND_PATHS.instagram} /> },
+  { name: 'YouTube', color: '#FF0000', href: 'https://youtube.com/@trackmyrmc', icon: <Svg d={BRAND_PATHS.youtube} /> },
+  { name: 'Facebook', color: '#1877F2', href: 'https://www.facebook.com/profile.php?id=61590998875994', icon: <Svg d={BRAND_PATHS.facebook} /> },
+  { name: 'WhatsApp', color: '#25D366', href: 'https://wa.me/qr/FXY47PIBVMQFA1', icon: <Svg d={BRAND_PATHS.whatsapp} /> },
 ];
 
 export function SocialLinks({ compact }: { compact?: boolean }) {
@@ -280,11 +278,10 @@ export function SocialLinks({ compact }: { compact?: boolean }) {
         <a
           key={s.name}
           href={s.href}
-          target={s.href === '#' ? undefined : '_blank'}
+          target="_blank"
           rel="noreferrer noopener"
-          title={`${s.name} (link coming soon)`}
+          title={s.name}
           aria-label={s.name}
-          onClick={e => { if (s.href === '#') e.preventDefault(); }}
           style={{
             width: compact ? 36 : 42, height: compact ? 36 : 42, borderRadius: 12,
             display: 'grid', placeItems: 'center', textDecoration: 'none',
