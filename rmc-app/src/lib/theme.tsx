@@ -18,113 +18,78 @@ const SEMANTIC = {
   '--orange': '#f59e0b',
 };
 
-/* Night (deep teal) chrome kit — sidebar/header/menus/overlay/glass. */
-const NIGHT_SURFACES = {
+/* Cinematic teal chrome kit — glassmorphism on deep teal-black.
+   Shared by every variant so the whole app keeps one dark, glowing look. */
+const CINEMATIC_SURFACES = {
   '--shadow-rgb': '0,0,0',
-  '--glass-1': 'color-mix(in srgb, var(--surface) 92%, transparent)',
-  '--glass-2': 'color-mix(in srgb, var(--bg-deep) 96%, transparent)',
-  '--glass-border': 'rgba(160,210,198,.16)',
-  '--glass-hi': 'rgba(255,255,255,.06)',
-  '--glass-blur': 'blur(2px)',
-  '--sidebar-1': 'rgba(10,34,30,.97)',
-  '--sidebar-2': 'rgba(6,21,17,.97)',
-  '--header-bg': 'rgba(10,34,30,.96)',
-  '--menu-bg': 'rgba(14,42,37,.96)',
-  '--menu-hover': 'rgba(43,181,149,.12)',
-  '--overlay': 'rgba(4,14,11,.6)',
-  '--chip-bg': 'rgba(255,255,255,.04)',
-  '--sheen': 'rgba(255,255,255,.04)',
-};
-
-/* King (black & metallic gold) chrome kit — premium dark with gold-tinted edges. */
-const KING_SURFACES = {
-  '--shadow-rgb': '0,0,0',
-  '--glass-1': 'color-mix(in srgb, var(--surface) 90%, transparent)',
-  '--glass-2': 'color-mix(in srgb, var(--bg-deep) 94%, transparent)',
-  '--glass-border': 'rgba(212,175,55,.20)',
+  '--glass-1': 'color-mix(in srgb, var(--surface) 78%, transparent)',
+  '--glass-2': 'color-mix(in srgb, var(--bg-deep) 82%, transparent)',
+  '--glass-border': 'rgba(0,201,167,0.15)',
   '--glass-hi': 'rgba(255,255,255,.05)',
-  '--glass-blur': 'blur(3px)',
-  '--sidebar-1': 'rgba(12,15,22,.98)',
-  '--sidebar-2': 'rgba(6,8,13,.98)',
-  '--header-bg': 'rgba(10,13,19,.97)',
-  '--menu-bg': 'rgba(16,20,29,.98)',
-  '--menu-hover': 'rgba(212,175,55,.12)',
-  '--overlay': 'rgba(2,3,6,.68)',
-  '--chip-bg': 'rgba(212,175,55,.07)',
-  '--sheen': 'rgba(255,255,255,.04)',
+  '--glass-blur': 'blur(24px) saturate(115%)',
+  '--sidebar-1': 'rgba(8,20,22,.97)',
+  '--sidebar-2': 'rgba(4,11,13,.97)',
+  '--header-bg': 'rgba(5,12,14,.86)',
+  '--menu-bg': 'rgba(10,24,26,.98)',
+  '--menu-hover': 'rgba(0,201,167,.12)',
+  '--overlay': 'rgba(2,7,8,.66)',
+  '--chip-bg': 'rgba(0,201,167,.06)',
+  '--sheen': 'rgba(255,255,255,.03)',
 };
 
-/* Day (white & teal) chrome kit. */
-const DAY_SURFACES = {
-  '--shadow-rgb': '18,64,58',
-  '--glass-1': 'rgba(255,255,255,0.82)',
-  '--glass-2': 'rgba(255,255,255,0.6)',
-  '--glass-border': 'rgba(255,255,255,0.9)',
-  '--glass-hi': 'rgba(255,255,255,0.92)',
-  '--glass-blur': 'blur(20px) saturate(140%)',
-  '--sidebar-1': 'rgba(255,255,255,0.9)',
-  '--sidebar-2': 'rgba(244,248,247,0.84)',
-  '--header-bg': 'rgba(255,255,255,0.92)',
-  '--menu-bg': 'rgba(255,255,255,0.97)',
-  '--menu-hover': 'rgba(18,64,58,0.06)',
-  '--overlay': 'rgba(10,30,26,0.35)',
-  '--chip-bg': 'rgba(18,64,58,0.04)',
-  '--sheen': 'rgba(255,255,255,.5)',
+/* Teal accent ramp shared across every variant (legacy --gold* key names). */
+const TEAL_ACCENT = {
+  '--gold-hi': '#3fe3c5', '--gold-mid': '#12d6b0', '--gold': '#00C9A7', '--gold-dark': '#00a488',
+  '--glow-1': 'rgba(0,201,167,.20)', '--glow-2': 'rgba(0,201,167,.07)',
 };
 
 export const THEMES: Theme[] = [
-  /* ===== King — black & metallic gold (DEFAULT) ===== */
+  /* ===== Cinematic — deep teal-black glass (DEFAULT) ===== */
   {
     id: 'king',
-    name: 'King',
-    tagline: 'Premium · black & gold',
-    fontName: 'Sora',
-    font: "'Sora', system-ui, -apple-system, sans-serif",
+    name: 'Cinematic',
+    tagline: 'Dark · teal glass',
+    fontName: 'Inter',
+    font: "'Inter', system-ui, -apple-system, sans-serif",
     tokens: {
-      '--bg-top': '#0e131c', '--bg': '#090d14', '--bg-deep': '#05080d',
-      '--panel': '#10151f', '--panel2': '#141b27', '--surface': '#161d2a', '--line': 'rgba(212,175,55,0.16)',
-      '--text': '#f4efe2', '--muted': '#94a0b0',
-      '--gold-hi': '#f3d87a', '--gold-mid': '#e0b84b', '--gold': '#d4af37', '--gold-dark': '#a9821a',
-      '--glow-1': 'rgba(212,175,55,.22)', '--glow-2': 'rgba(212,175,55,.08)',
+      '--bg-top': '#0a1417', '--bg': '#050A0C', '--bg-deep': '#02070A',
+      '--panel': '#0a1618', '--panel2': '#0d1d20', '--surface': '#112427', '--line': 'rgba(0,201,167,0.15)',
+      '--text': '#E8F0EE', '--muted': '#7A8F8D',
+      ...TEAL_ACCENT,
       ...SEMANTIC,
-      ...KING_SURFACES,
+      ...CINEMATIC_SURFACES,
     },
   },
-  /* ===== Day — clean white & teal ===== */
-  {
-    id: 'day',
-    name: 'Day',
-    tagline: 'Light · white & teal',
-    fontName: 'Sora',
-    font: "'Sora', system-ui, -apple-system, sans-serif",
-    tokens: {
-      '--bg-top': '#ffffff', '--bg': '#f3f7f6', '--bg-deep': '#e6eeeb',
-      '--panel': '#ffffff', '--panel2': '#f4f8f7', '--surface': '#ffffff', '--line': 'rgba(18,64,58,0.12)',
-      '--text': '#0f2e29', '--muted': '#5b716c',
-      '--gold-hi': '#3fc7a4', '--gold-mid': '#1f9e80', '--gold': '#178a6e', '--gold-dark': '#0f6e57',
-      '--glow-1': 'rgba(23,138,110,.14)', '--glow-2': 'rgba(18,64,58,.10)',
-      ...SEMANTIC,
-      /* status hues retuned for legibility on a light surface */
-      '--green': '#15a06a', '--green-dark': '#0f7a4f', '--blue': '#2a83d6',
-      '--red': '#e11d48', '--orange': '#d97706',
-      ...DAY_SURFACES,
-    },
-  },
-  /* ===== Night — deep teal & emerald ===== */
+  /* ===== Obsidian — near-black teal ===== */
   {
     id: 'night',
-    name: 'Night',
-    tagline: 'Dark · deep teal',
-    fontName: 'Sora',
-    font: "'Sora', system-ui, -apple-system, sans-serif",
+    name: 'Obsidian',
+    tagline: 'Darker · near-black',
+    fontName: 'Inter',
+    font: "'Inter', system-ui, -apple-system, sans-serif",
     tokens: {
-      '--bg-top': '#103e37', '--bg': '#0a221e', '--bg-deep': '#061511',
-      '--panel': '#0e2a25', '--panel2': '#12352e', '--surface': '#163f37', '--line': 'rgba(255,255,255,0.10)',
-      '--text': '#eaf6f1', '--muted': '#9fc2b8',
-      '--gold-hi': '#46d6b0', '--gold-mid': '#2bb595', '--gold': '#1f9e80', '--gold-dark': '#147a62',
-      '--glow-1': 'rgba(43,181,149,.18)', '--glow-2': 'rgba(20,122,98,.10)',
+      '--bg-top': '#050d0f', '--bg': '#02070A', '--bg-deep': '#010405',
+      '--panel': '#071113', '--panel2': '#0a181b', '--surface': '#0d1f22', '--line': 'rgba(0,201,167,0.13)',
+      '--text': '#E8F0EE', '--muted': '#6f8482',
+      ...TEAL_ACCENT,
       ...SEMANTIC,
-      ...NIGHT_SURFACES,
+      ...CINEMATIC_SURFACES,
+    },
+  },
+  /* ===== Steel — lighter charcoal-teal (still fully dark, no white) ===== */
+  {
+    id: 'day',
+    name: 'Steel',
+    tagline: 'Lighter · charcoal teal',
+    fontName: 'Inter',
+    font: "'Inter', system-ui, -apple-system, sans-serif",
+    tokens: {
+      '--bg-top': '#122327', '--bg': '#0d1c1f', '--bg-deep': '#081416',
+      '--panel': '#132528', '--panel2': '#173035', '--surface': '#1b393e', '--line': 'rgba(0,201,167,0.18)',
+      '--text': '#EAF3F1', '--muted': '#8ba39f',
+      ...TEAL_ACCENT,
+      ...SEMANTIC,
+      ...CINEMATIC_SURFACES,
     },
   },
 ];
@@ -132,6 +97,7 @@ export const THEMES: Theme[] = [
 const STORAGE_KEY = 'rmc-theme-v2';
 
 const FONT_URLS: Record<string, string> = {
+  'Inter': 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap',
   'Sora': 'https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap',
 };
 

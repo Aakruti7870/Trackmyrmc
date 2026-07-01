@@ -1,26 +1,25 @@
 ---
 name: RMC runtime theming
-description: How CONCRETE KING's themes are wired, the King dark/gold default, and the CSS-var override traps to avoid.
+description: How CONCRETE KING's themes are wired, the cinematic-teal dark default, and the CSS-var override layers to keep in sync.
 ---
 
-# RMC theming (King dark-navy + metallic-gold is the DEFAULT)
+# RMC theming (dark cinematic TEAL is the DEFAULT)
 
-Themes are defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied to `documentElement`. `THEMES[0]` is **"King"** — a dark-navy (`--bg #090d14`, `--panel #10151f`) + metallic-gold ramp (`--gold #d4af37`, `--gold-hi #f3d87a`, `--gold-dark #a9821a`) premium theme, and it is the default. Older teal Day/Night themes still exist further down the array but are no longer the default.
+Themes are defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied to `documentElement`. All variants are **DARK — there is no white/light theme**:
+- `THEMES[0]` = **"Cinematic"** (id `king`) — the default. `--bg #050A0C`, teal accent ramp `--gold #00C9A7`.
+- `THEMES[1]` = **"Obsidian"** (id `night`) — deepest black-teal.
+- `THEMES[2]` = **"Steel"** (id `day`) — a LIGHTER charcoal-teal (still dark, NOT white).
 
-**Why King is forced on everyone:** the persisted theme key was bumped `rmc-theme` → `rmc-theme-v2`, so existing users fall back to `THEMES[0]` (King) instead of a stored teal choice.
+**Accent tokens keep legacy `--gold*` names** (`--gold`, `--gold-hi/mid/dark`) referenced all over the codebase; they now hold the **teal** ramp (`#00C9A7`). Don't rename them — huge churn. Palette: teal `#00C9A7`, text `#E8F0EE`, muted `#7A8F8D`, glass border `rgba(0,201,167,.15)`. Fonts: Inter (+ JetBrains Mono) via `FONT_URLS['Inter']`.
 
-**Accent tokens keep legacy `--gold*` names** (`--gold`, `--gold-hi/mid/dark`) referenced all over the codebase; they now hold the gold ramp. Don't rename them — huge churn.
+**Override trap:** `var(--gold)` (and any token) can render the WRONG color even after theme.tsx changes, because other layers redefine the same custom property closer to the element / earlier in the paint. Keep these IN SYNC when changing the accent or base palette:
+- `src/lib/theme.tsx` — the token source of truth (per-variant).
+- `src/index.css :root { ... }` — the pre-hydration fallback baseline.
+- `rmc-app/index.html` `#ck-static-shell` — static pre-React shell uses **hardcoded hex inline styles** (no CSS vars); retint by hand.
+- `src/main.tsx` — the **Clerk `appearance.variables`** (colorBackground/Text/Input…) are hardcoded hex, NOT tokens; must be set to dark teal or the Clerk auth modals render light.
 
-**Override trap (cost a debugging cycle):** `var(--gold)` can render the WRONG color even after theme.tsx changes, because other CSS layers redefine the same custom property closer to the element. The nearest ancestor that defines a custom property wins:
-- `src/index.css :root { --gold: ... }` (stylesheet baseline)
-- `src/pages/Landing.css .ck { --gold: ... }` — Landing uses a SELF-CONTAINED `.ck` palette (NOT the global theme tokens); it must be flipped separately.
-- `rmc-app/index.html` static pre-React shell uses hardcoded hex inline styles.
+**Landing is self-contained:** `src/pages/Landing.tsx` is a 5-slide full-screen cinematic canvas deck using **inline styles** (100vh, overflow hidden). It does NOT import `Landing.css` — that file is now UNUSED (the old `.ck { --gold }` self-palette override no longer applies). Auth CTAs SPA-navigate to `/login` via `history.pushState` + `PopStateEvent` (wouter listens to popstate).
 
-**How to apply:** when changing accent colors, set the value in ALL of: `theme.tsx` tokens, `src/index.css`, `src/pages/Landing.css`, and the static `index.html` shell — or one layer silently overrides the others. After any accent change, `rg` `rmc-app/src` + `index.html` for stray literals: old teal (`178a6e`, `rgba(23,138,110`, `rgba(18,64,58`, `3fc7a4`, `0f6e57`) and stray magenta (`e879f9`) that predate the gold brand.
+**How to apply:** after any accent/palette change, `rg` `rmc-app/src` + `index.html` for stray LIGHT literals: `#ffffff`/`#fff` used as a *page/card background* (not white-on-button text), `#0f172a`, `#5a6b85`, `#eef2f9`, `rgba(255,255,255,.6+)` as a *surface*. Most `color:'#fff'` on teal/red buttons and `rgba(255,255,255,.02-.08)` overlays are fine on dark and should be left alone. `ChallanPrint.tsx` is a **paper print view** — its white background is intentional, do NOT darken it.
 
-**Brand-consistency gotchas found during the re-skin:**
-- `var(--gold, #178a6e)` fallbacks are harmless (the var is always defined now) — no need to edit them.
-- The gold crown LOGO is an image at `@/assets/logo-king.png` (transparent PNG) — use `<img>` everywhere the old `<Crown>` lucide icon appeared (Layout, Login, Landing, Terms, Privacy, InstallAppBanner, ClerkStaffLogin), not the SVG icon.
-- The `.crown-sso-btn` glow (`crownGlow` keyframe + gradient) and the Landing mixer-drum SVG gradient both originally pulsed magenta/teal; tie them to gold tokens for strict metallic-gold consistency.
-
-**Intentional non-gold (do NOT recolor):** per-role badge colors in `Layout.tsx` (e.g. `authority: '#e879f9'`) are semantic role identities, and semantic amber/red/green/blue for warnings/danger/success/info stay distinct.
+**Intentional non-teal (do NOT recolor):** per-role badge colors in `Layout.tsx` are semantic role identities; semantic amber/red/green/blue for warning/danger/success/info stay distinct.

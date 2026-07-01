@@ -84,11 +84,11 @@ export default function SetPassword() {
         </div>
 
         <div style={{
-          background: 'linear-gradient(135deg, rgba(255,255,255,.82), rgba(255,255,255,.62))',
-          border: '1px solid rgba(255,255,255,.85)',
+          background: 'linear-gradient(135deg, var(--glass-1), var(--glass-2))',
+          border: '1px solid var(--glass-border)',
           borderRadius: 20, padding: '36px 32px',
-          backdropFilter: 'blur(12px)',
-          boxShadow: '0 30px 70px -30px rgba(18,64,58,.28)',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 30px 70px -30px rgba(0,0,0,.6)',
         }}>
           {checking ? (
             <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14, padding: '20px 0' }}>
@@ -170,7 +170,7 @@ export default function SetPassword() {
 
 const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 };
 const field: React.CSSProperties = {
-  width: '100%', background: 'rgba(255,255,255,.7)', border: '1px solid rgba(18,64,58,.14)',
+  width: '100%', background: 'var(--chip-bg)', border: '1px solid var(--line)',
   borderRadius: 10, color: 'var(--text)', fontSize: 14, outline: 'none', boxSizing: 'border-box',
 };
 const leftIcon: React.CSSProperties = { color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' };

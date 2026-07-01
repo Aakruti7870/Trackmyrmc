@@ -21,45 +21,45 @@
   --radius-card: 18px;
 }
 
-/* ===== Theme tokens (swapped at runtime by ThemeProvider) — default: Daylight Glass ===== */
+/* ===== Theme tokens (swapped at runtime by ThemeProvider) — default: Cinematic teal ===== */
 :root {
-  --bg-top: #f4f7fc;
-  --bg: #eef2f9;
-  --bg-deep: #e3e9f4;
-  --panel: #ffffff;
-  --panel2: #f6f9fd;
-  --surface: #ffffff;
-  --line: rgba(30,41,90,0.12);
-  --text: #0f172a;
-  --muted: #5a6b85;
-  --gold-hi: #3fc7a4;
-  --gold-mid: #1f9e80;
-  --gold: #178a6e;
-  --gold-dark: #0f6e57;
-  --green: #15a06a;
-  --green-dark: #0f7a4f;
-  --blue: #2a83d6;
-  --red: #e11d57;
-  --orange: #d97706;
-  --glow-1: rgba(23,138,110,.16);
-  --glow-2: rgba(14,154,167,.16);
-  --font-app: 'Sora', system-ui, -apple-system, sans-serif;
+  --bg-top: #0a1417;
+  --bg: #050A0C;
+  --bg-deep: #02070A;
+  --panel: #0a1618;
+  --panel2: #0d1d20;
+  --surface: #112427;
+  --line: rgba(0,201,167,0.15);
+  --text: #E8F0EE;
+  --muted: #7A8F8D;
+  --gold-hi: #3fe3c5;
+  --gold-mid: #12d6b0;
+  --gold: #00C9A7;
+  --gold-dark: #00a488;
+  --green: #22c55e;
+  --green-dark: #15803d;
+  --blue: #38bdf8;
+  --red: #ef4444;
+  --orange: #f59e0b;
+  --glow-1: rgba(0,201,167,.20);
+  --glow-2: rgba(0,201,167,.07);
+  --font-app: 'Inter', system-ui, -apple-system, sans-serif;
 
-  /* surface kit (Daylight Glass defaults — swapped per theme at runtime) */
-  --shadow-rgb: 30,41,90;
-  --glass-1: rgba(255,255,255,0.78);
-  --glass-2: rgba(255,255,255,0.55);
-  --glass-border: rgba(255,255,255,0.85);
-  --glass-hi: rgba(255,255,255,0.9);
-  --glass-blur: blur(20px) saturate(140%);
-  --sidebar-1: rgba(255,255,255,0.88);
-  --sidebar-2: rgba(245,248,253,0.82);
-  --header-bg: rgba(255,255,255,0.9);
-  --menu-bg: rgba(255,255,255,0.97);
-  --menu-hover: rgba(30,41,90,0.06);
-  --overlay: rgba(15,23,42,0.35);
-  --chip-bg: rgba(30,41,90,0.04);
-  --sheen: rgba(255,255,255,.5);
+  /* surface kit (Cinematic teal defaults — swapped per theme at runtime) */
+  --shadow-rgb: 0,0,0;
+  --glass-1: color-mix(in srgb, var(--surface) 78%, transparent);
+  --glass-2: color-mix(in srgb, var(--bg-deep) 82%, transparent);
+  --glass-border: rgba(0,201,167,0.15);
+  --glass-hi: rgba(255,255,255,0.05);
+  --glass-blur: blur(24px) saturate(115%);
+  --sidebar-1: rgba(8,20,22,0.97);
+  --sidebar-2: rgba(4,11,13,0.97);
+  --header-bg: rgba(5,12,14,0.86);
+  --menu-bg: rgba(10,24,26,0.98);
+  --menu-hover: rgba(0,201,167,0.12);
+  --overlay: rgba(2,7,8,0.66);
+  --chip-bg: rgba(0,201,167,0.06);
+  --sheen: rgba(255,255,255,.03);
 }
 
 * {
