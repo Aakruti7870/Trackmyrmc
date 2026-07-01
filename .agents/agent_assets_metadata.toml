@@ -72,6 +72,36 @@ uri = "file://rmc-app/src/assets/ai-mascot.png"
 type = "image"
 title = "shiba mascot hard hat"
 
+[[generated]]
+id = "5UPHHdrDCjAyNFyltAbUg"
+uri = "file://rmc-app/src/assets/landing/slide1-drum.png"
+type = "image"
+title = "concrete drum night"
+
+[[generated]]
+id = "J2Yz6_naIGdiYJQ1SD5YN"
+uri = "file://rmc-app/src/assets/landing/slide2-fleet.png"
+type = "image"
+title = "mixer trucks highway"
+
+[[generated]]
+id = "BWjN_T9r0FXoGk_1Hef0T"
+uri = "file://rmc-app/src/assets/landing/slide3-texture.png"
+type = "image"
+title = "dark concrete texture"
+
+[[generated]]
+id = "OEoepPpg_c8WvBYvepiJ3"
+uri = "file://rmc-app/src/assets/landing/slide4-command.png"
+type = "image"
+title = "dark data grid"
+
+[[generated]]
+id = "er_0SMQmCWRdMpKpUmUDS"
+uri = "file://rmc-app/src/assets/landing/slide5-plant.png"
+type = "image"
+title = "batching plant night"
+
 [[outputs]]
 id = "oaHn9kwGbYywEoOBjUmqg"
 uri = "file://screenshots/theme-1-midnight-gold.jpg"
