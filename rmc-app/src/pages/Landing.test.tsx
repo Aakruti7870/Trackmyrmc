@@ -1,43 +1,45 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Router } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import Landing from '@/pages/Landing';
 
 function renderAt(path = '/') {
-  const { hook, history } = memoryLocation({ path, record: true });
+  const { hook } = memoryLocation({ path, record: true });
   render(
     <Router hook={hook}>
       <Landing />
     </Router>,
   );
-  return history;
 }
 
-describe('Landing marketing page', () => {
-  it('shows the three above-the-fold CTAs', () => {
-    renderAt();
-    expect(screen.getByRole('button', { name: /book concrete now/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /find rmc plant near me/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /see live demo/i })).toBeInTheDocument();
+describe('Landing marketing deck', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it('shows the trust badges', () => {
+  it('renders the brand and the two above-the-fold hero CTAs', () => {
     renderAt();
-    for (const label of ['Verified Plants', 'GPS Tracking', 'Digital Challan', 'Quality Records']) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-    }
+    // NavBar brand is always mounted, independent of the current slide.
+    expect(screen.getAllByText(/concrete king/i).length).toBeGreaterThan(0);
+    // Slide 1 (hero) is the initial slide.
+    expect(screen.getByRole('button', { name: /get started/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /watch demo/i })).toBeInTheDocument();
   });
 
-  it('routes both customer CTAs to the register funnel', async () => {
+  it('exposes a Login entry point in the top navigation', () => {
+    renderAt();
+    expect(screen.getAllByRole('button', { name: /^login$/i }).length).toBeGreaterThan(0);
+  });
+
+  it('routes the hero CTA into the app login flow', async () => {
     const user = userEvent.setup();
-    const history = renderAt();
+    // openLogin() SPA-navigates via window.history rather than the wouter hook.
+    const pushSpy = vi.spyOn(window.history, 'pushState');
+    renderAt();
 
-    await user.click(screen.getByRole('button', { name: /book concrete now/i }));
-    expect(history.at(-1)).toBe('/register');
-
-    await user.click(screen.getByRole('button', { name: /find rmc plant near me/i }));
-    expect(history.at(-1)).toBe('/register');
+    await user.click(screen.getByRole('button', { name: /get started/i }));
+    expect(pushSpy).toHaveBeenCalledWith({}, '', '/login');
   });
 });
