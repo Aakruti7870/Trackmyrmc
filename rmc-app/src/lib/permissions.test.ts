@@ -8,16 +8,20 @@ describe('permissions — AUTHORITY super-role', () => {
     }
   });
 
-  it('authority reach matches admin reach exactly', () => {
+  it('authority reach matches admin reach, plus the exclusive /command center', () => {
     const probes = ['/', '/users', '/audit-log', '/clients', '/vehicles', '/batch-report', '/my-orders', '/my-trips', '/nope'];
     for (const path of probes) {
       expect(canAccess('authority', path)).toBe(canAccess('admin', path));
     }
-    expect(ROLE_ALLOWED_PATHS.authority).toEqual(ROLE_ALLOWED_PATHS.admin);
+    // Authority owns everything admin can reach, with /command added on top.
+    expect(ROLE_ALLOWED_PATHS.authority).toEqual(['/command', ...ROLE_ALLOWED_PATHS.admin]);
+    // The Command Center is authority-only — admin (and lesser roles) cannot reach it.
+    expect(canAccess('authority', '/command')).toBe(true);
+    expect(canAccess('admin', '/command')).toBe(false);
   });
 
-  it('authority lands on the plant onboarding list by default', () => {
-    expect(defaultPath('authority')).toBe('/plants');
+  it('authority lands on the Command Center by default', () => {
+    expect(defaultPath('authority')).toBe('/command');
   });
 
   it('lesser roles still cannot reach the admin-only /users screen', () => {
