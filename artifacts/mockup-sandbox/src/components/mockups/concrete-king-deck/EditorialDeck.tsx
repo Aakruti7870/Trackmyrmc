@@ -378,7 +378,7 @@ export default function EditorialDeck() {
         </div>
         <div className="hidden md:flex items-center gap-8 text-[11px] font-mono tracking-widest text-[#8C8982]">
           {["Home", "GPS", "Freshness", "Command", "Login"].map((item, i) => (
-            <button key={item} onClick={() => setSlide(i)} className={\`uppercase hover:text-[#1A1A1A] transition-colors \${slide === i ? 'text-[#1A1A1A] font-bold border-b border-[#1A1A1A] pb-1' : ''}\`}>
+            <button key={item} onClick={() => setSlide(i)} className={`uppercase hover:text-[#1A1A1A] transition-colors ${slide === i ? 'text-[#1A1A1A] font-bold border-b border-[#1A1A1A] pb-1' : ''}`}>
               {item}
             </button>
           ))}
@@ -497,7 +497,7 @@ export default function EditorialDeck() {
                             </div>
                             <span className="font-mono text-sm font-medium text-[#1A1A1A]">{t.id}</span>
                           </div>
-                          <span className={\`font-sans text-xs \${t.c}\`}>{t.stat}</span>
+                          <span className={`font-sans text-xs ${t.c}`}>{t.stat}</span>
                         </div>
                       ))}
                     </div>
@@ -556,18 +556,18 @@ export default function EditorialDeck() {
                       { id: "TM-9003", mix: "M30", site: "DS Infrastructure", val: 12, status: "critical", msg: "SLUMP RISK" },
                       { id: "TM-0813", mix: "M10", site: "Hiravati Agro", val: 62, status: "safe" }
                     ].map((row, i) => (
-                      <div key={i} className={\`bg-[#FFFFFF] border \${row.status === 'critical' ? 'border-[#A84E32]' : 'border-[#E2DFD8]'} p-6 flex flex-col gap-4 shadow-sm\`}>
+                      <div key={i} className={`bg-[#FFFFFF] border ${row.status === 'critical' ? 'border-[#A84E32]' : 'border-[#E2DFD8]'} p-6 flex flex-col gap-4 shadow-sm`}>
                         <div className="flex justify-between items-start">
                           <div>
                             <div className="font-mono font-medium text-sm text-[#1A1A1A] mb-1">{row.id} <span className="text-[#8C8982] font-normal mx-2">|</span> {row.mix}</div>
                             <div className="text-xs font-sans text-[#8C8982]">{row.site}</div>
                           </div>
-                          <div className={\`font-serif text-2xl \${row.status === 'critical' ? 'text-[#A84E32]' : 'text-[#1A1A1A]'}\`}>
+                          <div className={`font-serif text-2xl ${row.status === 'critical' ? 'text-[#A84E32]' : 'text-[#1A1A1A]'}`}>
                             {row.val}%
                           </div>
                         </div>
                         <div className="h-1 w-full bg-[#F9F8F6] relative overflow-hidden">
-                          <div className={\`absolute top-0 left-0 h-full \${row.status === 'critical' ? 'bg-[#A84E32]' : row.status === 'caution' ? 'bg-[#8C8982]' : 'bg-[#1A1A1A]'}\`} style={{width: \`\${row.val}%\`}}></div>
+                          <div className={`absolute top-0 left-0 h-full ${row.status === 'critical' ? 'bg-[#A84E32]' : row.status === 'caution' ? 'bg-[#8C8982]' : 'bg-[#1A1A1A]'}`} style={{width: `${row.val}%`}}></div>
                         </div>
                         {row.msg && <div className="text-[10px] font-mono tracking-widest text-[#A84E32] uppercase">{row.msg}</div>}
                       </div>
@@ -721,8 +721,8 @@ export default function EditorialDeck() {
           <button 
             key={i} 
             onClick={() => setSlide(i)}
-            className={\`w-2 h-2 rounded-full transition-all duration-300 \${slide === i ? 'bg-[#A84E32] w-6' : 'bg-[#1A1A1A]/20 hover:bg-[#1A1A1A]/40'}\`}
-            aria-label={\`Go to slide \${i + 1}\`}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${slide === i ? 'bg-[#A84E32] w-6' : 'bg-[#1A1A1A]/20 hover:bg-[#1A1A1A]/40'}`}
+            aria-label={`Go to slide ${i + 1}`}
           />
         ))}
       </div>
@@ -731,14 +731,14 @@ export default function EditorialDeck() {
       <div className="absolute bottom-6 right-8 z-40 flex gap-2">
         <button 
           onClick={() => setSlide(s => Math.max(0, s - 1))}
-          className={\`w-10 h-10 flex items-center justify-center border transition-colors \${slide === 0 ? 'border-[#E2DFD8] text-[#E2DFD8] cursor-not-allowed' : 'border-[#1A1A1A] text-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-[#F9F8F6]'}\`}
+          className={`w-10 h-10 flex items-center justify-center border transition-colors ${slide === 0 ? 'border-[#E2DFD8] text-[#E2DFD8] cursor-not-allowed' : 'border-[#1A1A1A] text-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-[#F9F8F6]'}`}
           disabled={slide === 0}
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
         <button 
           onClick={() => setSlide(s => Math.min(4, s + 1))}
-          className={\`w-10 h-10 flex items-center justify-center border transition-colors \${slide === 4 ? 'border-[#E2DFD8] text-[#E2DFD8] cursor-not-allowed' : 'border-[#1A1A1A] text-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-[#F9F8F6]'}\`}
+          className={`w-10 h-10 flex items-center justify-center border transition-colors ${slide === 4 ? 'border-[#E2DFD8] text-[#E2DFD8] cursor-not-allowed' : 'border-[#1A1A1A] text-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-[#F9F8F6]'}`}
           disabled={slide === 4}
         >
           <ChevronRight className="w-5 h-5" />

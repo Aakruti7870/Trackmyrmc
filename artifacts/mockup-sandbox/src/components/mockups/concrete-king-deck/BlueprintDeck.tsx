@@ -448,7 +448,7 @@ export default function BlueprintDeck() {
         <div className="hidden md:flex gap-8">
           {navItems.map((item, i) => (
             <button key={i} onClick={() => setActiveSlide(i)} 
-                    className={\`transition-colors \${activeSlide === i ? "text-[#FFD166]" : "text-[#8CB8D9] hover:text-[#4DB8FF]"}\`}>
+                    className={`transition-colors ${activeSlide === i ? "text-[#FFD166]" : "text-[#8CB8D9] hover:text-[#4DB8FF]"}`}>
               [{item}]
             </button>
           ))}
@@ -462,7 +462,7 @@ export default function BlueprintDeck() {
       {/* SLIDES CONTAINER */}
       <div className="relative w-full h-full">
         {/* SLIDE 1: HOME */}
-        <div className={\`absolute inset-0 transition-opacity duration-1000 \${activeSlide === 0 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}\`}>
+        <div className={`absolute inset-0 transition-opacity duration-1000 ${activeSlide === 0 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
           <BgDrum />
           <div className="absolute inset-0 flex flex-col justify-center items-start px-12 lg:px-24">
             <div className="max-w-3xl z-10 relative">
@@ -505,7 +505,7 @@ export default function BlueprintDeck() {
         </div>
 
         {/* SLIDE 2: GPS */}
-        <div className={\`absolute inset-0 transition-opacity duration-1000 \${activeSlide === 1 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}\`}>
+        <div className={`absolute inset-0 transition-opacity duration-1000 ${activeSlide === 1 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
           <BgHighway />
           <div className="absolute inset-0 flex items-center px-12 lg:px-24">
             <div className="grid lg:grid-cols-2 gap-16 w-full items-center z-10">
@@ -540,7 +540,7 @@ export default function BlueprintDeck() {
                         <Truck size={18} className={tr.color} />
                         <span className="font-bold">{tr.id}</span>
                       </div>
-                      <span className={\`text-sm \${tr.color}\`}>{tr.status}</span>
+                      <span className={`text-sm ${tr.color}`}>{tr.status}</span>
                     </div>
                   ))}
                 </div>
@@ -550,7 +550,7 @@ export default function BlueprintDeck() {
         </div>
 
         {/* SLIDE 3: FRESHNESS */}
-        <div className={\`absolute inset-0 transition-opacity duration-1000 \${activeSlide === 2 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}\`}>
+        <div className={`absolute inset-0 transition-opacity duration-1000 ${activeSlide === 2 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
           <BgPour />
           <div className="absolute inset-0 flex items-center px-12 lg:px-24">
             <div className="grid lg:grid-cols-2 gap-16 w-full items-center z-10">
@@ -575,7 +575,7 @@ export default function BlueprintDeck() {
                         <span className="text-white">{t.pct}% {t.alert && <span className="text-red-400">{t.alert}</span>}</span>
                       </div>
                       <div className="h-1 bg-[rgba(77,184,255,0.1)] w-full overflow-hidden">
-                        <div className={\`h-full \${t.color}\`} style={{ width: \`\${t.pct}%\` }}></div>
+                        <div className={`h-full ${t.color}`} style={{ width: `${t.pct}%` }}></div>
                       </div>
                     </div>
                   ))}
@@ -599,7 +599,7 @@ export default function BlueprintDeck() {
         </div>
 
         {/* SLIDE 4: COMMAND */}
-        <div className={\`absolute inset-0 transition-opacity duration-1000 \${activeSlide === 3 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}\`}>
+        <div className={`absolute inset-0 transition-opacity duration-1000 ${activeSlide === 3 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
           <BgCommand />
           <div className="absolute inset-0 flex flex-col justify-center items-center px-12 lg:px-24 text-center z-10">
             <div className="font-mono text-[#FFD166] mb-4 tech-text flex items-center justify-center gap-2">
@@ -633,7 +633,7 @@ export default function BlueprintDeck() {
         </div>
 
         {/* SLIDE 5: LOGIN */}
-        <div className={\`absolute inset-0 transition-opacity duration-1000 \${activeSlide === 4 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}\`}>
+        <div className={`absolute inset-0 transition-opacity duration-1000 ${activeSlide === 4 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
           <BgLogin />
           <div className="absolute inset-0 flex items-center px-12 lg:px-24">
             <div className="grid lg:grid-cols-2 gap-16 w-full items-center z-10">
@@ -725,11 +725,11 @@ export default function BlueprintDeck() {
       <div className="absolute bottom-8 w-full px-12 lg:px-24 flex justify-between items-center z-50 font-mono">
         <div className="flex gap-4 items-center">
           <button onClick={() => setActiveSlide(s => Math.max(0, s-1))} disabled={activeSlide === 0}
-                  className={\`p-3 border transition-colors \${activeSlide === 0 ? "border-[rgba(77,184,255,0.1)] text-[rgba(77,184,255,0.2)] cursor-not-allowed" : "border-[#4DB8FF] text-[#4DB8FF] hover:bg-[#4DB8FF] hover:text-[#05203A]"}\`}>
+                  className={`p-3 border transition-colors ${activeSlide === 0 ? "border-[rgba(77,184,255,0.1)] text-[rgba(77,184,255,0.2)] cursor-not-allowed" : "border-[#4DB8FF] text-[#4DB8FF] hover:bg-[#4DB8FF] hover:text-[#05203A]"}`}>
             <ChevronLeft size={20} />
           </button>
           <button onClick={() => setActiveSlide(s => Math.min(4, s+1))} disabled={activeSlide === 4}
-                  className={\`p-3 border transition-colors \${activeSlide === 4 ? "border-[rgba(77,184,255,0.1)] text-[rgba(77,184,255,0.2)] cursor-not-allowed" : "border-[#4DB8FF] text-[#4DB8FF] hover:bg-[#4DB8FF] hover:text-[#05203A]"}\`}>
+                  className={`p-3 border transition-colors ${activeSlide === 4 ? "border-[rgba(77,184,255,0.1)] text-[rgba(77,184,255,0.2)] cursor-not-allowed" : "border-[#4DB8FF] text-[#4DB8FF] hover:bg-[#4DB8FF] hover:text-[#05203A]"}`}>
             <ChevronRight size={20} />
           </button>
         </div>
@@ -737,7 +737,7 @@ export default function BlueprintDeck() {
         <div className="flex gap-3">
           {[0, 1, 2, 3, 4].map(i => (
             <button key={i} onClick={() => setActiveSlide(i)} 
-                    className={\`h-1 transition-all duration-300 \${activeSlide === i ? "w-12 bg-[#FFD166]" : "w-4 bg-[rgba(77,184,255,0.3)] hover:bg-[#4DB8FF]"}\`} />
+                    className={`h-1 transition-all duration-300 ${activeSlide === i ? "w-12 bg-[#FFD166]" : "w-4 bg-[rgba(77,184,255,0.3)] hover:bg-[#4DB8FF]"}`} />
           ))}
         </div>
         
