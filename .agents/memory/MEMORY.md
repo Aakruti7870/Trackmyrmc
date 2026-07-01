@@ -7,6 +7,7 @@
 - [RMC frontend tests](rmc-frontend-tests.md) — vitest+jsdom+testing-library in rmc-app; `test` validation chains server then rmc-app; mock useSSE, use real ToastProvider to test Layout SSE→toast.
 - [RMC lint validation](rmc-lint-validation.md) — react-hooks@7 purity/set-state-in-effect + react-refresh/only-export-components enforced as ERROR; loaders must be non-async promise-chains (no sync setState in effects).
 - [Screenshot URL caching](screenshot-url-cache.md) — external_url screenshots are cached per-URL; add a `?cb=` query param to force a fresh capture of a changed page.
+- [Canvas presentArtifact id](canvas-present-artifact-id.md) — mockup canvas work uses artifactId `artifacts/mockup-sandbox` (not the slug); recover it from the presentArtifact error's Available-artifacts list; verify preview via curl 200 (screenshots hit auth wall).
 - [RMC shift windows](rmc-shift-windows.md) — shifts (esp. night 22:00→06:00) cross midnight; use absolute Date start/end + date-anchored persistence keys, never hour-of-day or isToday.
 - [SSE event targeting](sse-event-targeting.md) — emitSSEEvent(event,data,audience?) scopes per-recipient; missing audience silently broadcasts to all.
 - [RMC link delete guard](rmc-link-delete-guard.md) — deleting a client/driver is blocked (409) while a non-soft-deleted user still links to it; scope check with isNull(deletedAt).
