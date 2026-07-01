@@ -9,7 +9,7 @@
 // authorities can still be added through AUTHORITY_EMAILS.
 export const PERMANENT_AUTHORITY_EMAILS = [
   'krushnabade54@gmail.com',
-  'support@goldetech.com',
+  'support@trackmyrmc.com',
 ];
 
 export function getAuthorityEmails(): string[] {
