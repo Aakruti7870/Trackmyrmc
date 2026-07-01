@@ -16,7 +16,7 @@ The native app is not served same-origin and has no dev proxy, so it must call t
 live backend with an absolute URL. This is configured in **`rmc-app/.env.capacitor`**:
 
 ```
-VITE_API_BASE_URL=https://www.goldetech.com   # your deployed backend, no trailing slash
+VITE_API_BASE_URL=https://www.trackmyrmc.com   # your deployed backend, no trailing slash
 VITE_DISABLE_PWA=1                             # disable the PWA service worker in the native bundle
 ```
 
@@ -120,8 +120,8 @@ Edit `android/app/build.gradle`:
 ```gradle
 android {
   defaultConfig {
-    versionCode 2          // integer, must increase every Play upload
-    versionName "1.1.0"    // human-readable
+    versionCode 3          // integer, must increase every Play upload
+    versionName "1.2"      // human-readable
   }
 }
 ```
