@@ -37,6 +37,7 @@ import { tickFreshnessAlerts } from './lib/freshnessAlerts.js';
 import { cleanupExpiredRateLimits } from './lib/rateLimit.js';
 import { cleanupExpiredCache } from './lib/places.js';
 import { ensureMasterAccounts } from './lib/masterAccounts.js';
+import { syncSmtpFromEnv } from './lib/smtpRecovery.js';
 import { ensurePlantDirectory } from './lib/plantDirectory.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -264,6 +265,11 @@ async function tickDiscoveryCleanup() {
     discoveryCleanupRunning = false;
   }
 }
+
+// Complete the SMTP recovery sync BEFORE accepting traffic so an early login/
+// forgot-password request can never race the stale persisted credentials.
+// A failed sync must never keep the API down — log and start anyway.
+await syncSmtpFromEnv().catch((e) => console.error('syncSmtpFromEnv failed', e));
 
 app.listen(PORT, () => {
   console.log(`TrackMyRMC API running on port ${PORT}`);

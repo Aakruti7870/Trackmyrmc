@@ -37,6 +37,7 @@ import { tickFreshnessAlerts } from './lib/freshnessAlerts.js';
 import { cleanupExpiredRateLimits } from './lib/rateLimit.js';
 import { cleanupExpiredCache } from './lib/places.js';
 import { ensureMasterAccounts } from './lib/masterAccounts.js';
+import { syncSmtpFromEnv } from './lib/smtpRecovery.js';
 import { ensurePlantDirectory } from './lib/plantDirectory.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
@@ -262,6 +263,7 @@ async function tickDiscoveryCleanup() {
 }
 app.listen(PORT, () => {
     console.log(`TrackMyRMC API running on port ${PORT}`);
+    syncSmtpFromEnv().catch((e) => console.error('syncSmtpFromEnv failed', e));
     ensureMasterAccounts().catch((e) => console.error('ensureMasterAccounts failed', e));
     ensurePlantDirectory().catch((e) => console.error('ensurePlantDirectory failed', e));
     ensureWhatsAppTemplateDefaults().catch((e) => console.error('ensureWhatsAppTemplateDefaults failed', e));
