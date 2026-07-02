@@ -154,7 +154,7 @@ export interface FuelReconRow {
   flagged: boolean;
 }
 
-async function computeFuelReconciliation(from?: Date, to?: Date, actorPlantId?: number | null) {
+export async function computeFuelReconciliation(from?: Date, to?: Date, actorPlantId?: number | null) {
   const config = await getFuelConfig();
 
   const challanFilters = [];

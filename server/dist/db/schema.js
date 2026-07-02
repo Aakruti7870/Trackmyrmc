@@ -761,3 +761,38 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
 }, (t) => [
     index('push_subscriptions_user_idx').on(t.userId),
 ]);
+// ---- Configurable automations -----------------------------------------------
+// Per-automation on/off + tuning knobs. One row per (automation, plantId) where
+// plantId = 0 means the PLATFORM-WIDE default row (a plain 0 sentinel instead of
+// NULL so the unique index actually enforces one row per scope — Postgres treats
+// NULLs as distinct in unique indexes). A plant row overrides the global row;
+// missing rows fall back to the code defaults (everything OFF except cleanup).
+export const automationSettings = pgTable('automation_settings', {
+    id: serial('id').primaryKey(),
+    automation: text('automation').notNull(),
+    plantId: integer('plant_id').notNull().default(0),
+    enabled: boolean('enabled').notNull().default(false),
+    config: jsonb('config').notNull().default({}),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+    uniqueIndex('automation_settings_scope_unique').on(t.automation, t.plantId),
+]);
+// Once-only send ledger for the automation suite. Before an automation notifies
+// anyone about a target it INSERTs a claim row here; the unique index is the
+// arbiter, so across restarts and overlapping ticks at most ONE tick wins the
+// claim (onConflictDoNothing → empty returning = someone else already sent it).
+// windowKey scopes the "once": a fixed key means once-ever per target, a date or
+// period-index key means once per recurrence window.
+export const automationSends = pgTable('automation_sends', {
+    id: serial('id').primaryKey(),
+    automation: text('automation').notNull(),
+    plantId: integer('plant_id'),
+    targetType: text('target_type').notNull(),
+    targetId: integer('target_id').notNull(),
+    windowKey: text('window_key').notNull(),
+    detail: text('detail'),
+    sentAt: timestamp('sent_at').defaultNow().notNull(),
+}, (t) => [
+    uniqueIndex('automation_sends_once_unique').on(t.automation, t.targetType, t.targetId, t.windowKey),
+    index('automation_sends_sent_at_idx').on(t.sentAt),
+]);

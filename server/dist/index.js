@@ -29,6 +29,7 @@ import pushRoutes from './routes/push.js';
 import configRoutes from './routes/config.js';
 import attendanceRoutes from './routes/attendance.js';
 import trackingRoutes from './routes/tracking.js';
+import automationRoutes from './routes/automations.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
 import { runDueWhatsAppRetries } from './lib/whatsappRetry.js';
@@ -39,6 +40,7 @@ import { cleanupExpiredCache } from './lib/places.js';
 import { ensureMasterAccounts } from './lib/masterAccounts.js';
 import { syncSmtpFromEnv } from './lib/smtpRecovery.js';
 import { ensurePlantDirectory } from './lib/plantDirectory.js';
+import { tickAutomations } from './lib/automationJobs.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
 const app = express();
@@ -128,6 +130,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/automations', automationRoutes);
 // PUBLIC: shareable trip tracking — no requireAuth (the router has none).
 app.use('/api/track', trackingRoutes);
 app.get('/api/health', (_req, res) => {
@@ -172,6 +175,7 @@ if (isProd) {
         '/users',
         '/activity-log',
         '/audit-log',
+        '/automations',
         '/profile',
     ]);
     // Dynamic SPA routes (e.g. /challans/:id/print, /track/:token)
@@ -282,5 +286,10 @@ app.listen(PORT, () => {
     setInterval(tickWhatsAppRetries, 60 * 1000);
     tickDiscoveryCleanup();
     setInterval(tickDiscoveryCleanup, 60 * 60 * 1000);
+    // Configurable automation suite (reminders, follow-ups, digests, anomaly
+    // alerts, cleanup). tickAutomations self-guards against overlap and every
+    // send is arbitrated by a once-only DB claim, so restarts can't double-send.
+    tickAutomations().catch((e) => console.error('Automation tick failed', e));
+    setInterval(() => tickAutomations().catch((e) => console.error('Automation tick failed', e)), 5 * 60 * 1000);
 });
 export default app;

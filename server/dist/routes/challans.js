@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 import { notifyChallanStatus } from '../lib/deliveryNotify.js';
+import { maybeSendTripShare } from '../lib/automationJobs.js';
 import { plantScope, clientInScope } from '../lib/tenancy.js';
 import { createTrackingToken } from '../lib/trackingTokens.js';
 import { registerUploadedFilesSafe, unregisterUploadedFilesSafe } from '../lib/uploadedFiles.js';
@@ -269,6 +270,9 @@ router.post('/', requireRole(...WRITE_ROLES), async (req, res) => {
     // A new challan is created already 'dispatched', so let the customer know
     // their concrete is on the way. Fire-and-forget: never block the response.
     void notifyChallanStatus(row.id, 'dispatched');
+    // Optional automation: auto-send the customer a live-tracking share link.
+    // No-op unless the tripShare automation is enabled; once-only per challan.
+    void maybeSendTripShare(row.id);
     res.status(201).json(row);
 });
 router.put('/:id', async (req, res) => {

@@ -118,7 +118,7 @@ router.get('/trip-timing', async (req, res) => {
         .orderBy(sql `date(${challans.createdAt})`);
     res.json({ freeMin, ratePerHour, rows });
 });
-async function computeFuelReconciliation(from, to, actorPlantId) {
+export async function computeFuelReconciliation(from, to, actorPlantId) {
     const config = await getFuelConfig();
     const challanFilters = [];
     if (from)
