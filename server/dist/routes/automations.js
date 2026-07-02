@@ -55,7 +55,13 @@ router.put('/:name', async (req, res) => {
 });
 // Manual "run now": kicks one tick immediately. Safe to spam — every send is
 // arbitrated by the once-only claim ledger, so this can never double-notify.
-router.post('/run', async (_req, res) => {
+// Platform-scoped staff only: the tick spans EVERY plant (digests, follow-ups,
+// cleanup), so a plant-bound actor must not be able to trigger global work.
+router.post('/run', async (req, res) => {
+    if (req.user.plantId != null) {
+        res.status(403).json({ error: 'Manual runs are platform-managed. The scheduler covers your plant automatically.' });
+        return;
+    }
     await tickAutomations();
     res.json({ ok: true });
 });

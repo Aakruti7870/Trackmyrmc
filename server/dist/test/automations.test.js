@@ -114,6 +114,17 @@ test('cleanup is platform-managed: plant-scoped staff get 403, platform staff ca
     assert.equal(ok.body.enabled, false);
     assert.equal(ok.body.config.retentionDays, 60);
 });
+test('POST /run is platform-only: plant-scoped staff 403, global staff 200', async () => {
+    const plant = await createPlant('Plant Run');
+    const plantAdmin = await createUser('admin', 'plant-admin@test.com', plant.id);
+    const authority = await createUser('authority', 'authority@test.com', null);
+    const denied = await request(app).post('/api/automations/run')
+        .set('Authorization', `Bearer ${tokenFor(plantAdmin)}`).send({});
+    assert.equal(denied.status, 403, 'a plant-bound actor must not trigger a global tick');
+    const ok = await request(app).post('/api/automations/run')
+        .set('Authorization', `Bearer ${tokenFor(authority)}`).send({});
+    assert.equal(ok.status, 200);
+});
 test('PUT rejects unknown automations and missing enabled flag', async () => {
     const admin = await createUser('admin', 'admin@test.com');
     const unknown = await request(app).put('/api/automations/notAThing')

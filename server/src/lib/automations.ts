@@ -64,10 +64,10 @@ export const AUTOMATION_DEFS: Record<AutomationName, AutomationDefinition> = {
   digest: {
     name: 'digest',
     label: 'Daily / weekly digest',
-    description: 'Email plant admins a summary of orders, dispatched volume, top clients and fuel flags.',
+    description: 'Send plant admins a summary of orders, dispatched volume, top clients and fuel flags by email and/or WhatsApp.',
     defaultEnabled: false,
     // frequency 'daily' | 'weekly'; weekday 0=Sunday…6=Saturday (weekly only).
-    defaultConfig: { frequency: 'daily', sendHour: 8, weekday: 1 },
+    defaultConfig: { frequency: 'daily', sendHour: 8, weekday: 1, email: true, whatsapp: false, whatsappTemplate: '' },
   },
   fuelAnomaly: {
     name: 'fuelAnomaly',

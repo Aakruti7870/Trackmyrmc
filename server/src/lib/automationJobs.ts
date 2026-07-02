@@ -107,6 +107,21 @@ async function plantStaffEmails(plantId: number | null, roles: readonly string[]
   return [...new Set(rows.map(r => r.email).filter((e): e is string => !!e))];
 }
 
+// Deliverable staff phone numbers for a plant — same audience rules as
+// plantStaffEmails, but keyed on a stored phone number for WhatsApp sends.
+async function plantStaffPhones(plantId: number | null, roles: readonly string[]): Promise<string[]> {
+  const roleVals = [...roles] as (typeof users.role.enumValues)[number][];
+  const conds = [
+    eq(users.isActive, true),
+    isNull(users.deletedAt),
+    inArray(users.role, roleVals),
+    isNotNull(users.phone),
+  ];
+  if (plantId != null) conds.push(eq(users.plantId, plantId));
+  const rows = await db.select({ phone: users.phone }).from(users).where(and(...conds));
+  return [...new Set(rows.map(r => r.phone).filter((p): p is string => !!p))];
+}
+
 // ---- 1. Order reminders ------------------------------------------------------
 // The evening before an order's delivery date, remind the customer across the
 // configured channels. Once per order per delivery date (a rescheduled order
@@ -368,9 +383,7 @@ export async function runDigests(snapshot: AutomationSettingsSnapshot, now = new
       console.warn('[automation] digest fuel reconciliation failed:', err);
     }
 
-    const to = await plantStaffEmails(plant.id, ['admin', 'plant_owner']);
     sent += 1;
-    if (to.length === 0) continue;
 
     const label = weekly ? 'Weekly' : 'Daily';
     const periodLabel = weekly
@@ -389,12 +402,31 @@ export async function runDigests(snapshot: AutomationSettingsSnapshot, now = new
       ? `Fuel flags: ${fuelFlags} vehicle(s) over the diesel variance threshold — check the fuel reconciliation report.`
       : 'Fuel flags: none.');
 
-    await sendAutomationEmail({
-      to,
-      subject: `${label} digest — ${plant.name}`,
-      heading: `${label} operations digest for ${plant.name}`,
-      lines,
-    });
+    if (bool(eff.config, 'email')) {
+      const to = await plantStaffEmails(plant.id, ['admin', 'plant_owner']);
+      if (to.length > 0) {
+        await sendAutomationEmail({
+          to,
+          subject: `${label} digest — ${plant.name}`,
+          heading: `${label} operations digest for ${plant.name}`,
+          lines,
+        });
+      }
+    }
+
+    const template = str(eff.config, 'whatsappTemplate');
+    if (bool(eff.config, 'whatsapp') && template) {
+      const phones = await plantStaffPhones(plant.id, ['admin', 'plant_owner']);
+      for (const phone of phones) {
+        const result = await sendWhatsAppWithRetry(phone, template, {
+          '1': plant.name,
+          '2': `${label} · ${periodLabel}`,
+          '3': String(orderAgg?.count ?? 0),
+          '4': `${Math.round(Number(challanAgg?.volume ?? 0) * 100) / 100}`,
+        });
+        await recordAutomationWhatsApp('digest', { plantId: plant.id }, phone, result);
+      }
+    }
   }
   return sent;
 }

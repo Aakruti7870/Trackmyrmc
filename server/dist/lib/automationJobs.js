@@ -71,6 +71,21 @@ async function plantStaffEmails(plantId, roles) {
     const rows = await db.select({ email: users.email }).from(users).where(and(...conds));
     return [...new Set(rows.map(r => r.email).filter((e) => !!e))];
 }
+// Deliverable staff phone numbers for a plant — same audience rules as
+// plantStaffEmails, but keyed on a stored phone number for WhatsApp sends.
+async function plantStaffPhones(plantId, roles) {
+    const roleVals = [...roles];
+    const conds = [
+        eq(users.isActive, true),
+        isNull(users.deletedAt),
+        inArray(users.role, roleVals),
+        isNotNull(users.phone),
+    ];
+    if (plantId != null)
+        conds.push(eq(users.plantId, plantId));
+    const rows = await db.select({ phone: users.phone }).from(users).where(and(...conds));
+    return [...new Set(rows.map(r => r.phone).filter((p) => !!p))];
+}
 // ---- 1. Order reminders ------------------------------------------------------
 // The evening before an order's delivery date, remind the customer across the
 // configured channels. Once per order per delivery date (a rescheduled order
@@ -324,10 +339,7 @@ export async function runDigests(snapshot, now = new Date()) {
         catch (err) {
             console.warn('[automation] digest fuel reconciliation failed:', err);
         }
-        const to = await plantStaffEmails(plant.id, ['admin', 'plant_owner']);
         sent += 1;
-        if (to.length === 0)
-            continue;
         const label = weekly ? 'Weekly' : 'Daily';
         const periodLabel = weekly
             ? `${periodStart.toISOString().slice(0, 10)} → ${ist.dateStr}`
@@ -344,12 +356,30 @@ export async function runDigests(snapshot, now = new Date()) {
         lines.push(fuelFlags > 0
             ? `Fuel flags: ${fuelFlags} vehicle(s) over the diesel variance threshold — check the fuel reconciliation report.`
             : 'Fuel flags: none.');
-        await sendAutomationEmail({
-            to,
-            subject: `${label} digest — ${plant.name}`,
-            heading: `${label} operations digest for ${plant.name}`,
-            lines,
-        });
+        if (bool(eff.config, 'email')) {
+            const to = await plantStaffEmails(plant.id, ['admin', 'plant_owner']);
+            if (to.length > 0) {
+                await sendAutomationEmail({
+                    to,
+                    subject: `${label} digest — ${plant.name}`,
+                    heading: `${label} operations digest for ${plant.name}`,
+                    lines,
+                });
+            }
+        }
+        const template = str(eff.config, 'whatsappTemplate');
+        if (bool(eff.config, 'whatsapp') && template) {
+            const phones = await plantStaffPhones(plant.id, ['admin', 'plant_owner']);
+            for (const phone of phones) {
+                const result = await sendWhatsAppWithRetry(phone, template, {
+                    '1': plant.name,
+                    '2': `${label} · ${periodLabel}`,
+                    '3': String(orderAgg?.count ?? 0),
+                    '4': `${Math.round(Number(challanAgg?.volume ?? 0) * 100) / 100}`,
+                });
+                await recordAutomationWhatsApp('digest', { plantId: plant.id }, phone, result);
+            }
+        }
     }
     return sent;
 }
@@ -552,6 +582,10 @@ export async function runCleanup(snapshot, now = new Date()) {
             if (otherAdmins <= 0)
                 continue;
         }
+        // Claim the purge in the once-only ledger so two overlapping instances
+        // can never both write the audit entry for the same account.
+        if (!(await claimSend('cleanup', 'user', u.id, 'purge')))
+            continue;
         await db.insert(auditLogs).values({
             actorId: null,
             actorName: 'Auto-cleanup',
