@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { AUTOMATIONS, AUTOMATION_DEFS, getEffectiveAutomation, getLastRunMap, isAutomationName, lastSentAt, loadAutomationSnapshot, sanitizeConfig, saveAutomationSettings, } from '../lib/automations.js';
+import { AUTOMATIONS, AUTOMATION_DEFS, getEffectiveAutomation, getLastRunMap, isAutomationName, lastSentAt, listRecentSends, loadAutomationSnapshot, sanitizeConfig, saveAutomationSettings, } from '../lib/automations.js';
 import { tickAutomations } from '../lib/automationJobs.js';
 // Admin configuration for the automation suite. Scope model: a plant-scoped
 // actor (plantId set) reads/writes their PLANT's override rows; a platform
@@ -30,6 +30,21 @@ router.get('/', async (req, res) => {
         };
     });
     res.json({ scope: plantId ? 'plant' : 'global', plantId, items });
+});
+// Per-automation activity feed: what the automation actually did (who was
+// notified / what was purged), straight from the once-only claim ledger.
+// Scope comes from the token: a plant-scoped actor sees only their plant's
+// rows; platform staff see everything (including platform-wide cleanup rows).
+router.get('/:name/sends', async (req, res) => {
+    const name = String(req.params.name);
+    if (!isAutomationName(name)) {
+        res.status(404).json({ error: 'Unknown automation' });
+        return;
+    }
+    const plantId = req.user.plantId ?? null;
+    const limit = Number(req.query.limit) || 20;
+    const items = await listRecentSends(name, plantId, limit);
+    res.json({ items });
 });
 router.put('/:name', async (req, res) => {
     const name = String(req.params.name);

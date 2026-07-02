@@ -1,6 +1,6 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { automationSends, automationSettings } from '../db/schema.js';
+import { automationSends, automationSettings, challans, clients, orders, plants, users, vehicles } from '../db/schema.js';
 import { getSetting, setSetting } from './settings.js';
 
 // ---- Automation catalogue ----------------------------------------------------
@@ -264,6 +264,110 @@ export async function lastSentAt(plantId: number | null | undefined): Promise<Re
   const out: Record<string, string | null> = {};
   for (const r of rows) out[r.automation] = r.last ? new Date(r.last).toISOString() : null;
   return out;
+}
+
+// ---- Recent-sends activity feed ---------------------------------------------------
+
+export interface AutomationSendItem {
+  id: number;
+  targetType: string;
+  targetId: number;
+  /** Human name for the target (order no, plant name, vehicle no, …). Null when
+   *  the target row no longer exists — e.g. a user the cleanup job purged. */
+  targetLabel: string | null;
+  windowKey: string;
+  detail: string | null;
+  sentAt: string;
+  plantId: number | null;
+}
+
+// Batch-resolve human labels for one targetType worth of ids. Unknown types and
+// missing rows simply yield no label — the feed still shows "type #id".
+async function labelsFor(targetType: string, ids: number[]): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  if (ids.length === 0) return out;
+  switch (targetType) {
+    case 'order': {
+      const rows = await db.select({ id: orders.id, label: orders.orderNo }).from(orders).where(inArray(orders.id, ids));
+      for (const r of rows) out.set(r.id, r.label);
+      break;
+    }
+    case 'challan': {
+      const rows = await db.select({ id: challans.id, label: challans.challanNo }).from(challans).where(inArray(challans.id, ids));
+      for (const r of rows) out.set(r.id, r.label);
+      break;
+    }
+    case 'plant': {
+      const rows = await db.select({ id: plants.id, label: plants.name }).from(plants).where(inArray(plants.id, ids));
+      for (const r of rows) out.set(r.id, r.label);
+      break;
+    }
+    case 'vehicle': {
+      const rows = await db.select({ id: vehicles.id, label: vehicles.vehicleNo }).from(vehicles).where(inArray(vehicles.id, ids));
+      for (const r of rows) out.set(r.id, r.label);
+      break;
+    }
+    case 'client': {
+      const rows = await db.select({ id: clients.id, label: clients.name }).from(clients).where(inArray(clients.id, ids));
+      for (const r of rows) out.set(r.id, r.label);
+      break;
+    }
+    case 'user': {
+      const rows = await db.select({ id: users.id, label: users.email }).from(users).where(inArray(users.id, ids));
+      for (const r of rows) out.set(r.id, r.label);
+      break;
+    }
+  }
+  return out;
+}
+
+// The per-automation activity feed. Plant-scoped callers see ONLY their own
+// plant's rows (platform-wide rows like cleanup purges stay hidden — they can
+// reference other tenants' users); platform callers see everything.
+export async function listRecentSends(
+  name: AutomationName,
+  plantId: number | null | undefined,
+  limit = 20,
+): Promise<AutomationSendItem[]> {
+  const capped = Math.min(50, Math.max(1, Math.floor(limit) || 1));
+  const rows = await db
+    .select({
+      id: automationSends.id,
+      targetType: automationSends.targetType,
+      targetId: automationSends.targetId,
+      windowKey: automationSends.windowKey,
+      detail: automationSends.detail,
+      sentAt: automationSends.sentAt,
+      plantId: automationSends.plantId,
+    })
+    .from(automationSends)
+    .where(plantId
+      ? and(eq(automationSends.automation, name), eq(automationSends.plantId, plantId))
+      : eq(automationSends.automation, name))
+    .orderBy(desc(automationSends.sentAt), desc(automationSends.id))
+    .limit(capped);
+
+  const idsByType = new Map<string, number[]>();
+  for (const r of rows) {
+    const list = idsByType.get(r.targetType) ?? [];
+    list.push(r.targetId);
+    idsByType.set(r.targetType, list);
+  }
+  const labelMaps = new Map<string, Map<number, string>>();
+  for (const [type, ids] of idsByType) {
+    labelMaps.set(type, await labelsFor(type, [...new Set(ids)]));
+  }
+
+  return rows.map(r => ({
+    id: r.id,
+    targetType: r.targetType,
+    targetId: r.targetId,
+    targetLabel: labelMaps.get(r.targetType)?.get(r.targetId) ?? null,
+    windowKey: r.windowKey,
+    detail: r.detail,
+    sentAt: new Date(r.sentAt).toISOString(),
+    plantId: r.plantId,
+  }));
 }
 
 // ---- Last-run watermark ---------------------------------------------------------

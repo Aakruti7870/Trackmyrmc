@@ -7,6 +7,7 @@ import {
   getLastRunMap,
   isAutomationName,
   lastSentAt,
+  listRecentSends,
   loadAutomationSnapshot,
   sanitizeConfig,
   saveAutomationSettings,
@@ -43,6 +44,22 @@ router.get('/', async (req, res) => {
     };
   });
   res.json({ scope: plantId ? 'plant' : 'global', plantId, items });
+});
+
+// Per-automation activity feed: what the automation actually did (who was
+// notified / what was purged), straight from the once-only claim ledger.
+// Scope comes from the token: a plant-scoped actor sees only their plant's
+// rows; platform staff see everything (including platform-wide cleanup rows).
+router.get('/:name/sends', async (req, res) => {
+  const name = String(req.params.name);
+  if (!isAutomationName(name)) {
+    res.status(404).json({ error: 'Unknown automation' });
+    return;
+  }
+  const plantId = req.user!.plantId ?? null;
+  const limit = Number(req.query.limit) || 20;
+  const items = await listRecentSends(name, plantId, limit);
+  res.json({ items });
 });
 
 router.put('/:name', async (req, res) => {

@@ -175,6 +175,69 @@ describe('Automations admin page', () => {
     expect(screen.getByTestId('toggle-orderReminders')).not.toBeDisabled();
   });
 
+  it('expanding Recent activity fetches the feed and renders labelled rows', async () => {
+    vi.mocked(api.get).mockImplementation((path: string) => {
+      if (path === '/automations') {
+        return Promise.resolve({ scope: 'global', plantId: null, items: [REMINDER] } as never);
+      }
+      if (path === '/automations/orderReminders/sends') {
+        return Promise.resolve({
+          items: [
+            { id: 12, targetType: 'order', targetId: 77, targetLabel: 'ORD-77', windowKey: 'd:2026-07-03', detail: null, sentAt: '2026-07-01T12:30:00.000Z', plantId: 3 },
+            { id: 11, targetType: 'order', targetId: 60, targetLabel: null, windowKey: 'd:2026-06-28', detail: 'via WhatsApp', sentAt: '2026-06-27T09:00:00.000Z', plantId: 3 },
+          ],
+        } as never);
+      }
+      return Promise.reject(new Error(`unexpected GET ${path}`));
+    });
+    render(<Automations />);
+
+    await userEvent.click(await screen.findByTestId('button-activity-orderReminders'));
+
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/automations/orderReminders/sends'));
+    expect(await screen.findByText('Order ORD-77')).toBeInTheDocument();
+    // A vanished target falls back to its id, and the detail is appended.
+    expect(screen.getByText('Order #60 — via WhatsApp')).toBeInTheDocument();
+
+    // Collapsing hides the feed without refetching on re-open.
+    await userEvent.click(screen.getByTestId('button-activity-orderReminders'));
+    expect(screen.queryByTestId('feed-orderReminders')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('button-activity-orderReminders'));
+    expect(await screen.findByText('Order ORD-77')).toBeInTheDocument();
+    const sendCalls = vi.mocked(api.get).mock.calls.filter(c => c[0] === '/automations/orderReminders/sends');
+    expect(sendCalls).toHaveLength(1);
+  });
+
+  it('an automation that has never sent shows the empty-feed message', async () => {
+    vi.mocked(api.get).mockImplementation((path: string) => {
+      if (path === '/automations') {
+        return Promise.resolve({ scope: 'plant', plantId: 3, items: [CLEANUP] } as never);
+      }
+      return Promise.resolve({ items: [] } as never);
+    });
+    render(<Automations />);
+
+    await userEvent.click(await screen.findByTestId('button-activity-cleanup'));
+
+    expect(await screen.findByTestId('feed-empty-cleanup')).toBeInTheDocument();
+  });
+
+  it('a failed feed fetch shows an inline error inside the feed panel', async () => {
+    vi.mocked(api.get).mockImplementation((path: string) => {
+      if (path === '/automations') {
+        return Promise.resolve({ scope: 'global', plantId: null, items: [REMINDER] } as never);
+      }
+      return Promise.reject(new ApiError('Could not load the activity feed.', 500, {}));
+    });
+    render(<Automations />);
+
+    await userEvent.click(await screen.findByTestId('button-activity-orderReminders'));
+
+    expect(await screen.findByText('Could not load the activity feed.')).toBeInTheDocument();
+    // The page itself is still healthy — only the feed panel shows the error.
+    expect(screen.getByText('Order reminders')).toBeInTheDocument();
+  });
+
   it('a failed save surfaces a dismissible error banner and keeps the toggle state', async () => {
     mockList('plant', [REMINDER]);
     vi.mocked(api.put).mockRejectedValue(new ApiError('The plant override could not be saved.', 500, {}));

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { Zap, Play, X, Clock, CheckCircle2 } from 'lucide-react';
+import { Zap, Play, X, Clock, CheckCircle2, History, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Admin control panel for the scheduled automation suite. The server resolves
 // the actor's scope from their token: plant-scoped staff edit their plant's
@@ -22,6 +22,34 @@ interface AutomationsResponse {
   scope: 'plant' | 'global';
   plantId: number | null;
   items: AutomationItem[];
+}
+
+interface SendItem {
+  id: number;
+  targetType: string;
+  targetId: number;
+  targetLabel: string | null;
+  windowKey: string;
+  detail: string | null;
+  sentAt: string;
+  plantId: number | null;
+}
+
+type FeedState = { loading: boolean; error: string; items: SendItem[] | null };
+
+const TARGET_TYPE_LABELS: Record<string, string> = {
+  order: 'Order',
+  challan: 'Trip',
+  plant: 'Plant',
+  vehicle: 'Vehicle',
+  client: 'Customer',
+  user: 'Account',
+};
+
+function sendLine(s: SendItem): string {
+  const type = TARGET_TYPE_LABELS[s.targetType] ?? s.targetType;
+  const label = s.targetLabel ?? `#${s.targetId}`;
+  return s.detail ? `${type} ${label} — ${s.detail}` : `${type} ${label}`;
 }
 
 const NUMBER_LABELS: Record<string, string> = {
@@ -73,6 +101,21 @@ export default function Automations() {
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Record<string, number | boolean | string>>>({});
   const [runBusy, setRunBusy] = useState(false);
+  const [openFeeds, setOpenFeeds] = useState<Record<string, boolean>>({});
+  const [feeds, setFeeds] = useState<Record<string, FeedState>>({});
+
+  function toggleFeed(name: string) {
+    const opening = !openFeeds[name];
+    setOpenFeeds(prev => ({ ...prev, [name]: opening }));
+    if (!opening || feeds[name]?.items || feeds[name]?.loading) return;
+    setFeeds(prev => ({ ...prev, [name]: { loading: true, error: '', items: null } }));
+    api.get<{ items: SendItem[] }>(`/automations/${name}/sends`)
+      .then(res => setFeeds(prev => ({ ...prev, [name]: { loading: false, error: '', items: res.items } })))
+      .catch(e => setFeeds(prev => ({
+        ...prev,
+        [name]: { loading: false, error: e instanceof Error ? e.message : 'Could not load the activity feed.', items: null },
+      })));
+  }
 
   useEffect(() => {
     api.get<AutomationsResponse>('/automations')
@@ -308,6 +351,57 @@ export default function Automations() {
                     )}
                   </div>
                 )}
+
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleFeed(item.name)}
+                    data-testid={`button-activity-${item.name}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                      background: 'none', border: 'none', padding: 0,
+                      color: 'var(--muted)', fontSize: 12, fontWeight: 700,
+                    }}
+                  >
+                    <History size={12} /> Recent activity
+                    {openFeeds[item.name] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                  {openFeeds[item.name] && (
+                    <div data-testid={`feed-${item.name}`} style={{ marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
+                      {(() => {
+                        const feed = feeds[item.name];
+                        if (!feed || feed.loading) {
+                          return <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>Loading…</p>;
+                        }
+                        if (feed.error) {
+                          return <p style={{ color: 'var(--red)', fontSize: 12, margin: 0 }}>{feed.error}</p>;
+                        }
+                        if (!feed.items || feed.items.length === 0) {
+                          return (
+                            <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }} data-testid={`feed-empty-${item.name}`}>
+                              Nothing sent yet — activity will appear here once this automation runs.
+                            </p>
+                          );
+                        }
+                        return (
+                          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
+                            {feed.items.map(s => (
+                              <li key={s.id} data-testid={`feed-row-${item.name}-${s.id}`} style={{
+                                display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
+                                fontSize: 12.5, color: 'var(--text)',
+                              }}>
+                                <span style={{ fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {sendLine(s)}
+                                </span>
+                                <span style={{ color: 'var(--muted)', fontSize: 11.5, whiteSpace: 'nowrap' }}>{fmtWhen(s.sentAt)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
               </Card>
             );
           })}
