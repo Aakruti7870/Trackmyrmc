@@ -79,7 +79,7 @@ export default function WhatsAppChat() {
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 800);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const selectedRef = useRef<string | null>(null);
-  selectedRef.current = selected;
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
 
   const loadChats = useCallback(() => {
     return api.get<ChatSummary[]>('/whatsapp/chats')

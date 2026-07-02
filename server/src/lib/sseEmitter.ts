@@ -8,6 +8,7 @@ export type SSEIdentity = {
   role: string;
   clientId?: number | null;
   driverId?: number | null;
+  plantId?: number | null;
 };
 
 // Describes who an event pertains to. Staff roles always receive targeted
@@ -19,10 +20,16 @@ export type SSEIdentity = {
 // staff/client/driver routing and delivers ONLY to connections whose role is
 // listed (e.g. `{ roles: ['admin', 'authority'] }` for admin-only alerts that
 // must reach the `authority` super-admin, which is not part of STAFF_ROLES).
+//
+// `platformOnly` further restricts a role-targeted event to PLATFORM staff:
+// connections whose identity has no plantId (plantId == null). Plant-bound
+// users of an allowed role are excluded, mirroring the isPlatformStaff guard
+// on the corresponding REST endpoints (e.g. the WhatsApp chat inbox).
 export type SSEAudience = {
   clientId?: number | null;
   driverId?: number | null;
   roles?: string[];
+  platformOnly?: boolean;
 };
 
 const STAFF_ROLES = new Set(['admin', 'dispatcher', 'plant_operator']);
@@ -43,7 +50,13 @@ function clientMayReceive(client: SSEClient, audience?: SSEAudience): boolean {
   // An explicit role allow-list takes precedence over the default routing so
   // an alert can be scoped to exactly the named roles (including `authority`,
   // which STAFF_ROLES does not cover).
-  if (audience.roles) return audience.roles.includes(identity.role);
+  if (audience.roles) {
+    if (!audience.roles.includes(identity.role)) return false;
+    // Platform-only events never reach plant-bound users, even of an allowed
+    // role — same boundary as the isPlatformStaff REST guard.
+    if (audience.platformOnly && identity.plantId != null) return false;
+    return true;
+  }
   // Staff see all order/trip activity.
   if (STAFF_ROLES.has(identity.role)) return true;
   if (identity.role === 'client') {

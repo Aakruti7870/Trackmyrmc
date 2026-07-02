@@ -175,7 +175,7 @@ async function storeInboundMessage(msg: MetaInboundMessage, contacts: MetaContac
       emitSSEEvent(
         'whatsapp.message',
         { phone: toPhone, name: profileName, preview: (text ?? '').slice(0, 120) },
-        { roles: CHAT_STAFF_ROLES },
+        { roles: CHAT_STAFF_ROLES, platformOnly: true },
       );
     }
   } catch (err) {
