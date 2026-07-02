@@ -148,8 +148,11 @@ export default function Privacy() {
         <Section title="7. Your Rights">
           <p style={{ margin: 0 }}>
             You may request access to, correction of, or deletion of your personal information, and you
-            may opt out of non-essential communications. To exercise these rights, contact us using the
-            details below. We will respond within a reasonable time and in accordance with applicable law.
+            may opt out of non-essential communications. You can delete your account yourself at any
+            time from Account Settings in the app — see our{' '}
+            <a href="/delete-account" style={{ color: 'var(--gold, #178a6e)' }}>account deletion page</a>{' '}
+            for step-by-step instructions. For other requests, contact us using the details below. We
+            will respond within a reasonable time and in accordance with applicable law.
           </p>
         </Section>
 

@@ -219,12 +219,17 @@ function SmtpTextField({
 }
 
 export default function ProfileSettings() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
   const { showToast } = useToast();
 
   const [profileName, setProfileName] = useState(user?.name || '');
   const [profileEmail, setProfileEmail] = useState(user?.email || '');
   const [profileSaving, setProfileSaving] = useState(false);
+
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [showDeleteZone, setShowDeleteZone] = useState(false);
 
   const [plantProfile, setPlantProfile] = useState<PlantProfile | null>(null);
   const [plantForm, setPlantForm] = useState({ name: '', legalName: '', gstNo: '', email: '', address: '', city: '', contactNumber: '' });
@@ -1297,6 +1302,21 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteConfirmText !== 'DELETE') return;
+    setDeleteBusy(true);
+    setDeleteError('');
+    try {
+      await api.delete('/me/account');
+      showToast('Your account has been deleted.', 'success');
+      logout();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete account';
+      setDeleteError(msg);
+      setDeleteBusy(false);
     }
   }
 
@@ -3012,6 +3032,88 @@ export default function ProfileSettings() {
           </button>
         </form>
       </div>
+
+      {/* Danger zone — self-service account deletion (hidden for Super Admin,
+          which the backend also refuses to delete). */}
+      {user?.role !== 'authority' && (
+        <div style={{
+          ...card, marginBottom: 20, marginTop: 20,
+          border: '1px solid rgba(239,68,68,.35)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <XCircle size={18} style={{ color: 'var(--red)' }} />
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--red)', margin: 0 }}>
+              Danger Zone
+            </h2>
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 0, marginBottom: 12 }}>
+            Permanently delete your account. You will be signed out immediately and will no longer
+            be able to log in. Business records (orders, delivery challans, invoices) are retained
+            as required for legal and tax compliance.
+          </p>
+
+          {!showDeleteZone ? (
+            <button
+              type="button"
+              onClick={() => setShowDeleteZone(true)}
+              style={{
+                padding: '10px 18px', borderRadius: 10,
+                background: 'transparent', border: '1px solid rgba(239,68,68,.5)',
+                color: 'var(--red)', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              }}
+            >
+              Delete my account…
+            </button>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              <label style={{ fontSize: 12, color: 'var(--muted)' }}>
+                Type <strong style={{ color: 'var(--red)' }}>DELETE</strong> to confirm:
+              </label>
+              <input
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                autoComplete="off"
+                style={{
+                  padding: '10px 12px', borderRadius: 10, fontSize: 14,
+                  background: 'var(--glass-1)', border: '1px solid rgba(239,68,68,.35)',
+                  color: 'var(--text)', outline: 'none', maxWidth: 220,
+                }}
+              />
+              {deleteError && (
+                <div style={{ fontSize: 12, color: 'var(--red)' }}>{deleteError}</div>
+              )}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  disabled={deleteConfirmText !== 'DELETE' || deleteBusy}
+                  onClick={handleDeleteAccount}
+                  style={{
+                    padding: '10px 18px', borderRadius: 10,
+                    background: deleteConfirmText === 'DELETE' && !deleteBusy ? 'var(--red)' : 'rgba(239,68,68,.25)',
+                    border: 'none', color: '#fff', fontWeight: 800, fontSize: 13,
+                    cursor: deleteConfirmText === 'DELETE' && !deleteBusy ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  {deleteBusy ? 'Deleting…' : 'Permanently delete account'}
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteBusy}
+                  onClick={() => { setShowDeleteZone(false); setDeleteConfirmText(''); setDeleteError(''); }}
+                  style={{
+                    padding: '10px 18px', borderRadius: 10,
+                    background: 'transparent', border: '1px solid var(--glass-border)',
+                    color: 'var(--muted)', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

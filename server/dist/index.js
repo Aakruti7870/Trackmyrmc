@@ -147,6 +147,7 @@ if (isProd) {
         '/partner',
         '/privacy',
         '/terms',
+        '/delete-account',
         '/set-password',
         '/forgot-password',
         '/sso-callback',

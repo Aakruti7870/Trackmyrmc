@@ -16,6 +16,7 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import Landing from '@/pages/Landing';
 import Privacy from '@/pages/Privacy';
 import Terms from '@/pages/Terms';
+import DeleteAccount from '@/pages/DeleteAccount';
 import { canAccess, defaultPath } from '@/lib/permissions';
 
 const Dashboard      = lazy(() => import('@/pages/Dashboard'));
@@ -165,6 +166,7 @@ export default function App() {
             <Route path="/partner" component={PartnerRequest} />
             <Route path="/privacy" component={Privacy} />
             <Route path="/terms" component={Terms} />
+            <Route path="/delete-account" component={DeleteAccount} />
             <Route path="/set-password" component={SetPassword} />
             <Route path="/forgot-password" component={ForgotPassword} />
             <Route path="/sso-callback" component={() => (
