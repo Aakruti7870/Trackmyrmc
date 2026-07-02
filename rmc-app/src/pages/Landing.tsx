@@ -33,11 +33,21 @@ const openLogin = () => {
   window.dispatchEvent(new PopStateEvent("popstate"));
 };
 
+/* ── LIVE FEED CLIPS (served from /public/ck/videos) ── */
+const FEED = [
+  { video: "ck-plant.mp4",    label: "Concrete Plant",   desc: "Modern RMC batching plant" },
+  { video: "ck-batching.mp4", label: "Batching Process", desc: "Precision mix batching" },
+  { video: "ck-transit.mp4",  label: "Transit Mixer",    desc: "En-route to your site" },
+  { video: "ck-arrival.mp4",  label: "Site Arrival",     desc: "On-time delivery" },
+  { video: "ck-pouring.mp4",  label: "Concrete Pouring", desc: "Pour in progress" },
+  { video: "ck-quality.mp4",  label: "Quality Testing",  desc: "Slump & cube tests" },
+];
+
 /* ── PHOTO BACKGROUND (cinematic slide image + legibility overlay) ── */
-function PhotoBg({src,overlay,pos="center"}:{src:string;overlay?:string;pos?:string}){
+function PhotoBg({src,overlay,pos="center",lazy=false}:{src:string;overlay?:string;pos?:string;lazy?:boolean}){
   return(
     <div style={{position:"absolute",inset:0,overflow:"hidden"}}>
-      <img src={src} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",objectPosition:pos}}/>
+      <img src={src} alt="" loading={lazy?"lazy":"eager"} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",objectPosition:pos}}/>
       <div style={{position:"absolute",inset:0,background:overlay??`linear-gradient(90deg, ${C.dark} 0%, rgba(5,10,12,0.82) 42%, rgba(5,10,12,0.35) 100%)`}}/>
       <div style={{position:"absolute",inset:0,background:`linear-gradient(0deg, ${C.dark} 0%, rgba(5,10,12,0) 42%)`}}/>
     </div>
@@ -129,7 +139,7 @@ function Slide2(){
   ];
   return(
     <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"flex-end",paddingBottom:"8vh"}}>
-      <PhotoBg src={fleetImg} overlay={`linear-gradient(90deg, rgba(5,10,12,0.92) 0%, rgba(5,10,12,0.55) 45%, rgba(5,10,12,0.2) 100%)`}/>
+      <PhotoBg src={fleetImg} lazy overlay={`linear-gradient(90deg, rgba(5,10,12,0.92) 0%, rgba(5,10,12,0.55) 45%, rgba(5,10,12,0.2) 100%)`}/>
       <div style={{position:"relative",zIndex:2,width:"100%",padding:"0 6vw",display:"grid",gridTemplateColumns:"1fr 1fr",alignItems:"flex-end",gap:60}}>
         <div>
           <Label color={C.teal}>LIVE GPS TRACKING</Label>
@@ -169,7 +179,7 @@ function Slide3(){
   ];
   return(
     <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"center"}}>
-      <PhotoBg src={textureImg} overlay={`linear-gradient(90deg, rgba(5,10,12,0.95) 0%, rgba(5,10,12,0.82) 55%, rgba(5,10,12,0.65) 100%)`}/>
+      <PhotoBg src={textureImg} lazy overlay={`linear-gradient(90deg, rgba(5,10,12,0.95) 0%, rgba(5,10,12,0.82) 55%, rgba(5,10,12,0.65) 100%)`}/>
       <div style={{position:"relative",zIndex:2,width:"100%",padding:"0 6vw",display:"grid",gridTemplateColumns:"1fr 1fr",alignItems:"center",gap:48}}>
         <div>
           <Label color="#4ADE80">FRESHNESS GUARD</Label>
@@ -204,7 +214,7 @@ function Slide4(){
   ];
   return(
     <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <PhotoBg src={commandImg} overlay={`radial-gradient(circle at 50% 42%, rgba(5,10,12,0.5) 0%, ${C.dark} 78%)`}/>
+      <PhotoBg src={commandImg} lazy overlay={`radial-gradient(circle at 50% 42%, rgba(5,10,12,0.5) 0%, ${C.dark} 78%)`}/>
       <div style={{position:"relative",zIndex:2,width:"100%",padding:"0 6vw",display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center"}}>
         <Label color="#60A5FA">COMMAND CENTER</Label>
         <h2 style={{fontSize:"clamp(38px,5.5vw,70px)",fontWeight:900,color:C.text,lineHeight:1.05,letterSpacing:"-0.03em",marginBottom:4,fontFamily:"Inter,sans-serif"}}>One screen.</h2>
@@ -224,12 +234,47 @@ function Slide4(){
   );
 }
 
-/* ════════════ SLIDE 5: LOGIN ════════════ */
+/* ════════════ SLIDE 5: LIVE FEED ════════════ */
+function SlideFeed({active=false}:{active?:boolean}){
+  return(
+    <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"center",overflow:"hidden"}}>
+      <div style={{position:"absolute",inset:0,background:`radial-gradient(circle at 50% 20%, rgba(0,201,167,0.07) 0%, ${C.dark} 72%)`}}/>
+      <section id="feed" aria-label="Live Feed" style={{position:"relative",zIndex:2,width:"100%",padding:"0 6vw"}}>
+        <Label color="#F5455C">
+          <span style={{width:8,height:8,borderRadius:"50%",background:"#F5455C",display:"inline-block"}}/>
+          LIVE FEED
+        </Label>
+        <h2 style={{fontSize:"clamp(30px,4vw,52px)",fontWeight:900,color:C.text,lineHeight:1.05,letterSpacing:"-0.03em",margin:"0 0 10px",fontFamily:"Inter,sans-serif"}}>Live Feed</h2>
+        <p style={{fontSize:15,color:C.muted,lineHeight:1.7,maxWidth:560,margin:"0 0 26px"}}>Watch our plants in action — concrete plant, batching, transit, arrival, pouring, and quality testing.</p>
+        <div className="ck-feed-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+          {FEED.map(f=>(
+            <div key={f.video} style={{position:"relative",height:"clamp(110px,19vh,190px)",borderRadius:16,overflow:"hidden",border:`1px solid ${C.border}`,background:"rgba(10,22,24,0.78)"}}>
+              {active&&(
+                <video src={`/ck/videos/${f.video}`} autoPlay muted loop playsInline preload="auto" aria-label={f.label}
+                  style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
+              )}
+              <div style={{position:"absolute",top:10,left:10,display:"inline-flex",alignItems:"center",gap:6,padding:"3px 9px",borderRadius:999,background:"rgba(5,10,12,0.6)",backdropFilter:"blur(6px)"}}>
+                <span style={{width:6,height:6,borderRadius:"50%",background:"#F5455C",display:"inline-block"}}/>
+                <span style={{fontSize:9.5,fontWeight:700,letterSpacing:1.4,color:"#fff"}}>LIVE</span>
+              </div>
+              <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"24px 12px 10px",background:"linear-gradient(to top, rgba(5,10,12,0.85) 0%, rgba(5,10,12,0.4) 60%, transparent 100%)"}}>
+                <div style={{fontSize:13,fontWeight:700,color:C.text}}>{f.label}</div>
+                <div style={{fontSize:11,color:C.muted,marginTop:2}}>{f.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ════════════ SLIDE 6: LOGIN ════════════ */
 function Slide5(){
   const roles=[{Icon:Crown,label:"Owner"},{Icon:ShieldCheck,label:"Admin"},{Icon:Settings,label:"Operator"},{Icon:Truck,label:"Driver"}];
   return(
     <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"center"}}>
-      <PhotoBg src={plantImg} overlay={`linear-gradient(90deg, rgba(5,10,12,0.9) 0%, rgba(5,10,12,0.72) 50%, rgba(5,10,12,0.5) 100%)`}/>
+      <PhotoBg src={plantImg} lazy overlay={`linear-gradient(90deg, rgba(5,10,12,0.9) 0%, rgba(5,10,12,0.72) 50%, rgba(5,10,12,0.5) 100%)`}/>
       <div className="ck-login-grid" style={{position:"relative",zIndex:2,width:"100%",padding:"0 7vw",display:"grid",gridTemplateColumns:"1fr 1fr",alignItems:"center",gap:64}}>
         <div>
           <Label>SECURE PLATFORM</Label>
@@ -276,7 +321,7 @@ function Slide5(){
 
 /* ════════════ NAVBAR ════════════ */
 function NavBar({slide,onGo}:{slide:number;onGo:(i:number)=>void}){
-  const items=["Home","GPS","Freshness","Command","Login"];
+  const items=["Home","GPS","Freshness","Command","Feed","Login"];
   return(
     <div style={{position:"absolute",top:0,left:0,right:0,zIndex:100,height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 32px",background:"rgba(5,10,12,0.82)",backdropFilter:"blur(22px)",WebkitBackdropFilter:"blur(22px)",borderBottom:"1px solid rgba(0,201,167,0.08)"}}>
       <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
@@ -323,7 +368,7 @@ function Arrows({cur,total,onPrev,onNext}:{cur:number;total:number;onPrev:()=>vo
 export default function Landing(){
   const [cur,setCur]=useState(0);
   const [anim,setAnim]=useState("in");
-  const TOTAL=5;
+  const TOTAL=6;
 
   const go=useCallback((idx:number)=>{
     if(idx===cur||idx<0||idx>=TOTAL)return;
@@ -337,8 +382,12 @@ export default function Landing(){
     return()=>window.removeEventListener("keydown",kd);
   },[cur,go]);
 
-  const SLIDES=[Slide1,Slide2,Slide3,Slide4,Slide5];
-  const Slide=SLIDES[cur];
+  /* All slides stay mounted in the DOM (hidden slides use display:none) so
+     crawlers and non-interactive extractors see every section's real <h2> and
+     copy — incl. the Live Feed heading + intro that mirror the prerendered
+     shell in index.html. Hidden media stays cheap: PhotoBg imgs are lazy and
+     feed <video>s only mount on the active slide. */
+  const SLIDES:React.ComponentType<{active?:boolean}>[]=[Slide1,Slide2,Slide3,Slide4,SlideFeed,Slide5];
 
   return(
     <div style={{width:"100%",height:"100vh",overflow:"hidden",background:C.dark,fontFamily:"Inter,sans-serif",position:"relative"}}>
@@ -351,15 +400,18 @@ export default function Landing(){
         @media (max-width: 860px){
           .ck-nav-links{display:none !important;}
           .ck-login-grid{grid-template-columns:1fr !important;gap:28px !important;}
+          .ck-feed-grid{grid-template-columns:repeat(2,1fr) !important;gap:10px !important;}
         }
       `}</style>
       <div className="ck-deck" style={{width:"100%",height:"100%",position:"relative"}}>
         <NavBar slide={cur} onGo={go}/>
-        <div key={cur} style={{width:"100%",height:"100%",paddingTop:60,animation:`${anim==="in"?"ckFadeIn":"ckFadeOut"} 0.26s cubic-bezier(0.4,0,0.2,1) both`}}>
-          <div style={{width:"100%",height:"100%",position:"relative"}}>
-            <Slide/>
+        {SLIDES.map((S,i)=>(
+          <div key={i} style={{position:"absolute",inset:0,paddingTop:60,display:i===cur?"block":"none",animation:i===cur?`${anim==="in"?"ckFadeIn":"ckFadeOut"} 0.26s cubic-bezier(0.4,0,0.2,1) both`:"none"}}>
+            <div style={{width:"100%",height:"100%",position:"relative"}}>
+              <S active={i===cur}/>
+            </div>
           </div>
-        </div>
+        ))}
         <Arrows cur={cur} total={TOTAL} onPrev={()=>go(cur-1)} onNext={()=>go(cur+1)}/>
         <Dots cur={cur} total={TOTAL} onGo={go}/>
       </div>

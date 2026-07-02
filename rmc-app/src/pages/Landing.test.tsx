@@ -33,6 +33,19 @@ describe('Landing marketing deck', () => {
     expect(screen.getAllByRole('button', { name: /^login$/i }).length).toBeGreaterThan(0);
   });
 
+  it('keeps the Live Feed heading and intro copy in the hydrated DOM (SEO parity with index.html)', () => {
+    renderAt();
+    // The feed slide is display:none until navigated to, but its semantic
+    // content must stay in the DOM for crawlers — mirroring the prerendered
+    // shell in index.html (<h2>Live Feed</h2> + intro sentence).
+    expect(
+      screen.getByRole('heading', { level: 2, name: /^live feed$/i, hidden: true }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/watch our plants in action — concrete plant, batching, transit, arrival, pouring, and quality testing\./i),
+    ).toBeInTheDocument();
+  });
+
   it('routes the hero CTA into the app login flow', async () => {
     const user = userEvent.setup();
     // openLogin() SPA-navigates via window.history rather than the wouter hook.
