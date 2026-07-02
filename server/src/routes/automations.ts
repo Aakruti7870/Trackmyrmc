@@ -12,7 +12,7 @@ import {
   sanitizeConfig,
   saveAutomationSettings,
 } from '../lib/automations.js';
-import { tickAutomations } from '../lib/automationJobs.js';
+import { tickAutomations, tickAutomationsForPlant } from '../lib/automationJobs.js';
 
 // Admin configuration for the automation suite. Scope model: a plant-scoped
 // actor (plantId set) reads/writes their PLANT's override rows; a platform
@@ -88,15 +88,17 @@ router.put('/:name', async (req, res) => {
 
 // Manual "run now": kicks one tick immediately. Safe to spam — every send is
 // arbitrated by the once-only claim ledger, so this can never double-notify.
-// Platform-scoped staff only: the tick spans EVERY plant (digests, follow-ups,
-// cleanup), so a plant-bound actor must not be able to trigger global work.
+// A platform actor runs the full tick (every plant + cleanup); a plant-scoped
+// actor gets a tick filtered to THEIR plant only, with global housekeeping
+// (cleanup) always skipped — the scope comes from the token, never the body.
 router.post('/run', async (req, res) => {
-  if (req.user!.plantId != null) {
-    res.status(403).json({ error: 'Manual runs are platform-managed. The scheduler covers your plant automatically.' });
-    return;
+  const plantId = req.user!.plantId ?? null;
+  if (plantId != null) {
+    await tickAutomationsForPlant(plantId);
+  } else {
+    await tickAutomations();
   }
-  await tickAutomations();
-  res.json({ ok: true });
+  res.json({ ok: true, scope: plantId != null ? 'plant' : 'global' });
 });
 
 export default router;

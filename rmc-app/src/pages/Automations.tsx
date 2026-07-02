@@ -191,7 +191,7 @@ export default function Automations() {
             Scheduled reminders, alerts and housekeeping. All off by default except auto-cleanup. {scopeNote}
           </p>
         </div>
-        {data?.scope === 'global' && (
+        {data && (
         <button onClick={runNow} disabled={runBusy} data-testid="button-run-now" style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, cursor: runBusy ? 'wait' : 'pointer',
           background: 'color-mix(in srgb, var(--gold) 14%, transparent)', color: 'var(--gold)',

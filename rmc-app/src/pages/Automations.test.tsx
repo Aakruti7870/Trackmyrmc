@@ -163,12 +163,14 @@ describe('Automations admin page', () => {
     expect(screen.getByText('Run started')).toBeInTheDocument();
   });
 
-  it('plant scope hides Run now and locks the cleanup automation', async () => {
+  it('plant scope shows Run now (scoped run) and locks the cleanup automation', async () => {
     mockList('plant', [REMINDER, CLEANUP]);
+    vi.mocked(api.post).mockResolvedValue({ ok: true, scope: 'plant' } as never);
     render(<Automations />);
 
     expect(await screen.findByText('Auto-cleanup')).toBeInTheDocument();
-    expect(screen.queryByTestId('button-run-now')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('button-run-now'));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/automations/run', {}));
     expect(screen.getByTestId('toggle-cleanup')).toBeDisabled();
     expect(screen.getByText('Auto-cleanup is managed platform-wide by the head office.')).toBeInTheDocument();
     // Ordinary automations stay editable for plant staff.

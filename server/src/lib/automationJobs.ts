@@ -126,10 +126,12 @@ async function plantStaffPhones(plantId: number | null, roles: readonly string[]
 // The evening before an order's delivery date, remind the customer across the
 // configured channels. Once per order per delivery date (a rescheduled order
 // gets a fresh reminder for its new date).
-export async function runOrderReminders(snapshot: AutomationSettingsSnapshot, now = new Date()): Promise<number> {
+export async function runOrderReminders(snapshot: AutomationSettingsSnapshot, now = new Date(), scopePlantId?: number): Promise<number> {
   if (!snapshot.enabledAnywhere('orderReminders')) return 0;
   const ist = istParts(now);
 
+  const conds = [eq(orders.deliveryDate, ist.tomorrowStr), inArray(orders.status, ['pending', 'in_progress'])];
+  if (scopePlantId !== undefined) conds.push(eq(orders.plantId, scopePlantId));
   const rows = await db
     .select({
       id: orders.id,
@@ -146,7 +148,7 @@ export async function runOrderReminders(snapshot: AutomationSettingsSnapshot, no
     })
     .from(orders)
     .leftJoin(clients, eq(orders.clientId, clients.id))
-    .where(and(eq(orders.deliveryDate, ist.tomorrowStr), inArray(orders.status, ['pending', 'in_progress'])));
+    .where(and(...conds));
 
   let sent = 0;
   for (const o of rows) {
@@ -193,12 +195,14 @@ export async function runOrderReminders(snapshot: AutomationSettingsSnapshot, no
 // ---- 2. Delivery follow-up -----------------------------------------------------
 // A trip still 'dispatched' after the configured delay probably means the driver
 // forgot to close it (or something went wrong on site) — nudge the plant staff.
-export async function runDeliveryFollowUps(snapshot: AutomationSettingsSnapshot, now = new Date()): Promise<number> {
+export async function runDeliveryFollowUps(snapshot: AutomationSettingsSnapshot, now = new Date(), scopePlantId?: number): Promise<number> {
   if (!snapshot.enabledAnywhere('deliveryFollowUp')) return 0;
 
   // Fetch with the minimum possible delay (1h) and apply each plant's own
   // threshold in memory — the fleet's live trip count is small.
   const cutoff = new Date(now.getTime() - 60 * 60 * 1000);
+  const conds = [eq(challans.status, 'dispatched'), isNotNull(challans.dispatchTime), lt(challans.dispatchTime, cutoff)];
+  if (scopePlantId !== undefined) conds.push(eq(challans.plantId, scopePlantId));
   const rows = await db
     .select({
       id: challans.id,
@@ -211,7 +215,7 @@ export async function runDeliveryFollowUps(snapshot: AutomationSettingsSnapshot,
     .from(challans)
     .leftJoin(clients, eq(challans.clientId, clients.id))
     .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
-    .where(and(eq(challans.status, 'dispatched'), isNotNull(challans.dispatchTime), lt(challans.dispatchTime, cutoff)));
+    .where(and(...conds));
 
   let sent = 0;
   for (const c of rows) {
@@ -321,11 +325,12 @@ export async function maybeSendTripShare(challanId: number): Promise<void> {
 
 // ---- 4. Daily / weekly digest -----------------------------------------------------
 // Per-plant operations summary emailed to that plant's admins/owners.
-export async function runDigests(snapshot: AutomationSettingsSnapshot, now = new Date()): Promise<number> {
+export async function runDigests(snapshot: AutomationSettingsSnapshot, now = new Date(), scopePlantId?: number): Promise<number> {
   if (!snapshot.enabledAnywhere('digest')) return 0;
   const ist = istParts(now);
 
-  const plantRows = await db.select({ id: plants.id, name: plants.name }).from(plants);
+  const plantRows = await db.select({ id: plants.id, name: plants.name }).from(plants)
+    .where(scopePlantId === undefined ? undefined : eq(plants.id, scopePlantId));
   let sent = 0;
 
   for (const plant of plantRows) {
@@ -438,10 +443,11 @@ const IST_SHIFT = 330 * 60 * 1000;
 // Re-uses the fuel reconciliation math over a rolling window; a vehicle whose
 // actual diesel exceeds expected by more than the threshold raises one alert per
 // window.
-export async function runFuelAnomalyAlerts(snapshot: AutomationSettingsSnapshot, now = new Date()): Promise<number> {
+export async function runFuelAnomalyAlerts(snapshot: AutomationSettingsSnapshot, now = new Date(), scopePlantId?: number): Promise<number> {
   if (!snapshot.enabledAnywhere('fuelAnomaly')) return 0;
   const ist = istParts(now);
-  const plantRows = await db.select({ id: plants.id, name: plants.name }).from(plants);
+  const plantRows = await db.select({ id: plants.id, name: plants.name }).from(plants)
+    .where(scopePlantId === undefined ? undefined : eq(plants.id, scopePlantId));
   let sent = 0;
 
   for (const plant of plantRows) {
@@ -494,7 +500,7 @@ export async function runFuelAnomalyAlerts(snapshot: AutomationSettingsSnapshot,
 // ---- 6. Inactive customer win-back ---------------------------------------------------
 // Customers who HAVE ordered before but not in the last N days get a gentle
 // nudge; at most one per client per window.
-export async function runWinBacks(snapshot: AutomationSettingsSnapshot, now = new Date()): Promise<number> {
+export async function runWinBacks(snapshot: AutomationSettingsSnapshot, now = new Date(), scopePlantId?: number): Promise<number> {
   if (!snapshot.enabledAnywhere('winBack')) return 0;
   const ist = istParts(now);
 
@@ -509,6 +515,7 @@ export async function runWinBacks(snapshot: AutomationSettingsSnapshot, now = ne
     })
     .from(clients)
     .innerJoin(orders, eq(orders.clientId, clients.id))
+    .where(scopePlantId === undefined ? undefined : eq(clients.plantId, scopePlantId))
     .groupBy(clients.id);
 
   let sent = 0;
@@ -543,10 +550,12 @@ export async function runWinBacks(snapshot: AutomationSettingsSnapshot, now = ne
 // ---- 7. Idle vehicle alerts -------------------------------------------------------------
 // An 'active' vehicle with no trips for N days is either forgotten or broken —
 // tell the plant staff. Once per vehicle per window.
-export async function runIdleVehicleAlerts(snapshot: AutomationSettingsSnapshot, now = new Date()): Promise<number> {
+export async function runIdleVehicleAlerts(snapshot: AutomationSettingsSnapshot, now = new Date(), scopePlantId?: number): Promise<number> {
   if (!snapshot.enabledAnywhere('idleVehicle')) return 0;
   const ist = istParts(now);
 
+  const vehicleConds = [eq(vehicles.status, 'active')];
+  if (scopePlantId !== undefined) vehicleConds.push(eq(vehicles.plantId, scopePlantId));
   const rows = await db
     .select({
       id: vehicles.id,
@@ -557,7 +566,7 @@ export async function runIdleVehicleAlerts(snapshot: AutomationSettingsSnapshot,
     })
     .from(vehicles)
     .leftJoin(challans, eq(challans.vehicleId, vehicles.id))
-    .where(eq(vehicles.status, 'active'))
+    .where(and(...vehicleConds))
     .groupBy(vehicles.id);
 
   let sent = 0;
@@ -680,21 +689,23 @@ export async function runCleanup(snapshot: AutomationSettingsSnapshot, now = new
 // instances/ticks is safe because every send is arbitrated by the claim ledger.
 let ticking = false;
 
-export async function tickAutomations(now = new Date()): Promise<void> {
+async function runTick(now: Date, scopePlantId?: number): Promise<void> {
   if (ticking) return;
   ticking = true;
   try {
     const snapshot = await loadAutomationSnapshot();
     const ran: AutomationName[] = [];
     const jobs: [AutomationName, () => Promise<unknown>][] = [
-      ['orderReminders', () => runOrderReminders(snapshot, now)],
-      ['deliveryFollowUp', () => runDeliveryFollowUps(snapshot, now)],
-      ['digest', () => runDigests(snapshot, now)],
-      ['fuelAnomaly', () => runFuelAnomalyAlerts(snapshot, now)],
-      ['winBack', () => runWinBacks(snapshot, now)],
-      ['idleVehicle', () => runIdleVehicleAlerts(snapshot, now)],
-      ['cleanup', () => runCleanup(snapshot, now)],
+      ['orderReminders', () => runOrderReminders(snapshot, now, scopePlantId)],
+      ['deliveryFollowUp', () => runDeliveryFollowUps(snapshot, now, scopePlantId)],
+      ['digest', () => runDigests(snapshot, now, scopePlantId)],
+      ['fuelAnomaly', () => runFuelAnomalyAlerts(snapshot, now, scopePlantId)],
+      ['winBack', () => runWinBacks(snapshot, now, scopePlantId)],
+      ['idleVehicle', () => runIdleVehicleAlerts(snapshot, now, scopePlantId)],
     ];
+    // Cleanup is platform housekeeping (expired tokens, trashed accounts) —
+    // it never runs from a plant-scoped tick.
+    if (scopePlantId === undefined) jobs.push(['cleanup', () => runCleanup(snapshot, now)]);
     for (const [name, job] of jobs) {
       try {
         await job();
@@ -703,8 +714,22 @@ export async function tickAutomations(now = new Date()): Promise<void> {
         console.error(`[automation] ${name} tick failed:`, err);
       }
     }
-    if (ran.length) await recordLastRun(ran, now);
+    // Only a full (platform-wide) tick updates the shared last-run metadata —
+    // a single-plant run did not check the other plants, so recording it would
+    // make a stalled scheduler look healthy.
+    if (ran.length && scopePlantId === undefined) await recordLastRun(ran, now);
   } finally {
     ticking = false;
   }
+}
+
+export async function tickAutomations(now = new Date()): Promise<void> {
+  return runTick(now);
+}
+
+// On-demand run for one plant's staff: every job's queries are filtered to
+// that plant and global work (cleanup, other plants' digests) is skipped.
+// Safe to spam — the once-only claim ledger arbitrates every send.
+export async function tickAutomationsForPlant(plantId: number, now = new Date()): Promise<void> {
+  return runTick(now, plantId);
 }
