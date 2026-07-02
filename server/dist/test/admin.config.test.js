@@ -137,6 +137,54 @@ test('a plant-scoped admin cannot read or write the app version', async () => {
         .set('Authorization', `Bearer ${token}`).send({ version: '9.9.9' });
     assert.equal(write.status, 403);
 });
+// ── Social links ─────────────────────────────────────────────────────────────
+test('social links default to the baked-in values, save, and surface through /config', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const token = tokenFor(admin);
+    const initial = await request(app).get('/api/admin/social-links').set('Authorization', `Bearer ${token}`);
+    assert.equal(initial.status, 200);
+    assert.ok(initial.body.links.youtube.startsWith('https://youtube.com/'));
+    assert.equal(initial.body.links.playStore, '');
+    const saved = await request(app).post('/api/admin/social-links')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ youtube: 'https://youtube.com/@newchannel', playStore: 'https://play.google.com/store/apps/details?id=com.trackmyrmc' });
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.links.youtube, 'https://youtube.com/@newchannel');
+    assert.equal(saved.body.links.playStore, 'https://play.google.com/store/apps/details?id=com.trackmyrmc');
+    // Untouched platforms keep their existing values.
+    assert.ok(saved.body.links.instagram.includes('instagram.com'));
+    // Publicly served bootstrap config carries the saved links unauthenticated.
+    const cfg = await request(app).get('/api/config');
+    assert.equal(cfg.status, 200);
+    assert.equal(cfg.body.socialLinks.youtube, 'https://youtube.com/@newchannel');
+    assert.equal(cfg.body.socialLinks.playStore, 'https://play.google.com/store/apps/details?id=com.trackmyrmc');
+    // Empty string clears a link back to '' (frontend shows "coming soon").
+    const cleared = await request(app).post('/api/admin/social-links')
+        .set('Authorization', `Bearer ${token}`).send({ playStore: '' });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.links.playStore, '');
+});
+test('social links reject non-http(s) values', async () => {
+    const admin = await createUser({ name: 'Admin', email: 'admin@test.com', role: 'admin' });
+    const token = tokenFor(admin);
+    const bad = await request(app).post('/api/admin/social-links')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ youtube: 'javascript:alert(1)' });
+    assert.equal(bad.status, 400);
+});
+test('a plant-scoped admin and a client cannot read or write social links', async () => {
+    const plant = await createPlant('Gamma Plant');
+    const plantAdmin = await createUser({ name: 'PlantAdmin', email: 'pa3@test.com', role: 'admin', plantId: plant.id });
+    const client = await createUser({ name: 'Cust', email: 'cust2@test.com', role: 'client' });
+    for (const u of [plantAdmin, client]) {
+        const token = tokenFor(u);
+        const read = await request(app).get('/api/admin/social-links').set('Authorization', `Bearer ${token}`);
+        assert.equal(read.status, 403);
+        const write = await request(app).post('/api/admin/social-links')
+            .set('Authorization', `Bearer ${token}`).send({ youtube: 'https://youtube.com/@evil' });
+        assert.equal(write.status, 403);
+    }
+});
 // ── Database export ──────────────────────────────────────────────────────────
 test('authority can export the database and password hashes are stripped', async () => {
     const authority = await createUser({ name: 'Boss', email: 'boss@test.com', role: 'authority' });
