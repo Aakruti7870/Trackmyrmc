@@ -3,6 +3,7 @@ import { Plus, Search, X, Printer, Check, Truck, StickyNote, Camera, ChevronLeft
 import { Link } from 'wouter';
 import { api, type Challan, type Order, type Vehicle, type Driver, type Client, type Site, type IdleConfig } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
+import { useToast } from '@/lib/toast';
 import { useVarianceTolerance, isWithinTolerance } from '@/lib/variance';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 
@@ -37,6 +38,7 @@ export default function Dispatch() {
 
   const tolerance = useVarianceTolerance();
   const { subscribe } = useSSE();
+  const { showToast } = useToast();
 
   // Idle config (admin-only, best-effort) drives the billable-idle figure shown
   // in the trip-timing column; falls back to the default free window otherwise.
@@ -114,7 +116,7 @@ export default function Dispatch() {
   async function save() {
     setSaving(true); setError('');
     try {
-      await api.post('/challans', {
+      const created = await api.post<Challan & { tripShareWarning?: string }>('/challans', {
         orderId: form.orderId ? +form.orderId : null,
         clientId: +form.clientId,
         siteId: form.siteId ? +form.siteId : null,
@@ -123,6 +125,11 @@ export default function Dispatch() {
         grade: form.grade, quantity: +form.quantity,
         pumpRequired: form.pumpRequired, notes: form.notes,
       });
+      // The trip-share automation is on but this customer has no reachable
+      // channel — tell the dispatcher so the missing link is never silent.
+      if (created.tripShareWarning === 'no_email') {
+        showToast('Tracking link NOT sent — this customer has no email (or other contact channel) on file. Add an email to the client record so trip-share links can reach them.', 'error');
+      }
       api.get<Order[]>('/orders').then(o => setOrders(o.filter(x => x.status === 'pending' || x.status === 'in_progress')));
       setModal(false);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Error'); }

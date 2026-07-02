@@ -6,7 +6,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 import { notifyChallanStatus } from '../lib/deliveryNotify.js';
-import { maybeSendTripShare } from '../lib/automationJobs.js';
+import { maybeSendTripShare, tripShareDeliveryWarning } from '../lib/automationJobs.js';
 import { plantScope, clientInScope } from '../lib/tenancy.js';
 import { createTrackingToken } from '../lib/trackingTokens.js';
 import { registerUploadedFilesSafe, unregisterUploadedFilesSafe } from '../lib/uploadedFiles.js';
@@ -268,7 +268,10 @@ router.post('/', requireRole(...WRITE_ROLES), async (req, res) => {
   // Optional automation: auto-send the customer a live-tracking share link.
   // No-op unless the tripShare automation is enabled; once-only per challan.
   void maybeSendTripShare(row.id);
-  res.status(201).json(row);
+  // Tell the dispatching staff when the automation is on but this customer is
+  // unreachable (no email/WhatsApp/push), so the skip is never silent.
+  const tripShareWarning = await tripShareDeliveryWarning(row.clientId, row.plantId);
+  res.status(201).json(tripShareWarning ? { ...row, tripShareWarning } : row);
 });
 
 router.put('/:id', async (req, res) => {

@@ -8,6 +8,7 @@ import {
   otpCodes,
   passwordSetupTokens,
   plants,
+  pushSubscriptions,
   rateLimitHits,
   responseCache,
   staffOtpCodes,
@@ -28,7 +29,7 @@ import {
   recordLastRun,
 } from './automations.js';
 import { sendAutomationEmail } from './automationEmail.js';
-import { sendPushToClientUsers, sendPushToStaff } from './push.js';
+import { isPushConfigured, sendPushToClientUsers, sendPushToStaff } from './push.js';
 import { emitSSEEvent } from './sseEmitter.js';
 import { sendWhatsAppWithRetry } from './whatsappRetry.js';
 import { createTrackingToken } from './trackingTokens.js';
@@ -321,6 +322,52 @@ export async function maybeSendTripShare(challanId: number): Promise<void> {
     }
   } catch (err) {
     console.warn('[automation] tripShare failed:', err);
+  }
+}
+
+// Dispatch-time reachability check for the trip-share automation. Returns
+// 'no_email' when tripShare is enabled and would try to reach this customer,
+// but no enabled channel can actually deliver the link (no email on file, no
+// WhatsApp fallback, no live push subscription). The dispatch route surfaces
+// this to staff so the automation can't silently skip the customer. Returns
+// null when the link will (or may) be delivered, or when tripShare is off /
+// the base URL is missing (the latter is surfaced by the Automations badge).
+// Best-effort by design: this is advisory UX, so it never throws — a failure
+// here must never turn a successful dispatch into an error response.
+export async function tripShareDeliveryWarning(
+  clientId: number | null,
+  plantId: number | null,
+): Promise<'no_email' | null> {
+  try {
+    if (clientId == null) return null;
+    const snapshot = await loadAutomationSnapshot();
+    const eff = snapshot.effective('tripShare', plantId);
+    if (!eff.enabled) return null;
+    if (!appBaseUrl()) return null;
+    const [c] = await db
+      .select({ email: clients.email, phone: clients.phone })
+      .from(clients)
+      .where(eq(clients.id, clientId));
+    if (!c) return null;
+    const emailOk = bool(eff.config, 'email') && !!(c.email ?? '').trim();
+    const whatsappOk =
+      bool(eff.config, 'whatsapp') && !!str(eff.config, 'whatsappTemplate') && !!(c.phone ?? '').trim();
+    if (emailOk || whatsappOk) return null;
+    if (bool(eff.config, 'push') && isPushConfigured()) {
+      // Push only reaches the customer when the server can send pushes AND a
+      // live, linked account has at least one registered subscription.
+      const [sub] = await db
+        .select({ id: pushSubscriptions.id })
+        .from(pushSubscriptions)
+        .innerJoin(users, eq(pushSubscriptions.userId, users.id))
+        .where(and(eq(users.linkedClientId, clientId), eq(users.isActive, true), isNull(users.deletedAt)))
+        .limit(1);
+      if (sub) return null;
+    }
+    return 'no_email';
+  } catch (err) {
+    console.warn('[automation] tripShare reachability check failed (warning suppressed):', err);
+    return null;
   }
 }
 

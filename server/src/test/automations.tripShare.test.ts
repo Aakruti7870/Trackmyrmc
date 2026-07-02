@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Express } from 'express';
 
 // Stub the outbound email channel so the job never touches real SMTP and we
@@ -44,7 +44,7 @@ async function enableTripShare() {
     sanitizeConfig('tripShare', { ttlHours: 24, email: true, push: false, whatsapp: false }));
 }
 
-async function dispatchChallan(): Promise<{ id: number; challanNo: string }> {
+async function dispatchChallan(): Promise<{ id: number; challanNo: string; tripShareWarning?: string }> {
   const res = await request(app)
     .post('/api/challans')
     .set('Authorization', `Bearer ${token}`)
@@ -62,6 +62,17 @@ async function waitForSends(expected: number, timeoutMs = 5000): Promise<typeof 
     if (rows.length >= expected || Date.now() > deadline) return rows;
     await new Promise((r) => setTimeout(r, 50));
   }
+}
+
+// The send row is claimed BEFORE the email goes out, so waitForSends alone can
+// return while the hook is still mid-flight. Tests that assert on emails must
+// wait for the email itself, or a late push bleeds into the next test.
+async function waitForEmails(expected: number, timeoutMs = 5000): Promise<EmailCall[]> {
+  const deadline = Date.now() + timeoutMs;
+  while (emails.length < expected && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return emails;
 }
 
 before(async () => {
@@ -109,6 +120,8 @@ test('a dispatched challan with tripShare on records exactly one send with a wor
   await enableTripShare();
 
   const challan = await dispatchChallan();
+  assert.equal(challan.tripShareWarning, undefined,
+    'a reachable customer (email on file) produces no dispatch warning');
   const sends = await waitForSends(1);
 
   assert.equal(sends.length, 1, 'exactly one trip-share send is recorded');
@@ -117,6 +130,8 @@ test('a dispatched challan with tripShare on records exactly one send with a wor
   assert.equal(sends[0].targetId, challan.id);
   assert.equal(sends[0].plantId, plantId);
 
+  // The email lands after the claim inside the same in-flight hook.
+  await waitForEmails(1);
   assert.equal(emails.length, 1, 'the customer got exactly one email');
   assert.deepEqual(emails[0].to, ['share-client@test.com']);
   const url = emails[0].ctaUrl ?? '';
@@ -144,6 +159,40 @@ test('without a configured base URL the send is skipped instead of building a ba
   assert.equal((await db.select().from(automationSends)).length, 0, 'no send is claimed');
   assert.equal((await db.select().from(trackingTokens)).length, 0, 'no share token is minted');
   assert.equal(emails.length, 0);
+});
+
+test('dispatching to a customer with no email surfaces tripShareWarning and no email goes out', async () => {
+  process.env.APP_URL = 'https://track.example.com';
+  await enableTripShare();
+  // Strip every reachable channel: no email, and the enabled config has
+  // push=false / whatsapp=false, so the link cannot reach the customer.
+  await db.update(clients).set({ email: null }).where(eq(clients.id, clientId));
+
+  const challan = await dispatchChallan();
+  assert.equal(challan.tripShareWarning, 'no_email',
+    'the dispatch response tells staff the tracking link was not sent');
+
+  // The background hook still claims its once-only send, but the customer
+  // never gets an email.
+  await waitForSends(1);
+  assert.equal(emails.length, 0, 'no trip-share email is sent to a customer without one');
+});
+
+test('no warning when tripShare is off, and a WhatsApp fallback suppresses it', async () => {
+  process.env.APP_URL = 'https://track.example.com';
+  await db.update(clients).set({ email: null }).where(eq(clients.id, clientId));
+
+  // Automation disabled: nothing to warn about even though the email is missing.
+  const off = await dispatchChallan();
+  assert.equal(off.tripShareWarning, undefined, 'no warning while the automation is disabled');
+
+  // Enabled with a configured WhatsApp fallback + the client has a phone:
+  // the link still reaches the customer, so no warning either.
+  await saveAutomationSettings('tripShare', null, true,
+    sanitizeConfig('tripShare', { ttlHours: 24, email: true, push: false, whatsapp: true, whatsappTemplate: 'trip_tpl' }));
+  const viaWhatsApp = await dispatchChallan();
+  assert.equal(viaWhatsApp.tripShareWarning, undefined,
+    'a WhatsApp-reachable customer produces no warning');
 });
 
 test('GET /api/automations reports whether the share base URL is configured', async () => {
