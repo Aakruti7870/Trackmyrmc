@@ -107,15 +107,15 @@ export async function sendTestEmail(toEmail, toName) {
         await transporter.sendMail({
             from,
             to: toEmail,
-            subject: 'SMTP Test — Aakruti Infra RMC Plant',
+            subject: 'SMTP Test — CONCRETE KING RMC Plant',
             text: [
                 `Hello ${toName},`,
                 '',
-                'This is a test email sent from the Aakruti Infra RMC Plant Management System to verify that your SMTP settings are working correctly.',
+                'This is a test email sent from the CONCRETE KING RMC Plant Management System to verify that your SMTP settings are working correctly.',
                 '',
                 'If you received this message, your email configuration is working.',
                 '',
-                '— Aakruti Infra RMC Plant Management System',
+                '— CONCRETE KING RMC Plant Management System',
             ].join('\n'),
             html: `
 <!DOCTYPE html>
@@ -129,7 +129,7 @@ export async function sendTestEmail(toEmail, toName) {
         <tr>
           <td style="background:#08111f;padding:24px 32px">
             <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
-              Aakruti Infra RMC Plant
+              CONCRETE KING RMC Plant
             </h1>
           </td>
         </tr>
@@ -143,7 +143,7 @@ export async function sendTestEmail(toEmail, toName) {
             </p>
             <p style="color:#444;line-height:1.6;margin:0 0 16px">
               This is a test email sent from the
-              <strong>Aakruti Infra RMC Plant Management System</strong>
+              <strong>CONCRETE KING RMC Plant Management System</strong>
               to verify that your SMTP settings are configured correctly.
             </p>
             <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin:0 0 24px">
@@ -153,7 +153,7 @@ export async function sendTestEmail(toEmail, toName) {
             </div>
             <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
             <p style="color:#888;font-size:13px;margin:0">
-              — Aakruti Infra RMC Plant Management System
+              — CONCRETE KING RMC Plant Management System
             </p>
           </td>
         </tr>
@@ -183,11 +183,11 @@ export async function sendWelcomeEmail(toEmail, toName, role) {
     await transporter.sendMail({
         from,
         to: toEmail,
-        subject: 'Welcome to Aakruti Infra RMC Plant',
+        subject: 'Welcome to CONCRETE KING RMC Plant',
         text: [
             `Hello ${toName},`,
             '',
-            'Your account has been created on the Aakruti Infra RMC Plant Management System.',
+            'Your account has been created on the CONCRETE KING RMC Plant Management System.',
             '',
             `  Name:  ${toName}`,
             `  Email: ${toEmail}`,
@@ -197,7 +197,7 @@ export async function sendWelcomeEmail(toEmail, toName, role) {
             '',
             'Do not share your password with anyone.',
             '',
-            '— Aakruti Infra RMC Plant Management System',
+            '— CONCRETE KING RMC Plant Management System',
         ].join('\n'),
         html: `
 <!DOCTYPE html>
@@ -211,7 +211,7 @@ export async function sendWelcomeEmail(toEmail, toName, role) {
         <tr>
           <td style="background:#08111f;padding:24px 32px">
             <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
-              Aakruti Infra RMC Plant
+              CONCRETE KING RMC Plant
             </h1>
           </td>
         </tr>
@@ -225,7 +225,7 @@ export async function sendWelcomeEmail(toEmail, toName, role) {
             </p>
             <p style="color:#444;line-height:1.6;margin:0 0 16px">
               Your account has been created on the
-              <strong>Aakruti Infra RMC Plant Management System</strong>.
+              <strong>CONCRETE KING RMC Plant Management System</strong>.
               Here are your account details:
             </p>
             <table cellpadding="0" cellspacing="0"
@@ -250,7 +250,7 @@ export async function sendWelcomeEmail(toEmail, toName, role) {
             </p>
             <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
             <p style="color:#888;font-size:13px;margin:0">
-              — Aakruti Infra RMC Plant Management System
+              — CONCRETE KING RMC Plant Management System
             </p>
           </td>
         </tr>
@@ -280,11 +280,11 @@ export async function sendOwnerInviteEmail(toEmail, toName, role, inviteUrl, exp
     await transporter.sendMail({
         from,
         to: toEmail,
-        subject: 'Set up your Aakruti Infra RMC Plant login',
+        subject: 'Set up your CONCRETE KING RMC Plant login',
         text: [
             `Hello ${toName},`,
             '',
-            'An account has been created for you on the Aakruti Infra RMC Plant Management System.',
+            'An account has been created for you on the CONCRETE KING RMC Plant Management System.',
             '',
             `  Name:  ${toName}`,
             `  Email: ${toEmail}`,
@@ -297,7 +297,7 @@ export async function sendOwnerInviteEmail(toEmail, toName, role, inviteUrl, exp
             `This link can be used once and expires on ${expires}.`,
             'If you did not expect this email, you can safely ignore it.',
             '',
-            '— Aakruti Infra RMC Plant Management System',
+            '— CONCRETE KING RMC Plant Management System',
         ].join('\n'),
         html: `
 <!DOCTYPE html>
@@ -311,7 +311,7 @@ export async function sendOwnerInviteEmail(toEmail, toName, role, inviteUrl, exp
         <tr>
           <td style="background:#08111f;padding:24px 32px">
             <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
-              Aakruti Infra RMC Plant
+              CONCRETE KING RMC Plant
             </h1>
           </td>
         </tr>
@@ -325,7 +325,7 @@ export async function sendOwnerInviteEmail(toEmail, toName, role, inviteUrl, exp
             </p>
             <p style="color:#444;line-height:1.6;margin:0 0 16px">
               An account has been created for you on the
-              <strong>Aakruti Infra RMC Plant Management System</strong>.
+              <strong>CONCRETE KING RMC Plant Management System</strong>.
               Here are your account details:
             </p>
             <table cellpadding="0" cellspacing="0"
@@ -372,7 +372,7 @@ export async function sendOwnerInviteEmail(toEmail, toName, role, inviteUrl, exp
             </div>
             <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
             <p style="color:#888;font-size:13px;margin:0">
-              — Aakruti Infra RMC Plant Management System
+              — CONCRETE KING RMC Plant Management System
             </p>
           </td>
         </tr>
@@ -401,11 +401,11 @@ export async function sendPasswordResetEmail(toEmail, toName, resetUrl, expiresA
     await transporter.sendMail({
         from,
         to: toEmail,
-        subject: 'Reset your Aakruti Infra RMC Plant password',
+        subject: 'Reset your CONCRETE KING RMC Plant password',
         text: [
             `Hello ${toName},`,
             '',
-            'We received a request to reset the password for your Aakruti Infra RMC Plant Management System account.',
+            'We received a request to reset the password for your CONCRETE KING RMC Plant Management System account.',
             '',
             'Choose a new password using the secure link below:',
             '',
@@ -414,7 +414,7 @@ export async function sendPasswordResetEmail(toEmail, toName, resetUrl, expiresA
             `This link can be used once and expires on ${expires}.`,
             'If you did not request a password reset, you can safely ignore this email — your password will stay unchanged.',
             '',
-            '— Aakruti Infra RMC Plant Management System',
+            '— CONCRETE KING RMC Plant Management System',
         ].join('\n'),
         html: `
 <!DOCTYPE html>
@@ -428,7 +428,7 @@ export async function sendPasswordResetEmail(toEmail, toName, resetUrl, expiresA
         <tr>
           <td style="background:#08111f;padding:24px 32px">
             <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
-              Aakruti Infra RMC Plant
+              CONCRETE KING RMC Plant
             </h1>
           </td>
         </tr>
@@ -442,7 +442,7 @@ export async function sendPasswordResetEmail(toEmail, toName, resetUrl, expiresA
             </p>
             <p style="color:#444;line-height:1.6;margin:0 0 20px">
               We received a request to reset the password for your
-              <strong>Aakruti Infra RMC Plant Management System</strong> account.
+              <strong>CONCRETE KING RMC Plant Management System</strong> account.
               Choose a new password below:
             </p>
             <table cellpadding="0" cellspacing="0" style="margin:0 0 24px">
@@ -471,7 +471,7 @@ export async function sendPasswordResetEmail(toEmail, toName, resetUrl, expiresA
             </div>
             <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
             <p style="color:#888;font-size:13px;margin:0">
-              — Aakruti Infra RMC Plant Management System
+              — CONCRETE KING RMC Plant Management System
             </p>
           </td>
         </tr>
@@ -572,11 +572,11 @@ export async function sendDeliveryNotificationEmail(toEmail, toName, details) {
     const dispatched = details.status === 'dispatched';
     const heading = dispatched ? 'Your Concrete Is On The Way' : 'Your Concrete Has Been Delivered';
     const subject = dispatched
-        ? `Dispatched: Challan ${details.challanNo} — Aakruti Infra RMC`
-        : `Delivered: Challan ${details.challanNo} — Aakruti Infra RMC`;
+        ? `Dispatched: Challan ${details.challanNo} — CONCRETE KING RMC`
+        : `Delivered: Challan ${details.challanNo} — CONCRETE KING RMC`;
     const lead = dispatched
         ? 'A transit mixer carrying your order has just been dispatched from our plant and is on its way to your site.'
-        : 'Your concrete order has been delivered. Thank you for choosing Aakruti Infra RMC.';
+        : 'Your concrete order has been delivered. Thank you for choosing CONCRETE KING RMC.';
     const accent = dispatched ? '#2563eb' : '#15803d';
     const banner = dispatched ? '#eff6ff' : '#f0fdf4';
     const bannerBorder = dispatched ? '#bfdbfe' : '#bbf7d0';
@@ -596,7 +596,7 @@ export async function sendDeliveryNotificationEmail(toEmail, toName, details) {
             siteLine,
             'You can track this delivery from your customer portal.',
             '',
-            '— Aakruti Infra RMC Plant Management System',
+            '— CONCRETE KING RMC Plant Management System',
         ].join('\n'),
         html: `
 <!DOCTYPE html>
@@ -610,7 +610,7 @@ export async function sendDeliveryNotificationEmail(toEmail, toName, details) {
         <tr>
           <td style="background:#08111f;padding:24px 32px">
             <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
-              Aakruti Infra RMC Plant
+              CONCRETE KING RMC Plant
             </h1>
           </td>
         </tr>
@@ -650,7 +650,7 @@ export async function sendDeliveryNotificationEmail(toEmail, toName, details) {
             </p>
             <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
             <p style="color:#888;font-size:13px;margin:0">
-              — Aakruti Infra RMC Plant Management System
+              — CONCRETE KING RMC Plant Management System
             </p>
           </td>
         </tr>
@@ -675,7 +675,7 @@ export async function sendOrderPlacedEmail(toEmail, toName, details) {
     }
     const from = cfg.from || cfg.user || undefined;
     const plant = details.plantName || 'the plant';
-    const subject = `Order Received: ${details.orderNo} — Aakruti Infra RMC`;
+    const subject = `Order Received: ${details.orderNo} — CONCRETE KING RMC`;
     const lead = `We've received your concrete order and ${plant} is preparing it for dispatch. ` +
         `You'll get another notification the moment a transit mixer is on its way.`;
     const accent = '#b45309';
@@ -698,7 +698,7 @@ export async function sendOrderPlacedEmail(toEmail, toName, details) {
             '',
             'You can track this order anytime from your customer portal.',
             '',
-            '— Aakruti Infra RMC Plant Management System',
+            '— CONCRETE KING RMC Plant Management System',
         ].join('\n'),
         html: `
 <!DOCTYPE html>
@@ -712,7 +712,7 @@ export async function sendOrderPlacedEmail(toEmail, toName, details) {
         <tr>
           <td style="background:#08111f;padding:24px 32px">
             <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
-              Aakruti Infra RMC Plant
+              CONCRETE KING RMC Plant
             </h1>
           </td>
         </tr>
@@ -756,7 +756,7 @@ export async function sendOrderPlacedEmail(toEmail, toName, details) {
             </p>
             <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
             <p style="color:#888;font-size:13px;margin:0">
-              — Aakruti Infra RMC Plant Management System
+              — CONCRETE KING RMC Plant Management System
             </p>
           </td>
         </tr>
@@ -856,17 +856,17 @@ export async function sendPasswordResetNotification(toEmail, toName) {
     await transporter.sendMail({
         from,
         to: toEmail,
-        subject: 'Your password has been reset — Aakruti Infra RMC',
+        subject: 'Your password has been reset — CONCRETE KING RMC',
         text: [
             `Hello ${toName},`,
             '',
-            'This is a security notice to let you know that an administrator has reset your password on the Aakruti Infra RMC Plant Management System.',
+            'This is a security notice to let you know that an administrator has reset your password on the CONCRETE KING RMC Plant Management System.',
             '',
             'If you requested this change, you can log in with your new password.',
             '',
             'If you did NOT request this change, please contact your system administrator immediately.',
             '',
-            '— Aakruti Infra RMC Plant Management System',
+            '— CONCRETE KING RMC Plant Management System',
         ].join('\n'),
         html: `
 <!DOCTYPE html>
@@ -880,7 +880,7 @@ export async function sendPasswordResetNotification(toEmail, toName) {
         <tr>
           <td style="background:#08111f;padding:24px 32px">
             <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
-              Aakruti Infra RMC Plant
+              CONCRETE KING RMC Plant
             </h1>
           </td>
         </tr>
@@ -895,7 +895,7 @@ export async function sendPasswordResetNotification(toEmail, toName) {
             <p style="color:#444;line-height:1.6;margin:0 0 16px">
               This is a security notice to let you know that an administrator has
               <strong>reset your password</strong> on the
-              Aakruti Infra RMC Plant Management System.
+              CONCRETE KING RMC Plant Management System.
             </p>
             <p style="color:#444;line-height:1.6;margin:0 0 16px">
               If you requested this change, you can log in with your new password.
@@ -906,7 +906,7 @@ export async function sendPasswordResetNotification(toEmail, toName) {
             </p>
             <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
             <p style="color:#888;font-size:13px;margin:0">
-              — Aakruti Infra RMC Plant Management System
+              — CONCRETE KING RMC Plant Management System
             </p>
           </td>
         </tr>
@@ -946,7 +946,7 @@ export async function sendPlantInviteNotification(toEmails, details) {
             '',
             'Open the Plants page -> "Onboarding requests" tab to review and onboard it.',
             '',
-            '— Aakruti Infra RMC Plant Management System',
+            '— CONCRETE KING RMC Plant Management System',
         ].join('\n'),
         html: `
 <!DOCTYPE html>
@@ -960,7 +960,7 @@ export async function sendPlantInviteNotification(toEmails, details) {
         <tr>
           <td style="background:#08111f;padding:24px 32px">
             <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
-              Aakruti Infra RMC Plant
+              CONCRETE KING RMC Plant
             </h1>
           </td>
         </tr>
@@ -996,7 +996,7 @@ export async function sendPlantInviteNotification(toEmails, details) {
             </p>
             <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
             <p style="color:#888;font-size:13px;margin:0">
-              — Aakruti Infra RMC Plant Management System
+              — CONCRETE KING RMC Plant Management System
             </p>
           </td>
         </tr>
@@ -1049,7 +1049,7 @@ export async function sendWhatsAppFailureAlertEmail(toEmails, details) {
             '',
             'Open Profile & Settings -> "WhatsApp Delivery Status" to review.',
             '',
-            '— Aakruti Infra RMC Plant Management System',
+            '— CONCRETE KING RMC Plant Management System',
         ].join('\n'),
         html: `
 <!DOCTYPE html>
@@ -1063,7 +1063,7 @@ export async function sendWhatsAppFailureAlertEmail(toEmails, details) {
         <tr>
           <td style="background:#08111f;padding:24px 32px">
             <h1 style="margin:0;color:#f7c948;font-size:20px;font-weight:700">
-              Aakruti Infra RMC Plant
+              CONCRETE KING RMC Plant
             </h1>
           </td>
         </tr>
@@ -1104,7 +1104,7 @@ export async function sendWhatsAppFailureAlertEmail(toEmails, details) {
             </p>
             <hr style="border:none;border-top:1px solid #eee;margin:0 0 24px">
             <p style="color:#888;font-size:13px;margin:0">
-              — Aakruti Infra RMC Plant Management System
+              — CONCRETE KING RMC Plant Management System
             </p>
           </td>
         </tr>
