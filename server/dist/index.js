@@ -55,6 +55,8 @@ const STATIC_ALLOWED_ORIGINS = new Set([
     'ionic://localhost', // legacy Ionic/Capacitor scheme
     'https://www.goldetech.com',
     'https://goldetech.com',
+    'https://www.trackmyrmc.com',
+    'https://trackmyrmc.com',
 ]);
 for (const o of (process.env.CORS_ALLOWED_ORIGINS || '')
     .split(',')

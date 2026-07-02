@@ -16,7 +16,7 @@ The native app is not served same-origin and has no dev proxy, so it must call t
 live backend with an absolute URL. This is configured in **`rmc-app/.env.capacitor`**:
 
 ```
-VITE_API_BASE_URL=https://www.trackmyrmc.com   # your deployed backend, no trailing slash
+VITE_API_BASE_URL=https://trackmyrmc.com       # your deployed backend, no trailing slash
 VITE_DISABLE_PWA=1                             # disable the PWA service worker in the native bundle
 ```
 
@@ -25,7 +25,8 @@ JS bundle at build time. The web build (`pnpm build`) ignores this file, so the
 browser/PWA version keeps using relative `/api` and a service worker as before.
 
 > The deployed backend's CORS allowlist already permits the native origin
-> (`https://localhost` / `capacitor://localhost`) and the goldetech web domains.
+> (`https://localhost` / `capacitor://localhost`) and the trackmyrmc.com /
+> goldetech.com web domains.
 > If you serve the backend from a different host, add it to the `CORS_ALLOWED_ORIGINS`
 > environment variable on the server (comma-separated).
 
