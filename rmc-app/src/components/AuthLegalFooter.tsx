@@ -1,6 +1,7 @@
 import { useLocation } from 'wouter';
 import { MessageCircle } from 'lucide-react';
 import { SUPPORT_WHATSAPP_URL } from '@/lib/brand';
+import SocialLinksBar from '@/components/SocialLinksBar';
 
 // Shared footer for the auth screens (Login / Register): Privacy + Terms links,
 // a consent acknowledgment line, and a direct Support-on-WhatsApp link.
@@ -27,6 +28,9 @@ export default function AuthLegalFooter({ consentPrefix }: { consentPrefix?: str
         >
           <MessageCircle size={12} /> Support
         </a>
+      </div>
+      <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>
+        <SocialLinksBar compact center />
       </div>
     </div>
   );

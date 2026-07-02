@@ -72,6 +72,57 @@ export async function setAppVersion(version: string | null): Promise<void> {
   await setSetting(APP_VERSION_KEY, v ? v : null);
 }
 
+// ── Social / marketing links ─────────────────────────────────────────────────
+// Admin-editable, publicly served (bootstrap config) links behind the social
+// icons on the landing deck and public pages. playStore stays empty until the
+// app is published — the frontend shows its badge as "coming soon" meanwhile.
+export const SOCIAL_LINKS_KEY = 'social_links';
+
+export const SOCIAL_PLATFORMS = ['youtube', 'instagram', 'facebook', 'whatsapp', 'playStore'] as const;
+export type SocialPlatform = typeof SOCIAL_PLATFORMS[number];
+export type SocialLinksConfig = Record<SocialPlatform, string>;
+
+export const DEFAULT_SOCIAL_LINKS: SocialLinksConfig = {
+  youtube: 'https://youtube.com/@trackmyrmc?si=PpDzLHQX72dqjmC9',
+  instagram: 'https://www.instagram.com/gold_e_tech?igsh=MXd1eGJoMzNyOHVzNQ==',
+  facebook: 'https://www.facebook.com/profile.php?id=61590998875994',
+  whatsapp: 'https://wa.me/qr/FXY47PIBVMQFA1',
+  playStore: '',
+};
+
+// Keep only known platforms with http(s) URLs; '' explicitly clears a link.
+export function normalizeSocialLinks(input: unknown): Partial<SocialLinksConfig> {
+  const out: Partial<SocialLinksConfig> = {};
+  if (!input || typeof input !== 'object') return out;
+  for (const key of SOCIAL_PLATFORMS) {
+    const val = (input as Record<string, unknown>)[key];
+    if (typeof val !== 'string') continue;
+    const v = val.trim();
+    if (v === '' || /^https?:\/\/\S+$/i.test(v)) out[key] = v;
+  }
+  return out;
+}
+
+export async function getSocialLinks(): Promise<SocialLinksConfig> {
+  const raw = await getSetting(SOCIAL_LINKS_KEY);
+  if (!raw) return { ...DEFAULT_SOCIAL_LINKS };
+  try {
+    return { ...DEFAULT_SOCIAL_LINKS, ...normalizeSocialLinks(JSON.parse(raw)) };
+  } catch {
+    return { ...DEFAULT_SOCIAL_LINKS };
+  }
+}
+
+export async function setSocialLinks(links: Partial<SocialLinksConfig> | null): Promise<void> {
+  if (links === null) {
+    await setSetting(SOCIAL_LINKS_KEY, null);
+    return;
+  }
+  const current = await getSocialLinks();
+  const merged = { ...current, ...normalizeSocialLinks(links) };
+  await setSetting(SOCIAL_LINKS_KEY, JSON.stringify(merged));
+}
+
 export type DatabaseExport = {
   exportedAt: string;
   totalRows: number;

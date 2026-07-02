@@ -1,6 +1,7 @@
 import { useLocation } from 'wouter';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
 import logoKing from '@/assets/logo-king.png';
+import SocialLinksBar from '@/components/SocialLinksBar';
 
 const MAIL = 'support@goldetech.com';
 const PHONE = '+91 74982 86760';
@@ -197,6 +198,9 @@ export default function Privacy() {
           marginTop: 48, paddingTop: 24, borderTop: '1px solid var(--line, rgba(120,160,220,.14))',
           color: 'var(--muted, #8aa0bd)', fontSize: 13, textAlign: 'center',
         }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+            <SocialLinksBar compact center />
+          </div>
           © {new Date().getFullYear()} CONCRETE KING · Powered by GOLD-e Tech
         </footer>
       </div>

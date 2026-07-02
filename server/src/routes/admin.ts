@@ -15,6 +15,8 @@ import {
   OVERRIDABLE_ROLES,
   getAppVersion,
   setAppVersion,
+  getSocialLinks,
+  setSocialLinks,
   buildDatabaseExport,
 } from '../lib/adminConfig.js';
 import { isPlatformStaff } from '../lib/roleHierarchy.js';
@@ -400,6 +402,49 @@ router.post('/app-version', async (req, res) => {
   }
 
   res.json({ version: after });
+});
+
+// ── Social / marketing links ─────────────────────────────────────────────────
+// Platform-wide, client-visible (served in the public bootstrap config) —
+// gated to platform staff like the app version.
+router.get('/social-links', async (req, res) => {
+  if (!isPlatformStaff(req.user!)) { res.status(403).json({ error: 'Only platform staff can manage social links.' }); return; }
+  res.json({ links: await getSocialLinks() });
+});
+
+const socialLinksSchema = z.object({
+  youtube: z.string().trim().max(500).optional(),
+  instagram: z.string().trim().max(500).optional(),
+  facebook: z.string().trim().max(500).optional(),
+  whatsapp: z.string().trim().max(500).optional(),
+  playStore: z.string().trim().max(500).optional(),
+}).refine(
+  (v) => Object.values(v).every(s => s === undefined || s === '' || /^https?:\/\/\S+$/i.test(s)),
+  { message: 'Each link must be empty or a valid http(s) URL.' },
+);
+
+router.post('/social-links', async (req, res) => {
+  if (!isPlatformStaff(req.user!)) { res.status(403).json({ error: 'Only platform staff can manage social links.' }); return; }
+  const parse = socialLinksSchema.safeParse(req.body ?? {});
+  if (!parse.success) { res.status(400).json({ error: parse.error.issues[0]?.message ?? 'Invalid links' }); return; }
+  await setSocialLinks(parse.data);
+  const after = await getSocialLinks();
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'social_links_updated',
+      status: 'success',
+      detail: `Social links updated: ${Object.entries(after).map(([k, v]) => `${k}=${v || '(empty)'}`).join(', ')}`,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write social-links audit log:', err);
+  }
+
+  res.json({ links: after });
 });
 
 // ── Full database export (authority only) ────────────────────────────────────

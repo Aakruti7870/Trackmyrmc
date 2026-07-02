@@ -4,6 +4,7 @@ import {
   Crown, ShieldCheck, Settings, Lock, Play, AlertTriangle,
   ArrowUpRight, ChevronLeft, ChevronRight,
 } from "lucide-react";
+import SocialLinksBar from "@/components/SocialLinksBar";
 import drumImg from "../assets/landing/slide1-drum.png";
 import fleetImg from "../assets/landing/slide2-fleet.png";
 import textureImg from "../assets/landing/slide3-texture.png";
@@ -414,6 +415,11 @@ export default function Landing(){
         ))}
         <Arrows cur={cur} total={TOTAL} onPrev={()=>go(cur-1)} onNext={()=>go(cur+1)}/>
         <Dots cur={cur} total={TOTAL} onGo={go}/>
+        {/* Social links — visible on every slide of the landing deck (bottom-right;
+            bottom-left is taken by the backdrop switcher pill) */}
+        <div className="ck-socials" style={{position:"absolute",right:14,bottom:12,zIndex:110}}>
+          <SocialLinksBar compact/>
+        </div>
       </div>
     </div>
   );

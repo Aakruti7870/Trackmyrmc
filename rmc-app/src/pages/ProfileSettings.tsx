@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox } from 'lucide-react';
-import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult, type PlantDirectoryEntry } from '@/lib/api';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2 } from 'lucide-react';
+import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult, type PlantDirectoryEntry, type SocialLinks } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { ThemeSwitcher } from '@/lib/theme-providers';
@@ -288,6 +288,10 @@ export default function ProfileSettings() {
   const [appVersionLoading, setAppVersionLoading] = useState(false);
   const [appVersionSaving, setAppVersionSaving] = useState(false);
 
+  const [socialForm, setSocialForm] = useState<SocialLinks>({ youtube: '', instagram: '', facebook: '', whatsapp: '', playStore: '' });
+  const [socialLoading, setSocialLoading] = useState(false);
+  const [socialSaving, setSocialSaving] = useState(false);
+
   const [exporting, setExporting] = useState(false);
 
   const [aiForm, setAiForm] = useState({ enabled: false, persona: '', greeting: '' });
@@ -531,6 +535,20 @@ export default function ProfileSettings() {
         .finally(() => { if (!cancelled) setAppVersionLoading(false); });
     }
     loadAppVersion();
+    return () => { cancelled = true; };
+  }, [isPlatformStaff]);
+
+  useEffect(() => {
+    if (!isPlatformStaff) return;
+    let cancelled = false;
+    function loadSocialLinks() {
+      setSocialLoading(true);
+      api.get<{ links: SocialLinks }>('/admin/social-links')
+        .then(v => { if (!cancelled && v.links) setSocialForm(v.links); })
+        .catch(() => { /* non-fatal */ })
+        .finally(() => { if (!cancelled) setSocialLoading(false); });
+    }
+    loadSocialLinks();
     return () => { cancelled = true; };
   }, [isPlatformStaff]);
 
@@ -1074,6 +1092,26 @@ export default function ProfileSettings() {
       showToast(err instanceof Error ? err.message : 'Failed to save app version', 'error');
     } finally {
       setAppVersionSaving(false);
+    }
+  }
+
+  async function handleSocialSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSocialSaving(true);
+    try {
+      const updated = await api.post<{ links: SocialLinks }>('/admin/social-links', {
+        youtube: socialForm.youtube.trim(),
+        instagram: socialForm.instagram.trim(),
+        facebook: socialForm.facebook.trim(),
+        whatsapp: socialForm.whatsapp.trim(),
+        playStore: socialForm.playStore.trim(),
+      });
+      if (updated.links) setSocialForm(updated.links);
+      showToast('Social links saved. Clients see them on next load.', 'success');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to save social links', 'error');
+    } finally {
+      setSocialSaving(false);
     }
   }
 
@@ -2145,6 +2183,79 @@ export default function ProfileSettings() {
                 }}
               >
                 {appVersionSaving ? 'Saving…' : 'Save version'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Social Appearance card — platform staff only (client-visible, cross-tenant) */}
+      {isPlatformStaff && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Share2 size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Social Appearance</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Links behind the social icons on the landing &amp; public pages</div>
+            </div>
+          </div>
+
+          {socialLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading links…</div>
+          ) : (
+            <form onSubmit={handleSocialSave}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+                <SmtpTextField
+                  label="YouTube"
+                  value={socialForm.youtube}
+                  onChange={v => setSocialForm(f => ({ ...f, youtube: v }))}
+                  placeholder="https://youtube.com/@yourchannel"
+                />
+                <SmtpTextField
+                  label="Instagram"
+                  value={socialForm.instagram}
+                  onChange={v => setSocialForm(f => ({ ...f, instagram: v }))}
+                  placeholder="https://www.instagram.com/yourprofile"
+                />
+                <SmtpTextField
+                  label="Facebook"
+                  value={socialForm.facebook}
+                  onChange={v => setSocialForm(f => ({ ...f, facebook: v }))}
+                  placeholder="https://www.facebook.com/yourpage"
+                />
+                <SmtpTextField
+                  label="WhatsApp"
+                  value={socialForm.whatsapp}
+                  onChange={v => setSocialForm(f => ({ ...f, whatsapp: v }))}
+                  placeholder="https://wa.me/yournumber"
+                />
+                <SmtpTextField
+                  label="Google Play (app link)"
+                  value={socialForm.playStore}
+                  onChange={v => setSocialForm(f => ({ ...f, playStore: v }))}
+                  placeholder="https://play.google.com/store/apps/details?id=…"
+                />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+                Each link must be a full https:// URL. Leave Google Play empty until the app is published — its badge shows as "coming soon" meanwhile.
+              </div>
+              <button
+                type="submit"
+                disabled={socialSaving}
+                style={{
+                  marginTop: 14, padding: '10px 22px', borderRadius: 10,
+                  background: socialSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: socialSaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14, transition: 'opacity .15s',
+                }}
+              >
+                {socialSaving ? 'Saving…' : 'Save social links'}
               </button>
             </form>
           )}

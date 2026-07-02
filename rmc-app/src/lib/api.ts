@@ -93,9 +93,18 @@ export const api = {
   },
 };
 
+export interface SocialLinks {
+  youtube: string;
+  instagram: string;
+  facebook: string;
+  whatsapp: string;
+  playStore: string;
+}
+
 export interface AppConfig {
   appVersion: string;
   rolePermissionOverrides: Partial<Record<string, string[]>>;
+  socialLinks?: SocialLinks;
 }
 
 export type User = {

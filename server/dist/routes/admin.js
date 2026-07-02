@@ -8,7 +8,7 @@ import { sendTestEmail, getSmtpSettings, verifySmtpConnection, getSmtpConfig, SM
 import { setSetting } from '../lib/settings.js';
 import { getVarianceTolerance, VARIANCE_KEYS, DEFAULT_VARIANCE_ABS, DEFAULT_VARIANCE_PCT } from '../lib/variance.js';
 import { getPlatformCommissionPct, setPlatformCommissionPct, normalizeCommissionPct, DEFAULT_COMMISSION_PCT } from '../lib/commission.js';
-import { getRolePermissionOverrides, setRolePermissionOverrides, normalizeOverrides, OVERRIDABLE_ROLES, getAppVersion, setAppVersion, buildDatabaseExport, } from '../lib/adminConfig.js';
+import { getRolePermissionOverrides, setRolePermissionOverrides, normalizeOverrides, OVERRIDABLE_ROLES, getAppVersion, setAppVersion, getSocialLinks, setSocialLinks, buildDatabaseExport, } from '../lib/adminConfig.js';
 import { isPlatformStaff } from '../lib/roleHierarchy.js';
 import { getPlantInviteNotifyConfig, parseRecipients, serializeRoles, PLANT_INVITE_NOTIFY_KEYS, PLANT_INVITE_NOTIFY_ROLES, DEFAULT_PLANT_INVITE_EMAIL_ENABLED, DEFAULT_PLANT_INVITE_NOTIFY_ROLES, } from '../lib/plantInviteNotify.js';
 import { getFreshnessConfig, FRESHNESS_KEYS, DEFAULT_WORKING_LIFE_MIN, DEFAULT_WARN_MIN, DEFAULT_AVG_SPEED_KMH, } from '../lib/freshness.js';
@@ -352,6 +352,51 @@ router.post('/app-version', async (req, res) => {
         console.error('[admin] Failed to write app-version audit log:', err);
     }
     res.json({ version: after });
+});
+// ── Social / marketing links ─────────────────────────────────────────────────
+// Platform-wide, client-visible (served in the public bootstrap config) —
+// gated to platform staff like the app version.
+router.get('/social-links', async (req, res) => {
+    if (!isPlatformStaff(req.user)) {
+        res.status(403).json({ error: 'Only platform staff can manage social links.' });
+        return;
+    }
+    res.json({ links: await getSocialLinks() });
+});
+const socialLinksSchema = z.object({
+    youtube: z.string().trim().max(500).optional(),
+    instagram: z.string().trim().max(500).optional(),
+    facebook: z.string().trim().max(500).optional(),
+    whatsapp: z.string().trim().max(500).optional(),
+    playStore: z.string().trim().max(500).optional(),
+}).refine((v) => Object.values(v).every(s => s === undefined || s === '' || /^https?:\/\/\S+$/i.test(s)), { message: 'Each link must be empty or a valid http(s) URL.' });
+router.post('/social-links', async (req, res) => {
+    if (!isPlatformStaff(req.user)) {
+        res.status(403).json({ error: 'Only platform staff can manage social links.' });
+        return;
+    }
+    const parse = socialLinksSchema.safeParse(req.body ?? {});
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.issues[0]?.message ?? 'Invalid links' });
+        return;
+    }
+    await setSocialLinks(parse.data);
+    const after = await getSocialLinks();
+    const actor = req.user;
+    try {
+        await db.insert(auditLogs).values({
+            actorId: actor.id,
+            actorName: actor.name,
+            action: 'social_links_updated',
+            status: 'success',
+            detail: `Social links updated: ${Object.entries(after).map(([k, v]) => `${k}=${v || '(empty)'}`).join(', ')}`,
+            emailSent: null,
+        });
+    }
+    catch (err) {
+        console.error('[admin] Failed to write social-links audit log:', err);
+    }
+    res.json({ links: after });
 });
 // ── Full database export (authority only) ────────────────────────────────────
 // Returns a JSON snapshot of the core tables. Authority is the platform super-
