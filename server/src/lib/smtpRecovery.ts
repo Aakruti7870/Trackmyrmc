@@ -46,11 +46,33 @@ export async function syncSmtpFromEnv(): Promise<void> {
     // Prove the recovered credentials actually authenticate so the outcome is
     // visible in boot logs (never logs credential values, only the result).
     try {
-      const check = await verifySmtpConnection();
+      let check = await verifySmtpConnection();
+      // Common paste error: Gmail displays App Passwords as "abcd efgh ijkl mnop".
+      // If auth fails and the password contains whitespace, retry without it and
+      // persist the working variant.
+      const pass = envByKey[SMTP_KEYS.pass]?.trim();
+      if (!check.ok && pass && /\s/.test(pass)) {
+        const stripped = pass.replace(/\s+/g, '');
+        const retry = await verifySmtpConnection({ pass: stripped });
+        if (retry.ok) {
+          await setSetting(SMTP_KEYS.pass, stripped);
+          console.warn('[smtp-recovery] SMTP password contained spaces; the space-stripped variant authenticated and was persisted instead.');
+          check = retry;
+        }
+      }
       if (check.ok) {
         console.warn('[smtp-recovery] SMTP connection verified OK with the synced credentials.');
       } else {
-        console.error(`[smtp-recovery] SMTP verification FAILED after sync: ${check.error ?? 'unknown error'}`);
+        const user = envByKey[SMTP_KEYS.user]?.trim() ?? '';
+        const [local = '', domain = ''] = user.split('@');
+        const maskedUser = user ? `${local.slice(0, 3)}***@${domain}` : '(not set)';
+        const passHint = pass
+          ? `length ${pass.length}${/\s/.test(pass) ? ' (contains spaces)' : ''}${/^[a-z]{16}$/i.test(pass.replace(/\s+/g, '')) ? ', looks like an App Password' : ', does NOT look like a 16-letter App Password'}`
+          : '(not set)';
+        console.error(
+          `[smtp-recovery] SMTP verification FAILED after sync: ${check.error ?? 'unknown error'} ` +
+            `[diagnostic: user=${maskedUser}, password ${passHint}]`,
+        );
       }
     } catch (e) {
       console.error('[smtp-recovery] SMTP verification threw after sync:', e instanceof Error ? e.message : e);

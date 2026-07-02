@@ -1,5 +1,5 @@
 import { setSetting } from './settings.js';
-import { SMTP_KEYS } from './email.js';
+import { SMTP_KEYS, verifySmtpConnection } from './email.js';
 /**
  * One-time SMTP recovery hatch, run at boot.
  *
@@ -39,6 +39,20 @@ export async function syncSmtpFromEnv() {
     if (synced.length > 0) {
         console.warn(`[smtp-recovery] SMTP_SYNC_FROM_ENV=1: overwrote persisted settings from environment: ${synced.join(', ')}. ` +
             'Remove SMTP_SYNC_FROM_ENV once recovery is complete, or these keys will be re-overwritten on every boot.');
+        // Prove the recovered credentials actually authenticate so the outcome is
+        // visible in boot logs (never logs credential values, only the result).
+        try {
+            const check = await verifySmtpConnection();
+            if (check.ok) {
+                console.warn('[smtp-recovery] SMTP connection verified OK with the synced credentials.');
+            }
+            else {
+                console.error(`[smtp-recovery] SMTP verification FAILED after sync: ${check.error ?? 'unknown error'}`);
+            }
+        }
+        catch (e) {
+            console.error('[smtp-recovery] SMTP verification threw after sync:', e instanceof Error ? e.message : e);
+        }
     }
     else {
         console.warn('[smtp-recovery] SMTP_SYNC_FROM_ENV=1 is set but no SMTP_* environment variables are present — nothing synced.');
