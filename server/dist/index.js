@@ -261,9 +261,12 @@ async function tickDiscoveryCleanup() {
         discoveryCleanupRunning = false;
     }
 }
+// Complete the SMTP recovery sync BEFORE accepting traffic so an early login/
+// forgot-password request can never race the stale persisted credentials.
+// A failed sync must never keep the API down — log and start anyway.
+await syncSmtpFromEnv().catch((e) => console.error('syncSmtpFromEnv failed', e));
 app.listen(PORT, () => {
     console.log(`TrackMyRMC API running on port ${PORT}`);
-    syncSmtpFromEnv().catch((e) => console.error('syncSmtpFromEnv failed', e));
     ensureMasterAccounts().catch((e) => console.error('ensureMasterAccounts failed', e));
     ensurePlantDirectory().catch((e) => console.error('ensurePlantDirectory failed', e));
     ensureWhatsAppTemplateDefaults().catch((e) => console.error('ensureWhatsAppTemplateDefaults failed', e));
