@@ -288,6 +288,22 @@ test('targeted event: a client does not receive driver-only trip events, and vic
     assert.ok(!eventsOf(client).includes('challan.created'), 'client ignores another company challan');
     assert.ok(!eventsOf(driver).includes('challan.created'), 'driver ignores an unassigned challan');
 });
+test('platformOnly role event excludes plant-bound users of an allowed role', () => {
+    const globalAdmin = new MockResponse(2);
+    const authority = new MockResponse(2);
+    const plantAdmin = new MockResponse(2);
+    const dispatcher = new MockResponse(2);
+    created.push(addWithIdentity(globalAdmin, { role: 'admin', plantId: null }));
+    created.push(addWithIdentity(authority, { role: 'authority', plantId: null }));
+    created.push(addWithIdentity(plantAdmin, { role: 'admin', plantId: 12 }));
+    created.push(addWithIdentity(dispatcher, { role: 'dispatcher', plantId: null }));
+    // Mirrors the WhatsApp chat inbox alert: authority + platform admins only.
+    emitSSEEvent('whatsapp.message', { phone: '+919991112222', preview: 'hi' }, { roles: ['authority', 'admin'], platformOnly: true });
+    assert.ok(eventsOf(globalAdmin).includes('whatsapp.message'), 'platform admin receives the chat alert');
+    assert.ok(eventsOf(authority).includes('whatsapp.message'), 'authority receives the chat alert');
+    assert.ok(!eventsOf(plantAdmin).includes('whatsapp.message'), 'a plant-bound admin must NOT receive cross-tenant chat previews');
+    assert.ok(!eventsOf(dispatcher).includes('whatsapp.message'), 'a role outside the allow-list never receives the event');
+});
 test('untargeted event still broadcasts to every connection', () => {
     const client = new MockResponse(2);
     const driver = new MockResponse(2);

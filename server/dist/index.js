@@ -176,6 +176,7 @@ if (isProd) {
         '/activity-log',
         '/audit-log',
         '/automations',
+        '/whatsapp',
         '/profile',
     ]);
     // Dynamic SPA routes (e.g. /challans/:id/print, /track/:token)

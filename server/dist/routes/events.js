@@ -29,7 +29,7 @@ router.get('/', async (req, res) => {
         return;
     }
     const [user] = await db.select({
-        isActive: users.isActive, role: users.role,
+        isActive: users.isActive, role: users.role, plantId: users.plantId,
         linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
     }).from(users).where(eq(users.id, payload.id));
     if (!user?.isActive) {
@@ -43,6 +43,7 @@ router.get('/', async (req, res) => {
         role: user.role,
         clientId: user.linkedClientId,
         driverId: user.linkedDriverId,
+        plantId: user.plantId,
     });
     req.on('close', () => {
         removeSSEClient(id);

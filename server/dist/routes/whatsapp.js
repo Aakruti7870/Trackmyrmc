@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import express from 'express';
-import { desc, eq, and } from 'drizzle-orm';
+import { desc, eq, and, gte, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { whatsappMessages, orders, challans } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
-import { verifyWhatsAppWebhookSignature, whatsAppStatusCallbackUrl } from '../lib/whatsapp.js';
+import { isPlatformStaff } from '../lib/roleHierarchy.js';
+import { verifyWhatsAppWebhookSignature, whatsAppStatusCallbackUrl, sendWhatsAppText } from '../lib/whatsapp.js';
 import { notifyChallanStatus, notifyOrderPlaced, notifyStaffOfWhatsAppFailure } from '../lib/deliveryNotify.js';
+import { normalizePhone } from '../lib/otp.js';
 const router = Router();
 // Twilio MessageStatus values meaning the customer never received the message.
 const FAILURE_STATUSES = new Set(['failed', 'undelivered']);
@@ -186,5 +188,171 @@ router.post('/messages/:id/resend', requireAuth, requireRole(...READ_ROLES), asy
         .limit(1);
     const resent = !!newest && newest.id !== msg.id;
     res.json({ ok: true, resent, message: resent ? newest : null });
+});
+// --- Two-way WhatsApp chat ----------------------------------------------------
+// One shared business number serves the whole platform, so inbound customer
+// messages are inherently cross-tenant (any plant's customer can write in).
+// The inbox is therefore platform-staff only: authority or a global admin
+// (plantId == null) — mirroring the global user/plant consoles. Plant-bound
+// staff keep the plant-scoped /messages notification list above.
+const CHAT_ROLES = ['admin', 'authority'];
+function requirePlatformStaff(req, res) {
+    if (!isPlatformStaff(req.user)) {
+        res.status(403).json({ error: 'Platform staff only' });
+        return false;
+    }
+    return true;
+}
+// Meta's customer-service window: free-text replies are deliverable only within
+// 24 hours of the customer's LAST inbound message; outside it only templates go
+// through.
+const CHAT_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Conversation list: one row per customer phone that has chat traffic, newest
+// conversation first, carrying the latest message preview + the last inbound
+// timestamp (so the UI can show whether the 24h reply window is open) and the
+// matching client name when the phone belongs to a known customer.
+router.get('/chats', requireAuth, requireRole(...CHAT_ROLES), async (req, res) => {
+    if (!requirePlatformStaff(req, res))
+        return;
+    const result = await db.execute(sql `
+    SELECT DISTINCT ON (m.to_phone)
+      m.to_phone AS phone,
+      m.body AS last_body,
+      m.direction AS last_direction,
+      m.event AS last_event,
+      m.created_at AS last_at,
+      (SELECT max(i.created_at) FROM whatsapp_messages i
+        WHERE i.to_phone = m.to_phone AND i.direction = 'inbound') AS last_inbound_at,
+      (SELECT p.profile_name FROM whatsapp_messages p
+        WHERE p.to_phone = m.to_phone AND p.profile_name IS NOT NULL
+        ORDER BY p.created_at DESC LIMIT 1) AS profile_name,
+      (SELECT c.name FROM clients c
+        WHERE regexp_replace(c.phone, '[^0-9]', '', 'g') <> ''
+          AND regexp_replace(m.to_phone, '[^0-9]', '', 'g')
+              LIKE '%' || right(regexp_replace(c.phone, '[^0-9]', '', 'g'), 10)
+        ORDER BY c.id LIMIT 1) AS client_name
+    FROM whatsapp_messages m
+    WHERE m.to_phone IS NOT NULL AND m.event = 'chat'
+    ORDER BY m.to_phone, m.created_at DESC
+  `);
+    const now = Date.now();
+    const rows = result.rows
+        .map((r) => {
+        const lastInboundAt = r.last_inbound_at ? new Date(r.last_inbound_at) : null;
+        return {
+            phone: r.phone,
+            lastBody: r.last_body,
+            lastDirection: r.last_direction,
+            lastAt: new Date(r.last_at),
+            lastInboundAt,
+            profileName: r.profile_name,
+            clientName: r.client_name,
+            windowOpen: !!lastInboundAt && now - lastInboundAt.getTime() < CHAT_WINDOW_MS,
+        };
+    })
+        .sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime())
+        .slice(0, 200);
+    res.json(rows);
+});
+// Full thread for one customer phone: chat messages AND the template
+// notifications we sent them (orders/dispatch/delivery), oldest first, so staff
+// see the whole relationship in one place.
+router.get('/chats/:phone/messages', requireAuth, requireRole(...CHAT_ROLES), async (req, res) => {
+    if (!requirePlatformStaff(req, res))
+        return;
+    const phone = normalizePhone(String(req.params.phone ?? ''));
+    if (!phone) {
+        res.status(400).json({ error: 'Invalid phone number' });
+        return;
+    }
+    const rows = await db
+        .select({
+        id: whatsappMessages.id,
+        direction: whatsappMessages.direction,
+        event: whatsappMessages.event,
+        body: whatsappMessages.body,
+        status: whatsappMessages.status,
+        errorCode: whatsappMessages.errorCode,
+        channel: whatsappMessages.channel,
+        profileName: whatsappMessages.profileName,
+        orderId: whatsappMessages.orderId,
+        challanId: whatsappMessages.challanId,
+        createdAt: whatsappMessages.createdAt,
+        orderNo: orders.orderNo,
+        challanNo: challans.challanNo,
+    })
+        .from(whatsappMessages)
+        .leftJoin(orders, eq(whatsappMessages.orderId, orders.id))
+        .leftJoin(challans, eq(whatsappMessages.challanId, challans.id))
+        .where(eq(whatsappMessages.toPhone, phone))
+        .orderBy(desc(whatsappMessages.createdAt))
+        .limit(300);
+    rows.reverse();
+    const [lastInbound] = await db
+        .select({ createdAt: whatsappMessages.createdAt })
+        .from(whatsappMessages)
+        .where(and(eq(whatsappMessages.toPhone, phone), eq(whatsappMessages.direction, 'inbound')))
+        .orderBy(desc(whatsappMessages.createdAt))
+        .limit(1);
+    const lastInboundAt = lastInbound?.createdAt ?? null;
+    res.json({
+        phone,
+        messages: rows,
+        lastInboundAt,
+        windowOpen: !!lastInboundAt && Date.now() - lastInboundAt.getTime() < CHAT_WINDOW_MS,
+    });
+});
+// Staff free-text reply. Enforces Meta's 24-hour window server-side: outside it
+// we 409 with a clear message (the UI then points staff at the template-based
+// notifications instead) rather than let Meta reject the send opaquely.
+router.post('/chats/:phone/reply', requireAuth, requireRole(...CHAT_ROLES), async (req, res) => {
+    if (!requirePlatformStaff(req, res))
+        return;
+    const phone = normalizePhone(String(req.params.phone ?? ''));
+    if (!phone) {
+        res.status(400).json({ error: 'Invalid phone number' });
+        return;
+    }
+    const body = typeof req.body?.body === 'string' ? req.body.body.trim() : '';
+    if (!body) {
+        res.status(400).json({ error: 'Message text is required' });
+        return;
+    }
+    if (body.length > 4096) {
+        res.status(400).json({ error: 'Message is too long (max 4096 characters)' });
+        return;
+    }
+    // The reply window opens with the customer's last inbound message.
+    const [lastInbound] = await db
+        .select({ createdAt: whatsappMessages.createdAt })
+        .from(whatsappMessages)
+        .where(and(eq(whatsappMessages.toPhone, phone), eq(whatsappMessages.direction, 'inbound'), gte(whatsappMessages.createdAt, new Date(Date.now() - CHAT_WINDOW_MS))))
+        .orderBy(desc(whatsappMessages.createdAt))
+        .limit(1);
+    if (!lastInbound) {
+        res.status(409).json({
+            error: 'The 24-hour reply window has closed. WhatsApp only allows free-text replies within 24 hours of the customer\'s last message — use a template notification instead.',
+            code: 'WINDOW_EXPIRED',
+        });
+        return;
+    }
+    const result = await sendWhatsAppText(phone, body);
+    if (!result.ok) {
+        res.status(502).json({ error: result.error ?? 'WhatsApp send failed' });
+        return;
+    }
+    const [saved] = await db
+        .insert(whatsappMessages)
+        .values({
+        messageSid: result.sid ?? null,
+        event: 'chat',
+        direction: 'outbound',
+        toPhone: phone,
+        status: result.status ?? 'accepted',
+        channel: result.channel,
+        body,
+    })
+        .returning();
+    res.json({ ok: true, message: saved });
 });
 export default router;

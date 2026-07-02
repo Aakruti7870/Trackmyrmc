@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { whatsappMessages } from '../db/schema.js';
 import { metaWebhookVerifyToken, verifyMetaWebhookSignature } from '../lib/whatsapp.js';
 import { notifyStaffOfWhatsAppFailure } from '../lib/deliveryNotify.js';
+import { emitSSEEvent } from '../lib/sseEmitter.js';
 const router = Router();
 function isProd() {
     return process.env.NODE_ENV === 'production';
@@ -52,24 +53,88 @@ router.post('/whatsapp', async (req, res) => {
         return;
     }
     try {
-        await processMetaStatuses(req.body);
+        await processMetaWebhook(req.body);
     }
     catch (err) {
         console.error('[whatsapp] Failed to process Meta webhook:', err);
     }
     res.sendStatus(200);
 });
-async function processMetaStatuses(body) {
+async function processMetaWebhook(body) {
     const entries = Array.isArray(body?.entry) ? body.entry : [];
     for (const entry of entries) {
         const changes = Array.isArray(entry?.changes) ? entry.changes : [];
         for (const change of changes) {
             const statuses = change?.value?.statuses;
-            if (!Array.isArray(statuses))
-                continue;
-            for (const st of statuses)
-                await applyStatus(st);
+            if (Array.isArray(statuses)) {
+                for (const st of statuses)
+                    await applyStatus(st);
+            }
+            const messages = change?.value?.messages;
+            if (Array.isArray(messages)) {
+                const contacts = Array.isArray(change?.value?.contacts) ? change.value.contacts : [];
+                for (const msg of messages)
+                    await storeInboundMessage(msg, contacts);
+            }
         }
+    }
+}
+// Roles who staff the shared WhatsApp inbox — must match the chat endpoints'
+// guard in routes/whatsapp.ts (authority + global admin) so the live toast only
+// reaches people who can actually open the conversation. SSE can only target by
+// role, so a plant-bound admin may still see the toast; the API gate (platform
+// staff only) is what actually protects the data.
+const CHAT_STAFF_ROLES = ['authority', 'admin'];
+// Persist one customer message from Meta as an inbound chat row. The wamid is
+// stored in messageSid, whose partial unique index makes redelivered webhooks
+// (Meta retries on slow acks) a no-op instead of a duplicate bubble.
+async function storeInboundMessage(msg, contacts) {
+    const wamid = typeof msg?.id === 'string' ? msg.id : null;
+    const from = typeof msg?.from === 'string' ? msg.from.replace(/[^\d]/g, '') : '';
+    if (!wamid || !from)
+        return;
+    // Extract a human-readable body for the message types we can render. Button
+    // taps and interactive replies carry their label; media types get a marker so
+    // the thread still shows that SOMETHING arrived.
+    const type = typeof msg?.type === 'string' ? msg.type : 'unknown';
+    let text = null;
+    if (typeof msg?.text?.body === 'string')
+        text = msg.text.body;
+    else if (typeof msg?.button?.text === 'string')
+        text = msg.button.text;
+    else if (typeof msg?.interactive?.button_reply?.title === 'string')
+        text = msg.interactive.button_reply.title;
+    else if (typeof msg?.interactive?.list_reply?.title === 'string')
+        text = msg.interactive.list_reply.title;
+    if (text === null && type !== 'text')
+        text = `[${type} message]`;
+    const profileName = contacts.find((c) => typeof c?.wa_id === 'string' && c.wa_id === msg.from)?.profile?.name ?? null;
+    const toPhone = `+${from}`;
+    try {
+        const inserted = await db
+            .insert(whatsappMessages)
+            .values({
+            messageSid: wamid,
+            event: 'chat',
+            direction: 'inbound',
+            toPhone,
+            status: 'received',
+            channel: 'whatsapp',
+            body: text?.slice(0, 4096) ?? null,
+            profileName: typeof profileName === 'string' ? profileName.slice(0, 128) : null,
+        })
+            .onConflictDoNothing({
+            target: whatsappMessages.messageSid,
+            where: sql `${whatsappMessages.messageSid} IS NOT NULL`,
+        })
+            .returning({ id: whatsappMessages.id });
+        // Only a genuinely new message (not a webhook retry) pings the inbox staff.
+        if (inserted.length > 0) {
+            emitSSEEvent('whatsapp.message', { phone: toPhone, name: profileName, preview: (text ?? '').slice(0, 120) }, { roles: CHAT_STAFF_ROLES, platformOnly: true });
+        }
+    }
+    catch (err) {
+        console.error('[whatsapp] Failed to store inbound message:', err);
     }
 }
 async function applyStatus(st) {
