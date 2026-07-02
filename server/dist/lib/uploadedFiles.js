@@ -1,4 +1,4 @@
-import { and, count, eq, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { uploadedFiles } from '../db/schema.js';
 // Mirror a freshly-uploaded storage path into the unified vault. This is an
@@ -36,7 +36,7 @@ export async function unregisterUploadedFilesSafe(storagePaths) {
     if (!storagePaths.length)
         return;
     try {
-        await db.delete(uploadedFiles).where(sql `${uploadedFiles.storagePath} = ANY(${storagePaths})`);
+        await db.delete(uploadedFiles).where(inArray(uploadedFiles.storagePath, storagePaths));
     }
     catch (err) {
         console.error('[vault] failed to unregister uploaded files', err);
