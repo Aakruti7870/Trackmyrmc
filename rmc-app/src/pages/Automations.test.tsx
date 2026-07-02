@@ -54,6 +54,13 @@ const DIGEST = item({
   defaultConfig: { frequency: 'daily', sendHour: 8, weekday: 1, email: true, whatsapp: false, whatsappTemplate: '' },
 });
 
+const TRIP_SHARE = item({
+  name: 'tripShare',
+  label: 'Auto trip-share link',
+  config: { ttlHours: 24, email: true, push: true, whatsapp: false, whatsappTemplate: '' },
+  defaultConfig: { ttlHours: 24, email: true, push: true, whatsapp: false, whatsappTemplate: '' },
+});
+
 const CLEANUP = item({
   name: 'cleanup',
   label: 'Auto-cleanup',
@@ -62,10 +69,12 @@ const CLEANUP = item({
   defaultConfig: { retentionDays: 30 },
 });
 
-function mockList(scope: 'plant' | 'global', items: Item[]) {
+function mockList(scope: 'plant' | 'global', items: Item[], extra: Record<string, unknown> = {}) {
   vi.mocked(api.get).mockResolvedValue({
     scope,
     plantId: scope === 'plant' ? 3 : null,
+    shareBaseConfigured: true,
+    ...extra,
     items,
   } as never);
 }
@@ -238,6 +247,24 @@ describe('Automations admin page', () => {
     expect(await screen.findByText('Could not load the activity feed.')).toBeInTheDocument();
     // The page itself is still healthy — only the feed panel shows the error.
     expect(screen.getByText('Order reminders')).toBeInTheDocument();
+  });
+
+  it('warns on the trip-share card when the server has no public base URL', async () => {
+    mockList('global', [TRIP_SHARE, REMINDER], { shareBaseConfigured: false });
+    render(<Automations />);
+
+    expect(await screen.findByText('Auto trip-share link')).toBeInTheDocument();
+    // Exactly one warning badge, and only on the trip-share card.
+    const badge = screen.getByTestId('badge-tripshare-no-base-url');
+    expect(badge).toHaveTextContent('Links not configured — nothing will send');
+  });
+
+  it('shows no trip-share warning when the base URL is configured', async () => {
+    mockList('global', [TRIP_SHARE]);
+    render(<Automations />);
+
+    expect(await screen.findByText('Auto trip-share link')).toBeInTheDocument();
+    expect(screen.queryByTestId('badge-tripshare-no-base-url')).not.toBeInTheDocument();
   });
 
   it('a failed save surfaces a dismissible error banner and keeps the toggle state', async () => {

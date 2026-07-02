@@ -14,8 +14,9 @@ import { computeFuelReconciliation } from '../routes/reports.js';
 const STAFF_ALERT_ROLES = ['admin', 'plant_owner', 'dispatcher', 'authority'];
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Trusted public origin for links placed in outbound messages. Request headers
-// are never consulted (they are forgeable); config only.
-function appBaseUrl() {
+// are never consulted (they are forgeable); config only. Exported so the
+// Automations API can surface "share links are unconfigured" in the UI.
+export function appBaseUrl() {
     const env = (process.env.APP_URL || process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
     if (env)
         return env;

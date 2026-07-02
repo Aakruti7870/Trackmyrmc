@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { AUTOMATIONS, AUTOMATION_DEFS, getEffectiveAutomation, getLastRunMap, isAutomationName, lastSentAt, listRecentSends, loadAutomationSnapshot, sanitizeConfig, saveAutomationSettings, } from '../lib/automations.js';
-import { tickAutomations, tickAutomationsForPlant } from '../lib/automationJobs.js';
+import { appBaseUrl, tickAutomations, tickAutomationsForPlant } from '../lib/automationJobs.js';
 // Admin configuration for the automation suite. Scope model: a plant-scoped
 // actor (plantId set) reads/writes their PLANT's override rows; a platform
 // actor (plantId null — authority or a global admin) reads/writes the
@@ -29,7 +29,9 @@ router.get('/', async (req, res) => {
             lastSentAt: lastSent[name] ?? null,
         };
     });
-    res.json({ scope: plantId ? 'plant' : 'global', plantId, items });
+    // Trip-share (and any other link-bearing automation) silently skips when no
+    // trusted public base URL is configured; expose that so the UI can warn.
+    res.json({ scope: plantId ? 'plant' : 'global', plantId, shareBaseConfigured: appBaseUrl() != null, items });
 });
 // Per-automation activity feed: what the automation actually did (who was
 // notified / what was purged), straight from the once-only claim ledger.

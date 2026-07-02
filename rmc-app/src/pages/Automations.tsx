@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { Zap, Play, X, Clock, CheckCircle2, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { Zap, Play, X, Clock, CheckCircle2, History, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 
 // Admin control panel for the scheduled automation suite. The server resolves
 // the actor's scope from their token: plant-scoped staff edit their plant's
@@ -21,6 +21,9 @@ interface AutomationItem {
 interface AutomationsResponse {
   scope: 'plant' | 'global';
   plantId: number | null;
+  // False when the server has no trusted public base URL (APP_URL) configured,
+  // in which case the trip-share automation silently skips every send.
+  shareBaseConfigured?: boolean;
   items: AutomationItem[];
 }
 
@@ -226,6 +229,7 @@ export default function Automations() {
             const cfg = draftOf(item);
             const isBusy = busy === item.name;
             const cleanupLocked = item.name === 'cleanup' && data!.scope === 'plant';
+            const shareLinksBroken = item.name === 'tripShare' && data!.shareBaseConfigured === false;
             const channelKeys = Object.keys(item.defaultConfig).filter(k => k in CHANNEL_LABELS);
             const numberKeys = Object.keys(item.defaultConfig).filter(k => typeof item.defaultConfig[k] === 'number' && k !== 'weekday');
             const dirty = drafts[item.name] !== undefined;
@@ -244,6 +248,15 @@ export default function Automations() {
                       {item.source !== 'default' && (
                         <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: 'var(--blue)', background: 'rgba(56,189,248,.12)', whiteSpace: 'nowrap' }}>
                           {item.source === 'plant' ? 'Plant override' : 'Platform setting'}
+                        </span>
+                      )}
+                      {shareLinksBroken && (
+                        <span data-testid="badge-tripshare-no-base-url" title="The server has no public app URL configured (APP_URL), so tracking links cannot be built and nothing will be sent." style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700,
+                          padding: '2px 9px', borderRadius: 20, whiteSpace: 'nowrap',
+                          color: 'var(--red)', background: 'rgba(239,68,68,.12)',
+                        }}>
+                          <AlertTriangle size={11} /> Links not configured — nothing will send
                         </span>
                       )}
                       {savedFlash === item.name && (
