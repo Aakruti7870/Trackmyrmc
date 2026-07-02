@@ -38,6 +38,7 @@ const NearbyPlants   = lazy(() => import('@/pages/NearbyPlants'));
 const Plants         = lazy(() => import('@/pages/Plants'));
 const RecurringAdmin = lazy(() => import('@/pages/RecurringAdmin'));
 const Automations    = lazy(() => import('@/pages/Automations'));
+const WhatsAppChat   = lazy(() => import('@/pages/WhatsAppChat'));
 const FuelLog        = lazy(() => import('@/pages/FuelLog'));
 const Users          = lazy(() => import('@/pages/Users'));
 const ActivityLog    = lazy(() => import('@/pages/ActivityLog'));
@@ -132,6 +133,7 @@ function ProtectedRoutes() {
         <Route path="/activity-log" component={() => <GuardedRoute path="/activity-log" component={ActivityLog}      />} />
         <Route path="/audit-log"    component={() => <GuardedRoute path="/audit-log"    component={AuditLog}        />} />
         <Route path="/automations"  component={() => <GuardedRoute path="/automations"  component={Automations}     />} />
+        <Route path="/whatsapp"     component={() => <GuardedRoute path="/whatsapp"     component={WhatsAppChat}    />} />
         <Route path="/profile"      component={() => <GuardedRoute path="/profile"      component={ProfileSettings} />} />
         <Route path="/challans/:id/print" component={() => <GuardedRoute path="/challans" component={ChallanPrint} />} />
         <Route><Redirect to={defaultPath(user.role)} /></Route>

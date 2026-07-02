@@ -4,11 +4,14 @@ export type Role = 'authority' | 'plant_owner' | 'admin' | 'supervisor' | 'dispa
 const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/plants', '/users', '/activity-log', '/audit-log', '/automations', '/profile', '/kiosk'];
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
-  // Authority (Super Admin) also owns the /command control center.
-  authority:      ['/command', ...ADMIN_PATHS],
+  // Authority (Super Admin) also owns the /command control center and the
+  // platform-wide WhatsApp chat inbox.
+  authority:      ['/command', '/whatsapp', ...ADMIN_PATHS],
   // Plant Owner runs a single plant end-to-end: same surface as an admin.
   plant_owner:    ADMIN_PATHS,
-  admin:          ADMIN_PATHS,
+  // The WhatsApp inbox is platform-staff only; the API rejects plant-bound
+  // admins, and the sidebar additionally hides it from them (Layout).
+  admin:          ['/whatsapp', ...ADMIN_PATHS],
   // Supervisor oversees plant operations & dispatch (no user/plant admin).
   supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile', '/kiosk'],
   dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile', '/kiosk'],

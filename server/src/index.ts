@@ -187,6 +187,7 @@ if (isProd) {
     '/activity-log',
     '/audit-log',
     '/automations',
+    '/whatsapp',
     '/profile',
   ]);
 

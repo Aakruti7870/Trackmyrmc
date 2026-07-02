@@ -300,6 +300,59 @@ async function sendViaMeta(
   }
 }
 
+// Send one free-text (session) WhatsApp message via the Meta Cloud API. Unlike
+// templates, free text is only deliverable inside Meta's 24-hour customer
+// service window (i.e. the customer messaged us within the last 24h) — the
+// caller enforces that window; Meta rejects the send otherwise. Meta-only:
+// Twilio freeform uses a different flow we don't support, so without a Meta
+// sender this falls back to the dev log (non-prod) or fails closed (prod).
+export async function sendWhatsAppText(
+  toPhone: string | null | undefined,
+  bodyText: string,
+): Promise<WhatsAppSendResult> {
+  const to = normalizePhone(toPhone);
+  if (!to) return { ok: false, channel: 'dev', error: 'No valid recipient phone number.', retryable: false };
+  const text = bodyText.trim();
+  if (!text) return { ok: false, channel: 'dev', error: 'Message text is empty.', retryable: false };
+
+  const meta = metaWhatsAppConfig();
+  if (meta) {
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/${meta.version}/${meta.phoneNumberId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${meta.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: to.replace(/^\+/, ''),
+            type: 'text',
+            text: { body: text },
+          }),
+        },
+      );
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        const retryable = res.status >= 500 || res.status === 429;
+        return { ok: false, channel: 'whatsapp', error: `WhatsApp provider error (${res.status}). ${detail.slice(0, 200)}`, retryable };
+      }
+      const body = (await res.json().catch(() => ({}))) as { messages?: { id?: string }[] };
+      return { ok: true, channel: 'whatsapp', sid: body.messages?.[0]?.id, status: 'accepted' };
+    } catch {
+      return { ok: false, channel: 'whatsapp', error: 'Could not reach the WhatsApp provider.', retryable: true };
+    }
+  }
+
+  if (!isProd()) {
+    console.log(`[whatsapp:dev] text -> ${to}: ${text}`);
+    return { ok: true, channel: 'dev', status: 'dev' };
+  }
+  return { ok: false, channel: 'dev', error: 'WhatsApp Cloud API is not configured.', retryable: false };
+}
+
 // Send one approved WhatsApp template to a recipient. `variables` maps the
 // template's numbered placeholders ("1", "2", …) to their values. When the Meta
 // Cloud API is configured it is used (templateSid carries the Meta template

@@ -238,16 +238,30 @@ export const whatsappMessages = pgTable('whatsapp_messages', {
   errorCode: text('error_code'),
   // 'whatsapp' (handed to Twilio) | 'dev' (console-logged dev fallback).
   channel: text('channel').notNull().default('whatsapp'),
+  // Two-way chat support. 'outbound' = we sent it (notification or staff chat
+  // reply); 'inbound' = the customer messaged our WhatsApp number (stored by
+  // the Meta webhook). toPhone always holds the CUSTOMER's number regardless of
+  // direction so a conversation is simply all rows sharing one toPhone.
+  direction: text('direction').notNull().default('outbound'),
+  // Free-text message body. Populated for inbound messages and staff chat
+  // replies; NULL for template notifications (their content lives in Meta).
+  body: text('body'),
+  // WhatsApp profile name Meta reports for an inbound sender (display only).
+  profileName: text('profile_name'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   // The webhook looks a message up by its Twilio SID, so it must be unique. NULL
-  // SIDs (dev/error sends Twilio never callbacks for) never collide.
+  // SIDs (dev/error sends Twilio never callbacks for) never collide. For Meta
+  // inbound messages the wamid is stored here too, which also dedupes webhook
+  // retries (insert with onConflictDoNothing).
   uniqueIndex('whatsapp_messages_sid_unique')
     .on(t.messageSid)
     .where(sql`${t.messageSid} IS NOT NULL`),
   index('whatsapp_messages_plant_idx').on(t.plantId),
   index('whatsapp_messages_created_at_idx').on(t.createdAt),
+  // Chat views group and page by customer phone.
+  index('whatsapp_messages_to_phone_idx').on(t.toPhone),
 ]);
 
 // Every refuel/diesel fill for a vehicle. Litres + optional cost and odometer

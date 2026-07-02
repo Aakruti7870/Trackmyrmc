@@ -97,6 +97,10 @@ export function useSSE() {
         dispatchEvent('plant.invite', JSON.parse(e.data));
       });
 
+      es.addEventListener('whatsapp.message', (e: MessageEvent) => {
+        dispatchEvent('whatsapp.message', JSON.parse(e.data));
+      });
+
       es.addEventListener('ping', () => {});
     }
 

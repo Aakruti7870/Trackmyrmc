@@ -4,7 +4,7 @@ import {
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
   Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon, CalendarClock,
-  Crown, Building2, HardHat, Wallet, User, Zap,
+  Crown, Building2, HardHat, Wallet, User, Zap, MessageCircle,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -45,6 +45,7 @@ const ALL_NAV_ITEMS = [
   { path: '/activity-log', label: 'Activity Log', icon: History },
   { path: '/audit-log',   label: 'Audit Log',  icon: ScrollText },
   { path: '/automations', label: 'Automations', icon: Zap },
+  { path: '/whatsapp',    label: 'WhatsApp',   icon: MessageCircle },
 ];
 
 // Clients get a curated, deep-linked menu. The rich "My Orders" page exposes
@@ -181,7 +182,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       showToast(`No ${kind} WhatsApp update reached ${d.toPhone} — please call the customer`, 'error');
     });
 
-    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); unsubInvite(); unsubWaFailed(); unsubGaveUp(); };
+    // A customer messaged our WhatsApp business number (platform staff only,
+    // scoped server-side). Toast a preview + re-dispatch as a window event so an
+    // open WhatsApp inbox page refreshes instantly.
+    const unsubWaMsg = subscribe('whatsapp.message', (data: unknown) => {
+      const d = data as { phone?: string; name?: string | null; preview?: string };
+      if (!d?.phone) return;
+      const who = d.name || d.phone;
+      const preview = d.preview ? `: ${d.preview}` : '';
+      showToast(`WhatsApp from ${who}${preview}`, 'info');
+      window.dispatchEvent(new CustomEvent('whatsapp-message', { detail: d }));
+    });
+
+    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); unsubInvite(); unsubWaFailed(); unsubGaveUp(); unsubWaMsg(); };
   }, [subscribe, showToast, isClient]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';
@@ -189,8 +202,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const RoleIcon = user ? (ROLE_ICON[user.role] || User) : User;
 
   const allowedPaths = user ? (ROLE_ALLOWED_PATHS[user.role as Role] ?? []) : [];
+  // The WhatsApp inbox is platform-staff only (one shared business number), so
+  // hide it from plant-bound admins even though the admin role lists the path;
+  // the API enforces the same boundary with a 403.
+  const isPlatformStaff = !!user && (user.role === 'authority' || (user.role === 'admin' && user.plantId == null));
   const navItems: { path: string; label: string; icon: typeof LayoutDashboard; tab?: string }[] =
-    isClient ? CLIENT_NAV : ALL_NAV_ITEMS.filter(item => allowedPaths.includes(item.path));
+    isClient
+      ? CLIENT_NAV
+      : ALL_NAV_ITEMS.filter(item =>
+          allowedPaths.includes(item.path) && (item.path !== '/whatsapp' || isPlatformStaff));
 
   const SidebarContent = () => (
     <>
