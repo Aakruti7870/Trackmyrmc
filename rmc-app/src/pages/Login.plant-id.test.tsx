@@ -71,8 +71,8 @@ describe('Login — portals and staff sign-in flow', () => {
     await waitFor(() => expect(screen.getByText(/login code/i)).toBeInTheDocument());
     expect(post).toHaveBeenCalledWith('/auth/staff/login-method', { email: 'disp@plant.com' });
     expect(post).toHaveBeenCalledWith('/auth/staff/otp/send', { email: 'disp@plant.com' });
-    // The shared 6-box code input is shown.
-    expect(screen.getByRole('group', { name: /one-time code/i })).toBeInTheDocument();
+    // The shared single-box code input is shown.
+    expect(screen.getByRole('textbox', { name: /one-time code/i })).toBeInTheDocument();
   });
 
   it('a recognized Super Admin email reveals the password field', async () => {

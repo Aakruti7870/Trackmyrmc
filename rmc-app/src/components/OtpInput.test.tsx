@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { useState } from 'react';
 import OtpInput from './OtpInput';
 
-// A tiny controlled wrapper so the boxes reflect the value the parent owns,
+// A tiny controlled wrapper so the box reflects the value the parent owns,
 // mirroring how Login drives the component.
 function Harness({ onComplete }: { onComplete?: (c: string) => void }) {
   const [value, setValue] = useState('');
@@ -12,57 +12,57 @@ function Harness({ onComplete }: { onComplete?: (c: string) => void }) {
 }
 
 describe('OtpInput', () => {
-  it('renders six digit boxes', () => {
+  it('renders a single code box that accepts one-time-code autofill', () => {
     render(<Harness />);
-    const boxes = screen.getAllByRole('textbox');
-    expect(boxes).toHaveLength(6);
+    const box = screen.getByRole('textbox') as HTMLInputElement;
+    expect(box).toBeInTheDocument();
+    expect(box.getAttribute('autocomplete')).toBe('one-time-code');
+    expect(box.getAttribute('inputmode')).toBe('numeric');
   });
 
-  it('auto-advances and fires onComplete once every box is filled', async () => {
+  it('fires onComplete once the full code is typed', async () => {
     const user = userEvent.setup();
     const onComplete = vi.fn();
     render(<Harness onComplete={onComplete} />);
 
-    const boxes = screen.getAllByRole('textbox') as HTMLInputElement[];
-    boxes[0].focus();
+    const box = screen.getByRole('textbox') as HTMLInputElement;
+    await user.click(box);
     await user.keyboard('123456');
 
+    expect(box.value).toBe('123456');
+    expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith('123456');
-    expect(boxes[5].value).toBe('6');
   });
 
-  it('distributes a pasted code across the boxes', async () => {
+  it('accepts a pasted code', async () => {
     const user = userEvent.setup();
     const onComplete = vi.fn();
     render(<Harness onComplete={onComplete} />);
 
-    const boxes = screen.getAllByRole('textbox') as HTMLInputElement[];
-    boxes[0].focus();
+    const box = screen.getByRole('textbox') as HTMLInputElement;
+    await user.click(box);
     await user.paste('987654');
 
-    expect(boxes.map(b => b.value).join('')).toBe('987654');
+    expect(box.value).toBe('987654');
     expect(onComplete).toHaveBeenCalledWith('987654');
   });
 
-  it('ignores non-numeric characters', async () => {
+  it('ignores non-numeric characters and caps at the code length', async () => {
     const user = userEvent.setup();
     render(<Harness />);
-    const boxes = screen.getAllByRole('textbox') as HTMLInputElement[];
-    boxes[0].focus();
-    await user.keyboard('1a2b');
-    expect(boxes[0].value).toBe('1');
-    expect(boxes[1].value).toBe('2');
+    const box = screen.getByRole('textbox') as HTMLInputElement;
+    await user.click(box);
+    await user.keyboard('1a2b3c4d5e6f7');
+    expect(box.value).toBe('123456');
   });
 
-  it('clears the current digit on backspace', async () => {
+  it('deletes digits on backspace', async () => {
     const user = userEvent.setup();
     render(<Harness />);
-    const boxes = screen.getAllByRole('textbox') as HTMLInputElement[];
-    boxes[0].focus();
+    const box = screen.getByRole('textbox') as HTMLInputElement;
+    await user.click(box);
     await user.keyboard('12');
     await user.keyboard('{Backspace}');
-    // After typing "12", focus is on box 3 (empty); backspace walks back and
-    // clears the previous filled digit.
-    expect(boxes.map(b => b.value).join('')).toBe('1');
+    expect(box.value).toBe('1');
   });
 });
