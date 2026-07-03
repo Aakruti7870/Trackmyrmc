@@ -8,7 +8,7 @@ import { users, clients, auditLogs, plants } from '../db/schema.js';
 import { verifyToken as clerkVerifyToken, createClerkClient } from '@clerk/backend';
 import { signToken, requireAuth, bumpSessionVersion, STAFF_TOKEN_TTL } from '../middleware/auth.js';
 import { isAuthorityEmail } from '../lib/authority.js';
-import { resolveStaffForOtp, sendStaffLoginCode, verifyStaffLoginCode, isSuperAdminUser, } from '../lib/staffAuth.js';
+import { resolveStaffForOtp, sendStaffLoginCode, verifyStaffLoginCode, isSuperAdminUser, isReviewDemoEmail, isReviewDemoLogin, } from '../lib/staffAuth.js';
 import { resolveStaffSsoUser } from '../lib/staffSso.js';
 import { resolveCustomerByPhone, resolveCustomerByEmail } from '../lib/customerAccount.js';
 import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.js';
@@ -866,6 +866,12 @@ router.post('/staff/otp/send', otpSendLimiter, async (req, res) => {
         res.json({ ok: true, sent: true });
         return;
     }
+    // App-store reviewer demo account: no email/SMS is sent (the reviewer types
+    // the fixed code from the Play Console instructions), but respond identically.
+    if (isReviewDemoEmail(email)) {
+        res.json({ ok: true, sent: true });
+        return;
+    }
     const send = await sendStaffLoginCode(user);
     if (!send.ok) {
         res.status(502).json({ error: send.error ?? 'Could not send your login code. Please try again.' });
@@ -893,10 +899,14 @@ router.post('/staff/otp/verify', otpVerifyLimiter, async (req, res) => {
         res.status(401).json({ error: GENERIC });
         return;
     }
-    const check = await verifyStaffLoginCode(user.id, code.trim());
-    if (!check.ok) {
-        res.status(401).json({ error: check.error ?? GENERIC });
-        return;
+    // App-store reviewer demo account bypasses the stored one-time code with a
+    // fixed code (env-configured, fails closed). All later gates still apply.
+    if (!isReviewDemoLogin(email, code)) {
+        const check = await verifyStaffLoginCode(user.id, code.trim());
+        if (!check.ok) {
+            res.status(401).json({ error: check.error ?? GENERIC });
+            return;
+        }
     }
     // Billing gate (mirrors the password /login path): once the code proves the
     // user's identity, a plant-scoped account cannot complete login while its

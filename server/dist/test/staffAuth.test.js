@@ -202,3 +202,77 @@ test('superadmin/verify refuses a non-superadmin even with a valid code', async 
     const res = await request(app).post('/api/auth/superadmin/verify').send({ email: 'disp@plant.com', code: '123456' });
     assert.equal(res.status, 401);
 });
+// ---------------------------------------------------------------------------
+// App-store reviewer demo login (REVIEW_DEMO_EMAIL + REVIEW_DEMO_OTP)
+// ---------------------------------------------------------------------------
+const DEMO_ENV_KEYS = ['REVIEW_DEMO_EMAIL', 'REVIEW_DEMO_OTP'];
+function withDemoEnv(email, code) {
+    const saved = {};
+    for (const k of DEMO_ENV_KEYS)
+        saved[k] = process.env[k];
+    if (email === undefined)
+        delete process.env.REVIEW_DEMO_EMAIL;
+    else
+        process.env.REVIEW_DEMO_EMAIL = email;
+    if (code === undefined)
+        delete process.env.REVIEW_DEMO_OTP;
+    else
+        process.env.REVIEW_DEMO_OTP = code;
+    return () => {
+        for (const k of DEMO_ENV_KEYS) {
+            if (saved[k] === undefined)
+                delete process.env[k];
+            else
+                process.env[k] = saved[k];
+        }
+    };
+}
+test('reviewer demo login: fixed code works ONLY for the configured account', async () => {
+    const restore = withDemoEnv('reviewer@demo.test', 'REVIEW-123456');
+    try {
+        const demo = await createStaff({ name: 'Reviewer', email: 'reviewer@demo.test', role: 'dispatcher' });
+        const other = await createStaff({ name: 'Disp', email: 'disp@plant.com', role: 'dispatcher' });
+        // Send responds ok without any delivery channel (nothing is actually sent).
+        const sent = await request(app).post('/api/auth/staff/otp/send').send({ email: 'reviewer@demo.test' });
+        assert.equal(sent.status, 200);
+        // Fixed code logs the demo account in.
+        const ok = await request(app).post('/api/auth/staff/otp/verify')
+            .send({ email: 'Reviewer@Demo.Test', code: 'REVIEW-123456' });
+        assert.equal(ok.status, 200);
+        assert.ok(ok.body.token);
+        assert.equal(ok.body.user.id, demo.id);
+        // Wrong code for the demo account is still rejected.
+        const bad = await request(app).post('/api/auth/staff/otp/verify')
+            .send({ email: 'reviewer@demo.test', code: 'WRONG-000000' });
+        assert.equal(bad.status, 401);
+        // The fixed code does NOT work for any other account.
+        const cross = await request(app).post('/api/auth/staff/otp/verify')
+            .send({ email: 'disp@plant.com', code: 'REVIEW-123456' });
+        assert.equal(cross.status, 401);
+        void other;
+    }
+    finally {
+        restore();
+    }
+});
+test('reviewer demo login fails closed when unconfigured or the code is too short', async () => {
+    await createStaff({ name: 'Reviewer', email: 'reviewer@demo.test', role: 'dispatcher' });
+    const restoreUnset = withDemoEnv(undefined, undefined);
+    try {
+        const res = await request(app).post('/api/auth/staff/otp/verify')
+            .send({ email: 'reviewer@demo.test', code: 'REVIEW-123456' });
+        assert.equal(res.status, 401, 'no env vars: fixed code rejected');
+    }
+    finally {
+        restoreUnset();
+    }
+    const restoreShort = withDemoEnv('reviewer@demo.test', '123');
+    try {
+        const res = await request(app).post('/api/auth/staff/otp/verify')
+            .send({ email: 'reviewer@demo.test', code: '123' });
+        assert.equal(res.status, 401, 'short code: demo path disabled');
+    }
+    finally {
+        restoreShort();
+    }
+});

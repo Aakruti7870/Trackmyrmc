@@ -96,3 +96,28 @@ test('a wrong code on a suspended plant returns a generic 401 (no billing leak)'
     }
     assert.match(res.body.error, /code is incorrect or has expired/i);
 });
+test('the reviewer demo login cannot bypass the billing gate', async () => {
+    const savedEmail = process.env.REVIEW_DEMO_EMAIL;
+    const savedCode = process.env.REVIEW_DEMO_OTP;
+    process.env.REVIEW_DEMO_EMAIL = 'reviewer@demo.test';
+    process.env.REVIEW_DEMO_OTP = 'REVIEW-123456';
+    try {
+        const plant = await createPlant('suspended');
+        await createStaff('reviewer@demo.test', plant.id);
+        // The fixed demo code proves identity, but the plant's suspended
+        // subscription must still block the login (same as a real OTP).
+        const res = await verify('reviewer@demo.test', 'REVIEW-123456');
+        assert.equal(res.status, 403);
+        assert.equal(res.body.subscriptionBlocked, true);
+    }
+    finally {
+        if (savedEmail === undefined)
+            delete process.env.REVIEW_DEMO_EMAIL;
+        else
+            process.env.REVIEW_DEMO_EMAIL = savedEmail;
+        if (savedCode === undefined)
+            delete process.env.REVIEW_DEMO_OTP;
+        else
+            process.env.REVIEW_DEMO_OTP = savedCode;
+    }
+});
