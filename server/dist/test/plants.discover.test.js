@@ -8,6 +8,9 @@ import { plants } from '../db/schema.js';
 let app;
 const KEY = 'GOOGLE_PLACES_API_KEY';
 const prevKey = process.env[KEY];
+const FALLBACK_KEY = 'GOOGLE_MAPS_API_KEY';
+const prevFallbackKey = process.env[FALLBACK_KEY];
+delete process.env[FALLBACK_KEY];
 // A fake Places "searchText" response with two plants: one ~1km away and one
 // ~120km away, plus a third that collides with an onboarded partner plant.
 function fakePlacesResponse() {
@@ -58,6 +61,10 @@ after(async () => {
         delete process.env[KEY];
     else
         process.env[KEY] = prevKey;
+    if (prevFallbackKey === undefined)
+        delete process.env[FALLBACK_KEY];
+    else
+        process.env[FALLBACK_KEY] = prevFallbackKey;
     mock.reset();
     await pool.end();
 });
