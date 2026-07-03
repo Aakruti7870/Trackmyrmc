@@ -105,6 +105,9 @@ export interface AppConfig {
   appVersion: string;
   rolePermissionOverrides: Partial<Record<string, string[]>>;
   socialLinks?: SocialLinks;
+  /** Browser key for Google Maps; absent = free OpenStreetMap maps. */
+  googleMapsKey?: string;
+  googleMapsMapId?: string;
 }
 
 export type User = {

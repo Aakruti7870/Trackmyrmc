@@ -9,6 +9,7 @@ A full-stack RMC (Ready-Mix Concrete) marketplace and plant management web appli
 - **Styling**: Tailwind CSS v4 + inline styles (teal-green corporate theme, Day/Night modes)
 - **Data**: localStorage (no backend required)
 - **Icons**: lucide-react
+- **Maps**: Google Maps (via `rmc-app/src/components/map` compat layer) with automatic fallback to Leaflet/OpenStreetMap when no key is configured or Google auth fails. Key comes from `GOOGLE_MAPS_BROWSER_KEY` (preferred, domain-restricted) or `GOOGLE_MAPS_API_KEY` / `GOOGLE_PLACES_API_KEY`; the key must have **Maps JavaScript API** enabled (and ideally **Geocoding API** for address search). Optional `GOOGLE_MAPS_MAP_ID` for cloud-styled maps.
 
 ## Project Structure
 

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, FitBounds } from '@/components/map';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { MapPin, Navigation, Gauge } from 'lucide-react';
 import { api, type LivePosition } from '@/lib/api';
+import { useMapEngine } from '@/lib/mapEngine';
 import { SectionHeading, GlassPanel, StatCard, LiveDot, } from '../ui';
 import { mix } from '../tokens';
 
@@ -16,17 +16,8 @@ const truckIcon = L.icon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
 });
 
-function FitBounds({ points }: { points: [number, number][] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (points.length === 0) return;
-    if (points.length === 1) { map.setView(points[0], 12); return; }
-    map.fitBounds(L.latLngBounds(points), { padding: [40, 40] });
-  }, [points, map]);
-  return null;
-}
-
 export default function LiveMap({ accent }: { accent: string }) {
+  const engine = useMapEngine();
   const [positions, setPositions] = useState<LivePosition[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -69,7 +60,7 @@ export default function LiveMap({ accent }: { accent: string }) {
               attribution='&copy; OpenStreetMap contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <FitBounds points={points} />
+            <FitBounds points={points} singleZoom={12} />
             {positions.map(p => (
               <Marker key={p.challanId} position={[p.lat, p.lng]} icon={truckIcon}>
                 <Popup>
@@ -96,7 +87,9 @@ export default function LiveMap({ accent }: { accent: string }) {
 
       <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: mix(accent, 90), display: 'inline-block' }} />
-        Maps &amp; geocoding via OpenStreetMap — no third-party map key required.
+        {engine === 'google'
+          ? 'Live map powered by Google Maps.'
+          : 'Maps & geocoding via OpenStreetMap — no third-party map key required.'}
       </p>
     </div>
   );

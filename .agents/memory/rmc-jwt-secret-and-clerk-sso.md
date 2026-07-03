@@ -17,9 +17,11 @@ secret must always be present in every environment (dev + prod) or the app won't
   set it via `setEnvVars({ values: { JWT_SECRET }, environment: "shared" })` in code_execution, without
   printing the value. `shared` scope is essential — it covers both dev and the deploy/prod build.
 - Rotating it invalidates all existing localStorage `rmc_token` sessions (users just re-login) — fine for this app.
-- **Pitfall that cost a boot cycle:** the agent's interactive bash shell does NOT receive secrets or
-  shared env vars — `printenv JWT_SECRET` shows missing even when it's correctly set. Verify presence
-  with `viewEnvVars({ keys: ["JWT_SECRET"] })`, never with `printenv` in the bash tool.
+- **Env visibility is inconsistent, verify per-session:** shared env vars have been observed BOTH
+  visible and invisible to the agent's bash shell across sessions (July 2026: `node -e` in bash read
+  `process.env.JWT_SECRET` fine and minted a token; earlier sessions saw it missing). Don't trust a
+  cached assumption either way — probe with a quick `node -e "console.log(!!process.env.JWT_SECRET)"`
+  and fall back to `viewEnvVars({ keys: ["JWT_SECRET"] })` if absent.
 - **Pitfall:** "secret" (global) and "shared env var" are two different stores. A secret showing
   `false` in `viewEnvVars` means it does NOT exist; reconciling a duplicate can accidentally leave the
   runtime with neither. Always re-verify with `viewEnvVars` after any secret/env reconciliation.

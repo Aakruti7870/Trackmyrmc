@@ -2,6 +2,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { api, type AppConfig, type SocialLinks } from './api';
 import { ConfigContext, DEFAULT_SOCIAL_LINKS } from './config';
 import { setPermissionOverrides } from './permissions';
+import { configureGoogleMaps } from './mapEngine';
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [appVersion, setAppVersion] = useState('');
@@ -18,6 +19,10 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         setPermissionOverrides(cfg.rolePermissionOverrides);
         setAppVersion(cfg.appVersion ?? '');
         if (cfg.socialLinks) setSocialLinks({ ...DEFAULT_SOCIAL_LINKS, ...cfg.socialLinks });
+        // With a key, all map screens upgrade to Google Maps (falls back to
+        // OpenStreetMap automatically on load/auth failure). Without one this
+        // is a no-op and the free maps stay.
+        configureGoogleMaps(cfg.googleMapsKey, cfg.googleMapsMapId);
       })
       .catch(() => {
         // Network/parse failure — keep static permission defaults, an empty

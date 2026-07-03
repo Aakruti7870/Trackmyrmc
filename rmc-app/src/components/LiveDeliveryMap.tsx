@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, FitBounds } from '@/components/map';
+import { useMapHandle } from '@/components/map/handle';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { Hand, Lock } from 'lucide-react';
 
 export interface DeliveryMarker {
@@ -35,44 +35,14 @@ const svgMarker = (inner: string) =>
 const truckIcon = dot('var(--gold, #178a6e)', svgMarker('<path d="M14 18V6a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h1"/><path d="M14 9h4l3 3v5a1 1 0 0 1-1 1h-1"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>'));
 const siteIcon = dot('#22c55e', svgMarker('<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>'));
 
-// Refits the map to every visible marker whenever the set of coordinates
-// changes, so trucks and sites stay in frame as positions update.
-function FitBounds({ points }: { points: [number, number][] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (points.length === 0) return;
-    if (points.length === 1) {
-      map.setView(points[0], Math.max(map.getZoom(), 14));
-      return;
-    }
-    map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 16 });
-  }, [points, map]);
-  return null;
-}
-
-// Toggles Leaflet's touch/scroll handlers so that on mobile the map only
-// captures touch once the user opts in. While locked, the container is left
-// scrollable (touch-action: pan-y) so the page keeps scrolling normally.
+// Toggles map gesture handling so that on mobile the map only captures touch
+// once the user opts in. While locked, the container is left scrollable
+// (touch-action: pan-y) so the page keeps scrolling normally.
 function GestureGate({ interactive }: { interactive: boolean }) {
-  const map = useMap();
+  const handle = useMapHandle();
   useEffect(() => {
-    const container = map.getContainer();
-    if (interactive) {
-      map.dragging.enable();
-      map.touchZoom.enable();
-      map.scrollWheelZoom.enable();
-      map.doubleClickZoom.enable();
-      map.boxZoom.enable();
-      container.style.touchAction = '';
-    } else {
-      map.dragging.disable();
-      map.touchZoom.disable();
-      map.scrollWheelZoom.disable();
-      map.doubleClickZoom.disable();
-      map.boxZoom.disable();
-      container.style.touchAction = 'pan-y';
-    }
-  }, [interactive, map]);
+    handle.setInteractive(interactive);
+  }, [interactive, handle]);
   return null;
 }
 
@@ -119,7 +89,7 @@ export default function LiveDeliveryMap({ markers }: { markers: DeliveryMarker[]
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitBounds points={points} />
+        <FitBounds points={points} maxZoom={16} singleZoom={14} />
         <GestureGate interactive={interactive} />
         {markers.map(m => (
           <div key={m.challanId}>

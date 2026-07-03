@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, FitBounds } from "@/components/map";
 import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import {
   Compass,
   List,
@@ -146,16 +145,7 @@ const svgMarker = (inner: string) =>
 const meIcon = dot("#38bdf8", svgMarker('<circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 10.5 10.5 8.5 15.5 13.5 13.5"/>'));
 
 function FitAll({ points }: { points: [number, number][] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!points.length) return;
-    if (points.length === 1) {
-      map.setView(points[0], Math.max(map.getZoom(), 12));
-      return;
-    }
-    map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 14 });
-  }, [points, map]);
-  return null;
+  return <FitBounds points={points} singleZoom={12} maxZoom={14} />;
 }
 
 export default function SupplierDiscoveryMap() {

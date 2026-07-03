@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, FitBounds } from '@/components/map';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { MapPin, List, Map as MapIcon, Phone, Clock, Navigation, PackagePlus, Loader2, LocateFixed, RefreshCw, Headphones, Search, ShieldCheck, ShieldAlert, HandHeart, Check } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -99,13 +98,7 @@ const plantIcon = dot('var(--gold, #178a6e)', svgMarker(FACTORY));
 const leadIcon = dot('var(--muted)', svgMarker(FACTORY));
 
 function FitAll({ points }: { points: [number, number][] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!points.length) return;
-    if (points.length === 1) { map.setView(points[0], Math.max(map.getZoom(), 13)); return; }
-    map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 15 });
-  }, [points, map]);
-  return null;
+  return <FitBounds points={points} singleZoom={13} maxZoom={15} />;
 }
 
 export default function NearbyPlants() {

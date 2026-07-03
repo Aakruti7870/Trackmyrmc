@@ -11,6 +11,19 @@ router.get('/', async (_req, res) => {
         getAppVersion(),
         getSocialLinks(),
     ]);
-    res.json({ rolePermissionOverrides, appVersion, socialLinks });
+    // Browser-side Google Maps key: prefer a dedicated (domain-restricted)
+    // browser key, falling back to the general Maps key. When absent the
+    // frontend renders the free OpenStreetMap tiles instead — nothing breaks.
+    const googleMapsKey = process.env.GOOGLE_MAPS_BROWSER_KEY ||
+        process.env.GOOGLE_MAPS_API_KEY ||
+        process.env.GOOGLE_PLACES_API_KEY ||
+        '';
+    const googleMapsMapId = process.env.GOOGLE_MAPS_MAP_ID || '';
+    res.json({
+        rolePermissionOverrides,
+        appVersion,
+        socialLinks,
+        ...(googleMapsKey ? { googleMapsKey, googleMapsMapId } : {}),
+    });
 });
 export default router;

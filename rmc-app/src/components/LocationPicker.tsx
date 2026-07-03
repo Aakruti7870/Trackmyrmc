@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, MapClickCapture } from '@/components/map';
+import { useMapHandle } from '@/components/map/handle';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { Crosshair, Search, Loader2, MapPin } from 'lucide-react';
+import { getMapEngine } from '@/lib/mapEngine';
 
 // Leaflet's default marker images are resolved relative to the CSS and break
 // under bundlers. Point them at the CDN copies once, globally.
@@ -18,20 +19,13 @@ export interface LatLng { lat: number; lng: number }
 // Default view: Pune, India (the plant's region) when no pin is set yet.
 const DEFAULT_CENTER: LatLng = { lat: 18.5204, lng: 73.8567 };
 
-function ClickCapture({ onPick }: { onPick: (p: LatLng) => void }) {
-  useMapEvents({
-    click(e) { onPick({ lat: e.latlng.lat, lng: e.latlng.lng }); },
-  });
-  return null;
-}
-
 // Recenters the map imperatively when the value changes from outside
 // (geolocation, search) without re-mounting the container.
 function Recenter({ center }: { center: LatLng }) {
-  const map = useMap();
+  const handle = useMapHandle();
   useEffect(() => {
-    map.setView([center.lat, center.lng], Math.max(map.getZoom(), 15));
-  }, [center, map]);
+    handle.setView([center.lat, center.lng], Math.max(handle.getZoom(), 15));
+  }, [center, handle]);
   return null;
 }
 
@@ -74,11 +68,29 @@ export default function LocationPicker({
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
-      // Free Nominatim geocoder — no API key. Bias results to India.
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=in&q=${encodeURIComponent(q)}`;
-      const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
-      if (!res.ok) throw new Error('Search failed');
-      const data = (await res.json()) as GeoResult[];
+      let data: GeoResult[] = [];
+      // Prefer Google's geocoder when Google Maps is active — better hit rate
+      // for Indian addresses/landmarks. Any failure falls back to Nominatim.
+      if (getMapEngine() === 'google' && window.google?.maps) {
+        try {
+          const geocoder = new google.maps.Geocoder();
+          const resp = await geocoder.geocode({ address: q, region: 'in' });
+          data = resp.results.slice(0, 5).map(r => ({
+            lat: String(r.geometry.location.lat()),
+            lon: String(r.geometry.location.lng()),
+            display_name: r.formatted_address,
+          }));
+        } catch {
+          data = [];
+        }
+      }
+      if (!data.length) {
+        // Free Nominatim geocoder — no API key. Bias results to India.
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=in&q=${encodeURIComponent(q)}`;
+        const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
+        if (!res.ok) throw new Error('Search failed');
+        data = (await res.json()) as GeoResult[];
+      }
       if (!data.length) { setNote('No match found — try a nearby landmark or drop a pin.'); return; }
       // A single confident hit applies straight away; multiple matches are
       // listed so the customer disambiguates.
@@ -162,7 +174,7 @@ export default function LocationPicker({
             attribution='&copy; OpenStreetMap contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <ClickCapture onPick={pick} />
+          <MapClickCapture onPick={pick} />
           <Recenter center={center} />
           {value && (
             <Marker
