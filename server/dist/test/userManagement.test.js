@@ -87,6 +87,27 @@ test('GET /plants: plant_owner sees only their own plant', async () => {
     assert.equal(res.body[0].id, p1.id);
     assert.notEqual(res.body[0].id, p2.id);
 });
+test('a plant_owner with no plant binding is never treated as unrestricted', async () => {
+    const p = await createPlant({ name: 'Alpha RMC' });
+    await createUser({ name: 'Disp', email: 'disp@test.com', role: 'dispatcher', plantId: p.id });
+    const target = await createUser({ name: 'Target', email: 'target@test.com', role: 'dispatcher', plantId: p.id });
+    const unbound = await createUser({ name: 'Unbound', email: 'unbound@test.com', role: 'plant_owner', plantId: null });
+    const auth = { Authorization: `Bearer ${tokenFor(unbound)}` };
+    // Plant cards: an unbound owner manages nothing.
+    const cards = await request(app).get('/api/user-management/plants').set(auth);
+    assert.equal(cards.status, 200);
+    assert.equal(cards.body.length, 0);
+    // Every plant/user operation is refused outright — not treated as global scope.
+    const list = await request(app).get(`/api/user-management/plants/${p.id}/users`).set(auth);
+    assert.equal(list.status, 403);
+    const create = await request(app).post(`/api/user-management/plants/${p.id}/users`).set(auth)
+        .send({ name: 'X', email: 'x@test.com', role: 'dispatcher' });
+    assert.equal(create.status, 403);
+    const edit = await request(app).put(`/api/user-management/users/${target.id}`).set(auth).send({ name: 'Hacked' });
+    assert.equal(edit.status, 403);
+    const del = await request(app).delete(`/api/user-management/users/${target.id}`).set(auth);
+    assert.equal(del.status, 403);
+});
 test('GET /plants: customers are rejected', async () => {
     const p = await createPlant({ name: 'Alpha RMC' });
     const cust = await createUser({ name: 'Cust', email: 'cust@test.com', role: 'client', plantId: p.id });

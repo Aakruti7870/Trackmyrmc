@@ -29,6 +29,18 @@ function scopedPlantId(actor) {
     return isPlatformStaff(actor) ? null : (actor.plantId ?? null);
 }
 /**
+ * A non-platform actor (plant_owner, plant-bound admin) MUST carry a plant
+ * binding — an unbound row must never be treated as unrestricted. Returns true
+ * (after writing 403) when the actor is unbound and has to be rejected.
+ */
+function rejectUnboundActor(actor, res) {
+    if (!isPlatformStaff(actor) && actor.plantId == null) {
+        res.status(403).json({ error: 'Your account is not bound to a plant.' });
+        return true;
+    }
+    return false;
+}
+/**
  * Authorize the :plantId path param against the actor's scope. Returns the
  * parsed id, or null after writing the error response.
  */
@@ -39,6 +51,8 @@ function resolvePlantParam(req, res) {
         return null;
     }
     const actor = req.user;
+    if (rejectUnboundActor(actor, res))
+        return null;
     const scope = scopedPlantId(actor);
     if (scope !== null && scope !== id) {
         res.status(403).json({ error: 'You can only manage users of your own plant.' });
@@ -281,6 +295,8 @@ async function resolveTarget(req, res, opts = {}) {
         return null;
     }
     const actor = req.user;
+    if (rejectUnboundActor(actor, res))
+        return null;
     const scope = scopedPlantId(actor);
     if (target.plantId == null || (scope !== null && target.plantId !== scope)) {
         res.status(403).json({ error: 'This user is outside your plant.' });
