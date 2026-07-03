@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users, staffOtpCodes } from '../db/schema.js';
@@ -107,6 +108,35 @@ export async function sendStaffLoginCode(user: StaffUser): Promise<SendCodeResul
     return { ok: false, channel: 'dev', error: 'Login codes are temporarily unavailable. Please contact your administrator.' };
   }
   return { ok: true, channel: 'dev', devCode: code };
+}
+
+// --- App-store reviewer demo login -----------------------------------------
+// Google Play / App Store reviewers cannot receive our email or SMS codes, so
+// EXACTLY ONE staff account (named by REVIEW_DEMO_EMAIL) may log in with the
+// FIXED code in REVIEW_DEMO_OTP. Fails closed: disabled unless both are set
+// and the code is at least 6 characters. The account still has to be a
+// provisioned, active staff account (resolveStaffForOtp), so this can never
+// mint access to the Super Admin door or an unknown email.
+
+function reviewDemoConfig(): { email: string; code: string } | null {
+  const email = process.env.REVIEW_DEMO_EMAIL?.trim().toLowerCase();
+  const code = process.env.REVIEW_DEMO_OTP?.trim();
+  if (!email || !code || code.length < 6) return null;
+  return { email, code };
+}
+
+export function isReviewDemoEmail(email: string): boolean {
+  const cfg = reviewDemoConfig();
+  return Boolean(cfg) && email.trim().toLowerCase() === cfg!.email;
+}
+
+export function isReviewDemoLogin(email: string, code: string): boolean {
+  const cfg = reviewDemoConfig();
+  if (!cfg || email.trim().toLowerCase() !== cfg.email) return false;
+  // Constant-time comparison over fixed-length digests.
+  const a = Buffer.from(hashOtpCode(code.trim()));
+  const b = Buffer.from(hashOtpCode(cfg.code));
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 // Verify a submitted code against the stored hash. Single generic failure
