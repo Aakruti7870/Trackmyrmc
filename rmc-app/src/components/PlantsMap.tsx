@@ -38,7 +38,7 @@ function plantPin(openNow: boolean): L.DivIcon {
 
 // Normalize an Indian phone number for wa.me links: digits only, and a bare
 // 10-digit local number gets the country code prefixed.
-export function waPhone(raw: string): string {
+function waPhone(raw: string): string {
   let digits = raw.replace(/\D/g, '');
   if (digits.length === 10) digits = '91' + digits;
   return digits;

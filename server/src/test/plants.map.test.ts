@@ -9,6 +9,7 @@ import { db, pool } from '../db/index.js';
 import { users, plants } from '../db/schema.js';
 import { hashPassword } from '../lib/password.js';
 import { signToken } from '../middleware/auth.js';
+import { isOpenNow } from '../routes/plants.js';
 
 type Role = 'admin' | 'authority' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
 
@@ -109,4 +110,27 @@ test('GET /plants/map requires authentication', async () => {
   await createPlant({ name: 'Acme RMC' });
   const res = await request(app).get('/api/plants/map');
   assert.equal(res.status, 401);
+});
+
+test('isOpenNow handles an overnight window (22:00 -> 06:00 IST)', () => {
+  // Anchor "now" at fixed IST times: IST = UTC + 5:30.
+  const istMs = (h: number, m: number) => Date.UTC(2026, 6, 3, h - 5, m - 30);
+
+  // Inside the overnight window: 23:00 and 02:30 IST.
+  assert.equal(isOpenNow('22:00', '06:00', istMs(23, 0)), true);
+  assert.equal(isOpenNow('22:00', '06:00', istMs(2, 30)), true);
+  // Boundaries: open is inclusive, close is exclusive.
+  assert.equal(isOpenNow('22:00', '06:00', istMs(22, 0)), true);
+  assert.equal(isOpenNow('22:00', '06:00', istMs(6, 0)), false);
+  // Outside the window: mid-day IST.
+  assert.equal(isOpenNow('22:00', '06:00', istMs(12, 0)), false);
+
+  // Normal daytime window for contrast.
+  assert.equal(isOpenNow('06:00', '21:00', istMs(12, 0)), true);
+  assert.equal(isOpenNow('06:00', '21:00', istMs(21, 0)), false);
+  assert.equal(isOpenNow('06:00', '21:00', istMs(5, 59)), false);
+
+  // Missing hours means "closed" rather than guessing.
+  assert.equal(isOpenNow(null, '18:00', istMs(12, 0)), false);
+  assert.equal(isOpenNow('06:00', null, istMs(12, 0)), false);
 });

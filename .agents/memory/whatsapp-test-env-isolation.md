@@ -20,3 +20,10 @@ and `whatsapp.resend.test.ts`. Tests that *set* `TWILIO_*` themselves + stub
 `global.fetch` (the send-outcome suites) don't need it. Workers are separate
 processes so env mutations don't bleed cross-worker; the `after()` restore prevents
 intra-worker bleed.
+
+**Generalizes beyond WhatsApp:** clear the WHOLE fallback chain, not just the primary
+var. `placesApiKey()` falls back `GOOGLE_PLACES_API_KEY → GOOGLE_MAPS_API_KEY`; the
+discover/discover-suppliers "503 when no key" tests went red the moment
+`GOOGLE_MAPS_API_KEY` was added as a workspace secret, because they only deleted the
+primary var. Whenever a new secret is added, expect previously-green "unconfigured"
+tests to flip — check every `process.env` fallback the config helper reads.

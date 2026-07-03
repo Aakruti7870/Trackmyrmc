@@ -60,9 +60,14 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
 }
 
 // Is the plant open right now, given 'HH:MM' open/close in its local (IST) time?
-function isOpenNow(openTime: string | null, closeTime: string | null): boolean {
+// `nowUtcMs` is injectable for tests; defaults to the real clock.
+export function isOpenNow(
+  openTime: string | null,
+  closeTime: string | null,
+  nowUtcMs: number = Date.now(),
+): boolean {
   if (!openTime || !closeTime) return false;
-  const now = new Date(Date.now() + 5.5 * 3600000); // shift UTC -> IST
+  const now = new Date(nowUtcMs + 5.5 * 3600000); // shift UTC -> IST
   const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
   const toMin = (t: string) => {
     const [h, m] = t.split(':').map(Number);

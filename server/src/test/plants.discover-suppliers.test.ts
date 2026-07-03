@@ -12,6 +12,9 @@ import { signToken } from '../middleware/auth.js';
 let app: Express;
 const KEY = 'GOOGLE_PLACES_API_KEY';
 const prevKey = process.env[KEY];
+const FALLBACK_KEY = 'GOOGLE_MAPS_API_KEY';
+const prevFallbackKey = process.env[FALLBACK_KEY];
+delete process.env[FALLBACK_KEY];
 
 async function createUser(role: string, email: string) {
   const [u] = await db.insert(users).values({
@@ -65,6 +68,8 @@ beforeEach(async () => {
 after(async () => {
   if (prevKey === undefined) delete process.env[KEY];
   else process.env[KEY] = prevKey;
+  if (prevFallbackKey === undefined) delete process.env[FALLBACK_KEY];
+  else process.env[FALLBACK_KEY] = prevFallbackKey;
   mock.reset();
   await pool.end();
 });
