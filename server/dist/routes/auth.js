@@ -17,6 +17,7 @@ import { sendPasswordResetEmail } from '../lib/email.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { normalizePhone, isOtpDeliveryConfigured, sendOtp, verifyOtp } from '../lib/otp.js';
 import { isSubscriptionBlocking, subscriptionBlockMessage } from '../lib/subscription.js';
+import { isPasswordLoginEnabledForRole } from '../lib/staffPasswordLogin.js';
 const router = Router();
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
@@ -123,13 +124,36 @@ router.post('/login', async (req, res) => {
         });
         return;
     }
-    // Every other staff/owner role is now PASSWORDLESS — they must use the
-    // one-time-code door. Refuse the password path even if a legacy hash exists,
-    // so the password can never be a second way in for a provisioned staff account.
+    // Every other staff/owner role is PASSWORDLESS by default — they must use the
+    // one-time-code door — UNLESS the Super Owner has switched two-factor OFF for
+    // their role, in which case a correct password signs them straight in. All the
+    // gates above (lockout, suspension, billing, plant code) have already run.
     if (user.role !== 'client') {
-        res.status(403).json({
-            error: 'This account now signs in with a one-time code. Please go back and use the code option.',
-            useOtp: true,
+        if (!(await isPasswordLoginEnabledForRole(user.role))) {
+            res.status(403).json({
+                error: 'This account now signs in with a one-time code. Please go back and use the code option.',
+                useOtp: true,
+            });
+            return;
+        }
+        // Password-only staff login: same short-lived single-session token the OTP
+        // door issues, so switching 2FA off never weakens the session model.
+        const sessionVersion = await bumpSessionVersion(user.id);
+        const token = signToken({
+            id: user.id, email: user.email, role: user.role, name: user.name,
+            linkedClientId: user.linkedClientId,
+            linkedDriverId: user.linkedDriverId,
+            plantId: user.plantId,
+            sessionVersion,
+        }, { expiresIn: STAFF_TOKEN_TTL });
+        res.json({
+            token,
+            user: {
+                id: user.id, name: user.name, email: user.email, role: user.role,
+                linkedClientId: user.linkedClientId,
+                linkedDriverId: user.linkedDriverId,
+                plantId: user.plantId,
+            },
         });
         return;
     }
@@ -835,20 +859,32 @@ router.post('/otp/verify', otpVerifyLimiter, async (req, res) => {
 // phone is on file) and verify it. Accounts are never created here — only a
 // Super Admin provisions logins — so an unknown email silently no-ops.
 // Probe which factor a typed email uses, WITHOUT revealing whether the account
-// exists: only a recognized, active Super Admin gets the password form; everyone
-// else (staff, customers, unknown) is told to use the one-time-code path.
-router.post('/staff/login-method', async (req, res) => {
+// exists: a recognized, active Super Admin always gets the password form, and a
+// staff account gets it too when the Super Owner has switched two-factor OFF for
+// its role AND the account actually has a password set (otherwise it would be
+// locked out — the one-time-code door stays its way in). Everyone else
+// (customers, unknown emails, passwordless staff) is told to use the code path.
+const loginMethodLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 30, name: 'login-method' });
+router.post('/staff/login-method', loginMethodLimiter, async (req, res) => {
     const email = typeof req.body?.email === 'string' ? req.body.email : '';
     if (!email.trim()) {
         res.status(400).json({ error: 'Email is required' });
         return;
     }
     const [user] = await db
-        .select({ role: users.role, email: users.email, isActive: users.isActive, deletedAt: users.deletedAt })
+        .select({
+        role: users.role, email: users.email, isActive: users.isActive,
+        deletedAt: users.deletedAt, passwordHash: users.passwordHash,
+    })
         .from(users)
         .where(eq(users.email, email.toLowerCase().trim()));
-    const superAdmin = Boolean(user) && !user.deletedAt && user.isActive && isSuperAdminUser(user);
-    res.json({ method: superAdmin ? 'password' : 'otp' });
+    const usable = Boolean(user) && !user.deletedAt && user.isActive;
+    if (usable && isSuperAdminUser(user)) {
+        res.json({ method: 'password' });
+        return;
+    }
+    const passwordStaff = usable && Boolean(user.passwordHash) && (await isPasswordLoginEnabledForRole(user.role));
+    res.json({ method: passwordStaff ? 'password' : 'otp' });
 });
 // Send a login code to a provisioned, active staff/owner account. Returns a
 // generic success for unknown emails so the endpoint can't enumerate accounts;

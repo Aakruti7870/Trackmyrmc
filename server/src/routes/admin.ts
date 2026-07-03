@@ -30,6 +30,12 @@ import {
   DEFAULT_PLANT_INVITE_NOTIFY_ROLES,
 } from '../lib/plantInviteNotify.js';
 import {
+  getStaffPasswordLoginRoles,
+  serializeStaffPasswordLoginRoles,
+  STAFF_PASSWORD_LOGIN_KEY,
+  STAFF_PASSWORD_LOGIN_ROLES,
+} from '../lib/staffPasswordLogin.js';
+import {
   getFreshnessConfig,
   FRESHNESS_KEYS,
   DEFAULT_WORKING_LIFE_MIN,
@@ -566,6 +572,63 @@ router.post('/plant-invite-notify', async (req, res) => {
   }
 
   res.json({ ...after, defaults: PLANT_INVITE_NOTIFY_DEFAULTS });
+});
+
+// Staff two-factor (one-time code) exemptions. Roles in the list may sign in
+// with email + password alone — everyone else keeps the code step. Platform
+// staff only: a plant-scoped admin must never weaken login security app-wide.
+router.get('/staff-password-login', async (req, res) => {
+  if (!isPlatformStaff(req.user!)) {
+    res.status(403).json({ error: 'Only platform staff can view staff login security settings.' });
+    return;
+  }
+  res.json({
+    roles: await getStaffPasswordLoginRoles(),
+    availableRoles: STAFF_PASSWORD_LOGIN_ROLES,
+  });
+});
+
+const staffPasswordLoginSchema = z.object({
+  roles: z.array(z.enum(STAFF_PASSWORD_LOGIN_ROLES)),
+});
+
+router.post('/staff-password-login', async (req, res) => {
+  if (!isPlatformStaff(req.user!)) {
+    res.status(403).json({ error: 'Only platform staff can change staff login security settings.' });
+    return;
+  }
+  const parse = staffPasswordLoginSchema.safeParse(req.body);
+  if (!parse.success) {
+    res.status(400).json({ error: parse.error.flatten().fieldErrors });
+    return;
+  }
+
+  const before = await getStaffPasswordLoginRoles();
+  await setSetting(STAFF_PASSWORD_LOGIN_KEY, serializeStaffPasswordLoginRoles(parse.data.roles));
+  const after = await getStaffPasswordLoginRoles();
+
+  const detail =
+    before.join(',') === after.join(',')
+      ? 'Staff login security settings saved. No values were changed.'
+      : after.length
+        ? `Two-factor sign-in switched OFF (password-only allowed) for: ${after.join(', ')}. All other staff roles keep the one-time code.`
+        : 'Two-factor sign-in restored for ALL staff roles (password-only login disabled).';
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'staff_password_login_updated',
+      status: 'success',
+      detail,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write staff-password-login audit log:', err);
+  }
+
+  res.json({ roles: after, availableRoles: STAFF_PASSWORD_LOGIN_ROLES });
 });
 
 // WhatsApp order-automation settings. `enabled` is the global kill switch; the

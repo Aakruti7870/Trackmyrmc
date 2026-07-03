@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2 } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2, ShieldCheck } from 'lucide-react';
 import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult, type PlantDirectoryEntry, type SocialLinks } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -116,6 +116,27 @@ const ROLE_LABEL: Record<(typeof INVITE_NOTIFY_ROLES)[number], string> = {
   authority: 'Authority',
   dispatcher: 'Dispatcher',
   plant_operator: 'Plant Operator',
+};
+
+// Staff roles the Super Owner may exempt from the one-time-code (2FA) step so
+// they can sign in with email + password alone. Mirrors
+// STAFF_PASSWORD_LOGIN_ROLES on the server (client & authority excluded — the
+// Super Admin's own 2FA can never be switched off).
+const STAFF_2FA_ROLES = [
+  'admin', 'dispatcher', 'plant_operator', 'plant_owner', 'supervisor', 'accountant',
+  'quality_engineer', 'fleet_manager', 'store_manager', 'driver',
+] as const;
+const STAFF_2FA_ROLE_LABEL: Record<(typeof STAFF_2FA_ROLES)[number], string> = {
+  admin: 'Admin',
+  dispatcher: 'Dispatcher',
+  plant_operator: 'Plant Operator',
+  plant_owner: 'Plant Owner',
+  supervisor: 'Supervisor',
+  accountant: 'Accountant',
+  quality_engineer: 'Quality Engineer',
+  fleet_manager: 'Fleet Manager',
+  store_manager: 'Store Manager',
+  driver: 'Driver',
 };
 
 type SmtpTestLog = {
@@ -302,6 +323,11 @@ export default function ProfileSettings() {
   const [inviteNotifyForm, setInviteNotifyForm] = useState<{ emailEnabled: boolean; roles: string[]; recipients: string }>({ emailEnabled: true, roles: ['admin', 'authority'], recipients: '' });
   const [inviteNotifyLoading, setInviteNotifyLoading] = useState(false);
   const [inviteNotifySaving, setInviteNotifySaving] = useState(false);
+
+  // Roles currently allowed to skip the one-time code (2FA OFF → password login).
+  const [staff2faExempt, setStaff2faExempt] = useState<string[]>([]);
+  const [staff2faLoading, setStaff2faLoading] = useState(false);
+  const [staff2faSaving, setStaff2faSaving] = useState(false);
 
   const [whatsappForm, setWhatsappForm] = useState<WhatsAppForm>({
     enabled: true, orderEnabled: true, dispatchEnabled: true, deliveryEnabled: true,
@@ -594,6 +620,25 @@ export default function ProfileSettings() {
     loadInviteNotify();
     return () => { cancelled = true; };
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isPlatformStaff) return;
+    let cancelled = false;
+    async function loadStaff2fa() {
+      setStaff2faLoading(true);
+      try {
+        const v = await api.get<{ roles: string[] }>('/admin/staff-password-login');
+        if (cancelled) return;
+        setStaff2faExempt(v.roles ?? []);
+      } catch {
+        /* non-fatal — keep defaults */
+      } finally {
+        if (!cancelled) setStaff2faLoading(false);
+      }
+    }
+    loadStaff2fa();
+    return () => { cancelled = true; };
+  }, [isPlatformStaff]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -1182,6 +1227,26 @@ export default function ProfileSettings() {
       showToast(msg, 'error');
     } finally {
       setInviteNotifySaving(false);
+    }
+  }
+
+  async function handleStaff2faSave(e: React.FormEvent) {
+    e.preventDefault();
+    setStaff2faSaving(true);
+    try {
+      const updated = await api.post<{ roles: string[] }>('/admin/staff-password-login', { roles: staff2faExempt });
+      setStaff2faExempt(updated.roles ?? []);
+      showToast(
+        (updated.roles ?? []).length
+          ? 'Saved — the selected roles can now sign in with password only.'
+          : 'Saved — every staff role now requires the one-time code.',
+        'success',
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save login security settings';
+      showToast(msg, 'error');
+    } finally {
+      setStaff2faSaving(false);
     }
   }
 
@@ -2138,6 +2203,88 @@ export default function ProfileSettings() {
               >
                 {rolePermSaving ? 'Saving…' : 'Save permissions'}
               </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Staff login security (2FA) card — platform staff only (cross-tenant policy) */}
+      {isPlatformStaff && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <ShieldCheck size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Staff Login Security (2FA)</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Turn the one-time code on or off per staff role</div>
+            </div>
+          </div>
+
+          {staff2faLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
+          ) : (
+            <form onSubmit={handleStaff2faSave}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 14 }}>
+                Ticked roles have two-factor <b style={{ color: 'var(--text)' }}>OFF</b> — they can sign in with
+                email + password only. Unticked roles keep the one-time code requirement. The one-time-code
+                option always keeps working as a backup, and a staff member needs a password set
+                (via their invite or “Forgot password”) to use password sign-in. Your own Super Admin
+                two-factor can never be switched off.
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px', marginBottom: 16 }}>
+                {STAFF_2FA_ROLES.map(role => {
+                  const checked = staff2faExempt.includes(role);
+                  return (
+                    <label key={role} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => setStaff2faExempt(prev =>
+                          e.target.checked ? [...prev, role] : prev.filter(r => r !== role),
+                        )}
+                        style={{ width: 15, height: 15, accentColor: 'var(--gold)', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: 13, color: 'var(--text)' }}>{STAFF_2FA_ROLE_LABEL[role]}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  type="submit"
+                  disabled={staff2faSaving}
+                  style={{
+                    padding: '10px 22px', borderRadius: 10,
+                    background: staff2faSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                    border: 'none', cursor: staff2faSaving ? 'not-allowed' : 'pointer',
+                    color: '#111', fontWeight: 800, fontSize: 14, transition: 'opacity .15s',
+                  }}
+                >
+                  {staff2faSaving ? 'Saving…' : 'Save login security'}
+                </button>
+                {staff2faExempt.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStaff2faExempt([])}
+                    disabled={staff2faSaving}
+                    style={{
+                      padding: '10px 16px', borderRadius: 10, background: 'transparent',
+                      border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)',
+                      color: 'var(--gold)', fontWeight: 700, fontSize: 13,
+                      cursor: staff2faSaving ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    2FA on for all roles
+                  </button>
+                )}
+              </div>
             </form>
           )}
         </div>

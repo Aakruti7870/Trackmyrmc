@@ -25,6 +25,11 @@ secret must always be present in every environment (dev + prod) or the app won't
 - **Pitfall:** "secret" (global) and "shared env var" are two different stores. A secret showing
   `false` in `viewEnvVars` means it does NOT exist; reconciling a duplicate can accidentally leave the
   runtime with neither. Always re-verify with `viewEnvVars` after any secret/env reconciliation.
+- **Shared env vars are plaintext in `.replit`** (`[userenv.shared]`, a committed file). Code reviewers
+  will flag JWT_SECRET / VAPID_PRIVATE_KEY there as an exposure. This is the deliberate tradeoff for
+  boot-reliability (see visibility inconsistency above) — do NOT "fix" it by unilaterally rotating or
+  moving these mid-task: rotating JWT_SECRET logs out every user. Surface it to the user as an
+  optional hardening decision instead.
 
 ## TS narrowing for a required module-level const
 Writing `const JWT_SECRET = process.env.JWT_SECRET; if(!JWT_SECRET) throw…` does NOT narrow the const to

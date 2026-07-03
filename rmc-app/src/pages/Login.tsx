@@ -380,7 +380,7 @@ export default function Login() {
               <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Staff Sign In</h2>
               <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>
                 {staffStep === 'email' && 'Enter your work email to continue.'}
-                {staffStep === 'password' && 'Super Admin — enter your password, then a one-time code.'}
+                {staffStep === 'password' && 'Enter your password to continue.'}
                 {staffStep === 'code' && `Enter the 6-digit code sent to ${email || 'your email'}.`}
               </p>
 
