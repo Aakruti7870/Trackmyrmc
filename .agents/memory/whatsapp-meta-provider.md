@@ -25,10 +25,17 @@ from baseEnv (like it does `SMTP_*`/`TWILIO_*` partially) so the globally-set
 production Meta creds do NOT flip legacy Twilio/dev-path tests. Meta-specific
 tests set the env themselves and stub `global.fetch`.
 
-**Known limitation:** Meta delivery-status webhook is NOT built. Only Twilio has
-`/api/whatsapp/status`. Meta sends are recorded as `accepted` at send time — no
-delivered/read tracking. The admin message-status badge ("Twilio error …") only
-reflects Twilio status callbacks.
+**Meta webhook (statuses + inbound chat):** `/api/webhooks/whatsapp` (routes/
+webhooks.ts) handles GET verify (`WHATSAPP_META_VERIFY_TOKEN`) + POST statuses
+and inbound `event='chat'` rows. POST fails CLOSED in prod without a valid
+`X-Hub-Signature-256` — the signature is HMAC'd with `WHATSAPP_META_APP_SECRET`,
+which MUST be the secret of the SAME app that owns the phone number/token
+(verify via `appsecret_proof` on /me; a mismatched secret 403s every delivery).
+Wiring needs BOTH: app-level `POST /{app-id}/subscriptions` (app token =
+`appid|appsecret`, URL-ENCODE the pipe, fields=messages) AND
+`POST /{waba-id}/subscribed_apps`; `subscribed_apps` returning `{"data":[]}`
+means no inbound will ever arrive. Chat inbox (/whatsapp page, platform staff
+only) stays empty until customers actually message in.
 
 **Go-live (per-tenant, in app_settings via Settings → WhatsApp Notifications):**
 set the 3 approved Meta template names + enable toggles; `eventEnabled()` needs a
