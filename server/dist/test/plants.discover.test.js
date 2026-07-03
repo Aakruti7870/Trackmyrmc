@@ -46,6 +46,11 @@ before(async () => {
 });
 beforeEach(async () => {
     await db.execute(sql `TRUNCATE TABLE plants RESTART IDENTITY CASCADE`);
+    // The discover cache + rate-limit stores live in Postgres and survive across
+    // test FILES sharing a worker DB (plants.discover.shared-store.test.ts seeds
+    // a response_cache row for the exact key this file's coords hash to).
+    await db.execute(sql `TRUNCATE TABLE response_cache`);
+    await db.execute(sql `TRUNCATE TABLE rate_limit_hits`);
     mock.reset();
 });
 after(async () => {

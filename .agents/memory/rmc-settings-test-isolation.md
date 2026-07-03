@@ -21,3 +21,11 @@ disabled).
 **How to apply:** when adding tests that exercise a setting, add app_settings
 to the truncate list rather than resetting individual keys; it is cheaper and
 removes the ordering hazard entirely.
+
+**Same hazard, cross-FILE:** `response_cache` and `rate_limit_hits` (the
+Postgres-backed discover cache/rate-limit stores) survive across test files
+sharing a worker DB — a file that seeds a cache row (e.g. the shared-store
+suite) can poison a later file whose query coords hash to the same
+`lat.toFixed(2),lng.toFixed(2),radius` cache key, producing an
+order-dependent flake. Any suite exercising /plants/discover must TRUNCATE
+both tables in its own beforeEach; never rely on another file's cleanup.
