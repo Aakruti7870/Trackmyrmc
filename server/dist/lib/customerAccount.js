@@ -9,6 +9,13 @@ import { hashPassword } from './password.js';
 export function placeholderEmailFor(phone) {
     return `otp_${phone.replace(/\D/g, '')}@otp.local`;
 }
+// True only for a deliverable, real-world address. Placeholder @otp.local
+// mailboxes (phone-only accounts) are NOT real: attempting to email them makes
+// the SMTP provider bounce the message back to the sender's inbox.
+export function isRealEmail(email) {
+    const e = (email ?? '').trim();
+    return e.length > 0 && !e.toLowerCase().endsWith('@otp.local');
+}
 /**
  * Find the live customer (client-role) account for a *verified* phone number, or
  * transparently create one on first sign-in. This is the shared mapping used by

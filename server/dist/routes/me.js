@@ -9,6 +9,7 @@ import { nextOrderNo } from '../lib/orderNo.js';
 import { computeFirstRunDate } from '../lib/recurring.js';
 import { getIdleConfig } from '../lib/idle.js';
 import { resolvePlantCustomer } from '../lib/tenancy.js';
+import { isRealEmail } from '../lib/customerAccount.js';
 import { notifyOrderPlaced } from '../lib/deliveryNotify.js';
 const router = Router();
 router.use(requireAuth);
@@ -126,7 +127,10 @@ async function buildCustomerProfile(userId) {
         name: u?.name ?? 'Customer',
         contactPerson: primary?.contactPerson ?? u?.name ?? null,
         phone: primary?.phone ?? null,
-        email: primary?.email ?? u?.email ?? null,
+        // Never surface the synthetic @otp.local placeholder (phone-only accounts) as
+        // a contact email — it is undeliverable and would get copied into per-plant
+        // client rows, making every order/delivery email bounce.
+        email: isRealEmail(primary?.email) ? primary.email : (isRealEmail(u?.email) ? u.email : null),
         gstNo: primary?.gstNo ?? null,
         address: primary?.address ?? null,
         city: primary?.city ?? null,

@@ -13,14 +13,21 @@ let waSent = [];
 let waBehavior = 'record';
 let sidSeq = 0;
 let failureAlerts = [];
+let emailsSent = [];
 mock.module('../lib/email.js', {
     namedExports: {
-        sendDeliveryNotificationEmail: async () => true,
+        sendDeliveryNotificationEmail: async (to) => {
+            emailsSent.push({ kind: 'delivery', to });
+            return true;
+        },
         sendWhatsAppFailureAlertEmail: async (emails, details) => {
             failureAlerts.push({ emails, details });
             return true;
         },
-        sendOrderPlacedEmail: async () => true,
+        sendOrderPlacedEmail: async (to) => {
+            emailsSent.push({ kind: 'order', to });
+            return true;
+        },
         sendBatchLoggedEmail: async () => true,
         sendWelcomeEmail: async () => true,
         sendLoginCodeEmail: async () => true,
@@ -71,7 +78,7 @@ async function seedChallan(opts = {}) {
     const [client] = await db.insert(clients).values({
         name: 'Acme Co', contactPerson: 'Jane',
         phone: opts.phone === undefined ? '9991112222' : opts.phone,
-        email: null,
+        email: opts.email ?? null,
     }).returning();
     let siteId = null;
     if (opts.withSite) {
@@ -90,7 +97,7 @@ async function seedOrder(opts = {}) {
     const [client] = await db.insert(clients).values({
         name: 'Acme Co', contactPerson: 'Jane',
         phone: opts.phone === undefined ? '9991112222' : opts.phone,
-        email: null,
+        email: opts.email ?? null,
     }).returning();
     seq += 1;
     const [order] = await db.insert(orders).values({
@@ -104,6 +111,7 @@ beforeEach(async () => {
     waBehavior = 'record';
     sidSeq = 0;
     failureAlerts = [];
+    emailsSent = [];
     cfg = fullConfig();
     await db.execute(sql `TRUNCATE TABLE whatsapp_messages, challans, orders, sites, clients, users RESTART IDENTITY CASCADE`);
 });
@@ -182,6 +190,25 @@ test('skips when the customer has no phone', async () => {
     const challan = await seedChallan({ phone: '' });
     await notifyChallanStatus(challan.id, 'dispatched');
     assert.equal(waSent.length, 0);
+});
+test('never emails a synthetic @otp.local placeholder address', async () => {
+    // Phone-OTP customers carry a placeholder users.email like otp_9199…@otp.local.
+    // If that ever leaks into clients.email, notify paths must refuse to email it.
+    const order = await seedOrder({ email: 'otp_919850612834@otp.local' });
+    await notifyOrderPlaced(order.id);
+    const challan = await seedChallan({ email: 'OTP_919850612834@OTP.LOCAL' });
+    await notifyChallanStatus(challan.id, 'dispatched');
+    assert.equal(emailsSent.length, 0);
+    // The WhatsApp sends themselves still go out — only the email leg is skipped.
+    assert.equal(waSent.length, 2);
+});
+test('a real customer email still receives order + delivery notifications', async () => {
+    const order = await seedOrder({ email: 'jane@acme.example' });
+    await notifyOrderPlaced(order.id);
+    const challan = await seedChallan({ email: 'jane@acme.example' });
+    await notifyChallanStatus(challan.id, 'delivered');
+    assert.deepEqual(emailsSent.map((e) => e.kind).sort(), ['delivery', 'order']);
+    assert.ok(emailsSent.every((e) => e.to === 'jane@acme.example'));
 });
 test('skips silently for an unknown id', async () => {
     await notifyChallanStatus(999999, 'delivered');

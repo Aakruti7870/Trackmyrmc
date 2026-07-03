@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { batchRecords, challans, clients, sites, orders, plants, users, whatsappMessages } from '../db/schema.js';
 import { normalizePhone } from './otp.js';
+import { isRealEmail } from './customerAccount.js';
 import { sendDeliveryNotificationEmail, sendWhatsAppFailureAlertEmail, sendOrderPlacedEmail, sendBatchLoggedEmail } from './email.js';
 import { sendPushToClientUsers, sendPushToStaff } from './push.js';
 import { emitSSEEvent } from './sseEmitter.js';
@@ -107,7 +108,7 @@ export async function notifyChallanStatus(
 
     if (!row) return;
 
-    if (row.email) {
+    if (isRealEmail(row.email)) {
       await sendDeliveryNotificationEmail(row.email, row.clientName ?? 'Customer', {
         challanNo: row.challanNo,
         grade: row.grade,
@@ -167,7 +168,7 @@ export async function notifyOrderPlaced(orderId: number): Promise<void> {
 
     // Email confirmation (when the customer has an email on file). Independent of
     // the WhatsApp toggle — email is always sent if we can.
-    if (row.email) {
+    if (isRealEmail(row.email)) {
       try {
         await sendOrderPlacedEmail(row.email, row.clientName ?? 'Customer', {
           orderNo: row.orderNo,

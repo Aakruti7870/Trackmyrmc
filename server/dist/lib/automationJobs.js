@@ -8,6 +8,7 @@ import { emitSSEEvent } from './sseEmitter.js';
 import { sendWhatsAppWithRetry } from './whatsappRetry.js';
 import { createTrackingToken } from './trackingTokens.js';
 import { normalizePhone } from './otp.js';
+import { isRealEmail } from './customerAccount.js';
 import { computeFuelReconciliation } from '../routes/reports.js';
 // Staff roles that receive operational automation alerts (follow-ups, idle
 // vehicles, fuel anomalies). `authority` is the platform super-admin.
@@ -126,7 +127,7 @@ export async function runOrderReminders(snapshot, now = new Date(), scopePlantId
             continue;
         sent += 1;
         const when = o.deliveryTime ? `tomorrow at ${o.deliveryTime}` : 'tomorrow';
-        if (bool(eff.config, 'email') && o.email) {
+        if (bool(eff.config, 'email') && isRealEmail(o.email)) {
             await sendAutomationEmail({
                 to: [o.email],
                 subject: `Reminder: your concrete delivery is scheduled for ${o.deliveryDate}`,
@@ -255,7 +256,7 @@ export async function maybeSendTripShare(challanId) {
         const ttlMs = num(eff.config, 'ttlHours', 24) * 60 * 60 * 1000;
         const token = await createTrackingToken(row.id, null, ttlMs);
         const url = `${base}/track/${token}`;
-        if (bool(eff.config, 'email') && row.email) {
+        if (bool(eff.config, 'email') && isRealEmail(row.email)) {
             await sendAutomationEmail({
                 to: [row.email],
                 subject: `Track your concrete delivery live — challan ${row.challanNo}`,
@@ -315,7 +316,7 @@ export async function tripShareDeliveryWarning(clientId, plantId) {
             .where(eq(clients.id, clientId));
         if (!c)
             return null;
-        const emailOk = bool(eff.config, 'email') && !!(c.email ?? '').trim();
+        const emailOk = bool(eff.config, 'email') && isRealEmail(c.email);
         const whatsappOk = bool(eff.config, 'whatsapp') && !!str(eff.config, 'whatsappTemplate') && !!(c.phone ?? '').trim();
         if (emailOk || whatsappOk)
             return null;
@@ -530,7 +531,7 @@ export async function runWinBacks(snapshot, now = new Date(), scopePlantId) {
         if (!(await claimSend('winBack', 'client', c.id, periodKey(ist.dayIndex, inactiveDays), c.plantId)))
             continue;
         sent += 1;
-        if (bool(eff.config, 'email') && c.email) {
+        if (bool(eff.config, 'email') && isRealEmail(c.email)) {
             await sendAutomationEmail({
                 to: [c.email],
                 subject: 'We miss you — ready for your next pour?',
