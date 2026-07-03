@@ -465,6 +465,18 @@ html, body {
   #app-main { overflow-wrap: break-word; }
 }
 
+/* ===== Dashboard plant network map ===== */
+.plants-map-shell { height: 440px; }
+@media (max-width: 900px) {
+  .plants-map-shell { height: 380px; }
+}
+@media (max-width: 600px) {
+  .plants-map-shell { height: 320px; }
+  /* Popups fit narrow screens; action buttons stay comfortably tappable. */
+  .plants-map-shell .leaflet-popup-content { margin: 10px 12px; }
+  .plants-map-shell .leaflet-popup-content-wrapper { max-width: 86vw; }
+}
+
 /* ===== Batch report summary strip ===== */
 .batch-summary-grid {
   display: grid;

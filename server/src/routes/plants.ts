@@ -147,6 +147,33 @@ router.get('/nearby', requireAuth, async (req, res) => {
   res.json(nearby);
 });
 
+// Dashboard network map: every verified partner plant with the fields the map
+// popup needs (contact for call/WhatsApp, coordinates for directions, live
+// open/closed status). Same visibility filter as /nearby and /directory —
+// approved + active + location-verified + verified — and login-only, so it
+// never exposes onboarding leads or lets logged-out visitors enumerate plants.
+router.get('/map', requireAuth, async (_req, res) => {
+  const rows = await db.select().from(plants);
+  const mapped = rows
+    .filter(p => p.plantStatus === 'approved' && p.isActive && p.locationVerified && p.verified)
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      address: p.address,
+      city: p.city,
+      contactNumber: p.contactNumber,
+      latitude: parseFloat(p.latitude),
+      longitude: parseFloat(p.longitude),
+      grades: p.grades,
+      openTime: p.openTime,
+      closeTime: p.closeTime,
+      openNow: isOpenNow(p.openTime, p.closeTime),
+    }))
+    .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  res.json(mapped);
+});
+
 // Live discovery: real-world concrete plants pulled from Google Places around the
 // customer's coordinates. These are UNVERIFIED leads not in our directory and are
 // rendered as such by the client. Public (matches /nearby) but rate-limited

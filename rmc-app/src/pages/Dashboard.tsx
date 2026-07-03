@@ -6,7 +6,7 @@ import {
   Settings, Navigation, AlertCircle,
 } from 'lucide-react';
 import { api, type DashboardKPIs, type Challan, type Order } from '@/lib/api';
-import LiveGPSTracker from '@/components/LiveGPSTracker';
+import PlantsMap from '@/components/PlantsMap';
 import { useAuth } from '@/lib/auth';
 import { useSSE } from '@/lib/useSSE';
 import { canAccess } from '@/lib/permissions';
@@ -368,9 +368,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ===== Hero command panel: full-width live GPS map ===== */}
+      {/* ===== Hero command panel: full-width plant network map ===== */}
       <div className="dash-hero" style={{ marginBottom: 16 }}>
-        <LiveGPSTracker />
+        <PlantsMap />
       </div>
 
       {/* ===== Lower grid: recent dispatch + active orders + notification center ===== */}
