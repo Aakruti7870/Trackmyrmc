@@ -17,6 +17,9 @@ export type StaffRole =
   | 'dispatcher'
   | 'plant_operator'
   | 'accountant'
+  | 'quality_engineer'
+  | 'fleet_manager'
+  | 'store_manager'
   | 'driver';
 
 // Maximum number of simultaneously-LIVE (non-soft-deleted) accounts of each
@@ -29,6 +32,9 @@ export const ROLE_LIMITS: Record<string, number> = {
   supervisor: 2,
   dispatcher: 1,
   accountant: 2,
+  quality_engineer: 2,
+  fleet_manager: 1,
+  store_manager: 1,
   driver: Infinity,
 };
 
@@ -36,11 +42,11 @@ export const ROLE_LIMITS: Record<string, number> = {
 // never create a peer or a role above them — only the roles explicitly listed.
 export const CREATABLE_BY: Record<string, StaffRole[]> = {
   // The Super Owner can seed any plant role, but onboarding starts with owners.
-  authority: ['plant_owner', 'admin', 'supervisor', 'dispatcher', 'plant_operator', 'accountant', 'driver'],
+  authority: ['plant_owner', 'admin', 'supervisor', 'dispatcher', 'plant_operator', 'accountant', 'quality_engineer', 'fleet_manager', 'store_manager', 'driver'],
   // A Plant Owner delegates to Admins and may provision any staff below them.
-  plant_owner: ['admin', 'supervisor', 'dispatcher', 'plant_operator', 'accountant', 'driver'],
+  plant_owner: ['admin', 'supervisor', 'dispatcher', 'plant_operator', 'accountant', 'quality_engineer', 'fleet_manager', 'store_manager', 'driver'],
   // An Admin provisions the operational staff, but not other admins/owners.
-  admin: ['supervisor', 'dispatcher', 'plant_operator', 'accountant', 'driver'],
+  admin: ['supervisor', 'dispatcher', 'plant_operator', 'accountant', 'quality_engineer', 'fleet_manager', 'store_manager', 'driver'],
 };
 
 export function roleLimit(role: string): number {

@@ -36,3 +36,11 @@ both insert, busting the cap. Wrap the count + email-existence check + insert in
 for the same plant serialize behind it. Hash the password BEFORE the transaction
 so the lock isn't held during bcrypt. Regression test: fire two cap=1 provisions
 with `Promise.all` and assert statuses sort to `[201, 409]`.
+
+Unbound-actor rule: a null scope has two opposite meanings — "platform staff,
+see everything" vs "plant-scoped actor with a missing plant binding". Any
+scoping helper that returns `null` for platform staff MUST separately reject
+non-platform actors whose `plantId` is null (403), or a misprovisioned
+plant_owner/admin row silently becomes globally unrestricted. Regression test:
+create a `plant_owner` with `plantId: null` and assert every plant/user
+endpoint answers 403 (and list endpoints return empty, never global data).

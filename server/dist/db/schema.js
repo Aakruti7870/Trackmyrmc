@@ -8,7 +8,7 @@ import { relations, sql } from 'drizzle-orm';
 // `accountant` is additive (appended last so the enum's stored order and every
 // existing row are untouched): a finance-facing staff role provisioned like any
 // other plant staff.
-export const userRoleEnum = pgEnum('user_role', ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor', 'accountant']);
+export const userRoleEnum = pgEnum('user_role', ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor', 'accountant', 'quality_engineer', 'fleet_manager', 'store_manager']);
 export const orderStatusEnum = pgEnum('order_status', ['pending', 'in_progress', 'completed', 'cancelled']);
 export const challanStatusEnum = pgEnum('challan_status', ['pending', 'dispatched', 'delivered', 'cancelled']);
 export const vehicleStatusEnum = pgEnum('vehicle_status', ['active', 'maintenance', 'inactive']);

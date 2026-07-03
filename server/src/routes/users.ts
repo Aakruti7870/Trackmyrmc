@@ -31,7 +31,7 @@ router.use((req, res, next) => {
   next();
 });
 
-const ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor', 'accountant'] as const;
+const ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor', 'accountant', 'quality_engineer', 'fleet_manager', 'store_manager'] as const;
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name is required'),

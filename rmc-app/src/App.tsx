@@ -41,6 +41,7 @@ const Automations    = lazy(() => import('@/pages/Automations'));
 const WhatsAppChat   = lazy(() => import('@/pages/WhatsAppChat'));
 const FuelLog        = lazy(() => import('@/pages/FuelLog'));
 const Users          = lazy(() => import('@/pages/Users'));
+const UserManagement = lazy(() => import('@/pages/UserManagement'));
 const ActivityLog    = lazy(() => import('@/pages/ActivityLog'));
 const AuditLog       = lazy(() => import('@/pages/AuditLog'));
 const ProfileSettings = lazy(() => import('@/pages/ProfileSettings'));
@@ -130,6 +131,7 @@ function ProtectedRoutes() {
         <Route path="/recurring"    component={() => <GuardedRoute path="/recurring"    component={RecurringAdmin}  />} />
         <Route path="/fuel-log"     component={() => <GuardedRoute path="/fuel-log"     component={FuelLog}         />} />
         <Route path="/users"        component={() => <GuardedRoute path="/users"        component={Users}           />} />
+        <Route path="/user-management" component={() => <GuardedRoute path="/user-management" component={UserManagement} />} />
         <Route path="/activity-log" component={() => <GuardedRoute path="/activity-log" component={ActivityLog}      />} />
         <Route path="/audit-log"    component={() => <GuardedRoute path="/audit-log"    component={AuditLog}        />} />
         <Route path="/automations"  component={() => <GuardedRoute path="/automations"  component={Automations}     />} />

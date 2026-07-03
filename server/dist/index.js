@@ -14,6 +14,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import reportRoutes from './routes/reports.js';
 import meRoutes from './routes/me.js';
 import userRoutes from './routes/users.js';
+import userManagementRoutes from './routes/userManagement.js';
 import auditRoutes from './routes/audit.js';
 import adminRoutes from './routes/admin.js';
 import positionRoutes from './routes/positions.js';
@@ -117,6 +118,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/user-management', userManagementRoutes);
 app.use('/api/audit-logs', auditRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/positions', positionRoutes);
@@ -173,6 +175,7 @@ if (isProd) {
         '/recurring',
         '/fuel-log',
         '/users',
+        '/user-management',
         '/activity-log',
         '/audit-log',
         '/automations',

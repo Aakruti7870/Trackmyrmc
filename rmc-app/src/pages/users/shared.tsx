@@ -51,7 +51,7 @@ export type AuditPage = {
 
 export type LinkOption = { id: number; name: string };
 
-export const ROLES = ['authority', 'plant_owner', 'admin', 'supervisor', 'dispatcher', 'plant_operator', 'accountant', 'client', 'driver'] as const;
+export const ROLES = ['authority', 'plant_owner', 'admin', 'supervisor', 'dispatcher', 'plant_operator', 'accountant', 'quality_engineer', 'fleet_manager', 'store_manager', 'client', 'driver'] as const;
 export type Role = typeof ROLES[number];
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -62,7 +62,10 @@ export const ROLE_LABEL: Record<Role, string> = {
   dispatcher: 'Dispatcher',
   plant_operator: 'Plant Operator',
   accountant: 'Accountant',
-  client: 'Client',
+  quality_engineer: 'Quality Engineer',
+  fleet_manager: 'Fleet Manager',
+  store_manager: 'Store Manager',
+  client: 'Customer',
   driver: 'Driver',
 };
 
@@ -74,6 +77,9 @@ export const ROLE_COLOR: Record<Role, string> = {
   dispatcher: 'var(--blue)',
   plant_operator: 'var(--green)',
   accountant: '#06b6d4',
+  quality_engineer: '#84cc16',
+  fleet_manager: '#fb7185',
+  store_manager: '#c084fc',
   client: '#a78bfa',
   driver: '#f97316',
 };

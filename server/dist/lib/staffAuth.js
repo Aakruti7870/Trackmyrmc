@@ -13,7 +13,8 @@ const MAX_VERIFY_ATTEMPTS = 5;
 // 'client' (customers use the phone-OTP door) and 'authority' (the Super Admin
 // signs in with password + an OTP second factor via /login, never this door).
 const STAFF_OTP_ROLES = new Set([
-    'admin', 'dispatcher', 'plant_operator', 'plant_owner', 'supervisor', 'accountant', 'driver',
+    'admin', 'dispatcher', 'plant_operator', 'plant_owner', 'supervisor', 'accountant',
+    'quality_engineer', 'fleet_manager', 'store_manager', 'driver',
 ]);
 // A Super Admin is an `authority` row whose email is on the (env-controlled)
 // authority allow-list — both must hold, so a stray DB role alone is not enough.

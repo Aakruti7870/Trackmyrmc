@@ -2,6 +2,7 @@ import express, { type Express } from 'express';
 import authRoutes from '../routes/auth.js';
 import batchRoutes from '../routes/batches.js';
 import userRoutes from '../routes/users.js';
+import userManagementRoutes from '../routes/userManagement.js';
 import adminRoutes from '../routes/admin.js';
 import auditRoutes from '../routes/audit.js';
 import challanRoutes from '../routes/challans.js';
@@ -45,6 +46,7 @@ export function buildTestApp(): Express {
   );
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
+  app.use('/api/user-management', userManagementRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/audit-logs', auditRoutes);
   app.use('/api/batches', batchRoutes);

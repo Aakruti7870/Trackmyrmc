@@ -42,6 +42,7 @@ const ALL_NAV_ITEMS = [
   { path: '/fuel-log',    label: 'Fuel Log',   icon: Fuel },
   { path: '/plants',      label: 'Plants',     icon: Factory },
   { path: '/users',       label: 'Users',      icon: ShieldCheck },
+  { path: '/user-management', label: 'Plant Users', icon: UserCheck },
   { path: '/activity-log', label: 'Activity Log', icon: History },
   { path: '/audit-log',   label: 'Audit Log',  icon: ScrollText },
   { path: '/automations', label: 'Automations', icon: Zap },
@@ -68,6 +69,9 @@ const ROLE_COLOR: Record<string, string> = {
   dispatcher: 'var(--blue)',
   plant_operator: 'var(--green)',
   accountant: '#06b6d4',
+  quality_engineer: '#84cc16',
+  fleet_manager: '#fb7185',
+  store_manager: '#c084fc',
   client: '#a78bfa',
   driver: '#f97316',
 };
@@ -82,6 +86,9 @@ const ROLE_ICON: Record<string, typeof ShieldCheck> = {
   dispatcher: Truck,
   plant_operator: HardHat,
   accountant: Wallet,
+  quality_engineer: ClipboardCheck,
+  fleet_manager: Truck,
+  store_manager: Building2,
   client: User,
   driver: CarFront,
 };
