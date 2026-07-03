@@ -173,6 +173,7 @@ export default function FuelLog() {
       </div>
 
       <div style={{ background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'var(--chip-bg)', textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.4px' }}>
@@ -211,6 +212,7 @@ export default function FuelLog() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {modal && (

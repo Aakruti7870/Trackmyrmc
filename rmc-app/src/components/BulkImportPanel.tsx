@@ -222,7 +222,7 @@ export default function BulkImportPanel({
             </button>
           </div>
           <div style={{ ...softCard, padding: 0, overflow: 'hidden' }}>
-            <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+            <div style={{ maxHeight: 280, overflowY: 'auto', overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>
                   <tr style={{ position: 'sticky', top: 0, background: 'var(--card, #0d1828)' }}>

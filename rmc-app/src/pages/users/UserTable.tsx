@@ -60,6 +60,7 @@ export default function UserTable({
       background: 'var(--surface)',
       border: '1px solid var(--line)', borderRadius: 16, overflow: 'hidden',
     }}>
+      <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--chip-bg)' }}>
@@ -349,6 +350,7 @@ export default function UserTable({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

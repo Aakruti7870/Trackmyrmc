@@ -223,6 +223,7 @@ export default function ActivityLogPanel({
               : 'No activity recorded yet. Account changes and password resets will appear here.'}
           </div>
         ) : (
+          <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--chip-bg)' }}>
@@ -277,6 +278,7 @@ export default function ActivityLogPanel({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

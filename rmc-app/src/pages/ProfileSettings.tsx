@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { ThemeSwitcher } from '@/lib/theme-providers';
 import NotificationsCard from '@/components/NotificationsCard';
-import { ROLE_ALLOWED_PATHS } from '@/lib/permissions';
+import { ROLE_ALLOWED_PATHS, setPermissionOverrides } from '@/lib/permissions';
 import type { User } from '@/lib/api';
 
 interface SmtpSettings {
@@ -1072,8 +1072,11 @@ export default function ProfileSettings() {
         form[role] = paths.join('\n');
       }
       setRolePermForm(form);
+      // Apply immediately in this session too, so the sidebar/menus of the
+      // saving admin reflect the new permissions without a full reload.
+      setPermissionOverrides(updated.overrides);
       const count = Object.keys(updated.overrides).length;
-      showToast(count ? `Saved ${count} role override(s). Users see changes on next load.` : 'Cleared all overrides — defaults restored.', 'success');
+      showToast(count ? `Saved ${count} role override(s). Menus update immediately; other users see changes on next load.` : 'Cleared all overrides — defaults restored.', 'success');
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : 'Failed to save role permissions', 'error');
     } finally {

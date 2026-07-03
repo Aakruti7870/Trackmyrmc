@@ -442,6 +442,29 @@ html, body {
   .dash-actions { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
+/* ===== Global mobile guards — keep every page inside the viewport ===== */
+/* Media never wider than its container (logos/proof photos/charts). */
+#app-main img, #app-main video, #app-main canvas { max-width: 100%; }
+
+/* Any leftover bare table becomes horizontally scrollable on phones instead
+   of pushing the page wide. Tables already inside overflow wrappers are
+   unaffected (they fit or scroll inside their wrapper). */
+@media (max-width: 700px) {
+  #app-main table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 600px) {
+  /* Buttons wrap their label rather than overflowing the viewport. */
+  #app-main button { white-space: normal; }
+  /* Long unbroken strings (emails, GST numbers, URLs) wrap instead of
+     stretching cards past the screen edge. */
+  #app-main { overflow-wrap: break-word; }
+}
+
 /* ===== Batch report summary strip ===== */
 .batch-summary-grid {
   display: grid;

@@ -10,13 +10,13 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
-import { ROLE_ALLOWED_PATHS, type Role } from '@/lib/permissions';
+import { allowedPaths as roleAllowedPaths } from '@/lib/permissions';
 import { useSSE, type SSEStatus } from '@/lib/useSSE';
 import { formatNotification } from '@/lib/notifications';
 import { PLATFORM_NAME } from '@/lib/brand';
 import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
-import AIHelpAgent from '@/components/ai/AIHelpAgent';
+import AIHelpAgent, { AiHeaderButton } from '@/components/ai/AIHelpAgent';
 import InstallAppButton from '@/components/InstallAppButton';
 import { ConcreteKingLogo, BrandCredits } from '@/components/BrandLogo';
 
@@ -201,14 +201,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
   const RoleIcon = user ? (ROLE_ICON[user.role] || User) : User;
 
-  const allowedPaths = user ? (ROLE_ALLOWED_PATHS[user.role as Role] ?? []) : [];
+  // Override-aware allow-list (built-in defaults merged with the DB-backed
+  // role overrides loaded at bootstrap) so a permission removed in Settings
+  // also disappears from the menu, not just from route access.
+  const allowedPaths = user ? roleAllowedPaths(user.role) : [];
   // The WhatsApp inbox is platform-staff only (one shared business number), so
   // hide it from plant-bound admins even though the admin role lists the path;
   // the API enforces the same boundary with a 403.
   const isPlatformStaff = !!user && (user.role === 'authority' || (user.role === 'admin' && user.plantId == null));
   const navItems: { path: string; label: string; icon: typeof LayoutDashboard; tab?: string }[] =
     isClient
-      ? CLIENT_NAV
+      ? CLIENT_NAV.filter(item => allowedPaths.includes(item.path))
       : ALL_NAV_ITEMS.filter(item =>
           allowedPaths.includes(item.path) && (item.path !== '/whatsapp' || isPlatformStaff));
 
@@ -234,7 +237,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <SSEDot status={sseStatus} onReconnect={reconnect} />
-          <NotificationBell />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <NotificationBell />
+            <AiHeaderButton />
+          </div>
         </div>
       </div>
 
@@ -330,20 +336,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             marginTop: 4, background: 'var(--menu-bg)', border: '1px solid var(--line)',
             borderRadius: 10, overflow: 'hidden',
           }}>
-            <Link
-              href="/profile"
-              onClick={() => { setUserMenuOpen(false); setMobileOpen(false); }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                width: '100%', padding: '10px 14px',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--muted)', fontSize: 13, fontWeight: 600,
-                textDecoration: 'none', boxSizing: 'border-box',
-              }}
-            >
-              <Settings size={14} />
-              Account Settings
-            </Link>
+            {allowedPaths.includes('/profile') && (
+              <Link
+                href="/profile"
+                onClick={() => { setUserMenuOpen(false); setMobileOpen(false); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  width: '100%', padding: '10px 14px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--muted)', fontSize: 13, fontWeight: 600,
+                  textDecoration: 'none', boxSizing: 'border-box',
+                }}
+              >
+                <Settings size={14} />
+                Account Settings
+              </Link>
+            )}
             <div style={{ padding: '10px 14px', borderTop: '1px solid var(--surface)' }}>
               <div style={{
                 fontSize: 10, fontWeight: 700, color: 'var(--muted)',
@@ -419,6 +427,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <NotificationBell />
+          <AiHeaderButton />
           <button onClick={() => setMobileOpen(o => !o)}
             style={{ background: 'none', color: 'var(--text)', padding: 4, border: 'none' }}>
             {mobileOpen ? <X size={22} /> : <Menu size={22} />}

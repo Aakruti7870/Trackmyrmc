@@ -64,6 +64,50 @@ function chipsForRole(role: string): string[] {
   return ROLE_CHIPS[role] ?? ROLE_CHIPS.default;
 }
 
+// ---------------------------------------------------------------------------
+// The assistant no longer floats as a bottom-right bubble (it covered page
+// action buttons). Instead a compact launcher lives in the app header next to
+// the notification bell. The header button and the chat panel are separate
+// components, so they communicate via window events + a module-level flag.
+// ---------------------------------------------------------------------------
+const AI_OPEN_EVENT = 'rmc:ai-open';
+const AI_STATE_EVENT = 'rmc:ai-state';
+let aiAvailable = false;
+
+function setAiAvailable(v: boolean) {
+  if (aiAvailable === v) return;
+  aiAvailable = v;
+  window.dispatchEvent(new Event(AI_STATE_EVENT));
+}
+
+/** Header launcher — renders nothing until the assistant is configured+enabled. */
+export function AiHeaderButton() {
+  const [available, setAvailable] = useState(aiAvailable);
+  useEffect(() => {
+    const sync = () => setAvailable(aiAvailable);
+    sync();
+    window.addEventListener(AI_STATE_EVENT, sync);
+    return () => window.removeEventListener(AI_STATE_EVENT, sync);
+  }, []);
+  if (!available) return null;
+  return (
+    <button
+      onClick={() => window.dispatchEvent(new Event(AI_OPEN_EVENT))}
+      aria-label="Open AI assistant"
+      title="AI Assistant"
+      style={{
+        width: 34, height: 34, borderRadius: '50%', padding: 0, flexShrink: 0,
+        display: 'grid', placeItems: 'center', cursor: 'pointer',
+        background: 'transparent', border: '1px solid color-mix(in srgb, var(--gold) 40%, transparent)',
+        boxShadow: '0 4px 14px color-mix(in srgb, var(--gold) 22%, transparent)',
+        overflow: 'hidden',
+      }}
+    >
+      <AvatarPortrait size={30} />
+    </button>
+  );
+}
+
 export default function AIHelpAgent() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -100,11 +144,21 @@ export default function AIHelpAgent() {
   const stt = useSpeechToText(sttFinal, { serverEnabled: !!config?.voiceInput });
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) { setAiAvailable(false); return; }
     let cancelled = false;
     aiApi.config().then(cfg => { if (!cancelled) setConfig(cfg); }).catch(() => { if (!cancelled) setConfig(null); });
     return () => { cancelled = true; };
   }, [user]);
+
+  // Reflect availability to the header launcher + open on its request.
+  useEffect(() => {
+    setAiAvailable(!!user && !!config?.enabled);
+  }, [user, config]);
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(AI_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(AI_OPEN_EVENT, onOpen);
+  }, []);
 
   const displayTurns: ChatTurn[] = config?.greeting
     ? [{ role: 'assistant', text: config.greeting }, ...turns]
@@ -238,23 +292,7 @@ export default function AIHelpAgent() {
 
   return (
     <>
-      {/* Floating launcher */}
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          aria-label="Open help assistant"
-          style={{
-            position: 'fixed', right: 20, bottom: 20, zIndex: 60,
-            width: 60, height: 60, borderRadius: '50%', cursor: 'pointer', border: 'none',
-            padding: 0, background: 'transparent',
-            boxShadow: '0 12px 30px color-mix(in srgb, var(--gold) 34%, transparent)',
-          }}
-        >
-          <AvatarPortrait size={60} />
-        </button>
-      )}
-
-      {/* Chat panel */}
+      {/* Chat panel — opened only from the header AI button (no floating bubble) */}
       {open && (
         <div
           role="dialog"

@@ -51,9 +51,13 @@ export function setPermissionOverrides(overrides: Partial<Record<string, string[
   }
   // Authority is the platform super-admin and owns the Command Center. A stale
   // DB override from before /command existed would otherwise lock authority out
-  // of its own default route, so we always guarantee it here.
-  if (next.authority && !next.authority.includes('/command')) {
-    next.authority = ['/command', ...next.authority];
+  // of its own default route, so we always guarantee it here. /profile is also
+  // guaranteed: it hosts the Role Permissions editor, so authority must never be
+  // able to lock itself out of managing access.
+  if (next.authority) {
+    for (const required of ['/profile', '/command']) {
+      if (!next.authority.includes(required)) next.authority = [required, ...next.authority];
+    }
   }
   permissionOverrides = next;
 }

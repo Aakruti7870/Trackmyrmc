@@ -5,12 +5,17 @@ import {
 } from 'lucide-react';
 import { SectionHeading, GlassPanel, SocialLinks, } from '../ui';
 import { mix } from '../tokens';
+import { useAuth } from '@/lib/auth';
+import { canAccess } from '@/lib/permissions';
 
 interface Action { label: string; icon: ReactNode; color: string; go?: string; onClick?: () => void }
 
 export default function QuickActions({ accent, onInvite }: { accent: string; onInvite: () => void }) {
   const [, setLoc] = useLocation();
+  const { user } = useAuth();
 
+  // Shortcut cards are permission-aware: a card that routes to a module the
+  // signed-in role can't open (per role permissions) is not rendered at all.
   const actions: Action[] = [
     { label: 'Invite owner / staff', icon: <UserPlus size={20} />, color: '#e879f9', onClick: onInvite },
     { label: 'Full dashboard', icon: <LayoutDashboard size={20} />, color: 'var(--gold)', go: '/' },
@@ -21,7 +26,7 @@ export default function QuickActions({ accent, onInvite }: { accent: string; onI
     { label: 'Reports', icon: <BarChart3 size={20} />, color: '#22d3ee', go: '/reports' },
     { label: 'Users & access', icon: <ShieldCheck size={20} />, color: 'var(--red)', go: '/users' },
     { label: 'Audit log', icon: <Bell size={20} />, color: '#f59e0b', go: '/audit-log' },
-  ];
+  ].filter(a => !a.go || (user && canAccess(user.role, a.go)));
 
   return (
     <div className="cc-in">

@@ -742,6 +742,7 @@ export default function MyOrders() {
               No orders found
             </div>
           ) : (
+            <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -790,6 +791,7 @@ export default function MyOrders() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </Card>
       ) : tab === 'challans' ? (
@@ -870,6 +872,7 @@ export default function MyOrders() {
               No challans found
             </div>
           ) : (
+            <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -962,6 +965,7 @@ export default function MyOrders() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </Card>
        </>
@@ -983,6 +987,7 @@ export default function MyOrders() {
               No ledger entries found
             </div>
           ) : (
+            <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -1022,6 +1027,7 @@ export default function MyOrders() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </Card>
       )}

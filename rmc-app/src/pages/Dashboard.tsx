@@ -27,6 +27,7 @@ export default function Dashboard() {
   const { subscribe } = useSSE();
 
   const canDispatch = user ? canAccess(user.role, '/dispatch') : false;
+  const canOrders = user ? canAccess(user.role, '/orders') : false;
 
   const reload = useCallback(() => {
     Promise.all([
@@ -101,13 +102,14 @@ export default function Dashboard() {
     { label: 'Outstanding', value: fmtRs(Number(kpis.outstandingAmount)), sub: 'receivables', icon: IndianRupee, color: 'var(--red)' },
   ] : [];
 
-  /* Quick actions route to existing pages — no new logic */
+  /* Quick actions route to existing pages — no new logic. Only show shortcuts
+     the signed-in role is actually allowed to open (permission-aware). */
   const quickActions = [
     { label: 'New Challan', href: '/dispatch', icon: Truck, color: 'var(--green)' },
     { label: 'New Order', href: '/orders', icon: ClipboardList, color: 'var(--gold)' },
     { label: 'Add Client', href: '/clients', icon: UserPlus, color: 'var(--blue)' },
     { label: 'Print Report', href: '/reports', icon: Printer, color: 'var(--orange)' },
-  ];
+  ].filter(a => user && canAccess(user.role, a.href));
 
   /* Notification feed derived from real recent challans + active orders */
   const notifications = [
@@ -317,8 +319,8 @@ export default function Dashboard() {
                 No mixers in transit right now — dispatched challans appear here live.
               </div>
             ) : (
-              inTransit.map((ch, i) => (
-                <Link key={ch.id} href="/dispatch">
+              inTransit.map((ch, i) => {
+                const truck = (
                   <div className="route-truck" style={{
                     background: 'color-mix(in srgb, var(--surface) 88%, transparent)',
                     border: '1px solid color-mix(in srgb, var(--blue) 38%, transparent)',
@@ -341,8 +343,11 @@ export default function Dashboard() {
                       {ch.driverName || '—'} · {ch.siteName || ch.clientName || 'Site'}
                     </div>
                   </div>
-                </Link>
-              ))
+                );
+                return canDispatch
+                  ? <Link key={ch.id} href="/dispatch">{truck}</Link>
+                  : <div key={ch.id}>{truck}</div>;
+              })
             )}
           </div>
 
@@ -374,11 +379,13 @@ export default function Dashboard() {
         <div className="glass-card cc-card" style={{ padding: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Recent Dispatch</h3>
-            <Link href="/dispatch">
-              <span style={{ color: 'var(--blue)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                View all <ArrowRight size={12} />
-              </span>
-            </Link>
+            {canDispatch && (
+              <Link href="/dispatch">
+                <span style={{ color: 'var(--blue)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  View all <ArrowRight size={12} />
+                </span>
+              </Link>
+            )}
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -407,7 +414,7 @@ export default function Dashboard() {
                 ))}
                 {challans.length === 0 && (
                   <tr><td colSpan={6} style={{ padding: '20px 8px', color: 'var(--muted)', textAlign: 'center' }}>
-                    No challans yet — <Link href="/dispatch" style={{ color: 'var(--blue)' }}>create one</Link>
+                    No challans yet{canDispatch && <> — <Link href="/dispatch" style={{ color: 'var(--blue)' }}>create one</Link></>}
                   </td></tr>
                 )}
               </tbody>
@@ -419,11 +426,13 @@ export default function Dashboard() {
         <div className="glass-card cc-card" style={{ padding: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Active Orders</h3>
-            <Link href="/orders">
-              <span style={{ color: 'var(--blue)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                View all <ArrowRight size={12} />
-              </span>
-            </Link>
+            {canOrders && (
+              <Link href="/orders">
+                <span style={{ color: 'var(--blue)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  View all <ArrowRight size={12} />
+                </span>
+              </Link>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {orders.map(o => (
@@ -448,7 +457,7 @@ export default function Dashboard() {
             ))}
             {orders.length === 0 && (
               <div style={{ padding: '20px 8px', color: 'var(--muted)', textAlign: 'center', fontSize: 13 }}>
-                No active orders — <Link href="/orders" style={{ color: 'var(--blue)' }}>create one</Link>
+                No active orders{canOrders && <> — <Link href="/orders" style={{ color: 'var(--blue)' }}>create one</Link></>}
               </div>
             )}
           </div>

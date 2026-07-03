@@ -64,4 +64,18 @@ describe('permissions — DB-backed overrides', () => {
     expect(canAccess('nope', '/x')).toBe(false);
     expect(allowedPaths('dispatcher')).toEqual(['/orders']);
   });
+
+  it('authority can never lose /command or /profile via an override', () => {
+    setPermissionOverrides({ authority: ['/orders'] });
+    expect(canAccess('authority', '/command')).toBe(true);
+    expect(canAccess('authority', '/profile')).toBe(true);
+    expect(canAccess('authority', '/orders')).toBe(true);
+    expect(canAccess('authority', '/users')).toBe(false);
+  });
+
+  it('an override removing a module hides it from allowedPaths (menu source)', () => {
+    setPermissionOverrides({ authority: ['/command', '/profile', '/orders'] });
+    expect(allowedPaths('authority')).not.toContain('/dispatch');
+    expect(allowedPaths('authority')).toContain('/orders');
+  });
 });
