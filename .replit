@@ -88,30 +88,8 @@ args = "cd server && pnpm dev"
 outputType = "console"
 
 [[ports]]
-localPort = 3001
-
-[[ports]]
-localPort = 3999
-externalPort = 3001
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5001
-externalPort = 3000
-
-[[ports]]
-localPort = 5002
-externalPort = 3002
-
-[[ports]]
-localPort = 5003
-externalPort = 5173
-
-[[ports]]
 localPort = 23636
+externalPort = 80
 
 [deployment]
 deploymentTarget = "autoscale"
