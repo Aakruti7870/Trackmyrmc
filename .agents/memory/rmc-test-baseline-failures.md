@@ -23,6 +23,15 @@ Heuristics for the failures that keep recurring in the test gate (server
   hit it from 127.0.0.1, so any OTP test file MUST `db.delete(rateLimitHits)`
   in `beforeEach` or its own send+verify budget is consumed across cases and
   later requests 429 (assertion shows 400 != 200), order-dependently.
+- `plants.directory.test.ts` is a STANDING baseline failure (fails even in
+  isolation, ~3 of 4 tests): the `/plants/directory` route filters
+  `networkStatus='active' AND showOnNetwork=true`, but the test's `createPlant`
+  never sets `networkStatus`, which defaults to `'pending'` → directory comes
+  back `[]`. Test/logic drift from the MAPPING PLANT networkStatus-lifecycle
+  work (route was gated on `networkStatus` but this test wasn't updated; note
+  the route uses a raw filter, NOT the `customerVisible()` verified-partner OR
+  branch). Unrelated to reviewer-demo/staffAuth changes — don't blame a
+  server-side edit that doesn't touch plants.ts for this red gate.
 
 ## Frontend — MyOrders
 - MyOrders loads several list endpoints (`/me/orders`, `/me/challans`,
