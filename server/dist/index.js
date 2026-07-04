@@ -31,6 +31,7 @@ import configRoutes from './routes/config.js';
 import attendanceRoutes from './routes/attendance.js';
 import trackingRoutes from './routes/tracking.js';
 import automationRoutes from './routes/automations.js';
+import kycRoutes from './routes/kyc.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
 import { runDueWhatsAppRetries } from './lib/whatsappRetry.js';
@@ -133,6 +134,7 @@ app.use('/api/push', pushRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/automations', automationRoutes);
+app.use('/api/kyc', kycRoutes);
 // PUBLIC: shareable trip tracking — no requireAuth (the router has none).
 app.use('/api/track', trackingRoutes);
 app.get('/api/health', (_req, res) => {

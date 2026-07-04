@@ -20,6 +20,10 @@ export const plantStatusEnum = pgEnum('plant_status', ['pending', 'approved', 'r
 // `suspended`/`cancelled` block plant-scoped staff at login (defence in depth).
 export const subscriptionStatusEnum = pgEnum('subscription_status', ['trial', 'active', 'past_due', 'suspended', 'cancelled']);
 export const subscriptionPlanEnum = pgEnum('subscription_plan', ['free', 'basic', 'pro', 'enterprise']);
+// Customer Aadhaar KYC (DigiLocker via aggregator). 'unverified' is the default;
+// 'pending' while a consent session is open; 'verified' once eKYC returns;
+// 'failed' if the aggregator rejects or the session errors out.
+export const kycStatusEnum = pgEnum('kyc_status', ['unverified', 'pending', 'verified', 'failed']);
 export const clients = pgTable('clients', {
     id: serial('id').primaryKey(),
     // The plant that owns this customer record. NULL only for legacy rows before
@@ -95,6 +99,11 @@ export const users = pgTable('users', {
     // Optional per-account permission overrides (reserved for fine-grained grants
     // on top of the role). NULL means "use the role defaults".
     permissions: jsonb('permissions'),
+    // Customer Aadhaar KYC (DigiLocker). Denormalized here for an O(1) profile
+    // badge; the audit trail of attempts lives in kycVerifications. Only staff/
+    // owner accounts leave these at their defaults — KYC is a customer feature.
+    kycStatus: kycStatusEnum('kyc_status').notNull().default('unverified'),
+    kycVerifiedAt: timestamp('kyc_verified_at'),
     deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
@@ -113,6 +122,36 @@ export const users = pgTable('users', {
     uniqueIndex('users_phone_unique')
         .on(t.phone)
         .where(sql `${t.deletedAt} IS NULL AND ${t.phone} IS NOT NULL`),
+]);
+// Audit trail of Aadhaar KYC (DigiLocker) attempts. One row per verification
+// session so an async consent flow can be correlated back on the callback by
+// providerRef. We persist ONLY the aggregator-masked Aadhaar (never the full
+// number) plus the consented demographics needed to prove identity.
+export const kycVerifications = pgTable('kyc_verifications', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    // Aggregator name (e.g. 'sandbox') — recorded so a later provider switch stays
+    // auditable and old rows remain interpretable.
+    provider: text('provider').notNull(),
+    // OUR opaque correlation id, embedded in the callback URL we hand the
+    // aggregator, so the public callback maps to exactly one attempt without
+    // trusting the vendor to echo its own id back. Unique.
+    providerRef: text('provider_ref').notNull(),
+    // The aggregator's own session/transaction id, needed to fetch the eKYC result
+    // after consent. NULL until create-session returns.
+    providerTxnId: text('provider_txn_id'),
+    status: kycStatusEnum('status').notNull().default('pending'),
+    maskedAadhaar: text('masked_aadhaar'),
+    fullName: text('full_name'),
+    dob: text('dob'),
+    gender: text('gender'),
+    // Populated on a failed/errored attempt for staff diagnostics.
+    error: text('error'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    completedAt: timestamp('completed_at'),
+}, (t) => [
+    uniqueIndex('kyc_verifications_provider_ref_unique').on(t.providerRef),
+    index('kyc_verifications_user_idx').on(t.userId),
 ]);
 export const sites = pgTable('sites', {
     id: serial('id').primaryKey(),
