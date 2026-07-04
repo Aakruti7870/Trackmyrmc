@@ -7,6 +7,7 @@ import { db, pool } from '../db/index.js';
 import { users, staffOtpCodes } from '../db/schema.js';
 import { hashPassword } from '../lib/password.js';
 import { hashOtpCode } from '../lib/otp.js';
+import { ensureReviewDemoAccount } from '../lib/staffAuth.js';
 let app;
 const PASSWORD = 'secret123';
 // A permanent platform Super Owner — always on the AUTHORITY allow-list, so it
@@ -274,5 +275,71 @@ test('reviewer demo login fails closed when unconfigured or the code is too shor
     }
     finally {
         restoreShort();
+    }
+});
+// ---------------------------------------------------------------------------
+// ensureReviewDemoAccount() boot self-seed — the fix for the reviewer account
+// being absent from a fresh (e.g. production) database, which made every demo
+// login 401 at resolveStaffForOtp before the code was ever checked.
+// ---------------------------------------------------------------------------
+test('ensureReviewDemoAccount seeds an active platform admin the demo code can log in with', async () => {
+    const restore = withDemoEnv('reviewer@demo.test', 'REVIEW-123456');
+    try {
+        // Fresh DB: no reviewer row exists, so the demo code is rejected.
+        const before = await request(app).post('/api/auth/staff/otp/verify')
+            .send({ email: 'reviewer@demo.test', code: 'REVIEW-123456' });
+        assert.equal(before.status, 401, 'no account yet: demo login rejected');
+        await ensureReviewDemoAccount();
+        const [row] = await db.select().from(users).where(eq(users.email, 'reviewer@demo.test'));
+        assert.ok(row, 'account was created');
+        assert.equal(row.role, 'admin');
+        assert.equal(row.plantId, null, 'platform admin (never billing-gated)');
+        assert.equal(row.isActive, true);
+        assert.equal(row.deletedAt, null);
+        assert.equal(row.passwordHash, null, 'passwordless — demo code only');
+        const ok = await request(app).post('/api/auth/staff/otp/verify')
+            .send({ email: 'reviewer@demo.test', code: 'REVIEW-123456' });
+        assert.equal(ok.status, 200);
+        assert.equal(ok.body.user.role, 'admin');
+        assert.equal(ok.body.user.plantId, null);
+        // Idempotent: a second run neither duplicates nor errors.
+        await ensureReviewDemoAccount();
+        const rows = await db.select().from(users).where(eq(users.email, 'reviewer@demo.test'));
+        assert.equal(rows.length, 1, 'no duplicate account');
+    }
+    finally {
+        restore();
+    }
+});
+test('ensureReviewDemoAccount restores a drifted reviewer row (soft-deleted, wrong role, plant-bound)', async () => {
+    const restore = withDemoEnv('reviewer@demo.test', 'REVIEW-123456');
+    try {
+        const drifted = await createStaff({
+            name: 'Reviewer', email: 'reviewer@demo.test', role: 'dispatcher', isActive: false,
+        });
+        await db.update(users)
+            .set({ deletedAt: new Date(), suspensionReason: 'x' })
+            .where(eq(users.id, drifted.id));
+        await ensureReviewDemoAccount();
+        const [row] = await db.select().from(users).where(eq(users.id, drifted.id));
+        assert.equal(row.role, 'admin');
+        assert.equal(row.isActive, true);
+        assert.equal(row.deletedAt, null);
+        assert.equal(row.plantId, null);
+        assert.equal(row.suspensionReason, null);
+    }
+    finally {
+        restore();
+    }
+});
+test('ensureReviewDemoAccount does nothing when the demo feature is unconfigured', async () => {
+    const restore = withDemoEnv(undefined, undefined);
+    try {
+        await ensureReviewDemoAccount();
+        const rows = await db.select().from(users);
+        assert.equal(rows.length, 0, 'no stray admin created when demo disabled');
+    }
+    finally {
+        restore();
     }
 });

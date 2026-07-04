@@ -40,6 +40,7 @@ import { tickFreshnessAlerts } from './lib/freshnessAlerts.js';
 import { cleanupExpiredRateLimits } from './lib/rateLimit.js';
 import { cleanupExpiredCache } from './lib/places.js';
 import { ensureMasterAccounts } from './lib/masterAccounts.js';
+import { ensureReviewDemoAccount } from './lib/staffAuth.js';
 import { syncSmtpFromEnv } from './lib/smtpRecovery.js';
 import { ensurePlantDirectory, backfillNetworkStatus } from './lib/plantDirectory.js';
 import { tickAutomations } from './lib/automationJobs.js';
@@ -287,6 +288,7 @@ await syncSmtpFromEnv().catch((e) => console.error('syncSmtpFromEnv failed', e))
 app.listen(PORT, () => {
   console.log(`TrackMyRMC API running on port ${PORT}`);
   ensureMasterAccounts().catch((e) => console.error('ensureMasterAccounts failed', e));
+  ensureReviewDemoAccount().catch((e) => console.error('ensureReviewDemoAccount failed', e));
   ensurePlantDirectory()
     .then(() => backfillNetworkStatus())
     .catch((e) => console.error('ensurePlantDirectory failed', e));

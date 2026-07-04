@@ -119,6 +119,52 @@ export function isReviewDemoLogin(email, code) {
     const b = Buffer.from(hashOtpCode(cfg.code));
     return a.length === b.length && timingSafeEqual(a, b);
 }
+// Idempotently guarantee the app-store reviewer demo account exists as an
+// ACTIVE, non-deleted PLATFORM admin (plantId null → never billing-gated), so
+// the fixed demo code can log in in every environment. Run once at boot. Fails
+// closed: does nothing unless the demo feature is fully configured (both
+// REVIEW_DEMO_EMAIL and a valid REVIEW_DEMO_OTP). The account is passwordless —
+// it authenticates only via the fixed demo code — so no password is ever set.
+// The prod DB is read-only to tooling, so this boot self-seed is the only way
+// the reviewer row lands in production (mirrors ensurePlantDirectory / master
+// accounts). If a prior row drifted (soft-deleted, suspended, wrong role, or
+// bound to a plant) it is restored to the canonical demo shape.
+export async function ensureReviewDemoAccount() {
+    const cfg = reviewDemoConfig();
+    if (!cfg)
+        return;
+    const email = cfg.email; // already trimmed + lowercased
+    const [existing] = await db
+        .select({
+        id: users.id,
+        role: users.role,
+        isActive: users.isActive,
+        deletedAt: users.deletedAt,
+        plantId: users.plantId,
+    })
+        .from(users)
+        .where(eq(users.email, email));
+    if (existing) {
+        const needsFix = existing.role !== 'admin' ||
+            !existing.isActive ||
+            existing.deletedAt !== null ||
+            existing.plantId !== null;
+        if (needsFix) {
+            await db.update(users)
+                .set({
+                role: 'admin', isActive: true, deletedAt: null, plantId: null,
+                suspendedBy: null, suspensionReason: null, passwordHash: null,
+            })
+                .where(eq(users.id, existing.id));
+        }
+        return;
+    }
+    await db.insert(users).values({
+        name: 'App Reviewer',
+        email,
+        role: 'admin',
+    });
+}
 // Verify a submitted code against the stored hash. Single generic failure
 // message (never distinguishes wrong/expired/too-many) to avoid leaking state.
 // On success the code is consumed (deleted) so it can't be replayed.
