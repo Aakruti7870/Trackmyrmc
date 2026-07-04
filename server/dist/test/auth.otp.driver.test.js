@@ -81,6 +81,29 @@ test('a returning driver reuses the same login', async () => {
         .where(and(eq(users.linkedDriverId, driver.id), isNull(users.deletedAt)));
     assert.equal(rows.length, 1, 'no duplicate driver login created');
 });
+test('driver login wins when a client account already exists for the same phone', async () => {
+    const phone = '+919000555004';
+    // A pre-existing client account for this exact phone.
+    const [client] = await db.insert(clients).values({
+        name: 'Existing Client', contactPerson: 'Existing Client', phone,
+    }).returning();
+    await db.insert(users).values({
+        name: 'Existing Client', email: 'otp_existing@otp.local', role: 'client',
+        phone, linkedClientId: client.id,
+    });
+    // Later, the same person is provisioned as an active driver.
+    const [driver] = await db.insert(drivers).values({
+        name: 'Also A Driver', phone: '9000555004', isActive: true,
+    }).returning();
+    const sent = await send({ phone });
+    const res = await verify({ phone, code: sent.body.devCode });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.user.role, 'driver', 'driver resolution takes precedence over client');
+    assert.equal(res.body.user.linkedDriverId, driver.id);
+    const driverRows = await db.select().from(users)
+        .where(and(eq(users.linkedDriverId, driver.id), isNull(users.deletedAt)));
+    assert.equal(driverRows.length, 1, 'exactly one driver login exists');
+});
 test('an inactive driver falls through to a customer account', async () => {
     const phone = '+919000555003';
     await db.insert(drivers).values({
