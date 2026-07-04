@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { clients, sites, ledgerEntries, users } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
+import { isPlatformStaff } from '../lib/roleHierarchy.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -12,7 +13,20 @@ router.use(requireAuth);
 // the existing single-tenant admin app keeps working. Without this gate a
 // null-plant non-staff account would be treated as "global" by plantScope and
 // could read/mutate every plant's customers, sites and ledgers.
-router.use(requireRole('admin', 'dispatcher'));
+router.use(requireRole('authority', 'plant_owner', 'admin', 'supervisor', 'dispatcher'));
+// Belt-and-suspenders scope guard: plantScope() treats a null plantId as
+// "global" (unscoped). That is intended ONLY for platform staff (authority or a
+// legacy global admin). A plant-scoped role (plant_owner/supervisor/dispatcher,
+// or a plant admin) that somehow has no plant binding must never fall through to
+// global access, so reject it here before any query runs.
+router.use((req, res, next) => {
+  const actor = req.user!;
+  if (!isPlatformStaff(actor) && actor.plantId == null) {
+    res.status(403).json({ error: 'Your account is not linked to a plant. Ask an administrator to assign your plant.' });
+    return;
+  }
+  next();
+});
 
 // Resolve the client the request targets, scoped to the actor's plant. Returns
 // undefined when the client doesn't exist OR belongs to another plant — callers
