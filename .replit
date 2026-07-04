@@ -97,6 +97,10 @@ task = "workflow.run"
 args = "Start application"
 
 [[ports]]
+localPort = 3001
+externalPort = 3001
+
+[[ports]]
 localPort = 5000
 externalPort = 5000
 
