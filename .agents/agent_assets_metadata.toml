@@ -263,3 +263,33 @@ id = "mX8OArI0voKocsBpCRsYW"
 uri = "file://promo-video/login-tutorials/08-password-reset.md"
 type = "text"
 title = "08 — Password Reset / Forgot Password"
+
+[[outputs]]
+id = "8B1eVGyTk4u9U7tf9arzs"
+uri = "file://play-store-assets/STORE-LISTING.txt"
+type = "text"
+title = "Store Listing Text (name, short & full description)"
+
+[[outputs]]
+id = "ACfHJBONwWe1HmySLypU_"
+uri = "file://play-store-assets/app-icon-512.png"
+type = "image"
+title = "App Icon 512x512 (no transparency)"
+
+[[outputs]]
+id = "trnnoVZKo8mt708EO5BoQ"
+uri = "file://play-store-assets/screenshot-1-home.jpg"
+type = "image"
+title = "Screenshot 1 - Home / Dispatch"
+
+[[outputs]]
+id = "ozM9U77WoQGCMOGeW2uX5"
+uri = "file://play-store-assets/screenshot-2-login.jpg"
+type = "image"
+title = "Screenshot 2 - Sign in"
+
+[[outputs]]
+id = "FnuUqqBPh0uPQQDV0dkBM"
+uri = "file://play-store-assets/screenshot-3-verify.jpg"
+type = "image"
+title = "Screenshot 3 - Register your plant (optional)"

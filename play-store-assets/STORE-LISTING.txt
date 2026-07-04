@@ -1,0 +1,57 @@
+========================================
+CONCRETE KING — GOOGLE PLAY STORE LISTING
+Copy–paste each field into Play Console → Store presence → Main store listing
+========================================
+
+------------------------------------------------
+APP NAME  (max 30 characters)
+------------------------------------------------
+CONCRETE KING
+
+------------------------------------------------
+SHORT DESCRIPTION  (max 80 characters)
+------------------------------------------------
+Order ready-mix concrete from nearby plants & track delivery in real time.
+
+------------------------------------------------
+FULL DESCRIPTION  (max 4000 characters)
+------------------------------------------------
+CONCRETE KING is the all-in-one platform for ready-mix concrete (RMC) — connecting customers with nearby approved plants and giving plant teams complete control of their operations from a single screen.
+
+FOR CUSTOMERS
+• Discover approved RMC plants near your site on a live map
+• Compare plants and request the grade you need (M20, M25, M30, M35, M40, M50 and more)
+• Place and manage concrete orders in a few taps
+• Track dispatch and delivery in real time
+• Get instant alerts when your order is dispatched and delivered
+• View delivery challans and proof-of-delivery photos
+
+FOR RMC PLANTS & STAFF
+• Manage orders, dispatch and challan generation end to end
+• Live GPS tracking of your transit-mixer fleet
+• Concrete freshness / pour-by countdown so loads are placed on time
+• Batch production records and mix-design management by grade
+• Client and vehicle management
+• Dashboards and reports for output, on-time rate and fleet status
+
+WHY CONCRETE KING
+Built ground-up for the ready-mix concrete industry, CONCRETE KING brings ordering, live tracking, freshness monitoring and fleet intelligence together in one simple app — helping customers get quality concrete on time and helping plants run a tighter, more profitable operation.
+
+Order. Track. Deliver. In real time.
+
+Support: support@goldetech.com
+
+------------------------------------------------
+GRAPHICS  (already prepared for you in this folder)
+------------------------------------------------
+• App icon (512 x 512, PNG, no transparency)  ->  app-icon-512.png
+• Feature graphic (1024 x 500, PNG)           ->  feature-graphic-1024x500.png
+• Phone screenshots (min 2, 16:9)             ->  screenshot-1.png, screenshot-2.png, ...
+
+------------------------------------------------
+CATEGORY & CONTACT
+------------------------------------------------
+App category:  Business
+Contact email: support@goldetech.com
+Website:       https://trackmyrmc.com
+Privacy policy: https://trackmyrmc.com/privacy
