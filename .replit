@@ -97,20 +97,12 @@ task = "workflow.run"
 args = "Start application"
 
 [[ports]]
-localPort = 3001
-externalPort = 8008
-
-[[ports]]
 localPort = 5000
-externalPort = 8000
-
-[[ports]]
-localPort = 5001
-externalPort = 8080
+externalPort = 80
 
 [[ports]]
 localPort = 23636
-externalPort = 80
+externalPort = 3000
 
 [deployment]
 deploymentTarget = "autoscale"
