@@ -11,12 +11,21 @@ and the workflow reports `DIDNT_OPEN_A_PORT`. There is no fallback.
 **Why:** a hardcoded fallback secret was removed as a security hardening; the tradeoff is that the
 secret must always be present in every environment (dev + prod) or the app won't start.
 
-**How to apply / provision the key:**
-- It is an *internal signing key*, not a user-owned credential — any long random string works. Do NOT
-  `requestEnvVar` it from the user. Generate one (`crypto.randomBytes(48).toString('base64url')`) and
-  set it via `setEnvVars({ values: { JWT_SECRET }, environment: "shared" })` in code_execution, without
-  printing the value. `shared` scope is essential — it covers both dev and the deploy/prod build.
-- Rotating it invalidates all existing localStorage `rmc_token` sessions (users just re-login) — fine for this app.
+**How it is provisioned (updated July 2026):**
+- JWT_SECRET, VAPID_PRIVATE_KEY, WHATSAPP_META_VERIFY_TOKEN, REVIEW_DEMO_OTP were MIGRATED out of the
+  plaintext `.replit` `[userenv.shared]` into **managed Secrets** (global store) at the user's explicit
+  request, to pass code review + prep the AAB build. `.replit` now holds only non-sensitive config
+  (VITE_CLERK_PUBLISHABLE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT, TWILIO_VERIFY_SERVICE_SID, APP_URL,
+  WHATSAPP_META_PHONE_NUMBER_ID, SMTP_SYNC_FROM_ENV, REVIEW_DEMO_EMAIL).
+- Secrets inject into `process.env` for both dev + deploy, so boot reads JWT_SECRET from the Secret now.
+- The agent CANNOT set a secret value directly (`setEnvVars` is env-only; "Cannot be used for secrets").
+  To migrate a value that MUST be preserved, `requestEnvVar({requestType:"secret",...})` and instruct the
+  user to paste the EXACT current value (copy from `.replit`) BEFORE deleting the plaintext copy.
+- Safe migration order: (1) create Secrets, (2) verify existence via `viewEnvVars`, (3)
+  `deleteEnvVars({environment:"shared"})` to strip plaintext, (4) restart backend, (5) verify boot 200 +
+  `/api/me` returns 401 (not 500) to confirm JWT verify works.
+- Rotating/changing JWT_SECRET invalidates all existing localStorage `rmc_token` sessions (users re-login).
+  Preserving the exact value keeps everyone logged in.
 - **Env visibility is inconsistent, verify per-session:** shared env vars have been observed BOTH
   visible and invisible to the agent's bash shell across sessions (July 2026: `node -e` in bash read
   `process.env.JWT_SECRET` fine and minted a token; earlier sessions saw it missing). Don't trust a
@@ -26,10 +35,10 @@ secret must always be present in every environment (dev + prod) or the app won't
   `false` in `viewEnvVars` means it does NOT exist; reconciling a duplicate can accidentally leave the
   runtime with neither. Always re-verify with `viewEnvVars` after any secret/env reconciliation.
 - **Shared env vars are plaintext in `.replit`** (`[userenv.shared]`, a committed file). Code reviewers
-  will flag JWT_SECRET / VAPID_PRIVATE_KEY there as an exposure. This is the deliberate tradeoff for
-  boot-reliability (see visibility inconsistency above) — do NOT "fix" it by unilaterally rotating or
-  moving these mid-task: rotating JWT_SECRET logs out every user. Surface it to the user as an
-  optional hardening decision instead.
+  flag secrets there as an exposure. RESOLVED (July 2026): the sensitive ones were migrated to managed
+  Secrets (see provisioning section above). Only non-sensitive config remains in `[userenv.shared]`.
+  Never unilaterally ROTATE (change the value of) JWT_SECRET to "fix" this — that logs out every user;
+  migrate the SAME value to a Secret instead. Surface any value change to the user first.
 
 ## TS narrowing for a required module-level const
 Writing `const JWT_SECRET = process.env.JWT_SECRET; if(!JWT_SECRET) throw…` does NOT narrow the const to
