@@ -24,6 +24,19 @@ secret must always be present in every environment (dev + prod) or the app won't
 - Safe migration order: (1) create Secrets, (2) verify existence via `viewEnvVars`, (3)
   `deleteEnvVars({environment:"shared"})` to strip plaintext, (4) restart backend, (5) verify boot 200 +
   `/api/me` returns 401 (not 500) to confirm JWT verify works.
+- **Manual secret paste silently truncates/mangles** — a user pasting long random values (esp. via the
+  Secrets "Edit as .env" box, which some users can't even find) produced wrong-length values that only
+  surfaced as a test failure ("Vapid private key should be 32 bytes"). ALWAYS verify each migrated secret
+  against a known-good source: the pre-deletion value survives in git (`git show <prev-commit>:.replit`),
+  so compare `process.env[k].trim() === gitOriginal.trim()` (print booleans/lengths, never the value).
+  `requestEnvVar({requestType:"secret",...})` renders paste boxes right in the agent tab and is far more
+  reliable than sending the user hunting for the Secrets UI. `viewEnvVars` reports existence only, so it
+  will NOT catch a wrong value — behavior/length probes are the only real check.
+- Behavior probes to confirm the live value matches the original (no value printed): WHATSAPP verify =
+  GET `/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=<orig>&hub.challenge=X` → 200 body==X;
+  VAPID = base64url-decode → 32 bytes; JWT = compare `process.env` to git-original (demo-login token
+  verify is unreliable because the reviewer demo account may be absent from the dev DB → 401 even when
+  REVIEW_DEMO_OTP is correct).
 - Rotating/changing JWT_SECRET invalidates all existing localStorage `rmc_token` sessions (users re-login).
   Preserving the exact value keeps everyone logged in.
 - **Env visibility is inconsistent, verify per-session:** shared env vars have been observed BOTH
