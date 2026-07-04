@@ -11,6 +11,7 @@ import { isAuthorityEmail } from '../lib/authority.js';
 import { resolveStaffForOtp, sendStaffLoginCode, verifyStaffLoginCode, isSuperAdminUser, isReviewDemoEmail, isReviewDemoLogin, } from '../lib/staffAuth.js';
 import { resolveStaffSsoUser } from '../lib/staffSso.js';
 import { resolveCustomerByPhone, resolveCustomerByEmail } from '../lib/customerAccount.js';
+import { resolveDriverByPhone } from '../lib/driverAccount.js';
 import { isLockedOut, recordFailure, resetAttempts } from '../lib/loginAttempts.js';
 import { peekInviteToken, redeemInviteToken, createInviteToken } from '../lib/inviteToken.js';
 import { sendPasswordResetEmail } from '../lib/email.js';
@@ -826,6 +827,38 @@ router.post('/otp/verify', otpVerifyLimiter, async (req, res) => {
     const check = await verifyOtp(phone, parse.data.code);
     if (!check.ok) {
         res.status(400).json({ error: check.error ?? 'That code is incorrect or has expired.' });
+        return;
+    }
+    // Driver-first: a phone that belongs to a provisioned, active driver signs in
+    // as role 'driver' (and lands on the driver dashboard) instead of silently
+    // becoming a new customer. Only the lowest-privilege staff role is resolvable
+    // this way; everything else still authenticates by email/SSO.
+    const driverRes = await resolveDriverByPhone(phone);
+    if (driverRes.kind === 'error') {
+        res.status(driverRes.status).json({ error: driverRes.error });
+        return;
+    }
+    if (driverRes.kind === 'match') {
+        const { user } = driverRes;
+        const token = signToken({
+            id: user.id, email: user.email, role: user.role, name: user.name,
+            plantId: user.plantId,
+            linkedClientId: user.linkedClientId,
+            linkedDriverId: user.linkedDriverId,
+        });
+        res.json({
+            ok: true,
+            token,
+            user: {
+                id: user.id, name: user.name, email: user.email, role: user.role,
+                phone: user.phone,
+                plantId: driverRes.plantId,
+                linkedClientId: user.linkedClientId,
+                linkedDriverId: driverRes.driverId,
+                truckId: driverRes.truckId,
+                truckNo: driverRes.truckNo,
+            },
+        });
         return;
     }
     // Find the live account for this number, or create one on first verified login.

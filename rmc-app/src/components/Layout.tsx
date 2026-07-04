@@ -18,6 +18,7 @@ import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
 import AIHelpAgent, { AiHeaderButton } from '@/components/ai/AIHelpAgent';
 import InstallAppButton from '@/components/InstallAppButton';
+import LoginDebugCard from '@/components/LoginDebugCard';
 import { ConcreteKingLogo, BrandCredits } from '@/components/BrandLogo';
 
 const ALL_NAV_ITEMS = [
@@ -476,6 +477,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         <main id="app-main" style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
+          <LoginDebugCard />
           {children}
         </main>
       </div>

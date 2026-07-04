@@ -192,7 +192,9 @@ export default function Login() {
         '/auth/otp/verify', { phone, code: c, name: name || undefined },
       );
       updateUser(data.user, data.token);
-      setLoc('/');
+      // Route by role: a driver whose number is on file lands on the driver
+      // dashboard (/my-trips), a customer on /nearby-plants, etc.
+      setLoc(defaultPath(data.user.role));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Verification failed');
     } finally {

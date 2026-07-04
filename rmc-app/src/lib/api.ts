@@ -116,6 +116,10 @@ export type User = {
   plantId?: number | null;
   linkedClientId?: number | null;
   linkedDriverId?: number | null;
+  // Driver-only: the truck assigned to this driver (from the login response).
+  // Present right after a driver signs in; not re-fetched by /auth/me.
+  truckId?: number | null;
+  truckNo?: string | null;
 };
 
 export interface LinkedUser {
