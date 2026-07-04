@@ -20,6 +20,7 @@ import {
   buildDatabaseExport,
 } from '../lib/adminConfig.js';
 import { isPlatformStaff } from '../lib/roleHierarchy.js';
+import { getKycConfig, updateKycSettings } from '../lib/kyc.js';
 import {
   getPlantInviteNotifyConfig,
   parseRecipients,
@@ -703,6 +704,71 @@ router.post('/whatsapp-settings', async (req, res) => {
   }
 
   res.json({ ...after, defaults: { enabled: DEFAULT_WHATSAPP_ENABLED } });
+});
+
+// Aadhaar KYC (DigiLocker) aggregator settings. Marketplace-wide config that
+// carries API credentials, so it is platform-staff only (a plant-scoped admin
+// must not manage it). GET never returns the raw secrets — only whether each is
+// present — so the form can show masked placeholders.
+router.get('/kyc-settings', async (req, res) => {
+  if (!isPlatformStaff(req.user!)) {
+    res.status(403).json({ error: 'Only platform staff can manage KYC settings.' });
+    return;
+  }
+  res.json(await getKycConfig());
+});
+
+const kycSettingsSchema = z.object({
+  enabled: z.boolean().optional(),
+  provider: z.string().trim().max(32).optional(),
+  baseUrl: z.string().trim().max(256).optional(),
+  apiVersion: z.string().trim().max(16).optional(),
+  apiKey: z.string().trim().max(512).optional(),
+  apiSecret: z.string().trim().max(512).optional(),
+});
+
+router.post('/kyc-settings', async (req, res) => {
+  if (!isPlatformStaff(req.user!)) {
+    res.status(403).json({ error: 'Only platform staff can manage KYC settings.' });
+    return;
+  }
+  const parse = kycSettingsSchema.safeParse(req.body);
+  if (!parse.success) {
+    res.status(400).json({ error: parse.error.flatten().fieldErrors });
+    return;
+  }
+
+  const before = await getKycConfig();
+  await updateKycSettings(parse.data);
+  const after = await getKycConfig();
+
+  const changed: string[] = [];
+  if (before.enabled !== after.enabled) changed.push(`KYC ${after.enabled ? 'enabled' : 'disabled'}`);
+  if (before.provider !== after.provider) changed.push(`provider set to ${after.provider}`);
+  if (before.baseUrl !== after.baseUrl) changed.push('base URL updated');
+  if (before.apiVersion !== after.apiVersion) changed.push('API version updated');
+  if (before.hasApiKey !== after.hasApiKey) changed.push(after.hasApiKey ? 'API key set' : 'API key cleared');
+  if (before.hasApiSecret !== after.hasApiSecret) changed.push(after.hasApiSecret ? 'API secret set' : 'API secret cleared');
+
+  const detail = changed.length
+    ? `KYC settings updated. Changed: ${changed.join('; ')}.`
+    : 'KYC settings saved from the admin panel. No values were changed.';
+
+  const actor = req.user!;
+  try {
+    await db.insert(auditLogs).values({
+      actorId: actor.id,
+      actorName: actor.name,
+      action: 'kyc_settings_updated',
+      status: 'success',
+      detail,
+      emailSent: null,
+    });
+  } catch (err) {
+    console.error('[admin] Failed to write KYC settings audit log:', err);
+  }
+
+  res.json(after);
 });
 
 router.get('/freshness-settings', async (_req, res) => {

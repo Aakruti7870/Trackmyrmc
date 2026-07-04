@@ -46,6 +46,36 @@ interface WhatsAppSettings extends WhatsAppForm {
   configured: boolean;
 }
 
+// Customer Aadhaar KYC (DigiLocker) — the profile badge state (GET /kyc/status).
+type KycState = 'unverified' | 'pending' | 'verified' | 'failed';
+interface KycStatus {
+  configured: boolean;
+  status: KycState;
+  verifiedAt: string | null;
+  maskedAadhaar: string | null;
+  fullName: string | null;
+}
+
+// Platform-staff KYC aggregator config (GET/POST /admin/kyc-settings). Secrets
+// are write-only — the server returns only hasApiKey/hasApiSecret.
+interface KycConfig {
+  provider: string;
+  enabled: boolean;
+  baseUrl: string;
+  apiVersion: string;
+  hasApiKey: boolean;
+  hasApiSecret: boolean;
+  configured: boolean;
+}
+interface KycSettingsForm {
+  enabled: boolean;
+  provider: string;
+  baseUrl: string;
+  apiVersion: string;
+  apiKey: string;
+  apiSecret: string;
+}
+
 // A single outbound WhatsApp notification + its latest Twilio delivery state,
 // joined to the order/challan it was sent for (GET /whatsapp/messages).
 interface WhatsAppMessage {
@@ -337,6 +367,21 @@ export default function ProfileSettings() {
   const [whatsappLoading, setWhatsappLoading] = useState(false);
   const [whatsappSaving, setWhatsappSaving] = useState(false);
 
+  // Customer KYC (client role): current verification badge + verify flow state.
+  const [kyc, setKyc] = useState<KycStatus | null>(null);
+  const [kycLoading, setKycLoading] = useState(false);
+  const [kycStarting, setKycStarting] = useState(false);
+  const [kycError, setKycError] = useState<string | null>(null);
+  const [kycPolling, setKycPolling] = useState(false);
+
+  // Platform-staff KYC aggregator settings.
+  const [kycForm, setKycForm] = useState<KycSettingsForm>({
+    enabled: true, provider: 'sandbox', baseUrl: '', apiVersion: '', apiKey: '', apiSecret: '',
+  });
+  const [kycCfg, setKycCfg] = useState<KycConfig | null>(null);
+  const [kycCfgLoading, setKycCfgLoading] = useState(false);
+  const [kycCfgSaving, setKycCfgSaving] = useState(false);
+
   const [whatsappMessages, setWhatsappMessages] = useState<WhatsAppMessage[]>([]);
   const [whatsappMessagesLoading, setWhatsappMessagesLoading] = useState(false);
   const [whatsappMessagesReload, setWhatsappMessagesReload] = useState(0);
@@ -370,6 +415,7 @@ export default function ProfileSettings() {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'authority';
   const isClient = user?.role === 'client';
+  const isPlatformStaff = isAdmin && (user?.plantId == null);
 
   // Populate the editable profile fields when the signed-in user loads/changes.
   // Done during render (React's documented adjust-on-change pattern) so it does
@@ -434,6 +480,70 @@ export default function ProfileSettings() {
     loadPreferredPlant();
     return () => { cancelled = true; };
   }, [isClient, user?.id]);
+
+  // Customers only: load the current KYC verification badge state.
+  useEffect(() => {
+    if (!isClient) return;
+    let cancelled = false;
+    function loadKyc() {
+      setKycLoading(true);
+      api.get<KycStatus>('/kyc/status')
+        .then(s => { if (!cancelled) setKyc(s); })
+        .catch(() => { /* best-effort — the card falls back to "unverified" */ })
+        .finally(() => { if (!cancelled) setKycLoading(false); });
+    }
+    loadKyc();
+    return () => { cancelled = true; };
+  }, [isClient, user?.id]);
+
+  // Customers only: while a DigiLocker verification is in progress (the consent
+  // flow opened in another tab), poll the status until it settles or we give up.
+  useEffect(() => {
+    if (!kycPolling) return;
+    let cancelled = false;
+    let tries = 0;
+    const timer = setInterval(() => {
+      tries += 1;
+      api.get<KycStatus>('/kyc/status')
+        .then(s => {
+          if (cancelled) return;
+          setKyc(s);
+          if (s.status === 'verified' || s.status === 'failed' || tries >= 30) {
+            setKycPolling(false);
+            if (s.status === 'verified') showToast('Aadhaar KYC verified.', 'success');
+            else if (s.status === 'failed') showToast('KYC verification failed. Please try again.', 'error');
+          }
+        })
+        .catch(() => { if (!cancelled && tries >= 30) setKycPolling(false); });
+    }, 4000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [kycPolling, showToast]);
+
+  // Platform staff only: load the KYC aggregator configuration into the form.
+  useEffect(() => {
+    if (!isPlatformStaff) return;
+    let cancelled = false;
+    function loadKycCfg() {
+      setKycCfgLoading(true);
+      api.get<KycConfig>('/admin/kyc-settings')
+        .then(cfg => {
+          if (cancelled) return;
+          setKycCfg(cfg);
+          setKycForm({
+            enabled: cfg.enabled,
+            provider: cfg.provider || 'sandbox',
+            baseUrl: cfg.baseUrl ?? '',
+            apiVersion: cfg.apiVersion ?? '',
+            apiKey: '',
+            apiSecret: '',
+          });
+        })
+        .catch(() => { /* best-effort — leaves the form at defaults */ })
+        .finally(() => { if (!cancelled) setKycCfgLoading(false); });
+    }
+    loadKycCfg();
+    return () => { cancelled = true; };
+  }, [isPlatformStaff]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -513,7 +623,6 @@ export default function ProfileSettings() {
     return () => { cancelled = true; };
   }, [isAdmin]);
 
-  const isPlatformStaff = isAdmin && (user?.plantId == null);
   useEffect(() => {
     if (!isPlatformStaff) return;
     let cancelled = false;
@@ -1250,6 +1359,64 @@ export default function ProfileSettings() {
     }
   }
 
+  // Customer: kick off a DigiLocker verification. The server returns a consent
+  // URL we open in a new tab; we then poll /kyc/status until it settles. Fails
+  // loud (503) when the aggregator isn't configured — never fake-verifies.
+  async function handleKycStart() {
+    setKycStarting(true);
+    setKycError(null);
+    try {
+      const { authUrl } = await api.post<{ authUrl: string }>('/kyc/start', {});
+      if (!authUrl) throw new Error('The verification service did not return a link.');
+      const win = window.open(authUrl, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        setKycError('Please allow pop-ups for this site, then tap “Verify with DigiLocker” again.');
+        return;
+      }
+      setKyc(prev => (prev ? { ...prev, status: 'pending' } : prev));
+      setKycPolling(true);
+      showToast('Complete the Aadhaar consent in the new tab. We’ll update this automatically.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not start verification.';
+      setKycError(msg);
+    } finally {
+      setKycStarting(false);
+    }
+  }
+
+  // Platform staff: save the KYC aggregator configuration. Blank secret fields
+  // are omitted so a saved key/secret is preserved unless explicitly replaced.
+  async function handleKycSettingsSave(e: React.FormEvent) {
+    e.preventDefault();
+    setKycCfgSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        enabled: kycForm.enabled,
+        provider: kycForm.provider.trim() || 'sandbox',
+        baseUrl: kycForm.baseUrl.trim(),
+        apiVersion: kycForm.apiVersion.trim(),
+      };
+      if (kycForm.apiKey.trim()) body.apiKey = kycForm.apiKey.trim();
+      if (kycForm.apiSecret.trim()) body.apiSecret = kycForm.apiSecret.trim();
+      const cfg = await api.post<KycConfig>('/admin/kyc-settings', body);
+      setKycCfg(cfg);
+      setKycForm({
+        enabled: cfg.enabled,
+        provider: cfg.provider || 'sandbox',
+        baseUrl: cfg.baseUrl ?? '',
+        apiVersion: cfg.apiVersion ?? '',
+        apiKey: '',
+        apiSecret: '',
+      });
+      showToast('KYC settings saved.', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save KYC settings';
+      showToast(msg, 'error');
+    } finally {
+      setKycCfgSaving(false);
+    }
+  }
+
   async function handleWhatsappSave(e: React.FormEvent) {
     e.preventDefault();
     setWhatsappSaving(true);
@@ -1601,6 +1768,115 @@ export default function ProfileSettings() {
               {prefPlantSaving ? 'Saving…' : 'Save Default Plant'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Aadhaar KYC card — customers only */}
+      {isClient && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <ShieldCheck size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Aadhaar KYC</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Verify your identity with DigiLocker to unlock a verified badge</div>
+            </div>
+          </div>
+
+          {kycLoading && !kyc ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading…</div>
+          ) : (
+            <>
+              {(() => {
+                const status = kyc?.status ?? 'unverified';
+                const verified = status === 'verified';
+                const pending = status === 'pending' || kycPolling;
+                const failed = status === 'failed';
+                const chipColor = verified ? '#22c55e' : failed ? '#ef4444' : pending ? '#eab308' : 'var(--muted)';
+                const chipLabel = verified ? 'KYC Verified' : failed ? 'Verification failed' : pending ? 'Verification in progress' : 'Not verified';
+                return (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 16,
+                    padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                    background: `color-mix(in srgb, ${chipColor} 14%, transparent)`,
+                    border: `1px solid color-mix(in srgb, ${chipColor} 35%, transparent)`,
+                    color: chipColor,
+                  }}>
+                    {verified ? <CheckCircle size={13} /> : failed ? <XCircle size={13} /> : pending ? <RefreshCw size={13} /> : <ShieldCheck size={13} />}
+                    {chipLabel}
+                  </div>
+                );
+              })()}
+
+              {kyc?.status === 'verified' ? (
+                <div style={{ display: 'grid', gap: 8, fontSize: 13, color: 'var(--text)' }}>
+                  {kyc.fullName && (
+                    <div><span style={{ color: 'var(--muted)' }}>Name: </span><strong>{kyc.fullName}</strong></div>
+                  )}
+                  {kyc.maskedAadhaar && (
+                    <div><span style={{ color: 'var(--muted)' }}>Aadhaar: </span><strong>{kyc.maskedAadhaar}</strong></div>
+                  )}
+                  {kyc.verifiedAt && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                      Verified on {new Date(kyc.verifiedAt).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+                    You’ll be taken to DigiLocker to share your Aadhaar. We only store a
+                    <strong style={{ color: 'var(--text)' }}> masked Aadhaar number</strong> (last 4 digits) and your name — never the full number.
+                  </div>
+
+                  {kyc && !kyc.configured && (
+                    <div style={{
+                      fontSize: 12, color: '#eab308', marginBottom: 14, padding: '10px 12px', borderRadius: 10,
+                      background: 'color-mix(in srgb, #eab308 12%, transparent)', border: '1px solid color-mix(in srgb, #eab308 30%, transparent)',
+                    }}>
+                      KYC verification isn’t available yet. Please check back later.
+                    </div>
+                  )}
+
+                  {kycError && (
+                    <div style={{
+                      fontSize: 12, color: 'var(--red)', marginBottom: 14, padding: '10px 12px', borderRadius: 10,
+                      background: 'color-mix(in srgb, #ef4444 12%, transparent)', border: '1px solid color-mix(in srgb, #ef4444 30%, transparent)',
+                    }}>
+                      {kycError}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleKycStart}
+                    disabled={kycStarting || kycPolling || (kyc != null && !kyc.configured)}
+                    style={{
+                      padding: '11px 22px', borderRadius: 10,
+                      background: (kycStarting || kycPolling || (kyc != null && !kyc.configured))
+                        ? 'color-mix(in srgb, var(--gold) 40%, transparent)'
+                        : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+                      border: 'none',
+                      cursor: (kycStarting || kycPolling || (kyc != null && !kyc.configured)) ? 'not-allowed' : 'pointer',
+                      color: '#111827', fontWeight: 800, fontSize: 14,
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                      transition: 'opacity .15s',
+                    }}
+                  >
+                    {kycPolling ? (<><RefreshCw size={15} /> Waiting for verification…</>)
+                      : kycStarting ? 'Starting…'
+                      : kyc?.status === 'failed' ? 'Retry verification'
+                      : 'Verify with DigiLocker'}
+                  </button>
+                </>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -2546,6 +2822,135 @@ export default function ProfileSettings() {
                 }}
               >
                 {inviteNotifySaving ? 'Saving…' : 'Save notifications'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Aadhaar KYC aggregator settings — platform staff only */}
+      {isPlatformStaff && (
+        <div style={{ ...card, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <ShieldCheck size={15} style={{ color: 'var(--gold)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Aadhaar KYC (DigiLocker)</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Aggregator credentials for customer identity verification</div>
+            </div>
+          </div>
+
+          {kycCfgLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading settings…</div>
+          ) : (
+            <form onSubmit={handleKycSettingsSave}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 16,
+                padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                background: kycCfg?.configured ? 'color-mix(in srgb, #22c55e 14%, transparent)' : 'color-mix(in srgb, #ef4444 14%, transparent)',
+                border: `1px solid ${kycCfg?.configured ? 'color-mix(in srgb, #22c55e 35%, transparent)' : 'color-mix(in srgb, #ef4444 35%, transparent)'}`,
+                color: kycCfg?.configured ? '#22c55e' : '#ef4444',
+              }}>
+                {kycCfg?.configured ? <CheckCircle size={13} /> : <XCircle size={13} />}
+                {kycCfg?.configured ? 'KYC provider connected' : 'KYC provider not configured'}
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 18 }}>
+                <input
+                  type="checkbox"
+                  checked={kycForm.enabled}
+                  onChange={e => setKycForm(f => ({ ...f, enabled: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: 'var(--gold)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+                  Allow customers to verify their Aadhaar
+                </span>
+              </label>
+
+              <div style={{ display: 'grid', gap: 16 }}>
+                <div>
+                  <label style={label}>Provider</label>
+                  <select
+                    value={kycForm.provider}
+                    onChange={e => setKycForm(f => ({ ...f, provider: e.target.value }))}
+                    style={{ ...inputStyle, padding: '10px 12px', cursor: 'pointer' }}
+                  >
+                    <option value="sandbox">Sandbox (sandbox.co.in)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={label}>API Key</label>
+                  <input
+                    type="text"
+                    value={kycForm.apiKey}
+                    onChange={e => setKycForm(f => ({ ...f, apiKey: e.target.value }))}
+                    placeholder={kycCfg?.hasApiKey ? '•••••••• (saved — leave blank to keep)' : 'Enter aggregator API key'}
+                    autoComplete="off"
+                    style={{ ...inputStyle, padding: '10px 12px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={label}>API Secret</label>
+                  <input
+                    type="password"
+                    value={kycForm.apiSecret}
+                    onChange={e => setKycForm(f => ({ ...f, apiSecret: e.target.value }))}
+                    placeholder={kycCfg?.hasApiSecret ? '•••••••• (saved — leave blank to keep)' : 'Enter aggregator API secret'}
+                    autoComplete="off"
+                    style={{ ...inputStyle, padding: '10px 12px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={label}>Base URL <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span></label>
+                  <input
+                    type="text"
+                    value={kycForm.baseUrl}
+                    onChange={e => setKycForm(f => ({ ...f, baseUrl: e.target.value }))}
+                    placeholder="https://api.sandbox.co.in"
+                    autoComplete="off"
+                    style={{ ...inputStyle, padding: '10px 12px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={label}>API Version <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span></label>
+                  <input
+                    type="text"
+                    value={kycForm.apiVersion}
+                    onChange={e => setKycForm(f => ({ ...f, apiVersion: e.target.value }))}
+                    placeholder="e.g. 1.0"
+                    autoComplete="off"
+                    style={{ ...inputStyle, padding: '10px 12px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 14, lineHeight: 1.5 }}>
+                Credentials are stored securely and never returned to the browser. Customers can only verify when a
+                provider is connected and KYC is enabled — otherwise the verify action fails safely and never marks
+                anyone as verified.
+              </div>
+
+              <button
+                type="submit"
+                disabled={kycCfgSaving}
+                style={{
+                  marginTop: 16, padding: '10px 22px', borderRadius: 10,
+                  background: kycCfgSaving ? 'color-mix(in srgb, var(--gold) 45%, transparent)' : 'linear-gradient(135deg,var(--gold),var(--gold-dark))',
+                  border: 'none', cursor: kycCfgSaving ? 'not-allowed' : 'pointer',
+                  color: '#111', fontWeight: 800, fontSize: 14,
+                  transition: 'opacity .15s',
+                }}
+              >
+                {kycCfgSaving ? 'Saving…' : 'Save KYC settings'}
               </button>
             </form>
           )}

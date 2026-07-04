@@ -35,7 +35,7 @@ async function createPlant() {
 async function createStaff(role: string, plantId: number | null, email: string) {
   const passwordHash = await hashPassword(PASSWORD);
   const [row] = await db.insert(users).values({
-    name: `${role} user`, email, passwordHash, role, isActive: true, plantId,
+    name: `${role} user`, email, passwordHash, role: role as typeof users.$inferInsert['role'], isActive: true, plantId,
   }).returning();
   return row;
 }

@@ -27,6 +27,7 @@ import configRoutes from '../routes/config.js';
 import attendanceRoutes from '../routes/attendance.js';
 import trackingRoutes from '../routes/tracking.js';
 import automationRoutes from '../routes/automations.js';
+import kycRoutes from '../routes/kyc.js';
 
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
@@ -72,5 +73,6 @@ export function buildTestApp(): Express {
   app.use('/api/attendance', attendanceRoutes);
   app.use('/api/track', trackingRoutes);
   app.use('/api/automations', automationRoutes);
+  app.use('/api/kyc', kycRoutes);
   return app;
 }
