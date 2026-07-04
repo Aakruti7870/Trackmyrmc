@@ -16,7 +16,7 @@ const truckIcon = L.icon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
 });
 
-export default function LiveMap({ accent }: { accent: string }) {
+export default function LiveMap({ accent, showStats = true }: { accent: string; showStats?: boolean }) {
   const engine = useMapEngine();
   const [positions, setPositions] = useState<LivePosition[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -47,11 +47,13 @@ export default function LiveMap({ accent }: { accent: string }) {
         right={<LiveDot color={accent} />}
       />
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 14 }}>
-        <StatCard icon={<Navigation size={17} />} label="Vehicles tracked" accent={accent} value={positions.length} />
-        <StatCard icon={<Gauge size={17} />} label="On the move" accent="var(--green)" value={moving} />
-        <StatCard icon={<MapPin size={17} />} label="Idle / stopped" accent="var(--orange)" value={Math.max(0, positions.length - moving)} />
-      </div>
+      {showStats && (
+        <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 14 }}>
+          <StatCard icon={<Navigation size={17} />} label="Vehicles tracked" accent={accent} value={positions.length} />
+          <StatCard icon={<Gauge size={17} />} label="On the move" accent="var(--green)" value={moving} />
+          <StatCard icon={<MapPin size={17} />} label="Idle / stopped" accent="var(--orange)" value={Math.max(0, positions.length - moving)} />
+        </div>
+      )}
 
       <GlassPanel accent={accent} style={{ padding: 6, overflow: 'hidden' }}>
         <div style={{ borderRadius: 14, overflow: 'hidden', height: 440 }}>

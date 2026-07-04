@@ -149,6 +149,37 @@ export interface PlantDirectoryEntry {
   grades?: string[] | null; openTime?: string | null; closeTime?: string | null;
 }
 
+/** Full plant row returned by the admin GET /plants endpoint (Authority MAPPING PLANT). */
+export interface AdminPlant {
+  id: number;
+  name: string;
+  plantCode?: string | null;
+  ownerName?: string | null;
+  email?: string | null;
+  contactNumber?: string | null;
+  whatsappNumber?: string | null;
+  address?: string | null;
+  city?: string | null;
+  latitude: string;
+  longitude: string;
+  networkStatus: 'pending' | 'invited' | 'verified' | 'active';
+  showOnNetwork: boolean;
+  verified?: boolean;
+  isActive?: boolean;
+  plantStatus?: string | null;
+  inviteStatus?: string | null;
+  inviteSentAt?: string | null;
+  ownerCount?: number;
+}
+
+/** Response of POST /plants/:id/send-invite. */
+export interface SendInviteResult {
+  inviteUrl: string;
+  emailSent: boolean;
+  invited: boolean;
+  networkStatus?: string | null;
+}
+
 export interface RecurringOrder {
   id: number; clientId: number; siteId?: number | null;
   grade: string; quantity: string; pumpRequired: boolean;

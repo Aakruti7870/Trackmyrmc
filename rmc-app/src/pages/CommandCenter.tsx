@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  Activity, MapPin, Building2, Truck, Sparkles, BarChart3, ShieldCheck, Bell, Zap, UserPlus, Crown,
+  Activity, MapPinned, Building2, Truck, Sparkles, BarChart3, ShieldCheck, Bell, Zap, UserPlus, Crown,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { CommandStyles, GlassPanel, PrimaryButton, Badge, SocialLinks } from './command/ui';
 import { ACCENTS, AUTHORITY_ACCENT, mix } from './command/tokens';
 import InviteDialog from './command/InviteDialog';
 import Overview from './command/sections/Overview';
-import LiveMap from './command/sections/LiveMap';
+import MappingPlant from './command/sections/MappingPlant';
 import Plants from './command/sections/Plants';
 import Fleet from './command/sections/Fleet';
 import Copilot from './command/sections/Copilot';
@@ -21,7 +21,7 @@ type TabKey = keyof typeof ACCENTS;
 
 const TABS: { key: TabKey; label: string; icon: ReactNode }[] = [
   { key: 'overview', label: 'Overview', icon: <Activity size={16} /> },
-  { key: 'map', label: 'Live Map', icon: <MapPin size={16} /> },
+  { key: 'map', label: 'Mapping Plant', icon: <MapPinned size={16} /> },
   { key: 'plants', label: 'Plants', icon: <Building2 size={16} /> },
   { key: 'fleet', label: 'Fleet', icon: <Truck size={16} /> },
   { key: 'copilot', label: 'Copilot', icon: <Sparkles size={16} /> },
@@ -117,7 +117,7 @@ export default function CommandCenter() {
         {/* Active section */}
         <div key={tab}>
           {tab === 'overview' && <Overview accent={accent} />}
-          {tab === 'map' && <LiveMap accent={accent} />}
+          {tab === 'map' && <MappingPlant accent={accent} />}
           {tab === 'plants' && <Plants accent={accent} onInvite={() => setInviteOpen(true)} />}
           {tab === 'fleet' && <Fleet accent={accent} />}
           {tab === 'copilot' && <Copilot accent={accent} />}

@@ -99,9 +99,9 @@ router.get('/nearby', requireAuth, async (req, res) => {
     const effRadius = Math.min(Number.isFinite(radius) && radius > 0 ? radius : 40, MAX_RADIUS_KM);
     const rows = await db.select().from(plants);
     const nearby = rows
-        // verified = a fully onboarded partner. Onboarding leads (verified=false) are
-        // never shown to customers, even if their GPS pin happens to be confirmed.
-        .filter(p => p.plantStatus === 'approved' && p.isActive && p.locationVerified && p.verified)
+        // Only plants the authority has marked active AND left visible on the network
+        // are shown to customers. Onboarding leads / hidden plants never appear.
+        .filter(customerVisible)
         .map(p => {
         const pLat = parseFloat(p.latitude);
         const pLng = parseFloat(p.longitude);
@@ -133,7 +133,7 @@ router.get('/nearby', requireAuth, async (req, res) => {
 router.get('/map', requireAuth, async (_req, res) => {
     const rows = await db.select().from(plants);
     const mapped = rows
-        .filter(p => p.plantStatus === 'approved' && p.isActive && p.locationVerified && p.verified)
+        .filter(customerVisible)
         .map(p => ({
         id: p.id,
         name: p.name,
@@ -202,7 +202,7 @@ router.get('/directory', requireAuth, requireRole('client'), async (_req, res) =
         id: plants.id, plantCode: plants.plantCode, name: plants.name, city: plants.city,
         grades: plants.grades, openTime: plants.openTime, closeTime: plants.closeTime,
     }).from(plants)
-        .where(and(eq(plants.plantStatus, 'approved'), eq(plants.isActive, true), eq(plants.locationVerified, true), eq(plants.verified, true)))
+        .where(and(eq(plants.networkStatus, 'active'), eq(plants.showOnNetwork, true)))
         .orderBy(plants.name);
     res.json(rows);
 });
@@ -275,13 +275,11 @@ router.get('/directory', async (_req, res) => {
         grades: plants.grades,
         openTime: plants.openTime,
         closeTime: plants.closeTime,
-        plantStatus: plants.plantStatus,
-        isActive: plants.isActive,
-        locationVerified: plants.locationVerified,
-        verified: plants.verified,
+        networkStatus: plants.networkStatus,
+        showOnNetwork: plants.showOnNetwork,
     }).from(plants);
     const directory = rows
-        .filter(p => p.plantStatus === 'approved' && p.isActive && p.locationVerified && p.verified)
+        .filter(customerVisible)
         .map(p => ({
         id: p.id,
         plantCode: p.plantCode,
@@ -620,6 +618,14 @@ router.get('/', ADMIN, platformStaffOnly, async (_req, res) => {
     const byPlant = new Map(counts.map(c => [c.plantId, c.count]));
     res.json(rows.map(r => ({ ...r, ownerCount: byPlant.get(r.id) ?? 0 })));
 });
+// Authority MAPPING PLANT onboarding lifecycle. Stored on plants.networkStatus.
+const NETWORK_STATUSES = ['pending', 'invited', 'verified', 'active'];
+// Single source of truth for customer-facing plant visibility. A plant appears
+// on the customer network map/list ONLY when it is marked active AND its
+// authority "Show on Network" switch is on.
+function customerVisible(p) {
+    return p.networkStatus === 'active' && p.showOnNetwork === true;
+}
 function parseBody(body) {
     const out = {};
     const optStr = (v) => (v === null || v === '' ? null : String(v));
@@ -663,6 +669,15 @@ function parseBody(body) {
         out.locationVerified = Boolean(body.locationVerified);
     if (body.verified !== undefined)
         out.verified = Boolean(body.verified);
+    if (body.ownerName !== undefined)
+        out.ownerName = optStr(body.ownerName);
+    if (body.whatsappNumber !== undefined)
+        out.whatsappNumber = optStr(body.whatsappNumber);
+    if (body.showOnNetwork !== undefined)
+        out.showOnNetwork = Boolean(body.showOnNetwork);
+    if (body.networkStatus !== undefined && NETWORK_STATUSES.includes(body.networkStatus)) {
+        out.networkStatus = body.networkStatus;
+    }
     if (body.deliveryRadiusKm !== undefined)
         out.deliveryRadiusKm = Math.round(Number(body.deliveryRadiusKm)) || 0;
     if (body.grades !== undefined)
@@ -794,6 +809,10 @@ router.post('/', ADMIN, platformStaffOnly, async (req, res) => {
         const guardResult = await runVerifyChecks(req, res, data, null);
         if (guardResult === false)
             return;
+        // A verified partner is customer-visible: mark it network-active unless the
+        // caller explicitly chose another lifecycle state.
+        if (data.networkStatus === undefined)
+            data.networkStatus = 'active';
     }
     let row;
     try {
@@ -1038,6 +1057,11 @@ router.put('/:id', ADMIN, platformStaffOnly, async (req, res) => {
         const guardResult = await runVerifyChecks(req, res, merged, id);
         if (guardResult === false)
             return;
+        // Newly verifying a plant publishes it to customers: mark it network-active
+        // unless the caller explicitly set another lifecycle state in this request.
+        if (data.networkStatus === undefined && existing && !existing.verified) {
+            data.networkStatus = 'active';
+        }
     }
     // Capture whether verification is being newly turned on (false → true transition).
     const isNewVerification = data.verified === true && (existing ? !existing.verified : false);
@@ -1387,5 +1411,95 @@ router.post('/:id/owner', OWNER_PROVISIONERS, async (req, res) => {
         // email went out — the whole point is not to pass the secret around.
         ...(useInvite && !emailSent ? { inviteUrl } : {}),
     });
+});
+// ---------------------------------------------------------------------------
+// MAPPING PLANT — "Send Invite to Plant Owner".
+// Generates a shareable owner-onboarding invite link for a pinned plant and
+// ALWAYS returns the link so the authority can copy it or send it over
+// WhatsApp (unlike POST /:id/owner, which withholds the link once emailed).
+// It provisions (or re-uses) a plant-scoped owner login, records the invite on
+// the plant (inviteStatus / inviteSentAt) and advances networkStatus to
+// 'invited' when the plant is still 'pending'. Platform-staff only.
+// ---------------------------------------------------------------------------
+const sendInviteSchema = z.object({
+    name: z.string().trim().min(1, 'Owner name is required'),
+    email: z.string().trim().email('A valid owner email is required'),
+});
+router.post('/:id/send-invite', ADMIN, platformStaffOnly, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+        res.status(400).json({ error: 'Invalid id' });
+        return;
+    }
+    const parse = sendInviteSchema.safeParse(req.body);
+    if (!parse.success) {
+        res.status(400).json({ error: parse.error.flatten().fieldErrors });
+        return;
+    }
+    const { name, email } = parse.data;
+    const actor = req.user;
+    const [plant] = await db.select({ id: plants.id, name: plants.name }).from(plants).where(eq(plants.id, id));
+    if (!plant) {
+        res.status(404).json({ error: 'Plant not found' });
+        return;
+    }
+    // Re-use an existing owner login for this plant if the email already maps to
+    // one; refuse an email already tied to a different plant / soft-deleted user.
+    const [existingUser] = await db
+        .select({ id: users.id, plantId: users.plantId, deletedAt: users.deletedAt })
+        .from(users).where(eq(users.email, email));
+    let userId;
+    if (existingUser) {
+        if (existingUser.deletedAt) {
+            res.status(409).json({ error: 'An account with this email was previously deleted. Restore it before inviting.' });
+            return;
+        }
+        if (existingUser.plantId !== id) {
+            res.status(409).json({ error: 'This email is already registered to another plant.' });
+            return;
+        }
+        userId = existingUser.id;
+    }
+    else {
+        // Seed with an un-guessable hash; the owner sets a real password by redeeming
+        // the invite. Provisioned as a plant-scoped admin (the owner-onboarding default).
+        const passwordHash = await hashPassword(randomBytes(32).toString('base64url'));
+        const [created] = await db.insert(users).values({
+            name, email, passwordHash, role: 'admin', plantId: id, createdBy: actor.id,
+        }).returning({ id: users.id });
+        userId = created.id;
+    }
+    const { token, expiresAt } = await createInviteToken(userId);
+    const inviteUrl = `${appBaseUrl(req)}/set-password?token=${token}`;
+    let emailSent = false;
+    try {
+        emailSent = await sendOwnerInviteEmail(email, name, 'admin', inviteUrl, expiresAt);
+    }
+    catch (err) {
+        console.error('[email] Failed to send plant-owner invite email:', err);
+        emailSent = false;
+    }
+    // Record the invite on the plant and store the owner contact captured here.
+    // Advance a still-pending plant to 'invited'; never downgrade a later stage.
+    const [current] = await db.select({ networkStatus: plants.networkStatus }).from(plants).where(eq(plants.id, id));
+    const nextStatus = current?.networkStatus === 'pending' ? 'invited' : current?.networkStatus;
+    await db.update(plants).set({
+        ownerName: name,
+        email,
+        inviteStatus: 'invited',
+        inviteSentAt: new Date(),
+        networkStatus: nextStatus,
+        updatedAt: new Date(),
+    }).where(eq(plants.id, id));
+    await db.insert(auditLogs).values({
+        actorId: actor.id,
+        actorName: actor.name,
+        action: 'user.created',
+        targetUserId: userId,
+        targetUserEmail: email,
+        detail: `Plant-owner invite sent for ${plant.name} (MAPPING PLANT)`,
+        emailSent,
+    });
+    res.status(201).json({ inviteUrl, emailSent, invited: true, networkStatus: nextStatus });
 });
 export default router;

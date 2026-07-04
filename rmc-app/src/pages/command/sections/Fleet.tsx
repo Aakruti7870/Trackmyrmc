@@ -3,6 +3,7 @@ import { Truck, Wrench, CircleCheck, IdCard } from 'lucide-react';
 import { api, type Vehicle, type Driver } from '@/lib/api';
 import { SectionHeading, GlassPanel, StatCard, Badge, } from '../ui';
 import { mix } from '../tokens';
+import LiveMap from './LiveMap';
 
 export default function Fleet({ accent }: { accent: string }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -81,6 +82,12 @@ export default function Fleet({ accent }: { accent: string }) {
           )}
         </div>
       </GlassPanel>
+
+      {/* Live fleet GPS lives here (moved off the Authority landing). Stat cards
+          are hidden — the fleet counts above already cover them. */}
+      <div style={{ marginTop: 18 }}>
+        <LiveMap accent={accent} showStats={false} />
+      </div>
     </div>
   );
 }

@@ -487,6 +487,27 @@ export const plants = pgTable('plants', {
     // details (contact, GST, legal name) and flip this true. Customers only ever
     // see verified partners — a lead is never exposed by /nearby.
     verified: boolean('verified').notNull().default(false),
+    // Authority "MAPPING PLANT" onboarding contact fields — the person who runs the
+    // plant, captured while pinning it on the map (distinct from the plant's
+    // company email/contactNumber above).
+    ownerName: text('owner_name'),
+    whatsappNumber: text('whatsapp_number'),
+    // Network onboarding lifecycle, driven by the Authority MAPPING PLANT module:
+    //   pending  — pinned/created, not yet acted on
+    //   invited  — owner-onboarding invite has been sent
+    //   verified — details confirmed by staff
+    //   active   — live on the customer network dashboard
+    // A plant is shown to customers ONLY when networkStatus === 'active' AND
+    // showOnNetwork is true (see the customerVisible() gate in routes/plants.ts).
+    networkStatus: text('network_status').notNull().default('pending'),
+    // Authority master switch to show/hide a plant on the customer network map/list
+    // without changing its lifecycle status. Defaults true so existing partners stay
+    // visible after this column is added.
+    showOnNetwork: boolean('show_on_network').notNull().default(true),
+    // Onboarding-invite tracking for the MAPPING PLANT "Send Invite to Plant Owner"
+    // action: last invite status ('invited') and when it was sent.
+    inviteStatus: text('invite_status'),
+    inviteSentAt: timestamp('invite_sent_at'),
     // Google Places placeId for plants that entered via the discovery/invite pipeline.
     // Null for plants added directly by staff without a Places origin.
     // Used as a first-class duplicate guard on top of coordinate proximity.

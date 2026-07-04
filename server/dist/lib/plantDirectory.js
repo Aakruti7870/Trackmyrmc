@@ -1,3 +1,4 @@
+import { and, eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { plants } from '../db/schema.js';
 import { PLANT_DIRECTORY } from '../db/plantDirectory.js';
@@ -21,4 +22,23 @@ export async function ensurePlantDirectory() {
         console.log(`ensurePlantDirectory: seeded ${inserted.length} plant(s)`);
     }
     return inserted.length;
+}
+/**
+ * Backfill networkStatus for plants that were customer-visible under the legacy
+ * gate (approved + active + location-verified + verified) but still carry the
+ * default networkStatus='pending'. The customer-facing endpoints now gate on
+ * networkStatus==='active' && showOnNetwork, so without this every existing
+ * partner plant would silently disappear from the network dashboard on deploy.
+ * Idempotent (only touches rows still at the default), safe to run every boot.
+ */
+export async function backfillNetworkStatus() {
+    const updated = await db
+        .update(plants)
+        .set({ networkStatus: 'active' })
+        .where(and(eq(plants.networkStatus, 'pending'), eq(plants.plantStatus, 'approved'), eq(plants.isActive, true), eq(plants.locationVerified, true), eq(plants.verified, true)))
+        .returning({ id: plants.id });
+    if (updated.length > 0) {
+        console.log(`backfillNetworkStatus: activated ${updated.length} existing partner plant(s)`);
+    }
+    return updated.length;
 }
