@@ -415,8 +415,7 @@ export default function Landing(){
         ))}
         <Arrows cur={cur} total={TOTAL} onPrev={()=>go(cur-1)} onNext={()=>go(cur+1)}/>
         <Dots cur={cur} total={TOTAL} onGo={go}/>
-        {/* Social links — visible on every slide of the landing deck (bottom-right;
-            bottom-left is taken by the backdrop switcher pill) */}
+        {/* Social links — visible on every slide of the landing deck (bottom-right) */}
         <div className="ck-socials" style={{position:"absolute",right:14,bottom:12,zIndex:110}}>
           <SocialLinksBar compact/>
         </div>
