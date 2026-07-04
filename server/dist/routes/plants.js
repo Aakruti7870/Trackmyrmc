@@ -621,10 +621,24 @@ router.get('/', ADMIN, platformStaffOnly, async (_req, res) => {
 // Authority MAPPING PLANT onboarding lifecycle. Stored on plants.networkStatus.
 const NETWORK_STATUSES = ['pending', 'invited', 'verified', 'active'];
 // Single source of truth for customer-facing plant visibility. A plant appears
-// on the customer network map/list ONLY when it is marked active AND its
-// authority "Show on Network" switch is on.
+// on the customer network map/list ONLY when it is Active AND its authority
+// "Show on Network" switch is on.
+//
+// "Active" is normally the networkStatus lifecycle terminal, which the PUT
+// verification flow and the boot backfill both drive to 'active' for genuine
+// partners. The extra genuine-partner check below is a safety net so a verified
+// partner is never hidden from customers just because its networkStatus column
+// hasn't caught up yet — e.g. rows created by seed/import/direct insert before
+// the next boot backfill runs.
 function customerVisible(p) {
-    return p.networkStatus === 'active' && p.showOnNetwork === true;
+    if (p.showOnNetwork !== true)
+        return false;
+    if (p.networkStatus === 'active')
+        return true;
+    return (p.plantStatus === 'approved' &&
+        p.isActive === true &&
+        p.locationVerified === true &&
+        p.verified === true);
 }
 function parseBody(body) {
     const out = {};
