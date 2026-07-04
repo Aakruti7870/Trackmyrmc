@@ -311,3 +311,87 @@ id = "qKp1rzFAT7FX0XA4GJzDC"
 uri = "file://play-store-assets/tablet-3-verify.jpg"
 type = "image"
 title = "10-inch Tablet 3 - Register your plant (1920x1080)"
+
+[[outputs]]
+id = "E0tp5yQHdrtAhAubJ3BnW"
+uri = "file://video-build/audio/01_intro.mp3"
+type = "audio"
+title = "01_intro"
+
+[[outputs]]
+id = "WQVfEHuaIEXNx3piPkts-"
+uri = "file://video-build/audio/02_paths.mp3"
+type = "audio"
+title = "02_paths"
+
+[[outputs]]
+id = "k7Eav5tKOiVeMlqyIkUvI"
+uri = "file://video-build/audio/03_find.mp3"
+type = "audio"
+title = "03_find"
+
+[[outputs]]
+id = "mBejR3mYkBM-s8mvE-LzE"
+uri = "file://video-build/audio/04_order.mp3"
+type = "audio"
+title = "04_order"
+
+[[outputs]]
+id = "fpJJyI5gSU4E5f4Ry05IJ"
+uri = "file://video-build/audio/05_track.mp3"
+type = "audio"
+title = "05_track"
+
+[[outputs]]
+id = "d2rBegAfvYfkXEE_cKipL"
+uri = "file://video-build/audio/06_notify.mp3"
+type = "audio"
+title = "06_notify"
+
+[[outputs]]
+id = "R1RDaWmPsB1usFhyykEG9"
+uri = "file://video-build/audio/07_staff.mp3"
+type = "audio"
+title = "07_staff"
+
+[[outputs]]
+id = "Bpys-Q9CQfmDozIKtvU8J"
+uri = "file://video-build/audio/08_dispatch.mp3"
+type = "audio"
+title = "08_dispatch"
+
+[[outputs]]
+id = "Ewvnt2N_GJ3Ddga6gZjSK"
+uri = "file://video-build/audio/09_fleet.mp3"
+type = "audio"
+title = "09_fleet"
+
+[[outputs]]
+id = "D3zobCV3OLp-HjkSQFLfr"
+uri = "file://video-build/audio/10_reports.mp3"
+type = "audio"
+title = "10_reports"
+
+[[outputs]]
+id = "2kV2rengccy1dCWCeeXKY"
+uri = "file://video-build/audio/11_onboard.mp3"
+type = "audio"
+title = "11_onboard"
+
+[[outputs]]
+id = "pN2-MDbvOKgHjSRyiwBZZ"
+uri = "file://video-build/audio/12_outro.mp3"
+type = "audio"
+title = "12_outro"
+
+[[outputs]]
+id = "bE3iFyRFs2QAtXk11tbi-"
+uri = "file://video-build/audio/music_bed.mp3"
+type = "audio"
+title = "tutorial_bed"
+
+[[outputs]]
+id = "k7KmpIy_yAwnFY7p6_OFn"
+uri = "file://play-store-assets/how-to-use-concrete-king.mp4"
+type = "video"
+title = "How to Use CONCRETE KING — Tutorial Video (1:45)"
