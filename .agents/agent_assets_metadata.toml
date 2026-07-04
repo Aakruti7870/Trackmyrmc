@@ -293,3 +293,21 @@ id = "FnuUqqBPh0uPQQDV0dkBM"
 uri = "file://play-store-assets/screenshot-3-verify.jpg"
 type = "image"
 title = "Screenshot 3 - Register your plant (optional)"
+
+[[outputs]]
+id = "jQACW8XiL20WsArHhyxA_"
+uri = "file://play-store-assets/tablet-1-home.jpg"
+type = "image"
+title = "10-inch Tablet 1 - Home / Dispatch (1920x1080)"
+
+[[outputs]]
+id = "jl8cJDpD3w-XSI2dBD1AR"
+uri = "file://play-store-assets/tablet-2-login.jpg"
+type = "image"
+title = "10-inch Tablet 2 - Sign in (1920x1080)"
+
+[[outputs]]
+id = "qKp1rzFAT7FX0XA4GJzDC"
+uri = "file://play-store-assets/tablet-3-verify.jpg"
+type = "image"
+title = "10-inch Tablet 3 - Register your plant (1920x1080)"
