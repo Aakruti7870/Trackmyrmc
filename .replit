@@ -131,3 +131,5 @@ TWILIO_VERIFY_SERVICE_SID = "VAa36a1c5af68b0226f11cd3c0eb151239"
 APP_URL = "https://trackmyrmc.com"
 SMTP_SYNC_FROM_ENV = "1"
 REVIEW_DEMO_EMAIL = "reviewer@trackmyrmc.com"
+
+[userenv.development]
