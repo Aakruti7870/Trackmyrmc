@@ -66,7 +66,7 @@ export default function Dispatch() {
 
   const loadAll = useCallback(() => {
     load();
-    api.get<Order[]>('/orders').then(o => setOrders(o.filter(x => x.status === 'pending' || x.status === 'in_progress')));
+    api.get<Order[]>('/orders').then(o => setOrders(o.filter(x => x.status === 'approved' || x.status === 'pending' || x.status === 'in_progress')));
     api.get<Vehicle[]>('/vehicles').then(v => setVehicles(v.filter(x => x.status === 'active')));
     api.get<Driver[]>('/drivers').then(d => setDrivers(d.filter(x => x.isActive)));
     api.get<Client[]>('/clients').then(setClients);
@@ -130,7 +130,7 @@ export default function Dispatch() {
       if (created.tripShareWarning === 'no_email') {
         showToast('Tracking link NOT sent — this customer has no email (or other contact channel) on file. Add an email to the client record so trip-share links can reach them.', 'error');
       }
-      api.get<Order[]>('/orders').then(o => setOrders(o.filter(x => x.status === 'pending' || x.status === 'in_progress')));
+      api.get<Order[]>('/orders').then(o => setOrders(o.filter(x => x.status === 'approved' || x.status === 'pending' || x.status === 'in_progress')));
       setModal(false);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Error'); }
     finally { setSaving(false); }

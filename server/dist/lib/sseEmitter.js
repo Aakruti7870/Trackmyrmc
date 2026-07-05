@@ -1,3 +1,13 @@
+// A plant-bound staff member (identity.plantId != null) may only receive a
+// tenant-scoped event when their plant matches the audience's plant. A
+// null-plant platform staff member is never filtered out here.
+function plantScopeAllows(audience, identityPlantId) {
+    if (audience.plantId == null)
+        return true; // caller did not opt into scoping
+    if (identityPlantId == null)
+        return true; // platform staff see all plants
+    return identityPlantId === audience.plantId;
+}
 const STAFF_ROLES = new Set(['admin', 'dispatcher', 'plant_operator']);
 function clientMayReceive(client, audience) {
     // No targeting → broadcast to everyone.
@@ -17,11 +27,15 @@ function clientMayReceive(client, audience) {
         // role — same boundary as the isPlatformStaff REST guard.
         if (audience.platformOnly && identity.plantId != null)
             return false;
+        // Opt-in tenant scoping: a plant-bound staff member of another plant never
+        // receives a plant-scoped event.
+        if (!plantScopeAllows(audience, identity.plantId))
+            return false;
         return true;
     }
-    // Staff see all order/trip activity.
+    // Staff see all order/trip activity (subject to opt-in tenant scoping).
     if (STAFF_ROLES.has(identity.role))
-        return true;
+        return plantScopeAllows(audience, identity.plantId);
     if (identity.role === 'client') {
         return audience.clientId != null && identity.clientId === audience.clientId;
     }

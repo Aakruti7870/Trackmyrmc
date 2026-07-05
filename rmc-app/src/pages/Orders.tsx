@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, X, Truck } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, X, Truck, Check } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Order, type Client, type Site } from '@/lib/api';
 
 const GRADES = ['M10','M15','M20','M25','M30','M35','M40','M45','M50','M55','M60'];
-const STATUSES = ['pending','in_progress','completed','cancelled'];
+const STATUSES = ['pending_approval','approved','rejected','pending','in_progress','completed','cancelled'];
 
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -59,6 +59,16 @@ export default function Orders() {
     await api.put(`/orders/${o.id}`, { ...o, status }); load();
   }
 
+  async function approveOrder(o: Order) {
+    await api.post(`/orders/${o.id}/approve`, {}); load();
+  }
+
+  async function rejectOrder(o: Order) {
+    const reason = window.prompt(`Reject order ${o.orderNo}? Optionally add a reason for the customer:`);
+    if (reason === null) return;
+    await api.post(`/orders/${o.id}/reject`, { reason: reason.trim() || undefined }); load();
+  }
+
   const filtered = orders.filter(o => {
     const matchSearch = o.orderNo.toLowerCase().includes(search.toLowerCase()) ||
       (o.clientName || '').toLowerCase().includes(search.toLowerCase());
@@ -66,8 +76,8 @@ export default function Orders() {
     return matchSearch && matchStatus;
   });
 
-  const statusColor = (s: string) => ({ pending: 'var(--gold)', in_progress: 'var(--blue)', completed: 'var(--green)', cancelled: 'var(--red)' }[s] || 'var(--muted)');
-  const statusBg = (s: string) => ({ pending: 'color-mix(in srgb, var(--gold) 12%, transparent)', in_progress: 'rgba(56,189,248,.12)', completed: 'rgba(34,197,94,.12)', cancelled: 'rgba(239,68,68,.12)' }[s] || 'rgba(159,176,199,.12)');
+  const statusColor = (s: string) => ({ pending_approval: 'var(--gold)', approved: 'var(--green)', rejected: 'var(--red)', pending: 'var(--gold)', in_progress: 'var(--blue)', completed: 'var(--green)', cancelled: 'var(--red)' }[s] || 'var(--muted)');
+  const statusBg = (s: string) => ({ pending_approval: 'color-mix(in srgb, var(--gold) 12%, transparent)', approved: 'rgba(34,197,94,.12)', rejected: 'rgba(239,68,68,.12)', pending: 'color-mix(in srgb, var(--gold) 12%, transparent)', in_progress: 'rgba(56,189,248,.12)', completed: 'rgba(34,197,94,.12)', cancelled: 'rgba(239,68,68,.12)' }[s] || 'rgba(159,176,199,.12)');
   const statusLabel = (s: string) => s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
   const inputStyle: React.CSSProperties = {
@@ -129,7 +139,17 @@ export default function Orders() {
                   </td>
                   <td style={{ padding: '11px 14px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      {o.status === 'pending' && (
+                      {o.status === 'pending_approval' && (
+                        <>
+                          <button onClick={() => approveOrder(o)} style={{ padding: '4px 10px', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.2)', borderRadius: 7, cursor: 'pointer', color: 'var(--green)', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Check size={11} /> Approve
+                          </button>
+                          <button onClick={() => rejectOrder(o)} style={{ padding: '4px 10px', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 7, cursor: 'pointer', color: 'var(--red)', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <X size={11} /> Reject
+                          </button>
+                        </>
+                      )}
+                      {(o.status === 'approved' || o.status === 'pending') && (
                         <Link href="/dispatch">
                           <button style={{ padding: '4px 10px', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.2)', borderRadius: 7, cursor: 'pointer', color: 'var(--green)', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
                             <Truck size={11} /> Dispatch

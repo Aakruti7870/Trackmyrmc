@@ -26,6 +26,16 @@ async function createUser(role, email, linkedClientId) {
 function tokenFor(u) {
     return signToken({ id: u.id, email: u.email, role: u.role, name: u.name });
 }
+// Customer orders now capture mandatory delivery details up front. Spread this
+// into every valid POST body so tests exercise status/scoping, not validation.
+const ORDER_FIELDS = {
+    deliveryDate: '2026-06-15',
+    contactPerson: 'Site Manager',
+    contactNumber: '9998887777',
+    siteAddress: '12 Industrial Rd, Pune',
+    latitude: '18.5204',
+    longitude: '73.8567',
+};
 before(() => {
     app = buildTestApp();
 });
@@ -41,10 +51,10 @@ test('a linked client places an order that lands as pending for their client', a
     const res = await request(app)
         .post('/api/me/orders')
         .set('Authorization', `Bearer ${tokenFor(clientUser)}`)
-        .send({ grade: 'M25', quantity: 12, deliveryDate: '2026-06-15', pumpRequired: true, notes: 'Site near gate' });
+        .send({ grade: 'M25', quantity: 12, pumpRequired: true, pumpLineLength: 30, notes: 'Site near gate', ...ORDER_FIELDS });
     assert.equal(res.status, 201);
     assert.equal(res.body.clientId, client.id);
-    assert.equal(res.body.status, 'pending');
+    assert.equal(res.body.status, 'pending_approval');
     assert.equal(res.body.grade, 'M25');
     assert.equal(res.body.pumpRequired, true);
     assert.match(res.body.orderNo, /^ORD-\d{3}$/);
@@ -58,10 +68,10 @@ test('a client cannot place an order for a different client (clientId in body is
     const res = await request(app)
         .post('/api/me/orders')
         .set('Authorization', `Bearer ${tokenFor(clientUser)}`)
-        .send({ grade: 'M30', quantity: 5, clientId: other.id, status: 'completed' });
+        .send({ grade: 'M30', quantity: 5, clientId: other.id, status: 'completed', ...ORDER_FIELDS });
     assert.equal(res.status, 201);
     assert.equal(res.body.clientId, myClient.id);
-    assert.equal(res.body.status, 'pending');
+    assert.equal(res.body.status, 'pending_approval');
 });
 test('a non-client role is forbidden from placing a client order', async () => {
     const staff = await createUser('admin', 'admin@test.com');
@@ -76,8 +86,21 @@ test('a client with no linked client gets a clear 400', async () => {
     const res = await request(app)
         .post('/api/me/orders')
         .set('Authorization', `Bearer ${tokenFor(orphan)}`)
-        .send({ grade: 'M25', quantity: 10 });
+        .send({ grade: 'M25', quantity: 10, ...ORDER_FIELDS });
     assert.equal(res.status, 400);
+});
+test('missing mandatory delivery details are rejected with 400', async () => {
+    const client = await createClient();
+    const clientUser = await createUser('client', 'client4@test.com', client.id);
+    const auth = `Bearer ${tokenFor(clientUser)}`;
+    // No contact person / address / location — must fail validation.
+    const res = await request(app).post('/api/me/orders').set('Authorization', auth)
+        .send({ grade: 'M25', quantity: 10, deliveryDate: '2026-06-15' });
+    assert.equal(res.status, 400);
+    // Missing map pin (lat/lng) specifically.
+    const noPin = await request(app).post('/api/me/orders').set('Authorization', auth)
+        .send({ grade: 'M25', quantity: 10, deliveryDate: '2026-06-15', contactPerson: 'A', contactNumber: '1', siteAddress: 'X' });
+    assert.equal(noPin.status, 400);
 });
 test('missing grade or non-positive quantity is rejected with 400', async () => {
     const client = await createClient();

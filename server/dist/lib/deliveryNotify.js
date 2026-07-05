@@ -195,6 +195,85 @@ export async function notifyOrderPlaced(orderId) {
         console.warn(`[notify] Failed to send order-placed notification for order ${orderId}:`, err);
     }
 }
+// Plant staff alerted when an order needs approval (mirrors the batch roles).
+const ORDER_APPROVAL_ROLES = ['admin', 'plant_owner', 'supervisor', 'dispatcher'];
+// A customer placed (or resubmitted) an order that now awaits staff approval.
+// Alert the issuing plant's staff by real-time SSE toast and web push so it lands
+// in their Pending Orders queue immediately. Best-effort: never throws back.
+export async function notifyOrderPendingApproval(orderId) {
+    try {
+        const [row] = await db
+            .select({
+            plantId: orders.plantId,
+            orderNo: orders.orderNo,
+            grade: orders.grade,
+            quantity: orders.quantity,
+            deliveryDate: orders.deliveryDate,
+            clientName: clients.name,
+        })
+            .from(orders)
+            .leftJoin(clients, eq(orders.clientId, clients.id))
+            .where(eq(orders.id, orderId));
+        if (!row)
+            return;
+        // Real-time toast for plant staff so the pending order surfaces without a
+        // refresh. Scoped to the approval roles (never customers/drivers).
+        emitSSEEvent('order.pending_approval', { orderId, orderNo: row.orderNo, grade: row.grade, quantity: row.quantity, clientName: row.clientName }, { roles: [...ORDER_APPROVAL_ROLES], plantId: row.plantId });
+        if (row.plantId != null) {
+            try {
+                await sendPushToStaff(row.plantId, ORDER_APPROVAL_ROLES, {
+                    title: 'Order awaiting approval',
+                    body: `Order ${row.orderNo} — ${row.quantity} m³ ${row.grade}${row.clientName ? ` from ${row.clientName}` : ''} needs approval.`,
+                    url: '/dispatch',
+                    tag: `order-approval-${orderId}`,
+                });
+            }
+            catch (err) {
+                console.warn(`[notify] order-pending-approval push failed for order ${orderId}:`, err);
+            }
+        }
+    }
+    catch (err) {
+        console.warn(`[notify] Failed to send pending-approval notification for order ${orderId}:`, err);
+    }
+}
+// Staff approved (decision='approved') or rejected (decision='rejected') an
+// order — tell the customer by web push (and SSE, already emitted by the route).
+// Best-effort: never throws back into the originating request.
+export async function notifyOrderDecision(orderId, decision) {
+    try {
+        const [row] = await db
+            .select({
+            clientId: orders.clientId,
+            orderNo: orders.orderNo,
+            grade: orders.grade,
+            quantity: orders.quantity,
+            rejectionReason: orders.rejectionReason,
+            plantName: plants.name,
+        })
+            .from(orders)
+            .leftJoin(plants, eq(orders.plantId, plants.id))
+            .where(eq(orders.id, orderId));
+        if (!row)
+            return;
+        try {
+            await sendPushToClientUsers(row.clientId, {
+                title: decision === 'approved' ? 'Order approved' : 'Order needs changes',
+                body: decision === 'approved'
+                    ? `Order ${row.orderNo} — ${row.quantity} m³ ${row.grade} has been approved by ${row.plantName ?? 'the plant'}.`
+                    : `Order ${row.orderNo} was not approved${row.rejectionReason ? `: ${row.rejectionReason}` : '. Please review and resubmit.'}`,
+                url: '/my-orders',
+                tag: `order-decision-${orderId}`,
+            });
+        }
+        catch (err) {
+            console.warn(`[notify] order-${decision} push failed for order ${orderId}:`, err);
+        }
+    }
+    catch (err) {
+        console.warn(`[notify] Failed to send ${decision} notification for order ${orderId}:`, err);
+    }
+}
 // Plant staff alerted when a production batch is logged.
 const BATCH_NOTIFY_ROLES = ['admin', 'plant_owner', 'supervisor', 'dispatcher'];
 // A production batch was logged — alert the plant's staff (NOT customers) by web

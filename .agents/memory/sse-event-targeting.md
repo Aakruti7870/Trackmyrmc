@@ -18,6 +18,8 @@ Rule (`clientMayReceive` in `server/src/lib/sseEmitter.ts`):
 
 Gotcha: STAFF_ROLES = {admin, dispatcher, plant_operator} only. `authority` (super-admin) is excluded, so a plain `{}` audience reaches dispatchers/operators but NOT authority — for admin-targeted alerts always use `{ roles: [...] }`.
 
+**Tenant scoping is OPT-IN, not default.** Staff SSE routing is plant-AGNOSTIC by default: any staff-role connection receives every staff-targeted event regardless of plant (REST is plantScope'd, SSE historically is not). To fence a staff event to one plant, pass `audience.plantId`; `clientMayReceive` then drops plant-bound staff of a different plant while a null-plant (platform) staff still receives it. Callers that omit `plantId` keep the legacy broadcast, so only events that opt in are scoped (e.g. `order.pending_approval` from `notifyOrderPendingApproval`). Any NEW staff notification carrying per-plant PII must pass `plantId` or it leaks cross-tenant.
+
 **Why:** order/challan toasts were fanning out to every client/driver, leaking other
 companies' activity. Filtering lives server-side so the frontend toast listener needs
 no per-event auth check.

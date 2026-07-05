@@ -14,7 +14,10 @@ import { relations, sql } from 'drizzle-orm';
 // existing row are untouched): a finance-facing staff role provisioned like any
 // other plant staff.
 export const userRoleEnum = pgEnum('user_role', ['authority', 'admin', 'dispatcher', 'plant_operator', 'client', 'driver', 'plant_owner', 'supervisor', 'accountant', 'quality_engineer', 'fleet_manager', 'store_manager']);
-export const orderStatusEnum = pgEnum('order_status', ['pending', 'in_progress', 'completed', 'cancelled']);
+// `pending_approval`/`approved`/`rejected` are appended (never reordered) for the
+// customer order → staff approval → challan workflow. Legacy `pending` remains a
+// valid, dispatchable state so existing rows and staff-created orders are untouched.
+export const orderStatusEnum = pgEnum('order_status', ['pending', 'in_progress', 'completed', 'cancelled', 'pending_approval', 'approved', 'rejected']);
 export const challanStatusEnum = pgEnum('challan_status', ['pending', 'dispatched', 'delivered', 'cancelled']);
 export const vehicleStatusEnum = pgEnum('vehicle_status', ['active', 'maintenance', 'inactive']);
 export const ledgerTypeEnum = pgEnum('ledger_type', ['debit', 'credit']);
@@ -207,9 +210,26 @@ export const orders = pgTable('orders', {
   grade: text('grade').notNull(),
   quantity: decimal('quantity', { precision: 8, scale: 2 }).notNull(),
   pumpRequired: boolean('pump_required').notNull().default(false),
+  // Length of pump line/boom required (metres). Only meaningful when pumpRequired.
+  pumpLineLength: decimal('pump_line_length', { precision: 6, scale: 2 }),
   deliveryDate: date('delivery_date'),
   deliveryTime: time('delivery_time'),
   notes: text('notes'),
+  // Customer-supplied order details captured at placement. Contact + site fields
+  // are SNAPSHOTS taken when the order is placed so the auto-generated challan can
+  // pre-fill reliably even if the linked client/site row is later edited.
+  contactPerson: text('contact_person'),
+  contactNumber: text('contact_number'),
+  siteName: text('site_name'),
+  siteAddress: text('site_address'),
+  latitude: decimal('latitude', { precision: 10, scale: 7 }),
+  longitude: decimal('longitude', { precision: 10, scale: 7 }),
+  paymentType: text('payment_type'),
+  poNumber: text('po_number'),
+  // Optional site photo (object-storage entity path, never base64 in the DB).
+  sitePhoto: text('site_photo'),
+  // Populated when staff reject the order, surfaced back to the customer.
+  rejectionReason: text('rejection_reason'),
   status: orderStatusEnum('status').notNull().default('pending'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

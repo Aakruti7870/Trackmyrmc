@@ -10,9 +10,77 @@ import { computeFirstRunDate } from '../lib/recurring.js';
 import { getIdleConfig } from '../lib/idle.js';
 import { resolvePlantCustomer } from '../lib/tenancy.js';
 import { isRealEmail } from '../lib/customerAccount.js';
-import { notifyOrderPlaced } from '../lib/deliveryNotify.js';
+import { notifyOrderPlaced, notifyOrderPendingApproval } from '../lib/deliveryNotify.js';
 const router = Router();
 router.use(requireAuth);
+// Major fields whose change on an already-approved order forces re-approval.
+const MAJOR_ORDER_FIELDS = ['grade', 'quantity', 'deliveryDate', 'siteAddress', 'latitude', 'longitude'];
+// Validate + normalise the customer-supplied order payload shared by the create
+// and edit routes. Enforces the mandatory delivery details (contact, address,
+// map pin, delivery date) and the conditional pump-line length. The optional
+// site photo must be an object-storage entity path (never inline base64).
+function parseCustomerOrderInput(body) {
+    const str = (v) => (typeof v === 'string' ? v.trim() : '');
+    const grade = str(body.grade);
+    if (!grade)
+        return { ok: false, error: 'Grade is required.' };
+    const qty = Number(body.quantity);
+    if (!Number.isFinite(qty) || qty <= 0)
+        return { ok: false, error: 'Quantity must be greater than zero.' };
+    const contactPerson = str(body.contactPerson);
+    if (!contactPerson)
+        return { ok: false, error: 'Contact person is required.' };
+    const contactNumber = str(body.contactNumber);
+    if (!contactNumber)
+        return { ok: false, error: 'Contact number is required.' };
+    const siteAddress = str(body.siteAddress);
+    if (!siteAddress)
+        return { ok: false, error: 'Delivery address is required.' };
+    const deliveryDate = str(body.deliveryDate);
+    if (!deliveryDate)
+        return { ok: false, error: 'Delivery date is required.' };
+    const lat = Number(body.latitude);
+    const lng = Number(body.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return { ok: false, error: 'A delivery location pin is required.' };
+    }
+    const pumpRequired = !!body.pumpRequired;
+    let pumpLineLength = null;
+    if (pumpRequired) {
+        const pl = Number(body.pumpLineLength);
+        if (!Number.isFinite(pl) || pl <= 0)
+            return { ok: false, error: 'Pump line length is required when a pump is requested.' };
+        pumpLineLength = pl.toString();
+    }
+    let sitePhoto = null;
+    const photo = str(body.sitePhoto);
+    if (photo) {
+        if (!photo.startsWith('/objects/'))
+            return { ok: false, error: 'Invalid site photo.' };
+        sitePhoto = photo;
+    }
+    return {
+        ok: true,
+        values: {
+            grade,
+            quantity: qty.toString(),
+            pumpRequired,
+            pumpLineLength,
+            deliveryDate: deliveryDate || null,
+            deliveryTime: str(body.deliveryTime) || null,
+            notes: str(body.notes) || null,
+            contactPerson,
+            contactNumber,
+            siteName: str(body.siteName) || null,
+            siteAddress,
+            latitude: lat.toString(),
+            longitude: lng.toString(),
+            paymentType: str(body.paymentType) || null,
+            poNumber: str(body.poNumber) || null,
+            sitePhoto,
+        },
+    };
+}
 // Resolve a siteId from the request, ensuring it belongs to the caller's client.
 // Returns: { ok:true, siteId } on success/absence, or { ok:false } if the site
 // is present but not owned by this client.
@@ -165,25 +233,18 @@ router.get('/orders', requireRole('client'), async (req, res) => {
 // caller's linked client and starts as 'pending' for staff to process — the
 // client can never set the client, status, or order number.
 router.post('/orders', requireRole('client'), async (req, res) => {
-    const { plantId: bodyPlantId, grade, quantity, pumpRequired, deliveryDate, deliveryTime, notes, siteId } = req.body;
-    if (!grade || typeof grade !== 'string') {
-        res.status(400).json({ error: 'Grade is required.' });
+    const { plantId: bodyPlantId, grade, quantity, pumpRequired, pumpLineLength, deliveryDate, deliveryTime, notes, siteId, contactPerson, contactNumber, siteName, siteAddress, latitude, longitude, paymentType, poNumber, sitePhoto, } = req.body;
+    const parsed = parseCustomerOrderInput({
+        grade, quantity, pumpRequired, pumpLineLength, deliveryDate, deliveryTime, notes,
+        contactPerson, contactNumber, siteName, siteAddress, latitude, longitude, paymentType, poNumber, sitePhoto,
+    });
+    if (!parsed.ok) {
+        res.status(400).json({ error: parsed.error });
         return;
     }
-    const qty = Number(quantity);
-    if (!Number.isFinite(qty) || qty <= 0) {
-        res.status(400).json({ error: 'Quantity must be greater than zero.' });
-        return;
-    }
-    const orderValues = {
-        grade,
-        quantity: qty.toString(),
-        pumpRequired: !!pumpRequired,
-        deliveryDate: deliveryDate || null,
-        deliveryTime: deliveryTime || null,
-        notes: typeof notes === 'string' && notes.trim() ? notes : null,
-        status: 'pending',
-    };
+    // New customer orders enter the staff approval queue; a challan can only be
+    // generated once an order is approved.
+    const orderValues = { ...parsed.values, status: 'pending_approval' };
     // Marketplace path: the customer chose a specific plant to order from. The
     // per-plant client (and customer code) is created lazily on the first order at
     // that plant, and the order is tenant-bound to it.
@@ -224,6 +285,8 @@ router.post('/orders', requireRole('client'), async (req, res) => {
         emitSSEEvent('order.created', row, { clientId: row.clientId });
         // Confirm the order to the customer over WhatsApp (best-effort).
         void notifyOrderPlaced(row.id);
+        // Alert the plant's staff that a new order awaits their approval.
+        void notifyOrderPendingApproval(row.id);
         res.status(201).json(row);
         return;
     }
@@ -251,11 +314,88 @@ router.post('/orders', requireRole('client'), async (req, res) => {
     emitSSEEvent('order.created', row, { clientId: row.clientId });
     // Confirm the order to the customer over WhatsApp (best-effort).
     void notifyOrderPlaced(row.id);
+    // Alert the plant's staff that a new order awaits their approval.
+    void notifyOrderPendingApproval(row.id);
     res.status(201).json(row);
 });
+// A customer edits one of their own orders. Editing is allowed while the order
+// is still in a customer-controllable state (awaiting approval, approved but not
+// yet dispatched, or rejected — an edit resubmits it). Editing a MAJOR field of
+// an already-approved order reverts it to 'pending_approval' so staff re-approve
+// the changed order; a rejected order always resubmits as pending_approval.
+router.put('/orders/:id', requireRole('client'), async (req, res) => {
+    const clientIds = await getUserClientIds(req.user.id);
+    if (clientIds.length === 0) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid order id' });
+        return;
+    }
+    const [current] = await db.select().from(orders)
+        .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds)));
+    if (!current) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
+    const EDITABLE = ['pending', 'pending_approval', 'approved', 'rejected'];
+    if (!EDITABLE.includes(current.status)) {
+        res.status(409).json({ error: 'This order can no longer be edited.' });
+        return;
+    }
+    const parsed = parseCustomerOrderInput(req.body);
+    if (!parsed.ok) {
+        res.status(400).json({ error: parsed.error });
+        return;
+    }
+    const values = parsed.values;
+    // Decide the resulting status. A rejected order always resubmits for approval.
+    // An approved order stays approved unless a major field changed, in which case
+    // it goes back to the approval queue. Otherwise the status is untouched.
+    const majorChanged = MAJOR_ORDER_FIELDS.some((f) => {
+        if (f === 'quantity' || f === 'latitude' || f === 'longitude') {
+            return Number(current[f]) !== Number(values[f]);
+        }
+        return (current[f] ?? null) !== (values[f] ?? null);
+    });
+    let nextStatus = current.status;
+    let reverted = false;
+    if (current.status === 'rejected') {
+        nextStatus = 'pending_approval';
+        reverted = true;
+    }
+    else if (current.status === 'approved' && majorChanged) {
+        nextStatus = 'pending_approval';
+        reverted = true;
+    }
+    const [row] = await db.update(orders)
+        .set({ ...values, status: nextStatus, rejectionReason: reverted ? null : current.rejectionReason })
+        .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds)))
+        .returning();
+    emitSSEEvent('order.updated', row, { clientId: row.clientId });
+    // Re-entering the approval queue re-alerts the plant's staff.
+    if (reverted)
+        void notifyOrderPendingApproval(row.id);
+    res.json(row);
+});
+// Mints a presigned URL the customer uploads an optional site photo straight to
+// object storage with, returning the entity path to send back on the order.
+router.post('/orders/site-photo-upload-url', requireRole('client'), async (_req, res) => {
+    try {
+        const { uploadURL, objectPath } = await proofPhotoStore.createUploadUrl();
+        res.json({ uploadURL, objectPath });
+    }
+    catch (e) {
+        console.error('Failed to create site photo upload URL:', e);
+        res.status(500).json({ error: 'Failed to create upload URL' });
+    }
+});
 // A customer cancels one of their own orders, but only while it is still
-// 'pending' (i.e. the plant has not started/dispatched it). Scoped to the
-// caller's linked client so a customer can never touch another client's order.
+// customer-controllable (pending/pending_approval/approved, i.e. the plant has
+// not started/dispatched it). Scoped to the caller's linked client so a customer
+// can never touch another client's order.
 router.patch('/orders/:id/cancel', requireRole('client'), async (req, res) => {
     const clientIds = await getUserClientIds(req.user.id);
     if (clientIds.length === 0) {
@@ -275,7 +415,7 @@ router.patch('/orders/:id/cancel', requireRole('client'), async (req, res) => {
     // so they can cancel an order placed at any of their plants.
     const [row] = await db.update(orders)
         .set({ status: 'cancelled' })
-        .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds), eq(orders.status, 'pending')))
+        .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds), inArray(orders.status, ['pending', 'pending_approval', 'approved'])))
         .returning();
     if (!row) {
         const [existing] = await db.select({ id: orders.id })
@@ -285,7 +425,7 @@ router.patch('/orders/:id/cancel', requireRole('client'), async (req, res) => {
             res.status(404).json({ error: 'Not found' });
             return;
         }
-        res.status(409).json({ error: 'Only a pending order can be cancelled.' });
+        res.status(409).json({ error: 'This order can no longer be cancelled.' });
         return;
     }
     emitSSEEvent('order.updated', row, { clientId: row.clientId });

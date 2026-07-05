@@ -7,6 +7,7 @@ import FreshnessCountdown from '@/components/FreshnessCountdown';
 import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle, Info, Star } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
 import SitePicker from '@/components/SitePicker';
+import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 import LiveDeliveryMap, { type DeliveryMarker } from '@/components/LiveDeliveryMap';
 
 const GRADES = ['M10', 'M15', 'M20', 'M25', 'M30', 'M35', 'M40', 'M45', 'M50', 'M55', 'M60'];
@@ -24,13 +25,27 @@ interface OrderForm {
   deliveryDate: string;
   deliveryTime: string;
   pumpRequired: boolean;
+  pumpLineLength: string;
   notes: string;
   siteId: string;
+  contactPerson: string;
+  contactNumber: string;
+  siteName: string;
+  siteAddress: string;
+  latitude: string;
+  longitude: string;
+  paymentType: string;
+  poNumber: string;
+  sitePhoto: string;
 }
 
 const EMPTY_FORM: OrderForm = {
-  grade: '', quantity: '', deliveryDate: '', deliveryTime: '', pumpRequired: false, notes: '', siteId: '',
+  grade: '', quantity: '', deliveryDate: '', deliveryTime: '', pumpRequired: false, pumpLineLength: '',
+  notes: '', siteId: '', contactPerson: '', contactNumber: '', siteName: '', siteAddress: '',
+  latitude: '', longitude: '', paymentType: '', poNumber: '', sitePhoto: '',
 };
+
+const PAYMENT_TYPES = ['Cash', 'Credit', 'Advance', 'Bank Transfer', 'Cheque', 'UPI'];
 
 const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -57,7 +72,10 @@ function describeSchedule(r: { frequency: string; anchor: number }): string {
 }
 
 const STATUS_STYLES: Record<string, { color: string; bg: string; label: string }> = {
-  pending:     { color: 'var(--gold)', bg: 'color-mix(in srgb, var(--gold) 13%, transparent)',  label: 'Pending' },
+  pending:          { color: 'var(--gold)', bg: 'color-mix(in srgb, var(--gold) 13%, transparent)',  label: 'Pending' },
+  pending_approval: { color: 'var(--gold)', bg: 'color-mix(in srgb, var(--gold) 13%, transparent)',  label: 'Awaiting Approval' },
+  approved:         { color: 'var(--green)', bg: 'rgba(34,197,94,.13)',   label: 'Approved' },
+  rejected:         { color: 'var(--red)', bg: 'rgba(239,68,68,.13)',   label: 'Rejected' },
   in_progress: { color: 'var(--blue)', bg: 'rgba(56,189,248,.13)',  label: 'In Progress' },
   completed:   { color: 'var(--green)', bg: 'rgba(34,197,94,.13)',   label: 'Completed' },
   cancelled:   { color: 'var(--red)', bg: 'rgba(239,68,68,.13)',   label: 'Cancelled' },
@@ -180,8 +198,14 @@ export default function MyOrders() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<OrderForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [formError, setFormError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<{ plant?: string; grade?: string; quantity?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{
+    plant?: string; grade?: string; quantity?: string;
+    contactPerson?: string; contactNumber?: string; siteAddress?: string;
+    deliveryDate?: string; location?: string; pumpLineLength?: string;
+  }>({});
   const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<number | null>(null);
   const [plantDir, setPlantDir] = useState<PlantDirectoryEntry[]>([]);
@@ -342,14 +366,60 @@ export default function MyOrders() {
       setSelectedPlantId(null);
       setSelectedPlant(null);
     }
+    setEditingOrderId(null);
     setForm({
       grade: o.grade,
       quantity: parseFloat(o.quantity).toString(),
       deliveryDate: '',
       deliveryTime: '',
       pumpRequired: !!o.pumpRequired,
+      pumpLineLength: o.pumpLineLength ?? '',
       notes: o.notes ?? '',
       siteId: o.siteId ? String(o.siteId) : '',
+      contactPerson: o.contactPerson ?? '',
+      contactNumber: o.contactNumber ?? '',
+      siteName: o.siteName ?? '',
+      siteAddress: o.siteAddress ?? '',
+      latitude: o.latitude ?? '',
+      longitude: o.longitude ?? '',
+      paymentType: o.paymentType ?? '',
+      poNumber: o.poNumber ?? '',
+      sitePhoto: '',
+    });
+    setFormError('');
+    setFieldErrors({});
+    setModalOpen(true);
+  }
+
+  // Edit an existing (pending/approved/rejected) order in place. Reuses the
+  // order modal; submitOrder branches to PUT when editingOrderId is set.
+  function editOrder(o: Order) {
+    if (o.plantId != null) {
+      setSelectedPlantId(o.plantId);
+      setSelectedPlant(o.plantName ?? plantDir.find(p => p.id === o.plantId)?.name ?? null);
+    } else {
+      setSelectedPlantId(null);
+      setSelectedPlant(null);
+    }
+    setEditingOrderId(o.id);
+    setForm({
+      grade: o.grade,
+      quantity: parseFloat(o.quantity).toString(),
+      deliveryDate: o.deliveryDate ?? '',
+      deliveryTime: o.deliveryTime ?? '',
+      pumpRequired: !!o.pumpRequired,
+      pumpLineLength: o.pumpLineLength ?? '',
+      notes: o.notes ?? '',
+      siteId: o.siteId ? String(o.siteId) : '',
+      contactPerson: o.contactPerson ?? '',
+      contactNumber: o.contactNumber ?? '',
+      siteName: o.siteName ?? '',
+      siteAddress: o.siteAddress ?? '',
+      latitude: o.latitude ?? '',
+      longitude: o.longitude ?? '',
+      paymentType: o.paymentType ?? '',
+      poNumber: o.poNumber ?? '',
+      sitePhoto: o.sitePhoto ?? '',
     });
     setFormError('');
     setFieldErrors({});
@@ -433,6 +503,7 @@ export default function MyOrders() {
     // one tap. Falls back to blank; the effect below fills in if the directory
     // (or orders) finish loading after the modal is already open.
     autoPlantAppliedRef.current = false;
+    setEditingOrderId(null);
     const def = defaultPlant();
     if (def) {
       setSelectedPlantId(def.id);
@@ -483,6 +554,7 @@ export default function MyOrders() {
     Promise.resolve().then(() => {
       setSelectedPlant(plantName);
       setSelectedPlantId(plantId);
+      setEditingOrderId(null);
       setForm(EMPTY_FORM);
       setFormError('');
       setFieldErrors({});
@@ -493,34 +565,76 @@ export default function MyOrders() {
   async function submitOrder(e: React.FormEvent) {
     e.preventDefault();
     setFormError('');
-    const fe: { plant?: string; grade?: string; quantity?: string } = {};
+    const fe: typeof fieldErrors = {};
     if (!selectedPlantId) fe.plant = 'Please choose a plant to order from.';
     if (!form.grade) fe.grade = 'Please select a concrete grade.';
     if (!(Number(form.quantity) > 0)) fe.quantity = 'Please enter a quantity greater than zero.';
+    if (!form.contactPerson.trim()) fe.contactPerson = 'Please enter a site contact name.';
+    if (!form.contactNumber.trim()) fe.contactNumber = 'Please enter a contact number.';
+    if (!form.siteAddress.trim()) fe.siteAddress = 'Please enter the delivery site address.';
+    if (!form.deliveryDate) fe.deliveryDate = 'Please choose a delivery date.';
+    if (!(Number(form.latitude) && Number(form.longitude))) fe.location = 'Please drop a pin on the delivery location.';
+    if (form.pumpRequired && !form.pumpLineLength.trim()) fe.pumpLineLength = 'Please enter the required pump line length.';
     setFieldErrors(fe);
-    if (fe.plant || fe.grade || fe.quantity) return;
+    if (Object.keys(fe).length > 0) return;
     setSaving(true);
     try {
-      const created = await api.post<Order>('/me/orders', {
+      const payload = {
         plantId: selectedPlantId,
         grade: form.grade,
         quantity: form.quantity,
         pumpRequired: form.pumpRequired,
+        pumpLineLength: form.pumpRequired ? (form.pumpLineLength || undefined) : undefined,
         deliveryDate: form.deliveryDate || undefined,
         deliveryTime: form.deliveryTime || undefined,
         notes: form.notes || undefined,
         siteId: form.siteId || undefined,
-      });
-      // The POST returns plantId only; reflect the chosen plant's name/code
-      // optimistically so the new row labels its plant before the next reload.
-      const picked = plantDir.find(p => p.id === selectedPlantId);
-      setOrders(prev => [{ ...created, plantName: created.plantName ?? picked?.name ?? selectedPlant, plantCode: created.plantCode ?? picked?.plantCode ?? null }, ...prev]);
+        contactPerson: form.contactPerson.trim(),
+        contactNumber: form.contactNumber.trim(),
+        siteName: form.siteName.trim() || undefined,
+        siteAddress: form.siteAddress.trim(),
+        latitude: form.latitude || undefined,
+        longitude: form.longitude || undefined,
+        paymentType: form.paymentType || undefined,
+        poNumber: form.poNumber.trim() || undefined,
+        sitePhoto: form.sitePhoto || undefined,
+      };
+      if (editingOrderId != null) {
+        const updated = await api.put<Order>(`/me/orders/${editingOrderId}`, payload);
+        const picked = plantDir.find(p => p.id === (updated.plantId ?? selectedPlantId));
+        setOrders(prev => prev.map(x => x.id === editingOrderId
+          ? { ...updated, plantName: updated.plantName ?? picked?.name ?? selectedPlant, plantCode: updated.plantCode ?? picked?.plantCode ?? null }
+          : x));
+      } else {
+        const created = await api.post<Order>('/me/orders', payload);
+        // The POST returns plantId only; reflect the chosen plant's name/code
+        // optimistically so the new row labels its plant before the next reload.
+        const picked = plantDir.find(p => p.id === selectedPlantId);
+        setOrders(prev => [{ ...created, plantName: created.plantName ?? picked?.name ?? selectedPlant, plantCode: created.plantCode ?? picked?.plantCode ?? null }, ...prev]);
+      }
       setModalOpen(false);
       setTab('orders');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Could not place the order.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function uploadSitePhoto(file: File) {
+    setPhotoUploading(true);
+    setFormError('');
+    try {
+      const { uploadURL, objectPath } = await api.post<{ uploadURL: string; objectPath: string }>(
+        '/me/orders/site-photo-upload-url', { contentType: file.type || 'image/jpeg' },
+      );
+      const put = await fetch(uploadURL, { method: 'PUT', headers: { 'Content-Type': file.type || 'image/jpeg' }, body: file });
+      if (!put.ok) throw new Error('Upload failed');
+      setForm(f => ({ ...f, sitePhoto: objectPath }));
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Could not upload the site photo.');
+    } finally {
+      setPhotoUploading(false);
     }
   }
 
@@ -609,7 +723,7 @@ export default function MyOrders() {
 
   const kpis = [
     { label: 'Total Orders', value: orders.length, icon: ClipboardList, color: 'var(--blue)' },
-    { label: 'Active Orders', value: orders.filter(o => o.status === 'pending' || o.status === 'in_progress').length, icon: AlertCircle, color: 'var(--gold)' },
+    { label: 'Active Orders', value: orders.filter(o => o.status === 'pending' || o.status === 'pending_approval' || o.status === 'approved' || o.status === 'in_progress').length, icon: AlertCircle, color: 'var(--gold)' },
     { label: 'Total Dispatched', value: challans.filter(c => c.status === 'dispatched' || c.status === 'delivered').length, icon: Truck, color: 'var(--green)' },
     { label: 'Volume Delivered', value: `${totalQty(challans.filter(c => c.status === 'delivered'))} m³`, icon: Package, color: '#a78bfa' },
   ];
@@ -765,9 +879,25 @@ export default function MyOrders() {
                     <td style={{ padding: '12px 14px', color: 'var(--text)', fontWeight: 700 }}>{parseFloat(o.quantity).toFixed(1)}</td>
                     <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.deliveryDate || '—'}</td>
                     <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || '—'}</td>
-                    <td style={{ padding: '12px 14px' }}><StatusBadge status={o.status} /></td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <StatusBadge status={o.status} />
+                      {o.status === 'rejected' && o.rejectionReason && (
+                        <div style={{ marginTop: 4, color: 'var(--red)', fontSize: 11, maxWidth: 180 }}>
+                          {o.rejectionReason}
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        {['pending', 'pending_approval', 'approved', 'rejected'].includes(o.status) && (
+                          <button onClick={() => editOrder(o)} title="Edit order" style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(56,189,248,.12)',
+                            color: 'var(--blue)', border: '1px solid rgba(56,189,248,.35)', borderRadius: 7,
+                            padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          }}>
+                            <Pencil size={13} /> Edit
+                          </button>
+                        )}
                         <button onClick={() => reorder(o)} title="Reorder" style={{
                           display: 'inline-flex', alignItems: 'center', gap: 5, background: 'color-mix(in srgb, var(--gold) 14%, transparent)',
                           color: 'var(--gold)', border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', borderRadius: 7,
@@ -775,7 +905,7 @@ export default function MyOrders() {
                         }}>
                           <RotateCcw size={13} /> Reorder
                         </button>
-                        {o.status === 'pending' && (
+                        {['pending', 'pending_approval', 'approved'].includes(o.status) && (
                           <button onClick={() => cancelOrder(o)} disabled={cancelingId === o.id} title="Cancel order" style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(239,68,68,.12)',
                             color: 'var(--red)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 7,
@@ -1053,7 +1183,7 @@ export default function MyOrders() {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Place New Order</h3>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{editingOrderId != null ? 'Update Order' : 'Place New Order'}</h3>
                 {selectedPlant && (
                   <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--gold)', fontWeight: 600 }}>From {selectedPlant}</div>
                 )}
@@ -1145,7 +1275,8 @@ export default function MyOrders() {
               </div>
               <div>
                 <label style={labelStyle}>Delivery Date</label>
-                <input type="date" value={form.deliveryDate} onChange={e => setForm(f => ({ ...f, deliveryDate: e.target.value }))} style={inputStyle} />
+                <input type="date" value={form.deliveryDate} onChange={e => { setForm(f => ({ ...f, deliveryDate: e.target.value })); if (e.target.value) setFieldErrors(fe => ({ ...fe, deliveryDate: undefined })); }} style={fieldErrors.deliveryDate ? inputErrorStyle : inputStyle} />
+                <FieldError msg={fieldErrors.deliveryDate} />
               </div>
               <div>
                 <label style={labelStyle}>Delivery Time</label>
@@ -1153,19 +1284,110 @@ export default function MyOrders() {
               </div>
             </div>
 
+            {/* Site contact — who the crew calls on arrival. Mandatory. */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
+              <div>
+                <label style={labelStyle}>Site Contact Person</label>
+                <input value={form.contactPerson} onChange={e => { setForm(f => ({ ...f, contactPerson: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, contactPerson: undefined })); }} placeholder="Name at delivery site" style={fieldErrors.contactPerson ? inputErrorStyle : inputStyle} />
+                <FieldError msg={fieldErrors.contactPerson} />
+              </div>
+              <div>
+                <label style={labelStyle}>Contact Number</label>
+                <input value={form.contactNumber} onChange={e => { setForm(f => ({ ...f, contactNumber: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, contactNumber: undefined })); }} placeholder="Phone at site" style={fieldErrors.contactNumber ? inputErrorStyle : inputStyle} />
+                <FieldError msg={fieldErrors.contactNumber} />
+              </div>
+            </div>
+
             <div style={{ marginTop: 14 }}>
-              <SitePicker sites={sites} value={form.siteId} onChange={id => setForm(f => ({ ...f, siteId: id }))} onCreate={createSite} />
+              <label style={labelStyle}>Site Name (optional)</label>
+              <input value={form.siteName} onChange={e => setForm(f => ({ ...f, siteName: e.target.value }))} placeholder="e.g. Tower B Foundation" style={inputStyle} />
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>Delivery Site Address</label>
+              <textarea value={form.siteAddress} onChange={e => { setForm(f => ({ ...f, siteAddress: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, siteAddress: undefined })); }} rows={2} placeholder="Full delivery address" style={{ ...(fieldErrors.siteAddress ? inputErrorStyle : inputStyle), resize: 'vertical' }} />
+              <FieldError msg={fieldErrors.siteAddress} />
+            </div>
+
+            {/* Pin the exact pour location — mandatory, drives live tracking. */}
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>Pin Delivery Location on Map</label>
+              <LocationPicker
+                value={Number(form.latitude) && Number(form.longitude) ? { lat: Number(form.latitude), lng: Number(form.longitude) } as LatLng : null}
+                onChange={(p) => { setForm(f => ({ ...f, latitude: p ? String(p.lat) : '', longitude: p ? String(p.lng) : '' })); if (p) setFieldErrors(fe => ({ ...fe, location: undefined })); }}
+              />
+              <FieldError msg={fieldErrors.location} />
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <SitePicker sites={sites} value={form.siteId} onChange={id => {
+                setForm(f => ({ ...f, siteId: id }));
+                // Prefill address + pin from the chosen saved site for convenience.
+                const s = sites.find(x => String(x.id) === id);
+                if (s) setForm(f => ({
+                  ...f, siteId: id,
+                  siteName: f.siteName || s.name,
+                  siteAddress: f.siteAddress || s.address || '',
+                  latitude: (Number(s.latitude) ? String(s.latitude) : f.latitude),
+                  longitude: (Number(s.longitude) ? String(s.longitude) : f.longitude),
+                }));
+              }} onCreate={createSite} />
+            </div>
+
+            {/* Payment + PO reference. */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
+              <div>
+                <label style={labelStyle}>Payment Type (optional)</label>
+                <select value={form.paymentType} onChange={e => setForm(f => ({ ...f, paymentType: e.target.value }))} style={inputStyle}>
+                  <option value="">Select…</option>
+                  {PAYMENT_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>PO Number (optional)</label>
+                <input value={form.poNumber} onChange={e => setForm(f => ({ ...f, poNumber: e.target.value }))} placeholder="Purchase order ref" style={inputStyle} />
+              </div>
             </div>
 
             <div style={{ marginTop: 14 }}>
               <label style={labelStyle}>Notes / Site details (optional)</label>
-              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Delivery site address, special instructions…" style={{ ...inputStyle, resize: 'vertical' }} />
+              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Special instructions…" style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+
+            {/* Optional site photo — helps the plant plan access/placement. */}
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>Site Photo (optional)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, cursor: photoUploading ? 'wait' : 'pointer',
+                  padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                  background: 'color-mix(in srgb, var(--gold) 14%, transparent)', color: 'var(--gold)',
+                  border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)',
+                }}>
+                  <Camera size={15} /> {photoUploading ? 'Uploading…' : form.sitePhoto ? 'Replace photo' : 'Add photo'}
+                  <input type="file" accept="image/*" style={{ display: 'none' }} disabled={photoUploading}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadSitePhoto(f); e.target.value = ''; }} />
+                </label>
+                {form.sitePhoto && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--green)', fontSize: 12.5, fontWeight: 700 }}>
+                    <CheckCircle2 size={14} /> Photo attached
+                  </span>
+                )}
+              </div>
             </div>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, cursor: 'pointer', color: 'var(--text)', fontSize: 13 }}>
-              <input type="checkbox" checked={form.pumpRequired} onChange={e => setForm(f => ({ ...f, pumpRequired: e.target.checked }))} />
+              <input type="checkbox" checked={form.pumpRequired} onChange={e => { setForm(f => ({ ...f, pumpRequired: e.target.checked })); if (!e.target.checked) setFieldErrors(fe => ({ ...fe, pumpLineLength: undefined })); }} />
               Concrete pump required
             </label>
+
+            {form.pumpRequired && (
+              <div style={{ marginTop: 12 }}>
+                <label style={labelStyle}>Pump Line Length (metres)</label>
+                <input type="number" min="0" step="1" value={form.pumpLineLength} onChange={e => { setForm(f => ({ ...f, pumpLineLength: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, pumpLineLength: undefined })); }} placeholder="e.g. 30" style={fieldErrors.pumpLineLength ? inputErrorStyle : inputStyle} />
+                <FieldError msg={fieldErrors.pumpLineLength} />
+              </div>
+            )}
 
             {formError && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 10, padding: '10px 14px', marginTop: 16 }}>
@@ -1186,7 +1408,7 @@ export default function MyOrders() {
                 cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 800, color: '#111827',
                 background: saving ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
               }}>
-                {saving ? 'Placing…' : 'Place Order'}
+                {saving ? 'Saving…' : editingOrderId != null ? 'Update Order' : 'Place Order'}
               </button>
             </div>
           </form>
@@ -1372,7 +1594,7 @@ function OverviewTab({ orders, challans, ledger, recurring, fmt, totalQty }: {
 }) {
   const delivered = challans.filter(c => c.status === 'delivered');
   const volumeDelivered = parseFloat(totalQty(delivered));
-  const activeOrders = orders.filter(o => o.status === 'pending' || o.status === 'in_progress').length;
+  const activeOrders = orders.filter(o => o.status === 'pending' || o.status === 'pending_approval' || o.status === 'approved' || o.status === 'in_progress').length;
   const activeRecurring = recurring.filter(r => r.active).length;
 
   const byGrade = new Map<string, number>();

@@ -141,9 +141,16 @@ export interface Site {
 export interface Order {
   id: number; orderNo: string; clientId: number; siteId?: number;
   grade: string; quantity: string; pumpRequired: boolean;
+  pumpLineLength?: string | null;
   deliveryDate?: string; deliveryTime?: string; notes?: string;
   status: string; createdAt: string;
   clientName?: string; siteName?: string;
+  // Customer-supplied delivery details captured at order placement.
+  contactPerson?: string | null; contactNumber?: string | null;
+  siteAddress?: string | null;
+  latitude?: string | null; longitude?: string | null;
+  paymentType?: string | null; poNumber?: string | null;
+  sitePhoto?: string | null; rejectionReason?: string | null;
   // The plant fulfilling this order (a customer can have orders across plants).
   plantId?: number | null; plantName?: string | null; plantCode?: string | null;
 }

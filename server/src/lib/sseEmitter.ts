@@ -30,7 +30,21 @@ export type SSEAudience = {
   driverId?: number | null;
   roles?: string[];
   platformOnly?: boolean;
+  // Opt-in tenant scoping: when set, a plant-bound staff member only receives
+  // the event if their own plantId matches. Null-plant platform staff (who
+  // oversee every plant) always pass. Callers that omit this keep the legacy
+  // plant-agnostic staff routing, so existing emits are unaffected.
+  plantId?: number | null;
 };
+
+// A plant-bound staff member (identity.plantId != null) may only receive a
+// tenant-scoped event when their plant matches the audience's plant. A
+// null-plant platform staff member is never filtered out here.
+function plantScopeAllows(audience: SSEAudience, identityPlantId: number | null | undefined): boolean {
+  if (audience.plantId == null) return true; // caller did not opt into scoping
+  if (identityPlantId == null) return true; // platform staff see all plants
+  return identityPlantId === audience.plantId;
+}
 
 const STAFF_ROLES = new Set(['admin', 'dispatcher', 'plant_operator']);
 
@@ -55,10 +69,13 @@ function clientMayReceive(client: SSEClient, audience?: SSEAudience): boolean {
     // Platform-only events never reach plant-bound users, even of an allowed
     // role — same boundary as the isPlatformStaff REST guard.
     if (audience.platformOnly && identity.plantId != null) return false;
+    // Opt-in tenant scoping: a plant-bound staff member of another plant never
+    // receives a plant-scoped event.
+    if (!plantScopeAllows(audience, identity.plantId)) return false;
     return true;
   }
-  // Staff see all order/trip activity.
-  if (STAFF_ROLES.has(identity.role)) return true;
+  // Staff see all order/trip activity (subject to opt-in tenant scoping).
+  if (STAFF_ROLES.has(identity.role)) return plantScopeAllows(audience, identity.plantId);
   if (identity.role === 'client') {
     return audience.clientId != null && identity.clientId === audience.clientId;
   }

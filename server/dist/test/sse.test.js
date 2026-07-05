@@ -304,6 +304,33 @@ test('platformOnly role event excludes plant-bound users of an allowed role', ()
     assert.ok(!eventsOf(plantAdmin).includes('whatsapp.message'), 'a plant-bound admin must NOT receive cross-tenant chat previews');
     assert.ok(!eventsOf(dispatcher).includes('whatsapp.message'), 'a role outside the allow-list never receives the event');
 });
+test('plant-scoped role event reaches only staff of that plant (plus platform staff)', () => {
+    const samePlantAdmin = new MockResponse(2);
+    const otherPlantAdmin = new MockResponse(2);
+    const platformAdmin = new MockResponse(2);
+    const samePlantDispatcher = new MockResponse(2);
+    created.push(addWithIdentity(samePlantAdmin, { role: 'admin', plantId: 5 }));
+    created.push(addWithIdentity(otherPlantAdmin, { role: 'admin', plantId: 9 }));
+    created.push(addWithIdentity(platformAdmin, { role: 'admin', plantId: null }));
+    created.push(addWithIdentity(samePlantDispatcher, { role: 'dispatcher', plantId: 5 }));
+    // Mirrors notifyOrderPendingApproval: alert this plant's approval roles only.
+    emitSSEEvent('order.pending_approval', { orderNo: 'ORD-001', clientName: 'Acme' }, { roles: ['admin', 'plant_owner', 'supervisor', 'dispatcher'], plantId: 5 });
+    assert.ok(eventsOf(samePlantAdmin).includes('order.pending_approval'), 'a staff member of the issuing plant receives the approval toast');
+    assert.ok(eventsOf(samePlantDispatcher).includes('order.pending_approval'), 'every approval role at the issuing plant is notified');
+    assert.ok(eventsOf(platformAdmin).includes('order.pending_approval'), 'a null-plant platform admin oversees all plants and still receives it');
+    assert.ok(!eventsOf(otherPlantAdmin).includes('order.pending_approval'), 'a staff member of ANOTHER plant must NOT receive cross-tenant order metadata');
+});
+test('plant-scoped default-staff event excludes other-plant staff', () => {
+    // With no explicit roles allow-list the event uses the default staff routing;
+    // opt-in plantId scoping must still fence out other-plant staff.
+    const samePlantOperator = new MockResponse(2);
+    const otherPlantOperator = new MockResponse(2);
+    created.push(addWithIdentity(samePlantOperator, { role: 'plant_operator', plantId: 5 }));
+    created.push(addWithIdentity(otherPlantOperator, { role: 'plant_operator', plantId: 9 }));
+    emitSSEEvent('order.updated', { orderNo: 'ORD-001' }, { plantId: 5 });
+    assert.ok(eventsOf(samePlantOperator).includes('order.updated'), 'same-plant staff receive the plant-scoped event');
+    assert.ok(!eventsOf(otherPlantOperator).includes('order.updated'), 'other-plant staff must NOT receive the plant-scoped event');
+});
 test('untargeted event still broadcasts to every connection', () => {
     const client = new MockResponse(2);
     const driver = new MockResponse(2);

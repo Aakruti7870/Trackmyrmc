@@ -221,10 +221,18 @@ router.post('/', requireRole(...WRITE_ROLES), async (req, res) => {
         // only ever attach an order from their OWN plant — otherwise they could bind a
         // challan to (and mutate the status of) another plant's order. A null-plant
         // global admin is unscoped and inherits the order's plant as before.
-        const [o] = await db.select({ plantId: orders.plantId }).from(orders)
+        const [o] = await db.select({ plantId: orders.plantId, status: orders.status }).from(orders)
             .where(and(eq(orders.id, +orderId), plantScope(req.user.plantId, orders.plantId)));
         if (!o) {
             res.status(404).json({ error: 'Order not found' });
+            return;
+        }
+        // A challan can only be generated from a dispatchable order. Orders still
+        // awaiting approval, rejected, cancelled, or already completed are blocked;
+        // legacy 'pending' and 'in_progress' orders stay dispatchable as before.
+        const BLOCKED = ['pending_approval', 'rejected', 'cancelled', 'completed'];
+        if (o.status && BLOCKED.includes(o.status)) {
+            res.status(409).json({ error: 'This order is not approved for dispatch yet.' });
             return;
         }
         if (o.plantId != null)
