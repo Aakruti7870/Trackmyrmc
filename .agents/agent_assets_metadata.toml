@@ -395,3 +395,9 @@ id = "k7KmpIy_yAwnFY7p6_OFn"
 uri = "file://play-store-assets/how-to-use-concrete-king.mp4"
 type = "video"
 title = "How to Use CONCRETE KING — Tutorial Video (1:45)"
+
+[[outputs]]
+id = "3KyHNGugw0utoXBBMrqly"
+uri = "file://docs/ROLES_AND_LOGIN.md"
+type = "text"
+title = "Roles, Login & Permissions — Full Reference"
