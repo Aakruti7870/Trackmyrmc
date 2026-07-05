@@ -46,7 +46,20 @@ function GestureGate({ interactive }: { interactive: boolean }) {
   return null;
 }
 
-export default function LiveDeliveryMap({ markers }: { markers: DeliveryMarker[] }) {
+export default function LiveDeliveryMap({
+  markers,
+  height = 300,
+  bare = false,
+}: {
+  markers: DeliveryMarker[];
+  // Map viewport height in px. Callers embedding the map inside a fixed panel
+  // (e.g. the Kiosk fleet tracker) override the default.
+  height?: number;
+  // When true, drop the component's own rounded border + bottom margin so the
+  // parent container can supply the framing. Defaults preserve the standalone
+  // customer-tracking look.
+  bare?: boolean;
+}) {
   const [isMobile, setIsMobile] = useState(false);
   const [enabled, setEnabled] = useState(false);
 
@@ -75,11 +88,17 @@ export default function LiveDeliveryMap({ markers }: { markers: DeliveryMarker[]
   const showHint = isMobile && !enabled;
 
   return (
-    <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)', marginBottom: 14 }}>
+    <div
+      style={
+        bare
+          ? { position: 'relative', width: '100%', height: '100%' }
+          : { position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)', marginBottom: 14 }
+      }
+    >
       <MapContainer
         center={center}
         zoom={13}
-        style={{ height: 300, width: '100%' }}
+        style={{ height, width: '100%' }}
         scrollWheelZoom={!isMobile}
         dragging={!isMobile}
         touchZoom={!isMobile}
