@@ -56,10 +56,10 @@ beforeEach(() => {
 describe('MyOrders delivery tracking', () => {
   it('shows live distance and ETA when a vehicle.position event arrives', async () => {
     mockList([dispatched]);
-    const user = userEvent.setup();
     render(<MyOrders />);
 
-    await user.click(await screen.findByRole('button', { name: /Challans/i }));
+    // Live Deliveries render on the default "My Orders" tab (keyed on the
+    // in-transit status, not on the delivery date).
     expect(await screen.findByText(/Live Deliveries/i)).toBeInTheDocument();
 
     const pos: LivePosition = {
@@ -79,7 +79,7 @@ describe('MyOrders delivery tracking', () => {
     const user = userEvent.setup();
     render(<MyOrders />);
 
-    await user.click(await screen.findByRole('button', { name: /Challans/i }));
+    await user.click(await screen.findByRole('button', { name: /^deliveries/i }));
 
     vi.mocked(api.get).mockResolvedValueOnce(
       { ...delivered, proofPhotos: ['https://signed.example/proof-1.jpg'] } as never,

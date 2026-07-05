@@ -130,8 +130,7 @@ describe('MyOrders place order', () => {
     const user = userEvent.setup();
     render(<MyOrders />);
 
-    // The reorder button lives in the Orders tab; switch to it first.
-    await user.click(await screen.findByRole('button', { name: /^orders \(/i }));
+    // The pending order is active, so its reorder button is on the default tab.
     await user.click(await screen.findByRole('button', { name: /reorder/i }));
     await screen.findByRole('heading', { name: /place new order/i });
 

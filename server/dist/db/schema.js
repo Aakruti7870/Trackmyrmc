@@ -218,6 +218,9 @@ export const orders = pgTable('orders', {
     sitePhoto: text('site_photo'),
     // Populated when staff reject the order, surfaced back to the customer.
     rejectionReason: text('rejection_reason'),
+    // Reason the customer gave when cancelling the order (from a fixed picker,
+    // optionally free-text for "Other"). Null for non-cancelled orders.
+    cancellationReason: text('cancellation_reason'),
     status: orderStatusEnum('status').notNull().default('pending'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });

@@ -106,3 +106,112 @@ test('a non-client role is forbidden (403)', async () => {
         .send({});
     assert.equal(res.status, 403);
 });
+test('the cancellation reason is persisted on the order', async () => {
+    const client = await createClient('Acme Co', '1112223333');
+    const clientUser = await createUser('client', 'client@test.com', client.id);
+    const order = await createOrder(client.id, 'ORD-006', 'pending');
+    const res = await request(app)
+        .patch(`/api/me/orders/${order.id}/cancel`)
+        .set('Authorization', `Bearer ${tokenFor(clientUser)}`)
+        .send({ reason: 'Change of plans' });
+    assert.equal(res.status, 200);
+    const [after] = await db.select({ reason: orders.cancellationReason }).from(orders);
+    assert.equal(after.reason, 'Change of plans');
+});
+test('a date-only order (no delivery time) is never cutoff-locked', async () => {
+    const client = await createClient('Acme Co', '1112223333');
+    const clientUser = await createUser('client', 'client@test.com', client.id);
+    const today = new Date();
+    const deliveryDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const [order] = await db.insert(orders).values({
+        orderNo: 'ORD-012', clientId: client.id, grade: 'M25', quantity: '10',
+        status: 'approved', deliveryDate, // no deliveryTime → no concrete slot
+    }).returning();
+    const res = await request(app)
+        .patch(`/api/me/orders/${order.id}/cancel`)
+        .set('Authorization', `Bearer ${tokenFor(clientUser)}`)
+        .send({ reason: 'Change of plans' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, 'cancelled');
+});
+// A delivery scheduled `mins` minutes from now, as YYYY-MM-DD + HH:MM strings.
+function slotFromNow(mins) {
+    const d = new Date(Date.now() + mins * 60_000);
+    const deliveryDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const deliveryTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return { deliveryDate, deliveryTime };
+}
+test('cancel is blocked within 20 minutes of the scheduled delivery (409)', async () => {
+    const client = await createClient('Acme Co', '1112223333');
+    const clientUser = await createUser('client', 'client@test.com', client.id);
+    const slot = slotFromNow(10); // 10 min out → inside the 20-min cutoff
+    const [order] = await db.insert(orders).values({
+        orderNo: 'ORD-007', clientId: client.id, grade: 'M25', quantity: '10',
+        status: 'approved', ...slot,
+    }).returning();
+    const res = await request(app)
+        .patch(`/api/me/orders/${order.id}/cancel`)
+        .set('Authorization', `Bearer ${tokenFor(clientUser)}`)
+        .send({ reason: 'Change of plans' });
+    assert.equal(res.status, 409);
+    const [after] = await db.select({ status: orders.status }).from(orders);
+    assert.equal(after.status, 'approved'); // untouched
+});
+test('cancel is allowed comfortably before the cutoff', async () => {
+    const client = await createClient('Acme Co', '1112223333');
+    const clientUser = await createUser('client', 'client@test.com', client.id);
+    const slot = slotFromNow(120); // 2 hours out → well outside the cutoff
+    const [order] = await db.insert(orders).values({
+        orderNo: 'ORD-008', clientId: client.id, grade: 'M25', quantity: '10',
+        status: 'approved', ...slot,
+    }).returning();
+    const res = await request(app)
+        .patch(`/api/me/orders/${order.id}/cancel`)
+        .set('Authorization', `Bearer ${tokenFor(clientUser)}`)
+        .send({ reason: 'Change of plans' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, 'cancelled');
+});
+test('reschedule moves the delivery slot; an approved order re-enters approval', async () => {
+    const client = await createClient('Acme Co', '1112223333');
+    const clientUser = await createUser('client', 'client@test.com', client.id);
+    const [order] = await db.insert(orders).values({
+        orderNo: 'ORD-009', clientId: client.id, grade: 'M25', quantity: '10',
+        status: 'approved', deliveryDate: '2099-01-01', deliveryTime: '09:00',
+    }).returning();
+    const res = await request(app)
+        .patch(`/api/me/orders/${order.id}/reschedule`)
+        .set('Authorization', `Bearer ${tokenFor(clientUser)}`)
+        .send({ deliveryDate: '2099-02-02', deliveryTime: '14:30' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.deliveryDate, '2099-02-02');
+    assert.equal(res.body.status, 'pending_approval'); // date change forces re-approval
+});
+test('reschedule is blocked within 20 minutes of the current slot (409)', async () => {
+    const client = await createClient('Acme Co', '1112223333');
+    const clientUser = await createUser('client', 'client@test.com', client.id);
+    const slot = slotFromNow(10); // current slot is inside the cutoff
+    const [order] = await db.insert(orders).values({
+        orderNo: 'ORD-010', clientId: client.id, grade: 'M25', quantity: '10',
+        status: 'approved', ...slot,
+    }).returning();
+    const res = await request(app)
+        .patch(`/api/me/orders/${order.id}/reschedule`)
+        .set('Authorization', `Bearer ${tokenFor(clientUser)}`)
+        .send({ deliveryDate: '2099-02-02', deliveryTime: '14:30' });
+    assert.equal(res.status, 409);
+});
+test('reschedule rejects a new slot inside the cutoff from now (400)', async () => {
+    const client = await createClient('Acme Co', '1112223333');
+    const clientUser = await createUser('client', 'client@test.com', client.id);
+    const [order] = await db.insert(orders).values({
+        orderNo: 'ORD-011', clientId: client.id, grade: 'M25', quantity: '10',
+        status: 'approved', deliveryDate: '2099-01-01', deliveryTime: '09:00',
+    }).returning();
+    const soon = slotFromNow(5); // 5 min from now → too soon
+    const res = await request(app)
+        .patch(`/api/me/orders/${order.id}/reschedule`)
+        .set('Authorization', `Bearer ${tokenFor(clientUser)}`)
+        .send(soon);
+    assert.equal(res.status, 400);
+});

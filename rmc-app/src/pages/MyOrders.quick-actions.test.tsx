@@ -67,7 +67,7 @@ describe('MyOrders quick actions', () => {
     const user = userEvent.setup();
     render(<MyOrders />);
 
-    await user.click(await screen.findByRole('button', { name: /^orders \(/i }));
+    // A pending order is active, so it lists on the default "My Orders" tab.
     await user.click(await screen.findByRole('button', { name: /reorder/i }));
 
     await screen.findByRole('heading', { name: /place new order/i });
@@ -87,17 +87,18 @@ describe('MyOrders quick actions', () => {
   });
 
   it('reorder lets the customer submit in one tap without a plant error', async () => {
-    mockLists([makeOrder({ id: 5, grade: 'M30', quantity: '8.00', plantId: 42, plantName: 'Riverside RMC' })], []);
+    mockLists([makeOrder({ id: 5, grade: 'M30', quantity: '8.00', plantId: 42, plantName: 'Riverside RMC', pumpRequired: false })], []);
     vi.mocked(api.post).mockResolvedValue(
       makeOrder({ id: 99, orderNo: 'ORD-099', grade: 'M30', quantity: '8.00', plantId: 42 }) as never,
     );
     const user = userEvent.setup();
     render(<MyOrders />);
 
-    await user.click(await screen.findByRole('button', { name: /^orders \(/i }));
     await user.click(await screen.findByRole('button', { name: /reorder/i }));
     await screen.findByRole('heading', { name: /place new order/i });
 
+    // Reorder carries the plant, grade + qty forward; only these are mandatory,
+    // so the customer can resubmit in a single tap.
     const submitBtns = screen.getAllByRole('button', { name: /place order/i });
     await user.click(submitBtns[submitBtns.length - 1]);
 
@@ -109,37 +110,46 @@ describe('MyOrders quick actions', () => {
     expect(screen.queryByText(/please choose a plant/i)).not.toBeInTheDocument();
   });
 
-  it('cancel calls PATCH and flips the order to cancelled', async () => {
+  it('cancel opens the reason modal, then PATCHes with the reason and flips the order to cancelled', async () => {
     mockLists([makeOrder({ id: 7, orderNo: 'ORD-007', status: 'pending' })], []);
     vi.mocked(api.patch).mockResolvedValue(
       makeOrder({ id: 7, orderNo: 'ORD-007', status: 'cancelled' }) as never,
     );
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     const user = userEvent.setup();
     render(<MyOrders />);
 
-    await user.click(await screen.findByRole('button', { name: /^orders \(/i }));
+    // The pending order lists on the default "My Orders" tab. Clicking Cancel
+    // opens the reason modal — it does NOT immediately hit the API.
     await user.click(await screen.findByRole('button', { name: /^cancel$/i }));
+    await screen.findByRole('heading', { name: /cancel order ORD-007/i });
+    expect(api.patch).not.toHaveBeenCalled();
+
+    // Pick a reason, then confirm.
+    await user.selectOptions(screen.getByRole('combobox'), 'Change of plans');
+    await user.click(screen.getByRole('button', { name: /cancel order/i }));
 
     await waitFor(() => {
-      expect(api.patch).toHaveBeenCalledWith('/me/orders/7/cancel', {});
+      expect(api.patch).toHaveBeenCalledWith('/me/orders/7/cancel', { reason: 'Change of plans' });
     });
+    // Once cancelled the order drops out of the active list; it now lives in the
+    // Deliveries history with a "Cancelled" status.
+    await user.click(await screen.findByRole('button', { name: /^deliveries/i }));
     expect(await screen.findByText(/cancelled/i)).toBeInTheDocument();
-    confirmSpy.mockRestore();
   });
 
-  it('does not cancel when the user dismisses the confirm', async () => {
-    mockLists([makeOrder({ id: 7, status: 'pending' })], []);
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('requires a reason before it will cancel', async () => {
+    mockLists([makeOrder({ id: 7, orderNo: 'ORD-007', status: 'pending' })], []);
 
     const user = userEvent.setup();
     render(<MyOrders />);
 
-    await user.click(await screen.findByRole('button', { name: /^orders \(/i }));
     await user.click(await screen.findByRole('button', { name: /^cancel$/i }));
+    await screen.findByRole('heading', { name: /cancel order ORD-007/i });
+    // Confirming with no reason selected surfaces a validation message, no PATCH.
+    await user.click(screen.getByRole('button', { name: /cancel order/i }));
+    expect(await screen.findByText(/please choose a reason/i)).toBeInTheDocument();
     expect(api.patch).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it('receipt button downloads a PDF for a delivered challan', async () => {
@@ -147,7 +157,7 @@ describe('MyOrders quick actions', () => {
     const user = userEvent.setup();
     render(<MyOrders />);
 
-    await user.click(await screen.findByRole('button', { name: /challans/i }));
+    await user.click(await screen.findByRole('button', { name: /^deliveries/i }));
     await user.click(await screen.findByRole('button', { name: /receipt/i }));
 
     await waitFor(() => {

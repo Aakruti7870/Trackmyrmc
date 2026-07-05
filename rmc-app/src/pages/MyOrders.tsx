@@ -6,6 +6,7 @@ import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 import FreshnessCountdown from '@/components/FreshnessCountdown';
 import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle, Info, Star } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
+import { downloadAccountStatement } from '@/pages/accountStatement';
 import SitePicker from '@/components/SitePicker';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 import LiveDeliveryMap, { type DeliveryMarker } from '@/components/LiveDeliveryMap';
@@ -106,6 +107,18 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   );
 }
 
+function SectionHeading({ icon: Icon, title, hint }: { icon: typeof Truck; title: string; hint?: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, margin: '4px 2px 12px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Icon size={16} style={{ color: 'var(--gold)' }} />
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{title}</h3>
+      </div>
+      {hint && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{hint}</span>}
+    </div>
+  );
+}
+
 interface LedgerData {
   entries: (LedgerEntry & { runningBalance: number })[];
   outstanding: number;
@@ -172,11 +185,56 @@ function LiveTimeline({ status, hasLive }: { status: string; hasLive: boolean })
   );
 }
 
-const TAB_KEYS = ['overview', 'orders', 'challans', 'ledger', 'recurring'] as const;
+const TAB_KEYS = ['today', 'deliveries', 'billing'] as const;
 type TabKey = typeof TAB_KEYS[number];
 function readTab(search: string): TabKey {
   const t = new URLSearchParams(search).get('tab');
-  return (TAB_KEYS as readonly string[]).includes(t ?? '') ? (t as TabKey) : 'overview';
+  return (TAB_KEYS as readonly string[]).includes(t ?? '') ? (t as TabKey) : 'today';
+}
+
+// Local-day helpers for the "today" page and the Deliveries date-range filter.
+function isToday(v?: string | null): boolean {
+  if (!v) return false;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+const ACTIVE_ORDER_STATUSES = ['pending', 'pending_approval', 'approved', 'in_progress'] as const;
+
+// Statuses a customer can still cancel/reschedule (plant hasn't dispatched yet).
+const CANCELLABLE_STATUSES = ['pending', 'pending_approval', 'approved'] as const;
+
+// Customers can cancel/reschedule up to this many minutes before the scheduled
+// delivery time. Kept in lockstep with the server's CANCEL_CUTOFF_MINUTES.
+const CANCEL_CUTOFF_MINUTES = 20;
+
+// Fixed picker of cancellation reasons; "Other" reveals a free-text field.
+const CANCELLATION_REASONS = [
+  'Change of plans',
+  'Ordered by mistake',
+  'Delivery no longer needed',
+  'Wrong details entered',
+  'Delayed at site',
+  'Found another supplier',
+  'Other',
+] as const;
+
+// Scheduled delivery Date from an order's date + time, or null unless BOTH are
+// set. An order without a concrete date+time slot has no cutoff and stays
+// cancellable (a date alone must NOT lock against midnight). Mirrors the server.
+function scheduledDeliveryAt(o: Pick<Order, 'deliveryDate' | 'deliveryTime'>): Date | null {
+  if (!o.deliveryDate || !o.deliveryTime) return null;
+  const dt = new Date(`${o.deliveryDate}T${o.deliveryTime.slice(0, 5)}:00`);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+// True once "now" is within the cutoff window before delivery (or past it).
+// Mirrors the server so the UI disables cancel/reschedule before the API 409s.
+function isCancelLocked(o: Pick<Order, 'deliveryDate' | 'deliveryTime'>): boolean {
+  const scheduled = scheduledDeliveryAt(o);
+  if (!scheduled) return false;
+  return Date.now() >= scheduled.getTime() - CANCEL_CUTOFF_MINUTES * 60_000;
 }
 
 export default function MyOrders() {
@@ -218,9 +276,26 @@ export default function MyOrders() {
   const [cancelingId, setCancelingId] = useState<number | null>(null);
   const [receiptId, setReceiptId] = useState<number | null>(null);
   const [actionError, setActionError] = useState('');
+  // Cancel-order modal: the order being cancelled plus the picked reason.
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [cancelOther, setCancelOther] = useState('');
+  const [cancelError, setCancelError] = useState('');
+  // Reschedule modal: the order plus the new date/time being chosen.
+  const [reschedTarget, setReschedTarget] = useState<Order | null>(null);
+  const [reschedDate, setReschedDate] = useState('');
+  const [reschedTime, setReschedTime] = useState('');
+  const [reschedSaving, setReschedSaving] = useState(false);
+  const [reschedError, setReschedError] = useState('');
   const [proof, setProof] = useState<{ open: boolean; loading: boolean; challanNo: string; photos: string[]; error: string }>(
     { open: false, loading: false, challanNo: '', photos: [], error: '' },
   );
+  // Deliveries page: calendar date-range filter over the full challan/order history.
+  const [histFrom, setHistFrom] = useState('');
+  const [histTo, setHistTo] = useState('');
+  // Financial Statement page: "Request for Bill" state.
+  const [billBusy, setBillBusy] = useState(false);
+  const [billMsg, setBillMsg] = useState('');
   const { subscribe } = useSSE();
 
   const reloadAll = useCallback(() => {
@@ -426,17 +501,61 @@ export default function MyOrders() {
     setModalOpen(true);
   }
 
-  async function cancelOrder(o: Order) {
-    if (!window.confirm(`Cancel order ${o.orderNo}? This cannot be undone.`)) return;
-    setActionError('');
+  // Open the cancel modal (reason picker) for an order. Cancelling is a two-step
+  // flow now: pick a reason, then confirm in confirmCancel().
+  function cancelOrder(o: Order) {
+    setCancelTarget(o);
+    setCancelReason('');
+    setCancelOther('');
+    setCancelError('');
+  }
+
+  async function confirmCancel() {
+    const o = cancelTarget;
+    if (!o) return;
+    const reason = cancelReason === 'Other' ? cancelOther.trim() : cancelReason;
+    if (!reason) {
+      setCancelError(cancelReason === 'Other' ? 'Please describe the reason.' : 'Please choose a reason.');
+      return;
+    }
+    setCancelError('');
     setCancelingId(o.id);
     try {
-      const updated = await api.patch<Order>(`/me/orders/${o.id}/cancel`, {});
+      const updated = await api.patch<Order>(`/me/orders/${o.id}/cancel`, { reason });
       setOrders(prev => prev.map(x => x.id === o.id ? updated : x));
+      setCancelTarget(null);
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Could not cancel the order.');
+      setCancelError(e instanceof Error ? e.message : 'Could not cancel the order.');
     } finally {
       setCancelingId(null);
+    }
+  }
+
+  // Open the reschedule modal pre-filled with the order's current slot.
+  function openReschedule(o: Order) {
+    setReschedTarget(o);
+    setReschedDate(o.deliveryDate ?? '');
+    setReschedTime(o.deliveryTime ? o.deliveryTime.slice(0, 5) : '');
+    setReschedError('');
+  }
+
+  async function confirmReschedule() {
+    const o = reschedTarget;
+    if (!o) return;
+    if (!reschedDate) { setReschedError('Please choose a delivery date.'); return; }
+    setReschedError('');
+    setReschedSaving(true);
+    try {
+      const updated = await api.patch<Order>(`/me/orders/${o.id}/reschedule`, {
+        deliveryDate: reschedDate,
+        deliveryTime: reschedTime || undefined,
+      });
+      setOrders(prev => prev.map(x => x.id === o.id ? updated : x));
+      setReschedTarget(null);
+    } catch (e) {
+      setReschedError(e instanceof Error ? e.message : 'Could not reschedule the order.');
+    } finally {
+      setReschedSaving(false);
     }
   }
 
@@ -566,14 +685,12 @@ export default function MyOrders() {
     e.preventDefault();
     setFormError('');
     const fe: typeof fieldErrors = {};
+    // Keep placing an order low-friction: only the plant, grade and quantity are
+    // mandatory. Site, contact, delivery date and the map pin are optional — the
+    // plant confirms those details when they call to schedule the pour.
     if (!selectedPlantId) fe.plant = 'Please choose a plant to order from.';
     if (!form.grade) fe.grade = 'Please select a concrete grade.';
     if (!(Number(form.quantity) > 0)) fe.quantity = 'Please enter a quantity greater than zero.';
-    if (!form.contactPerson.trim()) fe.contactPerson = 'Please enter a site contact name.';
-    if (!form.contactNumber.trim()) fe.contactNumber = 'Please enter a contact number.';
-    if (!form.siteAddress.trim()) fe.siteAddress = 'Please enter the delivery site address.';
-    if (!form.deliveryDate) fe.deliveryDate = 'Please choose a delivery date.';
-    if (!(Number(form.latitude) && Number(form.longitude))) fe.location = 'Please drop a pin on the delivery location.';
     if (form.pumpRequired && !form.pumpLineLength.trim()) fe.pumpLineLength = 'Please enter the required pump line length.';
     setFieldErrors(fe);
     if (Object.keys(fe).length > 0) return;
@@ -613,7 +730,7 @@ export default function MyOrders() {
         setOrders(prev => [{ ...created, plantName: created.plantName ?? picked?.name ?? selectedPlant, plantCode: created.plantCode ?? picked?.plantCode ?? null }, ...prev]);
       }
       setModalOpen(false);
-      setTab('orders');
+      setTab('today');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Could not place the order.');
     } finally {
@@ -728,15 +845,60 @@ export default function MyOrders() {
     { label: 'Volume Delivered', value: `${totalQty(challans.filter(c => c.status === 'delivered'))} m³`, icon: Package, color: '#a78bfa' },
   ];
 
+  const activeOrders = orders.filter(o => (ACTIVE_ORDER_STATUSES as readonly string[]).includes(o.status));
+  const dispatchedChallans = challans.filter(c => c.status === 'dispatched');
+  const todayChallans = challans.filter(c => isToday(c.dispatchTime || c.createdAt));
+
   const tabs: { key: typeof tab; label: string; count: number | null }[] = [
-    { key: 'overview',  label: 'Overview',  count: null },
-    { key: 'orders',    label: 'Orders',    count: orders.length },
-    { key: 'challans',  label: 'Challans',  count: challans.length },
-    { key: 'ledger',    label: 'Ledger',    count: ledger.entries.length },
-    { key: 'recurring', label: 'Recurring', count: recurring.length },
+    { key: 'today',       label: 'My Orders',           count: activeOrders.length },
+    { key: 'deliveries',  label: 'Deliveries',          count: challans.length },
+    { key: 'billing',     label: 'Financial Statement', count: ledger.entries.length },
   ];
 
+  const pageMeta = tab === 'today'
+    ? { title: 'My Orders', sub: 'Place orders, track today’s live deliveries and manage recurring schedules' }
+    : tab === 'deliveries'
+    ? { title: 'Deliveries', sub: 'Your full delivery & order history — filter by date and download challans' }
+    : { title: 'Financial Statement', sub: 'Billing ledger, outstanding balance, statement download & bill requests' };
+
+  // Deliveries date-range filter: inclusive local-day bounds over history rows.
+  const inHistRange = (v?: string | null): boolean => {
+    if (!histFrom && !histTo) return true;
+    if (!v) return false;
+    const t = new Date(v).getTime();
+    if (isNaN(t)) return false;
+    if (histFrom && t < new Date(`${histFrom}T00:00:00`).getTime()) return false;
+    if (histTo && t > new Date(`${histTo}T23:59:59.999`).getTime()) return false;
+    return true;
+  };
+  const historyChallans = challans.filter(c => inHistRange(c.dispatchTime || c.createdAt));
+  const historyOrders = orders.filter(o => inHistRange(o.deliveryDate || o.createdAt));
+
   const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  async function handleRequestBill() {
+    setBillBusy(true);
+    setBillMsg('');
+    try {
+      await downloadAccountStatement({
+        customerName: challans.find(c => c.clientName)?.clientName ?? '',
+        outstanding: ledger.outstanding,
+        creditLimit: ledger.creditLimit,
+        entries: ledger.entries,
+        fromDate: histFrom || undefined,
+        toDate: histTo || undefined,
+      });
+      await api.post('/me/bill-request', {
+        fromDate: histFrom || undefined,
+        toDate: histTo || undefined,
+      });
+      setBillMsg('Statement downloaded and your plant has been notified.');
+    } catch (err) {
+      setBillMsg(err instanceof Error ? err.message : 'Could not complete the request.');
+    } finally {
+      setBillBusy(false);
+    }
+  }
 
   // Grades the chosen plant actually offers (from the directory), used to limit
   // the grade dropdown and softly warn if a pre-filled grade isn't on their menu.
@@ -758,105 +920,18 @@ export default function MyOrders() {
     ? (qtyNum < TYPICAL_MIN_M3 ? 'small' : qtyNum > TYPICAL_MAX_M3 ? 'large' : null)
     : null;
 
-  return (
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)', margin: 0, letterSpacing: '-.3px' }}>
-            My Orders & Deliveries
-          </h1>
-          <p style={{ color: 'var(--muted)', fontSize: 13, margin: '6px 0 0' }}>
-            Track your concrete orders, delivery challans, and billing ledger
-          </p>
-        </div>
-        <button onClick={openModal} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-          borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 800,
-          background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
-          color: '#111827', boxShadow: '0 10px 26px color-mix(in srgb, var(--gold) 20%, transparent)',
-          whiteSpace: 'nowrap',
-        }}>
-          <Plus size={17} /> Place Order
-        </button>
-      </div>
-
-      {/* KPI Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 14, marginBottom: 28 }}>
-        {kpis.map(k => (
-          <Card key={k.label} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px' }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-              background: `color-mix(in srgb, ${k.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${k.color} 19%, transparent)`,
-              display: 'grid', placeItems: 'center',
-            }}>
-              <k.icon size={18} style={{ color: k.color }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{k.value}</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{k.label}</div>
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      {/* Outstanding + Credit */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 24 }}>
-        <Card style={{ padding: '16px 20px' }}>
-          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Outstanding Amount</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: ledger.outstanding > 0 ? 'var(--red)' : 'var(--green)' }}>
-            {fmt(ledger.outstanding)}
+  // Active-orders table (My Orders page): pending/approved pipeline with the full
+  // edit / reorder / cancel controls.
+  function renderActiveOrdersTable(list: Order[]) {
+    return (
+      <Card>
+        {list.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+            <ClipboardList size={32} style={{ opacity: .4, display: 'block', margin: '0 auto 12px' }} />
+            No active orders — tap “Place Order” to get started
           </div>
-        </Card>
-        <Card style={{ padding: '16px 20px' }}>
-          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Credit Limit</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--blue)' }}>{fmt(ledger.creditLimit)}</div>
-        </Card>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--chip-bg)', borderRadius: 12, padding: 4, width: 'fit-content' }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            padding: '8px 20px', borderRadius: 9, border: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: 700, transition: 'all .18s',
-            background: tab === t.key ? 'linear-gradient(135deg,var(--surface),var(--panel2))' : 'transparent',
-            color: tab === t.key ? 'var(--text)' : 'var(--muted)',
-            boxShadow: tab === t.key ? '0 2px 8px rgba(var(--shadow-rgb),.25)' : 'none',
-          }}>
-            {t.label} ({t.count ?? 0})
-          </button>
-        ))}
-      </div>
-
-      {actionError && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-          background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.35)', color: 'var(--red)',
-          padding: '10px 14px', borderRadius: 10, marginBottom: 14, fontSize: 13, fontWeight: 600,
-        }}>
-          <span>{actionError}</span>
-          <button type="button" onClick={() => setActionError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', padding: 2, display: 'inline-flex' }}>
-            <X size={15} />
-          </button>
-        </div>
-      )}
-
-      {/* Content */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>Loading…</div>
-      ) : error ? (
-        <div style={{ textAlign: 'center', padding: 40, color: 'var(--red)' }}>{error}</div>
-      ) : tab === 'overview' ? (
-        <OverviewTab orders={orders} challans={challans} ledger={ledger} recurring={recurring} fmt={fmt} totalQty={totalQty} />
-      ) : tab === 'orders' ? (
-        <Card>
-          {orders.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
-              <ClipboardList size={32} style={{ opacity: .4, display: 'block', margin: '0 auto 12px' }} />
-              No orders found
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -866,7 +941,7 @@ export default function MyOrders() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map(o => (
+                {list.map(o => (
                   <tr key={o.id} style={{ borderBottom: '1px solid var(--line)' }}>
                     <td style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--blue)', fontSize: 13 }}>{o.orderNo}</td>
                     <td style={{ padding: '12px 14px', color: 'var(--text)', fontSize: 12.5 }}>
@@ -905,104 +980,181 @@ export default function MyOrders() {
                         }}>
                           <RotateCcw size={13} /> Reorder
                         </button>
-                        {['pending', 'pending_approval', 'approved'].includes(o.status) && (
-                          <button onClick={() => cancelOrder(o)} disabled={cancelingId === o.id} title="Cancel order" style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(239,68,68,.12)',
-                            color: 'var(--red)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 7,
-                            padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: cancelingId === o.id ? 'wait' : 'pointer',
-                            opacity: cancelingId === o.id ? 0.6 : 1,
-                          }}>
-                            <Ban size={13} /> {cancelingId === o.id ? 'Canceling…' : 'Cancel'}
-                          </button>
-                        )}
+                        {CANCELLABLE_STATUSES.includes(o.status as typeof CANCELLABLE_STATUSES[number]) && (() => {
+                          const locked = isCancelLocked(o);
+                          const lockTitle = `Locked — within ${CANCEL_CUTOFF_MINUTES} min of delivery. Contact the plant.`;
+                          return (
+                            <>
+                              <button onClick={() => openReschedule(o)} disabled={locked} title={locked ? lockTitle : 'Reschedule delivery'} style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(56,189,248,.10)',
+                                color: 'var(--blue)', border: '1px solid rgba(56,189,248,.30)', borderRadius: 7,
+                                padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: locked ? 'not-allowed' : 'pointer',
+                                opacity: locked ? 0.45 : 1,
+                              }}>
+                                <CalendarClock size={13} /> Reschedule
+                              </button>
+                              <button onClick={() => cancelOrder(o)} disabled={locked || cancelingId === o.id} title={locked ? lockTitle : 'Cancel order'} style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(239,68,68,.12)',
+                                color: 'var(--red)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 7,
+                                padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: locked ? 'not-allowed' : cancelingId === o.id ? 'wait' : 'pointer',
+                                opacity: locked || cancelingId === o.id ? (locked ? 0.45 : 0.6) : 1,
+                              }}>
+                                <Ban size={13} /> {cancelingId === o.id ? 'Canceling…' : 'Cancel'}
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            </div>
-          )}
-        </Card>
-      ) : tab === 'challans' ? (
-       <>
-        {challans.filter(c => c.status === 'dispatched').length > 0 && (
-          <Card style={{ marginBottom: 16, padding: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <Navigation size={15} style={{ color: 'var(--green)' }} />
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Live Deliveries</h3>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent)' }} />
-            </div>
-            <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--muted)' }}>
-              Tracking your in-transit trucks in real time. Distance &amp; ETA are estimates.
-            </p>
-            {(() => {
-              const markers: DeliveryMarker[] = challans
-                .filter(c => c.status === 'dispatched')
-                .map(c => {
-                  const live = livePositions[c.id];
-                  const siteLat = c.siteLat != null ? parseFloat(c.siteLat) : NaN;
-                  const siteLng = c.siteLng != null ? parseFloat(c.siteLng) : NaN;
-                  return {
-                    challanId: c.id,
-                    challanNo: c.challanNo,
-                    vehicleNo: c.vehicleNo,
-                    truck: live && Number.isFinite(live.lat) && Number.isFinite(live.lng) ? { lat: live.lat, lng: live.lng } : null,
-                    site: Number.isFinite(siteLat) && Number.isFinite(siteLng) ? { lat: siteLat, lng: siteLng, name: c.siteName } : null,
-                  };
-                });
-              return <LiveDeliveryMap markers={markers} />;
-            })()}
-            <div style={{ display: 'grid', gap: 12 }}>
-              {challans.filter(c => c.status === 'dispatched').map(c => {
-                const live = livePositions[c.id];
-                const dist = formatDistance(live?.distanceM);
-                const eta = formatEta(live?.distanceM, live?.speed);
-                return (
-                  <div key={c.id} style={{
-                    border: '1px solid var(--line)', borderRadius: 13, padding: '14px 16px',
-                    background: 'var(--chip-bg)',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--green)', fontSize: 13 }}>{c.challanNo}</span>
-                        <span style={{ background: 'rgba(56,189,248,.12)', color: 'var(--blue)', padding: '2px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{c.grade}</span>
-                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{parseFloat(c.quantity).toFixed(1)} m³</span>
-                        {c.vehicleNo && <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--muted)' }}>{c.vehicleNo}</span>}
-                        {c.driverName && <span style={{ fontSize: 11, color: 'var(--muted)' }}>· {c.driverName}</span>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {dist && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--blue)', background: 'rgba(56,189,248,.1)', padding: '4px 10px', borderRadius: 8 }}>
-                            <MapPin size={12} /> {dist} away
-                          </span>
-                        )}
-                        {eta && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--green)', background: 'rgba(34,197,94,.1)', padding: '4px 10px', borderRadius: 8 }}>
-                            <Navigation size={12} /> ETA {eta}
-                          </span>
-                        )}
-                        {!live && (
-                          <span style={{ fontSize: 11.5, color: 'var(--muted)', fontStyle: 'italic' }}>Awaiting GPS…</span>
-                        )}
-                        <FreshnessCountdown dispatchTime={c.dispatchTime} config={freshnessConfig} variant="chip" />
-                      </div>
-                    </div>
-                    <LiveTimeline status={c.status} hasLive={!!live} />
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
+          </div>
         )}
-        <Card>
-          {challans.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
-              <Truck size={32} style={{ opacity: .4, display: 'block', margin: '0 auto 12px' }} />
-              No challans found
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
+      </Card>
+    );
+  }
+
+  // Read-only order-history table (Deliveries page) with a one-tap reorder.
+  function renderOrdersHistoryTable(list: Order[]) {
+    return (
+      <Card>
+        {list.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+            <ClipboardList size={32} style={{ opacity: .4, display: 'block', margin: '0 auto 12px' }} />
+            No orders in this date range
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {['Order No', 'Plant', 'Grade', 'Qty (m³)', 'Delivery Date', 'Site', 'Status', 'Actions'].map(h => (
+                    <th key={h} style={{ padding: '10px 14px', textAlign: h === 'Actions' ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {list.map(o => (
+                  <tr key={o.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                    <td style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--blue)', fontSize: 13 }}>{o.orderNo}</td>
+                    <td style={{ padding: '12px 14px', color: 'var(--text)', fontSize: 12.5 }}>
+                      {o.plantName || '—'}
+                      {o.plantCode && <span style={{ display: 'block', color: 'var(--muted)', fontSize: 11, fontFamily: 'monospace' }}>{o.plantCode}</span>}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={{ background: 'rgba(56,189,248,.12)', color: 'var(--blue)', padding: '2px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>{o.grade}</span>
+                    </td>
+                    <td style={{ padding: '12px 14px', color: 'var(--text)', fontWeight: 700 }}>{parseFloat(o.quantity).toFixed(1)}</td>
+                    <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.deliveryDate || '—'}</td>
+                    <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || '—'}</td>
+                    <td style={{ padding: '12px 14px' }}><StatusBadge status={o.status} /></td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button onClick={() => reorder(o)} title="Reorder" style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5, background: 'color-mix(in srgb, var(--gold) 14%, transparent)',
+                          color: 'var(--gold)', border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', borderRadius: 7,
+                          padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        }}>
+                          <RotateCcw size={13} /> Reorder
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  // Live-deliveries card: map + in-transit truck cards for dispatched challans.
+  function renderLiveDeliveries() {
+    if (dispatchedChallans.length === 0) return null;
+    return (
+      <Card style={{ marginBottom: 16, padding: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <Navigation size={15} style={{ color: 'var(--green)' }} />
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Live Deliveries</h3>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent)' }} />
+        </div>
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--muted)' }}>
+          Tracking your in-transit trucks in real time. Distance &amp; ETA are estimates.
+        </p>
+        {(() => {
+          const markers: DeliveryMarker[] = dispatchedChallans.map(c => {
+            const live = livePositions[c.id];
+            const siteLat = c.siteLat != null ? parseFloat(c.siteLat) : NaN;
+            const siteLng = c.siteLng != null ? parseFloat(c.siteLng) : NaN;
+            return {
+              challanId: c.id,
+              challanNo: c.challanNo,
+              vehicleNo: c.vehicleNo,
+              truck: live && Number.isFinite(live.lat) && Number.isFinite(live.lng) ? { lat: live.lat, lng: live.lng } : null,
+              site: Number.isFinite(siteLat) && Number.isFinite(siteLng) ? { lat: siteLat, lng: siteLng, name: c.siteName } : null,
+            };
+          });
+          return <LiveDeliveryMap markers={markers} />;
+        })()}
+        <div style={{ display: 'grid', gap: 12 }}>
+          {dispatchedChallans.map(c => {
+            const live = livePositions[c.id];
+            const dist = formatDistance(live?.distanceM);
+            const eta = formatEta(live?.distanceM, live?.speed);
+            return (
+              <div key={c.id} style={{
+                border: '1px solid var(--line)', borderRadius: 13, padding: '14px 16px',
+                background: 'var(--chip-bg)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--green)', fontSize: 13 }}>{c.challanNo}</span>
+                    <span style={{ background: 'rgba(56,189,248,.12)', color: 'var(--blue)', padding: '2px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{c.grade}</span>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>{parseFloat(c.quantity).toFixed(1)} m³</span>
+                    {c.vehicleNo && <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--muted)' }}>{c.vehicleNo}</span>}
+                    {c.driverName && <span style={{ fontSize: 11, color: 'var(--muted)' }}>· {c.driverName}</span>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {dist && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--blue)', background: 'rgba(56,189,248,.1)', padding: '4px 10px', borderRadius: 8 }}>
+                        <MapPin size={12} /> {dist} away
+                      </span>
+                    )}
+                    {eta && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--green)', background: 'rgba(34,197,94,.1)', padding: '4px 10px', borderRadius: 8 }}>
+                        <Navigation size={12} /> ETA {eta}
+                      </span>
+                    )}
+                    {!live && (
+                      <span style={{ fontSize: 11.5, color: 'var(--muted)', fontStyle: 'italic' }}>Awaiting GPS…</span>
+                    )}
+                    <FreshnessCountdown dispatchTime={c.dispatchTime} config={freshnessConfig} variant="chip" />
+                  </div>
+                </div>
+                <LiveTimeline status={c.status} hasLive={!!live} />
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    );
+  }
+
+  // Full challan history table (proof photo, receipt download, trip timing rows).
+  // Shared by the My Orders "today" list and the Deliveries history list.
+  function renderChallanTable(list: Challan[], emptyLabel: string) {
+    return (
+      <Card>
+        {list.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+            <Truck size={32} style={{ opacity: .4, display: 'block', margin: '0 auto 12px' }} />
+            {emptyLabel}
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -1012,7 +1164,7 @@ export default function MyOrders() {
                 </tr>
               </thead>
               <tbody>
-                {challans.map(c => {
+                {list.map(c => {
                   const timing = computeTripTiming(c, idleConfig);
                   const hasTiming = !!(c.siteArrivalTime || c.siteReleaseTime);
                   return (
@@ -1095,71 +1247,283 @@ export default function MyOrders() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)', margin: 0, letterSpacing: '-.3px' }}>
+            {pageMeta.title}
+          </h1>
+          <p style={{ color: 'var(--muted)', fontSize: 13, margin: '6px 0 0' }}>
+            {pageMeta.sub}
+          </p>
+        </div>
+        <button onClick={openModal} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 18px',
+          borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 800,
+          background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+          color: '#111827', boxShadow: '0 10px 26px color-mix(in srgb, var(--gold) 20%, transparent)',
+          whiteSpace: 'nowrap',
+        }}>
+          <Plus size={17} /> Place Order
+        </button>
+      </div>
+
+      {/* KPI Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 14, marginBottom: 28 }}>
+        {kpis.map(k => (
+          <Card key={k.label} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px' }}>
+            <div style={{
+              width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+              background: `color-mix(in srgb, ${k.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${k.color} 19%, transparent)`,
+              display: 'grid', placeItems: 'center',
+            }}>
+              <k.icon size={18} style={{ color: k.color }} />
             </div>
-          )}
-        </Card>
-       </>
-      ) : tab === 'recurring' ? (
-        <RecurringTab
-          recurring={recurring}
-          busyId={recBusyId}
-          onNew={openRecModal}
-          onEdit={r => openRecModal(r)}
-          onToggle={toggleRecurring}
-          onDelete={deleteRecurring}
-        />
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{k.value}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{k.label}</div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--chip-bg)', borderRadius: 12, padding: 4, width: 'fit-content' }}>
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={{
+            padding: '8px 20px', borderRadius: 9, border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 700, transition: 'all .18s',
+            background: tab === t.key ? 'linear-gradient(135deg,var(--surface),var(--panel2))' : 'transparent',
+            color: tab === t.key ? 'var(--text)' : 'var(--muted)',
+            boxShadow: tab === t.key ? '0 2px 8px rgba(var(--shadow-rgb),.25)' : 'none',
+          }}>
+            {t.label} ({t.count ?? 0})
+          </button>
+        ))}
+      </div>
+
+      {actionError && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.35)', color: 'var(--red)',
+          padding: '10px 14px', borderRadius: 10, marginBottom: 14, fontSize: 13, fontWeight: 600,
+        }}>
+          <span>{actionError}</span>
+          <button type="button" onClick={() => setActionError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', padding: 2, display: 'inline-flex' }}>
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
+      {/* Content */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>Loading…</div>
+      ) : error ? (
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--red)' }}>{error}</div>
+      ) : tab === 'today' ? (
+        <>
+          {renderActiveOrdersTable(activeOrders)}
+          {renderLiveDeliveries()}
+          <div style={{ marginTop: 20 }}>
+            <SectionHeading icon={Truck} title="Today’s Challans" hint={`${todayChallans.length} dispatched today`} />
+            {renderChallanTable(todayChallans, 'No challans dispatched today yet')}
+          </div>
+          <div style={{ marginTop: 24 }}>
+            <SectionHeading icon={Repeat} title="Recurring Orders" hint="Auto-placed on your schedule" />
+            <RecurringTab
+              recurring={recurring}
+              busyId={recBusyId}
+              onNew={openRecModal}
+              onEdit={r => openRecModal(r)}
+              onToggle={toggleRecurring}
+              onDelete={deleteRecurring}
+            />
+          </div>
+        </>
+      ) : tab === 'deliveries' ? (
+        <>
+          <Card style={{ marginBottom: 16, padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 5 }}>From</label>
+                <input type="date" value={histFrom} max={histTo || undefined} onChange={e => setHistFrom(e.target.value)} style={{
+                  background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 9, padding: '8px 10px',
+                  color: 'var(--text)', fontSize: 13, colorScheme: 'dark',
+                }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 5 }}>To</label>
+                <input type="date" value={histTo} min={histFrom || undefined} onChange={e => setHistTo(e.target.value)} style={{
+                  background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 9, padding: '8px 10px',
+                  color: 'var(--text)', fontSize: 13, colorScheme: 'dark',
+                }} />
+              </div>
+              {(histFrom || histTo) && (
+                <button onClick={() => { setHistFrom(''); setHistTo(''); }} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--chip-bg)', color: 'var(--muted)',
+                  border: '1px solid var(--line)', borderRadius: 9, padding: '8px 12px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  <X size={13} /> Clear
+                </button>
+              )}
+              <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>
+                {historyChallans.length} deliveries · {historyOrders.length} orders
+              </span>
+            </div>
+          </Card>
+          <SectionHeading icon={Truck} title="Delivery Challans" />
+          {renderChallanTable(historyChallans, histFrom || histTo ? 'No deliveries in this date range' : 'No challans found')}
+          <div style={{ marginTop: 24 }}>
+            <SectionHeading icon={ClipboardList} title="Order History" />
+            {renderOrdersHistoryTable(historyOrders)}
+          </div>
+        </>
       ) : (
-        /* Ledger tab */
-        <Card>
-          {ledger.entries.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
-              <Receipt size={32} style={{ opacity: .4, display: 'block', margin: '0 auto 12px' }} />
-              No ledger entries found
+        /* Financial Statement tab */
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+            <Card style={{ padding: '16px 20px' }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Outstanding Amount</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: ledger.outstanding > 0 ? 'var(--red)' : 'var(--green)' }}>
+                {fmt(ledger.outstanding)}
+              </div>
+            </Card>
+            <Card style={{ padding: '16px 20px' }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Credit Limit</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--blue)' }}>{fmt(ledger.creditLimit)}</div>
+              {ledger.creditLimit > 0 && (
+                <>
+                  <div style={{ height: 6, borderRadius: 4, background: 'var(--chip-bg)', marginTop: 10, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 4,
+                      width: `${Math.min(100, Math.max(0, (ledger.outstanding / ledger.creditLimit) * 100))}%`,
+                      background: ledger.outstanding > ledger.creditLimit ? 'var(--red)' : 'var(--gold)',
+                    }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5 }}>
+                    {fmt(Math.max(0, ledger.creditLimit - ledger.outstanding))} credit available
+                  </div>
+                </>
+              )}
+            </Card>
+          </div>
+
+          <Card style={{ marginBottom: 16, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Need a formal bill?</div>
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
+                Download your account statement and notify the plant to raise an invoice.
+              </div>
+              {billMsg && (
+                <div style={{ fontSize: 12, color: billMsg.includes('notified') ? 'var(--green)' : 'var(--red)', marginTop: 6, fontWeight: 600 }}>
+                  {billMsg}
+                </div>
+              )}
             </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['Date', 'Description', 'Reference', 'Debit', 'Credit', 'Balance'].map(h => (
-                    <th key={h} style={{ padding: '10px 14px', textAlign: h === 'Debit' || h === 'Credit' || h === 'Balance' ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {ledger.entries.map(e => (
-                  <tr key={e.id} style={{ borderBottom: '1px solid var(--line)' }}>
-                    <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>
-                      {new Date(e.createdAt).toLocaleDateString('en-IN')}
-                    </td>
-                    <td style={{ padding: '11px 14px', color: 'var(--text)', fontSize: 13 }}>{e.description}</td>
-                    <td style={{ padding: '11px 14px', fontFamily: 'monospace', color: 'var(--muted)', fontSize: 11 }}>{e.referenceNo || '—'}</td>
-                    <td style={{ padding: '11px 14px', textAlign: 'right', color: e.type === 'debit' ? 'var(--red)' : 'var(--muted)', fontWeight: e.type === 'debit' ? 700 : 400 }}>
-                      {e.type === 'debit' ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <TrendingUp size={12} />
-                          {fmt(parseFloat(e.amount))}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td style={{ padding: '11px 14px', textAlign: 'right', color: e.type === 'credit' ? 'var(--green)' : 'var(--muted)', fontWeight: e.type === 'credit' ? 700 : 400 }}>
-                      {e.type === 'credit' ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <TrendingDown size={12} />
-                          {fmt(parseFloat(e.amount))}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td style={{ padding: '11px 14px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: e.runningBalance > 0 ? 'var(--red)' : 'var(--green)', fontSize: 13 }}>
-                      {fmt(Math.abs(e.runningBalance))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
-          )}
-        </Card>
+            <button onClick={handleRequestBill} disabled={billBusy} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 18px', borderRadius: 12, border: 'none',
+              cursor: billBusy ? 'wait' : 'pointer', fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap',
+              background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+              color: '#111827', boxShadow: '0 10px 26px color-mix(in srgb, var(--gold) 20%, transparent)',
+              opacity: billBusy ? 0.7 : 1,
+            }}>
+              <FileText size={16} /> {billBusy ? 'Preparing…' : 'Request for Bill'}
+            </button>
+          </Card>
+
+          <SectionHeading icon={Receipt} title="Challan Summary" hint="Quantities billed against your account" />
+          <Card style={{ marginBottom: 16 }}>
+            {challans.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                <Receipt size={32} style={{ opacity: .4, display: 'block', margin: '0 auto 12px' }} />
+                No challans yet
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {['Challan No', 'Qty (m³)', 'Date', 'Receiver / Site'].map(h => (
+                        <th key={h} style={{ padding: '10px 14px', textAlign: h === 'Qty (m³)' ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {challans.map(c => (
+                      <tr key={c.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)', fontSize: 13 }}>{c.challanNo}</td>
+                        <td style={{ padding: '11px 14px', textAlign: 'right', color: 'var(--text)', fontWeight: 700 }}>{parseFloat(c.quantity).toFixed(1)}</td>
+                        <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>
+                          {new Date(c.dispatchTime || c.createdAt).toLocaleDateString('en-IN')}
+                        </td>
+                        <td style={{ padding: '11px 14px', color: 'var(--text)', fontSize: 12.5 }}>{c.siteName || c.clientName || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <SectionHeading icon={TrendingUp} title="Billing Ledger" />
+          <Card>
+            {ledger.entries.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                <Receipt size={32} style={{ opacity: .4, display: 'block', margin: '0 auto 12px' }} />
+                No ledger entries found
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {['Date', 'Description', 'Reference', 'Debit', 'Credit', 'Balance'].map(h => (
+                        <th key={h} style={{ padding: '10px 14px', textAlign: h === 'Debit' || h === 'Credit' || h === 'Balance' ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledger.entries.map(e => (
+                      <tr key={e.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>
+                          {new Date(e.createdAt).toLocaleDateString('en-IN')}
+                        </td>
+                        <td style={{ padding: '11px 14px', color: 'var(--text)', fontSize: 13 }}>{e.description}</td>
+                        <td style={{ padding: '11px 14px', fontFamily: 'monospace', color: 'var(--muted)', fontSize: 11 }}>{e.referenceNo || '—'}</td>
+                        <td style={{ padding: '11px 14px', textAlign: 'right', color: e.type === 'debit' ? 'var(--red)' : 'var(--muted)', fontWeight: e.type === 'debit' ? 700 : 400 }}>
+                          {e.type === 'debit' ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <TrendingUp size={12} />
+                              {fmt(parseFloat(e.amount))}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td style={{ padding: '11px 14px', textAlign: 'right', color: e.type === 'credit' ? 'var(--green)' : 'var(--muted)', fontWeight: e.type === 'credit' ? 700 : 400 }}>
+                          {e.type === 'credit' ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <TrendingDown size={12} />
+                              {fmt(parseFloat(e.amount))}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td style={{ padding: '11px 14px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: e.runningBalance > 0 ? 'var(--red)' : 'var(--green)', fontSize: 13 }}>
+                          {fmt(Math.abs(e.runningBalance))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </>
       )}
 
       {/* Place Order modal */}
@@ -1274,7 +1638,7 @@ export default function MyOrders() {
                 )}
               </div>
               <div>
-                <label style={labelStyle}>Delivery Date</label>
+                <label style={labelStyle}>Delivery Date (optional)</label>
                 <input type="date" value={form.deliveryDate} onChange={e => { setForm(f => ({ ...f, deliveryDate: e.target.value })); if (e.target.value) setFieldErrors(fe => ({ ...fe, deliveryDate: undefined })); }} style={fieldErrors.deliveryDate ? inputErrorStyle : inputStyle} />
                 <FieldError msg={fieldErrors.deliveryDate} />
               </div>
@@ -1284,15 +1648,16 @@ export default function MyOrders() {
               </div>
             </div>
 
-            {/* Site contact — who the crew calls on arrival. Mandatory. */}
+            {/* Site contact — who the crew calls on arrival. Optional; the plant
+                confirms these details when scheduling the pour. */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
               <div>
-                <label style={labelStyle}>Site Contact Person</label>
+                <label style={labelStyle}>Site Contact Person (optional)</label>
                 <input value={form.contactPerson} onChange={e => { setForm(f => ({ ...f, contactPerson: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, contactPerson: undefined })); }} placeholder="Name at delivery site" style={fieldErrors.contactPerson ? inputErrorStyle : inputStyle} />
                 <FieldError msg={fieldErrors.contactPerson} />
               </div>
               <div>
-                <label style={labelStyle}>Contact Number</label>
+                <label style={labelStyle}>Contact Number (optional)</label>
                 <input value={form.contactNumber} onChange={e => { setForm(f => ({ ...f, contactNumber: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, contactNumber: undefined })); }} placeholder="Phone at site" style={fieldErrors.contactNumber ? inputErrorStyle : inputStyle} />
                 <FieldError msg={fieldErrors.contactNumber} />
               </div>
@@ -1304,14 +1669,15 @@ export default function MyOrders() {
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>Delivery Site Address</label>
+              <label style={labelStyle}>Delivery Site Address (optional)</label>
               <textarea value={form.siteAddress} onChange={e => { setForm(f => ({ ...f, siteAddress: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, siteAddress: undefined })); }} rows={2} placeholder="Full delivery address" style={{ ...(fieldErrors.siteAddress ? inputErrorStyle : inputStyle), resize: 'vertical' }} />
               <FieldError msg={fieldErrors.siteAddress} />
             </div>
 
-            {/* Pin the exact pour location — mandatory, drives live tracking. */}
+            {/* Pin the exact pour location — optional, but powers live tracking
+                when provided. */}
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>Pin Delivery Location on Map</label>
+              <label style={labelStyle}>Pin Delivery Location on Map (optional)</label>
               <LocationPicker
                 value={Number(form.latitude) && Number(form.longitude) ? { lat: Number(form.latitude), lng: Number(form.longitude) } as LatLng : null}
                 onChange={(p) => { setForm(f => ({ ...f, latitude: p ? String(p.lat) : '', longitude: p ? String(p.lng) : '' })); if (p) setFieldErrors(fe => ({ ...fe, location: undefined })); }}
@@ -1396,6 +1762,15 @@ export default function MyOrders() {
               </div>
             )}
 
+            {editingOrderId == null && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 10, padding: '10px 14px', marginTop: 16 }}>
+                <Info size={14} style={{ color: 'var(--muted)', flexShrink: 0, marginTop: 1 }} />
+                <span style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--text)' }}>Cancellation policy:</strong> You can cancel or reschedule this order free of charge up to {CANCEL_CUTOFF_MINUTES} minutes before the scheduled delivery time. After that the order is locked in and you'll need to contact the plant directly.
+                </span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
               <button type="button" onClick={() => !saving && setModalOpen(false)} style={{
                 flex: 1, padding: '11px', borderRadius: 11, cursor: 'pointer', fontSize: 14, fontWeight: 700,
@@ -1412,6 +1787,134 @@ export default function MyOrders() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Cancel-order modal: pick a reason, then confirm. */}
+      {cancelTarget && (
+        <div
+          onClick={() => cancelingId == null && setCancelTarget(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100,
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16,
+            width: '100%', maxWidth: 440, padding: 24, boxShadow: '0 24px 60px rgba(var(--shadow-rgb),.4)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <Ban size={18} style={{ color: 'var(--red)' }} />
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>Cancel order {cancelTarget.orderNo}</h3>
+            </div>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
+              This can't be undone. Please tell the plant why you're cancelling so they can plan around it.
+            </p>
+
+            <label style={labelStyle}>Reason for cancellation</label>
+            <select
+              value={cancelReason}
+              onChange={e => { setCancelReason(e.target.value); setCancelError(''); }}
+              style={inputStyle}
+            >
+              <option value="">Select a reason…</option>
+              {CANCELLATION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+
+            {cancelReason === 'Other' && (
+              <div style={{ marginTop: 12 }}>
+                <label style={labelStyle}>Please describe</label>
+                <textarea
+                  value={cancelOther}
+                  onChange={e => { setCancelOther(e.target.value); setCancelError(''); }}
+                  rows={2}
+                  placeholder="Tell us a bit more…"
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                />
+              </div>
+            )}
+
+            {cancelError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 10, padding: '10px 14px', marginTop: 14 }}>
+                <AlertCircle size={14} style={{ color: 'var(--red)' }} />
+                <span style={{ color: 'var(--red)', fontSize: 13 }}>{cancelError}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button type="button" onClick={() => cancelingId == null && setCancelTarget(null)} style={{
+                flex: 1, padding: '11px', borderRadius: 11, cursor: 'pointer', fontSize: 14, fontWeight: 700,
+                background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)',
+              }}>
+                Keep order
+              </button>
+              <button type="button" onClick={confirmCancel} disabled={cancelingId != null} style={{
+                flex: 1, padding: '11px', borderRadius: 11, border: '1px solid rgba(239,68,68,.35)',
+                cursor: cancelingId != null ? 'wait' : 'pointer', fontSize: 14, fontWeight: 800,
+                background: 'rgba(239,68,68,.12)', color: 'var(--red)', opacity: cancelingId != null ? 0.6 : 1,
+              }}>
+                {cancelingId != null ? 'Canceling…' : 'Cancel order'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule modal: pick a new delivery date/time. */}
+      {reschedTarget && (
+        <div
+          onClick={() => !reschedSaving && setReschedTarget(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(var(--shadow-rgb),.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100,
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16,
+            width: '100%', maxWidth: 440, padding: 24, boxShadow: '0 24px 60px rgba(var(--shadow-rgb),.4)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <CalendarClock size={18} style={{ color: 'var(--blue)' }} />
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>Reschedule {reschedTarget.orderNo}</h3>
+            </div>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
+              Pick a new delivery slot. If this order was already approved, the plant will re-confirm the new date.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Delivery Date</label>
+                <input type="date" value={reschedDate} onChange={e => { setReschedDate(e.target.value); setReschedError(''); }} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Delivery Time (optional)</label>
+                <input type="time" value={reschedTime} onChange={e => { setReschedTime(e.target.value); setReschedError(''); }} style={inputStyle} />
+              </div>
+            </div>
+
+            {reschedError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 10, padding: '10px 14px', marginTop: 14 }}>
+                <AlertCircle size={14} style={{ color: 'var(--red)' }} />
+                <span style={{ color: 'var(--red)', fontSize: 13 }}>{reschedError}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button type="button" onClick={() => !reschedSaving && setReschedTarget(null)} style={{
+                flex: 1, padding: '11px', borderRadius: 11, cursor: 'pointer', fontSize: 14, fontWeight: 700,
+                background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--text)',
+              }}>
+                Cancel
+              </button>
+              <button type="button" onClick={confirmReschedule} disabled={reschedSaving} style={{
+                flex: 1, padding: '11px', borderRadius: 11, border: 'none',
+                cursor: reschedSaving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 800, color: '#111827',
+                background: reschedSaving ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+              }}>
+                {reschedSaving ? 'Saving…' : 'Reschedule'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1580,125 +2083,6 @@ export default function MyOrders() {
           </form>
         </div>
       )}
-    </div>
-  );
-}
-
-function OverviewTab({ orders, challans, ledger, recurring, fmt, totalQty }: {
-  orders: Order[];
-  challans: Challan[];
-  ledger: LedgerData;
-  recurring: RecurringOrder[];
-  fmt: (n: number) => string;
-  totalQty: (items: { quantity: string }[]) => string;
-}) {
-  const delivered = challans.filter(c => c.status === 'delivered');
-  const volumeDelivered = parseFloat(totalQty(delivered));
-  const activeOrders = orders.filter(o => o.status === 'pending' || o.status === 'pending_approval' || o.status === 'approved' || o.status === 'in_progress').length;
-  const activeRecurring = recurring.filter(r => r.active).length;
-
-  const byGrade = new Map<string, number>();
-  for (const c of delivered) byGrade.set(c.grade, (byGrade.get(c.grade) ?? 0) + parseFloat(c.quantity || '0'));
-  const grades = [...byGrade.entries()].sort((a, b) => b[1] - a[1]);
-  const maxGrade = grades.length ? grades[0][1] : 0;
-
-  const creditUsed = ledger.creditLimit > 0 ? Math.min(100, (ledger.outstanding / ledger.creditLimit) * 100) : 0;
-
-  type Activity = { id: string; when: string; label: string; sub: string; color: string };
-  const activity: Activity[] = [
-    ...orders.map(o => ({ id: `o${o.id}`, when: o.createdAt, label: `Order ${o.orderNo}`, sub: `${o.grade} · ${parseFloat(o.quantity).toFixed(1)} m³`, color: 'var(--gold)' })),
-    ...challans.map(c => ({ id: `c${c.id}`, when: c.dispatchTime || c.createdAt, label: `Challan ${c.challanNo}`, sub: `${c.grade} · ${c.status}`, color: 'var(--green)' })),
-  ].sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime()).slice(0, 6);
-
-  const cards = [
-    { label: 'Volume Delivered', value: `${volumeDelivered.toFixed(1)} m³`, color: '#a78bfa', icon: Package },
-    { label: 'Total Orders', value: orders.length, color: 'var(--gold)', icon: ClipboardList },
-    { label: 'Active Orders', value: activeOrders, color: 'var(--blue)', icon: Truck },
-    { label: 'Recurring Active', value: activeRecurring, color: 'var(--green)', icon: Repeat },
-  ];
-
-  return (
-    <div style={{ display: 'grid', gap: 18 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 14 }}>
-        {cards.map(c => (
-          <Card key={c.label} style={{ padding: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <c.icon size={15} style={{ color: c.color }} />
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px' }}>{c.label}</span>
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
-          </Card>
-        ))}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 18 }}>
-        <Card>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Receipt size={15} style={{ color: 'var(--gold)' }} />
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Account Balance</h3>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Outstanding</span>
-            <span style={{ fontSize: 14, fontWeight: 800, color: ledger.outstanding > 0 ? 'var(--red)' : 'var(--green)' }}>{fmt(ledger.outstanding)}</span>
-          </div>
-          <div style={{ height: 10, borderRadius: 6, background: 'var(--chip-bg)', overflow: 'hidden', marginBottom: 6 }}>
-            <div style={{ width: `${creditUsed}%`, height: '100%', borderRadius: 6, background: creditUsed > 85 ? 'var(--red)' : creditUsed > 60 ? 'var(--gold)' : 'var(--green)', transition: 'width .4s' }} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--muted)' }}>
-            <span>{creditUsed.toFixed(0)}% of credit used</span>
-            <span>Limit {fmt(ledger.creditLimit)}</span>
-          </div>
-        </Card>
-
-        <Card>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Package size={15} style={{ color: '#a78bfa' }} />
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Volume by Grade</h3>
-          </div>
-          {grades.length === 0 ? (
-            <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>No deliveries yet.</div>
-          ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              {grades.slice(0, 6).map(([g, q]) => (
-                <div key={g}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 700, color: 'var(--blue)' }}>{g}</span>
-                    <span style={{ color: 'var(--muted)' }}>{q.toFixed(1)} m³</span>
-                  </div>
-                  <div style={{ height: 8, borderRadius: 5, background: 'var(--chip-bg)', overflow: 'hidden' }}>
-                    <div style={{ width: `${maxGrade ? (q / maxGrade) * 100 : 0}%`, height: '100%', borderRadius: 5, background: 'linear-gradient(90deg,#a78bfa,var(--blue))' }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <Card>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <TrendingUp size={15} style={{ color: 'var(--green)' }} />
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Recent Activity</h3>
-        </div>
-        {activity.length === 0 ? (
-          <div style={{ color: 'var(--muted)', fontSize: 13 }}>Nothing yet — place your first order to get started.</div>
-        ) : (
-          <div style={{ display: 'grid', gap: 10 }}>
-            {activity.map(a => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: a.color, flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{a.label}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{a.sub}</div>
-                </div>
-                <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-                  {a.when ? new Date(a.when).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

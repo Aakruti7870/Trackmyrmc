@@ -5,7 +5,7 @@ import { attendanceRecords, users, drivers, vehicles, tripSessions, driverLocati
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
-import { sendPushToStaff } from '../lib/push.js';
+import { sendPushToPlantAndPlatformStaff } from '../lib/push.js';
 import { activeTripForDriver } from '../lib/tripSessions.js';
 const router = Router();
 router.use(requireAuth);
@@ -73,26 +73,60 @@ export async function sweepStaleLiveFixes(now = Date.now()) {
 }
 const liveGpsSweep = setInterval(() => { void sweepStaleLiveFixes(); }, 30 * 1000);
 liveGpsSweep.unref?.();
-// Alert supervisors that an on-duty staffer's live GPS aged out while they were
+// Alert supervisors that on-duty staffers' live GPS aged out while they were
 // still checked in (phone off, app closed, dead battery) — an actionable "gone
 // dark" signal, not a normal check-out (check-out clears the map silently and
-// never lands here). Fires an in-app toast via SSE to same-plant + platform
-// supervisors and a best-effort web push to the same-plant supervisors. Purely a
-// side effect: any failure is swallowed so the sweep timer never crashes.
+// never lands here). Fires an in-app toast via SSE plus a best-effort web push
+// to same-plant + platform supervisors (matching the SSE audience, so an
+// off-app supervisor still gets the push). To avoid an alert storm when many
+// fixes age out in the same sweep (shift change, site-wide blackout), staffers
+// are grouped by their tenant scope (plantId) and each supervisor audience gets
+// ONE grouped alert ("N staffers have gone offline") instead of N; a lone
+// drop-off still names the individual as before. Purely a side effect: any
+// failure is swallowed so the sweep timer never crashes.
 async function alertStaleStaff(stale) {
     try {
+        // Group by tenant scope so one plant's names never bleed into another plant's
+        // toast, and each audience is alerted once. Platform supervisors still see
+        // one grouped alert per affected plant, bounded by plant count, not staffers.
+        const byPlant = new Map();
         for (const s of stale) {
-            const name = s.name ?? 'A staff member';
-            emitSSEEvent('duty.stale', { userId: s.userId, name, role: s.role, plantId: s.plantId }, staleAlertAudience(s.plantId));
+            const list = byPlant.get(s.plantId) ?? [];
+            list.push(s);
+            byPlant.set(s.plantId, list);
+        }
+        for (const [plantId, group] of byPlant) {
             // Best-effort, fire-and-forget: the .catch keeps a push/DB failure from
             // escaping as an unhandled rejection (the surrounding try/catch can't see a
             // non-awaited promise) so the sweep timer never crashes.
-            void sendPushToStaff(s.plantId, REPORT_ROLES, {
-                title: 'On-duty GPS lost',
-                body: `${name}'s location has gone dark while on duty — check on them.`,
-                url: '/',
-                tag: `duty-stale-${s.userId}`,
-            }).catch((err) => console.warn('[attendance] stale-GPS push failed:', err));
+            const push = (payload) => void sendPushToPlantAndPlatformStaff(plantId, REPORT_ROLES, payload)
+                .catch((err) => console.warn('[attendance] stale-GPS push failed:', err));
+            if (group.length === 1) {
+                const s = group[0];
+                const name = s.name ?? 'A staff member';
+                emitSSEEvent('duty.stale', { userId: s.userId, name, role: s.role, plantId }, staleAlertAudience(plantId));
+                push({
+                    title: 'On-duty GPS lost',
+                    body: `${name}'s location has gone dark while on duty — check on them.`,
+                    url: '/',
+                    tag: `duty-stale-${s.userId}`,
+                });
+            }
+            else {
+                const count = group.length;
+                const staffers = group.map((s) => ({
+                    userId: s.userId,
+                    name: s.name ?? 'A staff member',
+                    role: s.role,
+                }));
+                emitSSEEvent('duty.stale', { plantId, count, staffers }, staleAlertAudience(plantId));
+                push({
+                    title: 'On-duty GPS lost',
+                    body: `${count} staffers have gone offline — GPS inactive, check on them.`,
+                    url: '/',
+                    tag: `duty-stale-batch-${plantId ?? 'platform'}`,
+                });
+            }
         }
     }
     catch (err) {

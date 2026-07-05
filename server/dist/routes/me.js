@@ -10,15 +10,41 @@ import { computeFirstRunDate } from '../lib/recurring.js';
 import { getIdleConfig } from '../lib/idle.js';
 import { resolvePlantCustomer } from '../lib/tenancy.js';
 import { isRealEmail } from '../lib/customerAccount.js';
-import { notifyOrderPlaced, notifyOrderPendingApproval } from '../lib/deliveryNotify.js';
+import { notifyOrderPlaced, notifyOrderPendingApproval, notifyBillRequested, notifyOrderCancelled, notifyOrderRescheduled } from '../lib/deliveryNotify.js';
 const router = Router();
 router.use(requireAuth);
 // Major fields whose change on an already-approved order forces re-approval.
 const MAJOR_ORDER_FIELDS = ['grade', 'quantity', 'deliveryDate', 'siteAddress', 'latitude', 'longitude'];
+// Customers cannot cancel or reschedule an order once it is within this many
+// minutes of its scheduled delivery time — by then the plant is batching/loading.
+const CANCEL_CUTOFF_MINUTES = 20;
+// Resolve the scheduled delivery Date from an order's date + time. Returns null
+// unless BOTH a date and a time are set: an order with no concrete delivery
+// moment has no cutoff and stays cancellable/reschedulable (a date alone must
+// NOT lock against midnight).
+function scheduledDeliveryAt(deliveryDate, deliveryTime) {
+    if (!deliveryDate || !deliveryTime)
+        return null;
+    // deliveryTime is 'HH:MM' or 'HH:MM:SS'.
+    const dt = new Date(`${deliveryDate}T${deliveryTime.slice(0, 5)}:00`);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+}
+// True when "now" is within the cutoff window before the scheduled delivery
+// (or already past it). Orders without a full date+time slot are never locked.
+function isWithinCancelCutoff(deliveryDate, deliveryTime) {
+    const scheduled = scheduledDeliveryAt(deliveryDate, deliveryTime);
+    if (!scheduled)
+        return false;
+    const cutoff = scheduled.getTime() - CANCEL_CUTOFF_MINUTES * 60_000;
+    return Date.now() >= cutoff;
+}
 // Validate + normalise the customer-supplied order payload shared by the create
-// and edit routes. Enforces the mandatory delivery details (contact, address,
-// map pin, delivery date) and the conditional pump-line length. The optional
-// site photo must be an object-storage entity path (never inline base64).
+// and edit routes. To keep placing an order low-friction, only the grade and
+// quantity are mandatory (plus the conditional pump-line length). The delivery
+// details (contact, address, delivery date, map pin) are all optional — the
+// plant confirms them when scheduling the pour. When a map pin IS supplied it
+// must still be a valid coordinate. The optional site photo must be an
+// object-storage entity path (never inline base64).
 function parseCustomerOrderInput(body) {
     const str = (v) => (typeof v === 'string' ? v.trim() : '');
     const grade = str(body.grade);
@@ -28,21 +54,23 @@ function parseCustomerOrderInput(body) {
     if (!Number.isFinite(qty) || qty <= 0)
         return { ok: false, error: 'Quantity must be greater than zero.' };
     const contactPerson = str(body.contactPerson);
-    if (!contactPerson)
-        return { ok: false, error: 'Contact person is required.' };
     const contactNumber = str(body.contactNumber);
-    if (!contactNumber)
-        return { ok: false, error: 'Contact number is required.' };
     const siteAddress = str(body.siteAddress);
-    if (!siteAddress)
-        return { ok: false, error: 'Delivery address is required.' };
     const deliveryDate = str(body.deliveryDate);
-    if (!deliveryDate)
-        return { ok: false, error: 'Delivery date is required.' };
-    const lat = Number(body.latitude);
-    const lng = Number(body.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        return { ok: false, error: 'A delivery location pin is required.' };
+    // The map pin is optional, but reject a partial/invalid coordinate so we never
+    // store a nonsense location that would break live tracking.
+    const hasLat = body.latitude != null && str(body.latitude) !== '';
+    const hasLng = body.longitude != null && str(body.longitude) !== '';
+    let latitude = null;
+    let longitude = null;
+    if (hasLat || hasLng) {
+        const lat = Number(body.latitude);
+        const lng = Number(body.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return { ok: false, error: 'The delivery location pin is invalid.' };
+        }
+        latitude = lat.toString();
+        longitude = lng.toString();
     }
     const pumpRequired = !!body.pumpRequired;
     let pumpLineLength = null;
@@ -69,12 +97,12 @@ function parseCustomerOrderInput(body) {
             deliveryDate: deliveryDate || null,
             deliveryTime: str(body.deliveryTime) || null,
             notes: str(body.notes) || null,
-            contactPerson,
-            contactNumber,
+            contactPerson: contactPerson || null,
+            contactNumber: contactNumber || null,
             siteName: str(body.siteName) || null,
-            siteAddress,
-            latitude: lat.toString(),
-            longitude: lng.toString(),
+            siteAddress: siteAddress || null,
+            latitude,
+            longitude,
             paymentType: str(body.paymentType) || null,
             poNumber: str(body.poNumber) || null,
             sitePhoto,
@@ -407,6 +435,24 @@ router.patch('/orders/:id/cancel', requireRole('client'), async (req, res) => {
         res.status(400).json({ error: 'Invalid order id' });
         return;
     }
+    // Optional cancellation reason from the fixed picker. "Other" (or any custom
+    // string) is stored verbatim; blank is allowed. Trimmed and length-capped so a
+    // stray payload can't bloat the row.
+    const rawReason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+    const reason = rawReason ? rawReason.slice(0, 500) : null;
+    // Pre-read to enforce the "cannot cancel within N minutes of delivery" cutoff.
+    // This is a read-then-write, but the cutoff only ever tightens over time, so a
+    // race can never let a genuinely-locked order slip through the atomic UPDATE.
+    const [existing] = await db.select().from(orders)
+        .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds)));
+    if (!existing) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
+    if (isWithinCancelCutoff(existing.deliveryDate, existing.deliveryTime)) {
+        res.status(409).json({ error: `Orders cannot be cancelled within ${CANCEL_CUTOFF_MINUTES} minutes of the scheduled delivery time. Please contact the plant.` });
+        return;
+    }
     // Cancel atomically: gate the status inside the UPDATE predicate so a
     // concurrent staff transition (pending -> in_progress) between a read and a
     // write can never be clobbered. No row updated means either the order isn't
@@ -414,21 +460,83 @@ router.patch('/orders/:id/cancel', requireRole('client'), async (req, res) => {
     // existence check disambiguates the two. Scoped to all the customer's clients
     // so they can cancel an order placed at any of their plants.
     const [row] = await db.update(orders)
-        .set({ status: 'cancelled' })
+        .set({ status: 'cancelled', cancellationReason: reason })
         .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds), inArray(orders.status, ['pending', 'pending_approval', 'approved'])))
         .returning();
     if (!row) {
-        const [existing] = await db.select({ id: orders.id })
-            .from(orders)
-            .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds)));
-        if (!existing) {
-            res.status(404).json({ error: 'Not found' });
-            return;
-        }
         res.status(409).json({ error: 'This order can no longer be cancelled.' });
         return;
     }
     emitSSEEvent('order.updated', row, { clientId: row.clientId });
+    // Best-effort: alert the plant's staff so they can free up the slot.
+    void notifyOrderCancelled(row.id, reason);
+    res.json(row);
+});
+// A customer reschedules the delivery date/time of one of their own orders while
+// it is still customer-controllable and outside the cutoff window. This is a
+// focused alternative to a full edit — only the date/time change. Scoped to the
+// caller's linked clients.
+router.patch('/orders/:id/reschedule', requireRole('client'), async (req, res) => {
+    const clientIds = await getUserClientIds(req.user.id);
+    if (clientIds.length === 0) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid order id' });
+        return;
+    }
+    // A reschedule must set a real delivery date; time is optional. Validate the
+    // shapes so a malformed payload can't corrupt the slot.
+    const rawDate = typeof req.body?.deliveryDate === 'string' ? req.body.deliveryDate.trim() : '';
+    const rawTime = typeof req.body?.deliveryTime === 'string' ? req.body.deliveryTime.trim() : '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+        res.status(400).json({ error: 'Please choose a valid delivery date.' });
+        return;
+    }
+    if (rawTime && !/^\d{2}:\d{2}(:\d{2})?$/.test(rawTime)) {
+        res.status(400).json({ error: 'Please choose a valid delivery time.' });
+        return;
+    }
+    const newTime = rawTime ? rawTime.slice(0, 5) : null;
+    const [existing] = await db.select().from(orders)
+        .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds)));
+    if (!existing) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+    }
+    if (!['pending', 'pending_approval', 'approved'].includes(existing.status)) {
+        res.status(409).json({ error: 'This order can no longer be rescheduled.' });
+        return;
+    }
+    // Block rescheduling an order already inside the cutoff of its CURRENT slot.
+    if (isWithinCancelCutoff(existing.deliveryDate, existing.deliveryTime)) {
+        res.status(409).json({ error: `Orders cannot be rescheduled within ${CANCEL_CUTOFF_MINUTES} minutes of the scheduled delivery time. Please contact the plant.` });
+        return;
+    }
+    // The NEW slot must be in the future (beyond the cutoff from now).
+    if (isWithinCancelCutoff(rawDate, newTime)) {
+        res.status(400).json({ error: `Please pick a delivery time at least ${CANCEL_CUTOFF_MINUTES} minutes from now.` });
+        return;
+    }
+    // Changing the delivery date is a major change: an already-approved order goes
+    // back to the approval queue so the plant re-confirms the new slot.
+    const reverted = existing.status === 'approved' && (existing.deliveryDate ?? null) !== rawDate;
+    const nextStatus = reverted ? 'pending_approval' : existing.status;
+    const [row] = await db.update(orders)
+        .set({ deliveryDate: rawDate, deliveryTime: newTime, status: nextStatus })
+        .where(and(eq(orders.id, id), inArray(orders.clientId, clientIds), inArray(orders.status, ['pending', 'pending_approval', 'approved'])))
+        .returning();
+    if (!row) {
+        res.status(409).json({ error: 'This order can no longer be rescheduled.' });
+        return;
+    }
+    emitSSEEvent('order.updated', row, { clientId: row.clientId });
+    if (reverted)
+        void notifyOrderPendingApproval(row.id);
+    else
+        void notifyOrderRescheduled(row.id, { deliveryDate: rawDate, deliveryTime: newTime });
     res.json(row);
 });
 router.get('/challans', requireRole('client'), async (req, res) => {
@@ -552,6 +660,22 @@ router.get('/ledger', requireRole('client'), async (req, res) => {
         outstanding: parseFloat(client?.outstandingAmount ?? '0'),
         creditLimit: parseFloat(client?.creditLimit ?? '0'),
     });
+});
+// A customer requests a formal bill/invoice from the Financial Statement page.
+// The statement PDF is generated client-side; this endpoint's job is to alert
+// the plant's billing staff so they can raise the invoice. Best-effort notify.
+router.post('/bill-request', requireRole('client'), async (req, res) => {
+    const clientIds = await getUserClientIds(req.user.id);
+    if (clientIds.length === 0) {
+        res.status(400).json({ error: 'Your account is not linked to a client.' });
+        return;
+    }
+    const b = (req.body ?? {});
+    const note = typeof b.note === 'string' ? b.note.trim().slice(0, 500) || null : null;
+    const fromDate = typeof b.fromDate === 'string' ? b.fromDate.slice(0, 10) || null : null;
+    const toDate = typeof b.toDate === 'string' ? b.toDate.slice(0, 10) || null : null;
+    void notifyBillRequested(req.user.id, clientIds, { note, fromDate, toDate });
+    res.json({ ok: true });
 });
 router.get('/trips', requireRole('driver'), async (req, res) => {
     const driverId = await getLinkedDriverId(req.user.id);

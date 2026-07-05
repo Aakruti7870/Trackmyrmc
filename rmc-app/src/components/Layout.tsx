@@ -51,16 +51,17 @@ const ALL_NAV_ITEMS = [
   { path: '/whatsapp',    label: 'WhatsApp',   icon: MessageCircle },
 ];
 
-// Clients get a curated, deep-linked menu. The rich "My Orders" page exposes
-// Deliveries (live tracking) and Statement (ledger) as internal tabs; we surface
-// them here as first-class sidebar entries via ?tab= deep links plus a window
-// event (so they switch even when the user is already on the page).
+// Clients get a curated, deep-linked menu of three pages. The rich "My Orders"
+// page exposes Deliveries (delivery history) and Financial Statement (billing
+// ledger) as internal tabs; we surface them here as first-class sidebar entries
+// via ?tab= deep links plus a window event (so they switch even when the user is
+// already on the page).
 const CLIENT_NAV: { path: string; label: string; icon: typeof LayoutDashboard; tab?: string }[] = [
-  { path: '/my-orders',     label: 'My Orders',   icon: PackageSearch, tab: 'overview' },
-  { path: '/my-orders',     label: 'Deliveries',  icon: Truck,         tab: 'challans' },
-  { path: '/my-orders',     label: 'Statement',   icon: FileText,      tab: 'ledger' },
-  { path: '/nearby-plants', label: 'Find Plants', icon: MapPin },
-  { path: '/profile',       label: 'Account',     icon: Settings },
+  { path: '/my-orders',     label: 'My Orders',           icon: PackageSearch, tab: 'today' },
+  { path: '/my-orders',     label: 'Deliveries',          icon: Truck,         tab: 'deliveries' },
+  { path: '/my-orders',     label: 'Financial Statement', icon: FileText,      tab: 'billing' },
+  { path: '/nearby-plants', label: 'Find Plants',         icon: MapPin },
+  { path: '/profile',       label: 'Account',             icon: Settings },
 ];
 
 const ROLE_COLOR: Record<string, string> = {
@@ -127,7 +128,7 @@ function SSEDot({ status, onReconnect }: { status: SSEStatus; onReconnect: () =>
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const search = useSearch();
-  const currentTab = new URLSearchParams(search).get('tab') || 'overview';
+  const currentTab = new URLSearchParams(search).get('tab') || 'today';
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
@@ -292,7 +293,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           const active = tab
             ? (location.startsWith('/my-orders') && currentTab === tab)
             : (path === '/' ? location === '/' : location.startsWith(path));
-          const href = tab && tab !== 'overview' ? `${path}?tab=${tab}` : path;
+          const href = tab && tab !== 'today' ? `${path}?tab=${tab}` : path;
           return (
             <Link
               key={`${path}:${tab ?? ''}`}

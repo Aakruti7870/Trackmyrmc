@@ -151,6 +151,7 @@ export interface Order {
   latitude?: string | null; longitude?: string | null;
   paymentType?: string | null; poNumber?: string | null;
   sitePhoto?: string | null; rejectionReason?: string | null;
+  cancellationReason?: string | null;
   // The plant fulfilling this order (a customer can have orders across plants).
   plantId?: number | null; plantName?: string | null; plantCode?: string | null;
 }

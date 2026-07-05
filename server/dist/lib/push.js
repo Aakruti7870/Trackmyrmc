@@ -1,5 +1,5 @@
 import webpush from 'web-push';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { pushSubscriptions, users } from '../db/schema.js';
 // Web Push (browser/PWA) delivery for order & dispatch notifications. These pop
@@ -109,6 +109,40 @@ export async function sendPushToStaff(plantId, roles, payload) {
         .from(pushSubscriptions)
         .where(inArray(pushSubscriptions.userId, ids));
     return sendToSubs(subs, payload);
+}
+// Send to active, non-deleted staff following the SAME plant/platform tenant
+// scoping as an SSE `staleAlertAudience`, so a web push lands on exactly the
+// supervisors who received the in-app toast. When plantId is set the fan-out
+// reaches that plant's staff PLUS platform (null-plant) staff; when plantId is
+// null it reaches platform staff only. A single query returns a distinct set of
+// users, so a supervisor who fits both scopes is never pushed twice. Best-effort
+// like the rest of push. Unlike sendPushToStaff (which keeps plant-private
+// alerts on one plant), this deliberately includes platform staff.
+export async function sendPushToPlantAndPlatformStaff(plantId, roles, payload) {
+    if (!ensureConfigured())
+        return 0;
+    const ids = await plantAndPlatformStaffIds(plantId, roles);
+    if (ids.length === 0)
+        return 0;
+    const subs = await db
+        .select()
+        .from(pushSubscriptions)
+        .where(inArray(pushSubscriptions.userId, ids));
+    return sendToSubs(subs, payload);
+}
+// The distinct set of active, non-deleted staff ids that a plant/platform
+// stale-alert push targets — the exact audience of sendPushToPlantAndPlatformStaff,
+// split out so the tenant-scoping can be asserted without configuring VAPID or
+// stubbing the web-push transport. Platform (null-plant) staff always qualify; a
+// set plantId additionally admits that plant's staff (never another plant's).
+export async function plantAndPlatformStaffIds(plantId, roles) {
+    const roleVals = [...roles];
+    const conds = [eq(users.isActive, true), isNull(users.deletedAt), inArray(users.role, roleVals)];
+    conds.push(plantId == null
+        ? isNull(users.plantId)
+        : or(isNull(users.plantId), eq(users.plantId, plantId)));
+    const staff = await db.select({ id: users.id }).from(users).where(and(...conds));
+    return staff.map((u) => u.id);
 }
 // Deliver one payload to a set of subscriptions in parallel, pruning endpoints
 // the push service reports as gone (404/410). Returns how many were accepted.

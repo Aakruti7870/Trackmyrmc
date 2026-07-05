@@ -298,6 +298,150 @@ export async function notifyOrderDecision(orderId: number, decision: 'approved' 
   }
 }
 
+// A customer cancelled their own order — alert the plant's approval/dispatch
+// staff (NOT other customers) by SSE toast + web push so they can free up the
+// slot and stop any scheduled batching. Scoped to the order's own plant; legacy
+// null-plant orders have no plant audience and are skipped for push.
+// Best-effort: never throws back into the originating request.
+export async function notifyOrderCancelled(orderId: number, reason?: string | null): Promise<void> {
+  try {
+    const [row] = await db
+      .select({
+        plantId: orders.plantId,
+        orderNo: orders.orderNo,
+        grade: orders.grade,
+        quantity: orders.quantity,
+        deliveryDate: orders.deliveryDate,
+        clientName: clients.name,
+      })
+      .from(orders)
+      .leftJoin(clients, eq(orders.clientId, clients.id))
+      .where(eq(orders.id, orderId));
+    if (!row) return;
+
+    const reasonText = reason && reason.trim() ? ` Reason: ${reason.trim()}` : '';
+
+    emitSSEEvent(
+      'order.cancelled',
+      { orderId, orderNo: row.orderNo, grade: row.grade, quantity: row.quantity, clientName: row.clientName, reason: reason ?? null },
+      { roles: [...ORDER_APPROVAL_ROLES], plantId: row.plantId ?? undefined },
+    );
+
+    if (row.plantId != null) {
+      try {
+        await sendPushToStaff(row.plantId, ORDER_APPROVAL_ROLES, {
+          title: 'Order cancelled',
+          body: `Order ${row.orderNo} — ${row.quantity} m³ ${row.grade}${row.clientName ? ` from ${row.clientName}` : ''} was cancelled by the customer.${reasonText}`,
+          url: '/dispatch',
+          tag: `order-cancelled-${orderId}`,
+        });
+      } catch (err) {
+        console.warn(`[notify] order-cancelled push failed for order ${orderId}:`, err);
+      }
+    }
+  } catch (err) {
+    console.warn(`[notify] Failed to send cancellation notification for order ${orderId}:`, err);
+  }
+}
+
+// A customer rescheduled the delivery date/time of their own order — alert the
+// plant's approval/dispatch staff so the new slot is reflected in planning.
+// Scoped to the order's own plant. Best-effort: never throws.
+export async function notifyOrderRescheduled(
+  orderId: number,
+  opts: { deliveryDate?: string | null; deliveryTime?: string | null } = {},
+): Promise<void> {
+  try {
+    const [row] = await db
+      .select({
+        plantId: orders.plantId,
+        orderNo: orders.orderNo,
+        grade: orders.grade,
+        quantity: orders.quantity,
+        clientName: clients.name,
+      })
+      .from(orders)
+      .leftJoin(clients, eq(orders.clientId, clients.id))
+      .where(eq(orders.id, orderId));
+    if (!row) return;
+
+    const when = [opts.deliveryDate, opts.deliveryTime].filter(Boolean).join(' ') || 'a new time';
+
+    emitSSEEvent(
+      'order.rescheduled',
+      { orderId, orderNo: row.orderNo, deliveryDate: opts.deliveryDate ?? null, deliveryTime: opts.deliveryTime ?? null },
+      { roles: [...ORDER_APPROVAL_ROLES], plantId: row.plantId ?? undefined },
+    );
+
+    if (row.plantId != null) {
+      try {
+        await sendPushToStaff(row.plantId, ORDER_APPROVAL_ROLES, {
+          title: 'Order rescheduled',
+          body: `Order ${row.orderNo} — ${row.quantity} m³ ${row.grade}${row.clientName ? ` from ${row.clientName}` : ''} was rescheduled to ${when}.`,
+          url: '/dispatch',
+          tag: `order-rescheduled-${orderId}`,
+        });
+      } catch (err) {
+        console.warn(`[notify] order-rescheduled push failed for order ${orderId}:`, err);
+      }
+    }
+  } catch (err) {
+    console.warn(`[notify] Failed to send reschedule notification for order ${orderId}:`, err);
+  }
+}
+
+// Staff alerted when a customer requests a formal bill/invoice from the billing
+// (Financial Statement) page. Scoped to the roles that actually raise invoices.
+const BILL_REQUEST_ROLES = ['admin', 'plant_owner', 'accountant'] as const;
+
+// A customer tapped "Request for Bill" on their statement page. Notify the
+// billing staff of every plant the customer deals with (SSE toast + web push)
+// so they can raise the invoice. Best-effort: never throws back into the request.
+export async function notifyBillRequested(
+  userId: number,
+  clientIds: number[],
+  opts: { note?: string | null; fromDate?: string | null; toDate?: string | null } = {},
+): Promise<void> {
+  try {
+    if (clientIds.length === 0) return;
+    const rows = await db
+      .select({ name: clients.name, plantId: clients.plantId })
+      .from(clients)
+      .where(inArray(clients.id, clientIds));
+    const [u] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
+    const customerName = rows.find(r => r.name)?.name ?? u?.name ?? 'A customer';
+
+    const range = opts.fromDate || opts.toDate
+      ? ` (${opts.fromDate ?? 'start'} → ${opts.toDate ?? 'today'})`
+      : '';
+    const body = `${customerName} requested a bill/invoice${range}.${opts.note ? ` Note: ${opts.note}` : ''}`;
+
+    const plantIds = [...new Set(rows.map(r => r.plantId).filter((p): p is number => p != null))];
+    // Legacy customers with no per-plant client still deserve a platform-wide
+    // alert, so fall back to a null-plant broadcast to the billing roles.
+    const targets: (number | null)[] = plantIds.length ? plantIds : [null];
+    for (const plantId of targets) {
+      emitSSEEvent(
+        'billing.request',
+        { customerName, note: opts.note ?? null },
+        { roles: [...BILL_REQUEST_ROLES], plantId: plantId ?? undefined },
+      );
+      try {
+        await sendPushToStaff(plantId, BILL_REQUEST_ROLES, {
+          title: 'Bill requested',
+          body,
+          url: '/challans',
+          tag: `bill-request-${userId}`,
+        });
+      } catch (err) {
+        console.warn(`[notify] bill-request push failed for user ${userId}:`, err);
+      }
+    }
+  } catch (err) {
+    console.warn(`[notify] Failed to send bill-request notification for user ${userId}:`, err);
+  }
+}
+
 // Plant staff alerted when a production batch is logged.
 const BATCH_NOTIFY_ROLES = ['admin', 'plant_owner', 'supervisor', 'dispatcher'] as const;
 
