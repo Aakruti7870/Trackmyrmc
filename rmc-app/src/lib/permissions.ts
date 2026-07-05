@@ -1,20 +1,23 @@
 export type Role = 'authority' | 'plant_owner' | 'admin' | 'supervisor' | 'dispatcher' | 'plant_operator' | 'accountant' | 'quality_engineer' | 'fleet_manager' | 'store_manager' | 'client' | 'driver';
 
 // AUTHORITY is a super-admin: it can reach everything an admin can.
-const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/plants', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/profile', '/kiosk'];
+// NOTE: '/kiosk' (Control Room) is intentionally NOT in the shared admin set —
+// the big-screen Control Room is Super Admin (authority) only. It is added back
+// explicitly to `authority` below.
+const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/plants', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/profile'];
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   // Authority (Super Admin) also owns the /command control center and the
   // platform-wide WhatsApp chat inbox.
-  authority:      ['/command', '/whatsapp', ...ADMIN_PATHS],
+  authority:      ['/command', '/whatsapp', '/kiosk', ...ADMIN_PATHS],
   // Plant Owner runs a single plant end-to-end: same surface as an admin.
   plant_owner:    ADMIN_PATHS,
   // The WhatsApp inbox is platform-staff only; the API rejects plant-bound
   // admins, and the sidebar additionally hides it from them (Layout).
   admin:          ['/whatsapp', ...ADMIN_PATHS],
   // Supervisor oversees plant operations & dispatch (no user/plant admin).
-  supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/profile', '/kiosk'],
-  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile', '/kiosk'],
+  supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/profile'],
+  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile'],
   plant_operator: ['/', '/freshness', '/batch-report', '/attendance', '/mix-design', '/shift-report', '/profile'],
   // Accountant is a read-only finance role: reports/analytics + delivery
   // documents (for billing reconciliation) and their own profile. No writes.

@@ -3,11 +3,12 @@ import { Link, useLocation } from 'wouter';
 import {
   TrendingUp, Clock, Truck, Users, IndianRupee, ArrowRight,
   ClipboardList, UserPlus, Printer, Bell, Radio, CarFront, Boxes, Monitor,
-  Settings, Navigation, AlertCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { api, type DashboardKPIs, type Challan, type Order } from '@/lib/api';
 import PlantsMap from '@/components/PlantsMap';
 import LiveDutyMap from '@/components/LiveDutyMap';
+import LiveFleetMap from '@/components/LiveFleetMap';
 import { useAuth } from '@/lib/auth';
 import { useSSE } from '@/lib/useSSE';
 import { canAccess } from '@/lib/permissions';
@@ -20,7 +21,6 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [challans, setChallans] = useState<Challan[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [inTransit, setInTransit] = useState<Challan[]>([]);
   const [pendingQueue, setPendingQueue] = useState<QueueItem[]>([]);
   const [onlineChallans, setOnlineChallans] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -34,6 +34,12 @@ export default function Dashboard() {
   // see it. Kept in lockstep with the backend LIVE_VIEW_ROLES gate.
   const DUTY_ROLES = new Set(['admin', 'plant_owner', 'supervisor', 'authority', 'dispatcher', 'plant_operator', 'fleet_manager', 'quality_engineer']);
   const canViewDuty = user ? DUTY_ROLES.has(user.role) : false;
+  // Live Fleet Map: Super Admin + plant staff (own plant only, enforced by the
+  // backend). Kept in lockstep with the server FLEET_ROLES gate in maps.ts.
+  const FLEET_ROLES = new Set(['authority', 'plant_owner', 'admin', 'supervisor', 'dispatcher', 'plant_operator', 'fleet_manager', 'quality_engineer']);
+  const canViewFleet = user ? FLEET_ROLES.has(user.role) : false;
+  // The Plant Network Map is Super Admin (authority) only.
+  const isSuperAdmin = user?.role === 'authority';
 
   const reload = useCallback(() => {
     Promise.all([
@@ -45,7 +51,6 @@ export default function Dashboard() {
 
       const dispatched = c.filter(x => x.status === 'dispatched');
       setOnlineChallans(dispatched.length);
-      setInTransit(dispatched.slice(0, 5));
       setChallans(c.slice(0, 8));
 
       const activeOrders = o.filter(x => x.status === 'pending' || x.status === 'in_progress');
@@ -288,96 +293,19 @@ export default function Dashboard() {
         }
       </div>
 
-      {/* ===== Live Routing Schematic — plant → mixers in transit → active sites (real data) ===== */}
-      <div className="glass-card cc-scan" style={{ padding: 18, marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Radio size={14} style={{ color: 'var(--blue)' }} /> Live Routing Schematic
-          </h3>
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{onlineChallans} mixer{onlineChallans === 1 ? '' : 's'} in transit</span>
+      {/* ===== Live Fleet Google Map — plant-scoped transit mixers (SuperAdmin sees all) ===== */}
+      {canViewFleet && (
+        <div style={{ marginBottom: 16 }}>
+          <LiveFleetMap />
         </div>
+      )}
 
-        <div className="route-grid">
-          {/* Plant node */}
-          <div className="route-node">
-            <div style={{
-              width: 72, height: 72, borderRadius: 18, display: 'grid', placeItems: 'center',
-              background: 'color-mix(in srgb, var(--surface) 80%, transparent)',
-              border: '2px solid color-mix(in srgb, var(--muted) 30%, transparent)',
-              boxShadow: '0 18px 34px rgba(var(--shadow-rgb),.4)',
-            }}>
-              <Settings size={30} style={{ color: 'var(--muted)', animation: 'spin 9s linear infinite' }} />
-            </div>
-            <div style={{ textAlign: 'center', marginTop: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.5px', color: 'var(--text)' }}>PLANT</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)' }}>OPERATIONAL</div>
-            </div>
-          </div>
-
-          {/* Mixers in transit */}
-          <div className="route-track">
-            <div className="route-line-bg" />
-            {inTransit.length === 0 ? (
-              <div style={{
-                gridColumn: '1 / -1', textAlign: 'center', color: 'var(--muted)', fontSize: 12.5,
-                padding: '18px 8px', position: 'relative', zIndex: 1,
-              }}>
-                No mixers in transit right now — dispatched challans appear here live.
-              </div>
-            ) : (
-              inTransit.map((ch, i) => {
-                const truck = (
-                  <div className="route-truck" style={{
-                    background: 'color-mix(in srgb, var(--surface) 88%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--blue) 38%, transparent)',
-                    animationDelay: `${i * 0.25}s`, cursor: 'pointer',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                        <Truck size={14} style={{ color: 'var(--blue)', flexShrink: 0 }} />
-                        <span style={{ fontSize: 12.5, fontWeight: 800, fontFamily: 'monospace', color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {ch.vehicleNo || `#${ch.challanNo}`}
-                        </span>
-                      </span>
-                      <span style={{
-                        fontSize: 9, fontWeight: 800, letterSpacing: '.4px', flexShrink: 0,
-                        padding: '2px 7px', borderRadius: 999,
-                        color: 'var(--blue)', background: 'color-mix(in srgb, var(--blue) 16%, transparent)',
-                      }}>EN ROUTE</span>
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {ch.driverName || '—'} · {ch.siteName || ch.clientName || 'Site'}
-                    </div>
-                  </div>
-                );
-                return canDispatch
-                  ? <Link key={ch.id} href="/dispatch">{truck}</Link>
-                  : <div key={ch.id}>{truck}</div>;
-              })
-            )}
-          </div>
-
-          {/* Sites node */}
-          <div className="route-node">
-            <div style={{
-              width: 64, height: 64, borderRadius: '50%', display: 'grid', placeItems: 'center',
-              background: 'color-mix(in srgb, var(--surface) 80%, transparent)',
-              border: '2px dashed color-mix(in srgb, var(--gold) 55%, transparent)',
-            }}>
-              <Navigation size={26} style={{ color: 'var(--gold)' }} />
-            </div>
-            <div style={{ textAlign: 'center', marginTop: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.5px', color: 'var(--text)' }}>SITES</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--gold)' }}>POURING</div>
-            </div>
-          </div>
+      {/* ===== Plant Network Map — Super Admin (authority) ONLY ===== */}
+      {isSuperAdmin && (
+        <div className="dash-hero" style={{ marginBottom: 16 }}>
+          <PlantsMap />
         </div>
-      </div>
-
-      {/* ===== Hero command panel: full-width plant network map ===== */}
-      <div className="dash-hero" style={{ marginBottom: 16 }}>
-        <PlantsMap />
-      </div>
+      )}
 
       {/* ===== Live duty map: everyone currently on shift, all roles ===== */}
       {canViewDuty && (

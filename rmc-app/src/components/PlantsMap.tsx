@@ -111,7 +111,7 @@ export default function PlantsMap() {
 
   useEffect(() => {
     let alive = true;
-    api.get<MapPlant[]>('/plants/map')
+    api.get<MapPlant[]>('/plant-network-map')
       .then(d => { if (alive) { setPlantsData(Array.isArray(d) ? d : []); setLoaded(true); } })
       .catch(() => { if (alive) setLoaded(true); });
     return () => { alive = false; };

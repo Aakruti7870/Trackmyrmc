@@ -1630,6 +1630,41 @@ export default function ProfileSettings() {
         </div>
       </div>
 
+      {/* Identity card — the session/identity details previously shown in the
+          on-screen debug popup, now surfaced here read-only. */}
+      <div style={{ ...card, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 10,
+            background: 'color-mix(in srgb, var(--blue) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--blue) 27%, transparent)',
+            display: 'grid', placeItems: 'center',
+          }}>
+            <ShieldCheck size={15} style={{ color: 'var(--blue)' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Identity &amp; Session</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>Your account identifiers for support &amp; troubleshooting</div>
+          </div>
+        </div>
+        <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'minmax(120px,auto) 1fr', gap: '9px 14px', fontSize: 13 }}>
+          {([
+            ['Name', user?.name || '—'],
+            ['Role', roleLabel],
+            ['Mobile / Email', user?.phone || user?.email || '—'],
+            ['User ID', user?.id != null ? String(user.id) : '—'],
+            ...(user?.role === 'driver' && user?.linkedDriverId != null ? [['Driver ID', String(user.linkedDriverId)] as [string, string]] : []),
+            ...(user?.plantId != null ? [['Plant ID', String(user.plantId)] as [string, string]] : []),
+            ...(plantProfile?.name ? [['Assigned Plant', plantProfile.name] as [string, string]] : []),
+            ...(user?.truckId != null ? [['Truck ID', user.truckNo ? `${user.truckId} · ${user.truckNo}` : String(user.truckId)] as [string, string]] : []),
+          ] as [string, string][]).map(([k, v]) => (
+            <div key={k} style={{ display: 'contents' }}>
+              <dt style={{ color: 'var(--muted)', fontWeight: 600 }}>{k}</dt>
+              <dd style={{ margin: 0, color: 'var(--text)', fontWeight: 700, fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
       {/* Appearance / theme card */}
       <div style={{ ...card, marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>

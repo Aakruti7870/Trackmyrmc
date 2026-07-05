@@ -19,6 +19,7 @@ import fuelRoutes from '../routes/fuel.js';
 import fileRoutes from '../routes/files.js';
 import vehicleRoutes from '../routes/vehicles.js';
 import plantRoutes from '../routes/plants.js';
+import mapsRoutes from '../routes/maps.js';
 import whatsappRoutes from '../routes/whatsapp.js';
 import webhookRoutes from '../routes/webhooks.js';
 import aiRoutes from '../routes/ai.js';
@@ -64,6 +65,7 @@ export function buildTestApp() {
     app.use('/api/files', fileRoutes);
     app.use('/api/vehicles', vehicleRoutes);
     app.use('/api/plants', plantRoutes);
+    app.use('/api', mapsRoutes);
     app.use('/api/whatsapp', whatsappRoutes);
     app.use('/api/webhooks', webhookRoutes);
     app.use('/api/ai', aiRoutes);
