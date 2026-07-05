@@ -4,7 +4,7 @@ import {
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
   Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon, CalendarClock,
-  Crown, Building2, HardHat, Wallet, User, Zap, MessageCircle,
+  Crown, Building2, HardHat, Wallet, User, Zap, MessageCircle, Radio,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -36,6 +36,7 @@ const ALL_NAV_ITEMS = [
   { path: '/drivers',     label: 'Drivers',    icon: UserCheck },
   { path: '/batch-report', label: 'Production', icon: FileText },
   { path: '/attendance',  label: 'Attendance', icon: CalendarClock },
+  { path: '/live-drivers', label: 'Live Drivers', icon: Radio },
   { path: '/mix-design',  label: 'Mix Design', icon: FlaskConical },
   { path: '/reports',     label: 'Reports',    icon: BarChart3 },
   { path: '/shift-report', label: 'Shift Report', icon: ClipboardCheck },

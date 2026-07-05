@@ -101,6 +101,18 @@ export function useSSE() {
         dispatchEvent('whatsapp.message', JSON.parse(e.data));
       });
 
+      es.addEventListener('trip.updated', (e: MessageEvent) => {
+        dispatchEvent('trip.updated', JSON.parse(e.data));
+      });
+
+      es.addEventListener('driver.location', (e: MessageEvent) => {
+        dispatchEvent('driver.location', JSON.parse(e.data));
+      });
+
+      es.addEventListener('driver.offline', (e: MessageEvent) => {
+        dispatchEvent('driver.offline', JSON.parse(e.data));
+      });
+
       es.addEventListener('ping', () => {});
     }
 

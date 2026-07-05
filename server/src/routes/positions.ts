@@ -5,6 +5,7 @@ import { challans, sites, vehicles, drivers, clients, vehicleAlerts } from '../d
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { notifyChallanStatus } from '../lib/deliveryNotify.js';
+import { updateTripLocation, closeTripOnDelivery } from '../lib/tripSessions.js';
 import { getFreshnessConfig, computeFreshness, type FreshnessConfig, type FreshnessResult } from '../lib/freshness.js';
 import { getFuelConfig, type FuelConfig } from '../lib/fuelConfig.js';
 
@@ -244,6 +245,9 @@ router.post('/', requireRole('driver'), async (req, res) => {
     status = 'delivered';
     inRadiusCount = 0;
     emitSSEEvent('challan.updated', updated, { clientId: updated.clientId, driverId: updated.driverId });
+    // Geofence auto-delivery closes the trip session (customer link off).
+    const closedTrip = await closeTripOnDelivery(cid);
+    if (closedTrip) emitSSEEvent('trip.updated', closedTrip, { clientId: closedTrip.clientId, driverId: closedTrip.driverId, plantId: closedTrip.plantId });
     // GPS geofence auto-completed the delivery — notify the customer (best-effort).
     void notifyChallanStatus(cid, 'delivered');
   }
@@ -380,6 +384,9 @@ router.post('/', requireRole('driver'), async (req, res) => {
     deviationAlerted,
   };
   livePositions.set(cid, live);
+  // Fold the latest fix into the formal trip session so the customer page and
+  // staff live view can render the last-known position from the DB. Best-effort.
+  void updateTripLocation(cid, latitude, longitude);
   // Scope the live GPS stream so a client only sees positions for their own
   // deliveries and a driver only sees their own trips; staff still get all.
   emitSSEEvent('vehicle.position', live, { clientId: row.clientId, driverId: row.driverId });

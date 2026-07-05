@@ -99,12 +99,22 @@ function fmtDist(m: number): string {
 
 const MAX_PROOF_PHOTOS = 8;
 
-function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistanceM, freshnessConfig }: {
-  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[], odometerEnd?: string) => void; onLeftSite: (id: number, odometerEnd?: string) => Promise<void>; tracking: boolean; liveDistanceM?: number | null; freshnessConfig: FreshnessConfig | null;
+const TRIP_STAGES: { key: string; label: string }[] = [
+  { key: 'in_transit', label: 'In Transit' },
+  { key: 'reached_site', label: 'Reached Site' },
+  { key: 'unloading', label: 'Unloading' },
+];
+const STAGE_RANK: Record<string, number> = { dispatched: 0, in_transit: 1, reached_site: 2, unloading: 3, delivered: 4 };
+
+function TripCard({ challan, onMarkDelivered, onLeftSite, onTripStatus, tracking, liveDistanceM, freshnessConfig }: {
+  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[], odometerEnd?: string) => void; onLeftSite: (id: number, odometerEnd?: string) => Promise<void>; onTripStatus: (id: number, status: string) => Promise<void>; tracking: boolean; liveDistanceM?: number | null; freshnessConfig: FreshnessConfig | null;
 }) {
   const s = STATUS_STYLES[challan.status] || STATUS_STYLES.pending;
   const StatusIcon = s.icon;
   const isActionable = challan.status === 'dispatched';
+  const [stageBusy, setStageBusy] = useState<string | null>(null);
+  const [stageErr, setStageErr] = useState('');
+  const currentRank = STAGE_RANK[challan.tripStatus ?? 'dispatched'] ?? 0;
   const onSite = challan.siteArrivalTime != null && challan.siteReleaseTime == null;
   const timing = computeTripTiming(challan);
   const [leaving, setLeaving] = useState(false);
@@ -351,6 +361,46 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, tracking, liveDistance
             {leaving ? 'Recording…' : 'Mark Left Site'}
           </button>
           {leaveErr && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{leaveErr}</div>}
+        </div>
+      )}
+
+      {isActionable && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 6 }}>Trip status</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {TRIP_STAGES.map((st) => {
+              const rank = STAGE_RANK[st.key];
+              const done = currentRank >= rank;
+              const isNext = currentRank === rank - 1;
+              const busy = stageBusy === st.key;
+              return (
+                <button
+                  key={st.key}
+                  onClick={async () => {
+                    if (!isNext || stageBusy) return;
+                    setStageBusy(st.key); setStageErr('');
+                    try { await onTripStatus(challan.id, st.key); }
+                    catch (err) { setStageErr(err instanceof Error ? err.message : 'Could not update trip status'); }
+                    finally { setStageBusy(null); }
+                  }}
+                  disabled={!isNext || stageBusy != null}
+                  style={{
+                    flex: 1, padding: '8px 4px', borderRadius: 9, fontSize: 11.5, fontWeight: 700,
+                    cursor: isNext && !stageBusy ? 'pointer' : 'default',
+                    border: `1px solid ${done ? 'color-mix(in srgb, var(--green) 34%, transparent)' : isNext ? 'color-mix(in srgb, var(--blue) 40%, transparent)' : 'var(--line)'}`,
+                    background: done ? 'rgba(34,197,94,.14)' : isNext ? 'rgba(56,189,248,.12)' : 'var(--chip-bg)',
+                    color: done ? 'var(--green)' : isNext ? 'var(--blue)' : 'var(--muted)',
+                    opacity: !isNext && !done ? 0.6 : 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  }}
+                >
+                  {done && <CheckCircle size={12} />}
+                  {busy ? '…' : st.label}
+                </button>
+              );
+            })}
+          </div>
+          {stageErr && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{stageErr}</div>}
         </div>
       )}
 
@@ -678,6 +728,13 @@ export default function MyTrips() {
     window.setTimeout(() => setConfirmation(''), 4000);
   }
 
+  // Driver advances the trip stage (In Transit → Reached Site → Unloading).
+  // The server enforces forward-only progression and notifies the customer link.
+  async function handleTripStatus(id: number, status: string) {
+    await api.post(`/challans/${id}/trip-status`, { status });
+    setChallans(prev => prev.map(c => c.id === id ? { ...c, tripStatus: status } : c));
+  }
+
   // Manual site release from the trip card — stamps the release time now even if
   // the GPS hasn't yet detected the truck leaving.
   async function handleLeftSite(id: number, odometerEnd?: string) {
@@ -926,7 +983,7 @@ export default function MyTrips() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 16 }}>
           {filtered.map(c => (
-            <TripCard key={c.id} challan={c} onMarkDelivered={handleMarkDelivered} onLeftSite={handleLeftSite} tracking={tracking && geoState === 'active'} liveDistanceM={liveDist[c.id]} freshnessConfig={freshnessConfig} />
+            <TripCard key={c.id} challan={c} onMarkDelivered={handleMarkDelivered} onLeftSite={handleLeftSite} onTripStatus={handleTripStatus} tracking={tracking && geoState === 'active'} liveDistanceM={liveDist[c.id]} freshnessConfig={freshnessConfig} />
           ))}
         </div>
       )}

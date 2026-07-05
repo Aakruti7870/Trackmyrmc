@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LogIn, LogOut, CalendarClock, Clock, RefreshCw } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -82,6 +82,43 @@ export default function Attendance() {
 
   const checkedIn = status?.checkedIn ?? false;
 
+  const [gpsLive, setGpsLive] = useState(false);
+  const watchIdRef = useRef<number | null>(null);
+  const lastSentRef = useRef(0);
+
+  // While checked in, stream the device's live GPS location to the plant so the
+  // staff "live drivers" dashboard can follow the shift. Stops on check-out.
+  useEffect(() => {
+    if (!checkedIn) return;
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return;
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        setGpsLive(true);
+        // Throttle to at most one post every 10s to spare battery/bandwidth.
+        const now = Date.now();
+        if (now - lastSentRef.current < 10000) return;
+        lastSentRef.current = now;
+        api.post('/attendance/location', {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: Number.isFinite(pos.coords.accuracy) ? Math.round(pos.coords.accuracy) : undefined,
+          speed: Number.isFinite(pos.coords.speed ?? NaN) ? pos.coords.speed : undefined,
+          heading: Number.isFinite(pos.coords.heading ?? NaN) ? pos.coords.heading : undefined,
+        }).catch(() => { /* best-effort; the shift continues regardless */ });
+      },
+      () => { setGpsLive(false); },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    );
+
+    return () => {
+      if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+      lastSentRef.current = 0;
+      setGpsLive(false);
+    };
+  }, [checkedIn]);
+
   const accent = checkedIn ? '#22c55e' : 'var(--gold)';
 
   return (
@@ -128,6 +165,11 @@ export default function Attendance() {
                 ? `Since ${fmt(status.open.checkInAt)} · ${duration(status.open.checkInAt, null)} on shift`
                 : 'Tap check in to start your shift'}
             </div>
+            {checkedIn && (
+              <div style={{ fontSize: 11.5, color: gpsLive ? '#16a34a' : 'var(--muted)', marginTop: 4, fontWeight: 600 }}>
+                {gpsLive ? 'Sharing live location with your plant' : 'Waiting for GPS location…'}
+              </div>
+            )}
           </div>
         </div>
 

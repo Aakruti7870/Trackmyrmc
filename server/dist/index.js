@@ -184,9 +184,10 @@ if (isProd) {
         '/automations',
         '/whatsapp',
         '/profile',
+        '/live-drivers',
     ]);
-    // Dynamic SPA routes (e.g. /challans/:id/print, /track/:token)
-    const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/, /^\/track\/[^/]+$/];
+    // Dynamic SPA routes (e.g. /challans/:id/print, /track/:token, /track-trip/:token)
+    const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/, /^\/track\/[^/]+$/, /^\/track-trip\/[^/]+$/];
     app.get('*', (req, res) => {
         const p = req.path;
         const isSpaRoute = SPA_ROUTES.has(p) || SPA_PATTERNS.some((re) => re.test(p));

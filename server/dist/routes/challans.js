@@ -9,6 +9,7 @@ import { notifyChallanStatus } from '../lib/deliveryNotify.js';
 import { maybeSendTripShare, tripShareDeliveryWarning } from '../lib/automationJobs.js';
 import { plantScope, clientInScope } from '../lib/tenancy.js';
 import { createTrackingToken } from '../lib/trackingTokens.js';
+import { createTripSessionForChallan, closeTripOnDelivery, advanceTripStatus, DRIVER_TRIP_STATUSES } from '../lib/tripSessions.js';
 import { registerUploadedFilesSafe, unregisterUploadedFilesSafe } from '../lib/uploadedFiles.js';
 const WRITE_ROLES = ['admin', 'dispatcher'];
 // Roles allowed to read the staff challan surface. Customers are deliberately
@@ -275,6 +276,12 @@ router.post('/', requireRole(...WRITE_ROLES), async (req, res) => {
         }
     }
     emitSSEEvent('challan.created', row, { clientId: row.clientId, driverId: row.driverId });
+    // A new challan is created already 'dispatched' — open the formal trip-tracking
+    // session that the customer link, staff live view, and driver stage controls
+    // all hang off. Idempotent (unique per challan); never blocks the response.
+    const trip = await createTripSessionForChallan(row.id);
+    if (trip)
+        emitSSEEvent('trip.updated', trip, { clientId: trip.clientId, driverId: trip.driverId, plantId: trip.plantId });
     // A new challan is created already 'dispatched', so let the customer know
     // their concrete is on the way. Fire-and-forget: never block the response.
     void notifyChallanStatus(row.id, 'dispatched');
@@ -402,6 +409,11 @@ router.put('/:id', async (req, res) => {
             ? storedPhotos.length > 0
             : await challanHasProofPhoto(challanId);
         emitSSEEvent('challan.updated', { ...row, hasProofPhoto }, { clientId: row.clientId, driverId: row.driverId });
+        // Driver-confirmed delivery closes the trip: flip the customer link off and
+        // fan the terminal status out to staff/customer.
+        const closed = await closeTripOnDelivery(challanId);
+        if (closed)
+            emitSSEEvent('trip.updated', closed, { clientId: closed.clientId, driverId: closed.driverId, plantId: closed.plantId });
         // Driver-confirmed delivery — notify the customer (best-effort).
         void notifyChallanStatus(challanId, 'delivered');
         res.json({ ...row, hasProofPhoto });
@@ -477,10 +489,76 @@ router.put('/:id', async (req, res) => {
     }
     const hasProofPhoto = await challanHasProofPhoto(challanId);
     emitSSEEvent('challan.updated', { ...row, hasProofPhoto }, { clientId: row.clientId, driverId: row.driverId });
-    // Notify the customer when staff mark the delivery complete (best-effort).
-    if (updateData.status === 'delivered')
+    // Notify the customer when staff mark the delivery complete (best-effort) and
+    // close the trip so the public link shows the completed message.
+    if (updateData.status === 'delivered') {
+        const closed = await closeTripOnDelivery(challanId);
+        if (closed)
+            emitSSEEvent('trip.updated', closed, { clientId: closed.clientId, driverId: closed.driverId, plantId: closed.plantId });
         void notifyChallanStatus(challanId, 'delivered');
+    }
     res.json({ ...row, hasProofPhoto });
+});
+// Driver advances the finer trip status (In Transit → Reached Site → Unloading)
+// from the driver app. The terminal 'delivered' is NOT set here — that stays on
+// the PUT delivery flow (proof photos etc.). Forward-only; each change fans out
+// to staff and the customer tracking state over SSE.
+router.post('/:id/trip-status', requireRole('driver'), async (req, res) => {
+    const challanId = +req.params.id;
+    if (!Number.isInteger(challanId) || challanId <= 0) {
+        res.status(400).json({ error: 'Invalid challan id' });
+        return;
+    }
+    const driverId = req.user.linkedDriverId ?? null;
+    if (!driverId) {
+        res.status(403).json({ error: 'No driver profile linked to this account' });
+        return;
+    }
+    const status = req.body?.status;
+    if (!DRIVER_TRIP_STATUSES.includes(status)) {
+        res.status(400).json({ error: `status must be one of: ${DRIVER_TRIP_STATUSES.join(', ')}` });
+        return;
+    }
+    const [challan] = await db
+        .select({ driverId: challans.driverId })
+        .from(challans)
+        .where(eq(challans.id, challanId));
+    if (!challan) {
+        res.status(404).json({ error: 'Challan not found' });
+        return;
+    }
+    if (challan.driverId !== driverId) {
+        res.status(403).json({ error: 'Not assigned to this challan' });
+        return;
+    }
+    const result = await advanceTripStatus(challanId, status);
+    if (!result.ok) {
+        if (result.reason === 'not_found') {
+            res.status(404).json({ error: 'No active trip for this challan' });
+            return;
+        }
+        if (result.reason === 'closed') {
+            res.status(409).json({ error: 'This trip is already completed' });
+            return;
+        }
+        res.status(409).json({ error: 'Cannot move the trip status backwards' });
+        return;
+    }
+    // Reaching the site mirrors the geofence arrival: stamp the challan arrival
+    // time once so freshness/timing reports stay consistent whether the arrival
+    // was detected by GPS or reported by the driver.
+    if (status === 'reached_site') {
+        await db
+            .update(challans)
+            .set({ siteArrivalTime: sql `COALESCE(${challans.siteArrivalTime}, now())` })
+            .where(eq(challans.id, challanId));
+    }
+    emitSSEEvent('trip.updated', result.row, {
+        clientId: result.row.clientId,
+        driverId: result.row.driverId,
+        plantId: result.row.plantId,
+    });
+    res.json(result.row);
 });
 // Manual "left site" — the driver (or staff) stamps the site release time when
 // the truck leaves, without waiting for the GPS hysteresis to detect departure.

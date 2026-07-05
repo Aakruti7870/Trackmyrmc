@@ -950,3 +950,70 @@ export const automationSends = pgTable('automation_sends', {
   uniqueIndex('automation_sends_once_unique').on(t.automation, t.targetType, t.targetId, t.windowKey),
   index('automation_sends_sent_at_idx').on(t.sentAt),
 ]);
+
+// ---- Live GPS trip tracking -------------------------------------------------
+
+// Finer-grained trip lifecycle layered ON TOP of the coarse challan status
+// (which stays pending/dispatched/delivered/cancelled and is untouched). The
+// intermediate states are driven by the driver's status controls; 'delivered'
+// (or 'cancelled') closes the customer's public tracking link. Appended-only.
+export const tripStatusEnum = pgEnum('trip_status', ['dispatched', 'in_transit', 'reached_site', 'unloading', 'delivered', 'cancelled']);
+
+// One formal trip-tracking session per dispatched challan. Links every entity
+// the trip touches and carries the customer-facing live status. The public
+// tracking TOKEN is NOT stored here — it stays a single source of truth in
+// tracking_tokens (also challan-keyed), so a session simply joins to it by
+// challanId. Created automatically when a challan is dispatched.
+export const tripSessions = pgTable('trip_sessions', {
+  id: serial('id').primaryKey(),
+  challanId: integer('challan_id').notNull().references(() => challans.id, { onDelete: 'cascade' }),
+  orderId: integer('order_id').references(() => orders.id, { onDelete: 'set null' }),
+  clientId: integer('client_id').references(() => clients.id, { onDelete: 'set null' }),
+  driverId: integer('driver_id').references(() => drivers.id, { onDelete: 'set null' }),
+  vehicleId: integer('vehicle_id').references(() => vehicles.id, { onDelete: 'set null' }),
+  plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
+  status: tripStatusEnum('status').notNull().default('dispatched'),
+  // The customer's public link is live while this is true; it flips false once
+  // the trip is delivered/cancelled so the page shows the closed message.
+  customerTrackingActive: boolean('customer_tracking_active').notNull().default(true),
+  // Snapshot of the delivery destination captured at dispatch time.
+  deliveryLat: decimal('delivery_lat', { precision: 10, scale: 7 }),
+  deliveryLng: decimal('delivery_lng', { precision: 10, scale: 7 }),
+  // Latest live GPS fix folded in from the positions stream.
+  lastLat: decimal('last_lat', { precision: 10, scale: 7 }),
+  lastLng: decimal('last_lng', { precision: 10, scale: 7 }),
+  lastUpdatedAt: timestamp('last_updated_at'),
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  deliveredAt: timestamp('delivered_at'),
+  expiresAt: timestamp('expires_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('trip_sessions_challan_unique').on(t.challanId),
+  index('trip_sessions_plant_idx').on(t.plantId),
+]);
+
+// Recent driver/truck GPS fixes captured while a driver is checked in
+// (attendance-scoped), independent of any single trip. Backs the staff "live
+// drivers" dashboard and a short movement history. tripId is set when the fix
+// was posted while the driver was on an active trip. Positions are also cached
+// in-memory for the instant live view; these rows are the persisted history.
+export const driverLocations = pgTable('driver_locations', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  attendanceId: integer('attendance_id').references(() => attendanceRecords.id, { onDelete: 'cascade' }),
+  driverId: integer('driver_id').references(() => drivers.id, { onDelete: 'set null' }),
+  vehicleId: integer('vehicle_id').references(() => vehicles.id, { onDelete: 'set null' }),
+  plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
+  tripId: integer('trip_id').references(() => tripSessions.id, { onDelete: 'set null' }),
+  lat: decimal('lat', { precision: 10, scale: 7 }).notNull(),
+  lng: decimal('lng', { precision: 10, scale: 7 }).notNull(),
+  accuracy: integer('accuracy'),
+  speed: decimal('speed', { precision: 6, scale: 2 }),
+  heading: decimal('heading', { precision: 6, scale: 2 }),
+  battery: integer('battery'),
+  recordedAt: timestamp('recorded_at').defaultNow().notNull(),
+}, (t) => [
+  index('driver_locations_user_idx').on(t.userId),
+  index('driver_locations_plant_idx').on(t.plantId),
+  index('driver_locations_recorded_at_idx').on(t.recordedAt),
+]);

@@ -11,10 +11,13 @@ import { PLATFORM_NAME } from '@/lib/brand';
 interface TrackPayload {
   challanNo: string | null;
   status: string;
+  tripStatus: string | null;
+  closed: boolean;
   grade: string | null;
   quantity: string | null;
   vehicleNo: string | null;
   plantName: string | null;
+  plantContact: string | null;
   plant: { lat: number; lng: number } | null;
   site: { name: string | null; city: string | null; lat: number | null; lng: number | null };
   dispatchTime: string | null;
@@ -55,7 +58,9 @@ function etaLine(d: TrackPayload): string {
   if (d.status === 'delivered') return `Delivered ${fmtTime(d.deliveryTime)}`;
   if (d.status === 'cancelled') return 'This trip was cancelled';
   if (d.status === 'pending') return 'Your order is being prepared at the plant';
-  // dispatched
+  // dispatched — reflect the finer driver-reported trip stage when available.
+  if (d.tripStatus === 'reached_site') return 'Your mixer has arrived at the site';
+  if (d.tripStatus === 'unloading') return 'Concrete is being unloaded at your site';
   const eta = d.freshness?.etaMin;
   if (eta != null && eta >= 0) {
     if (eta <= 1) return 'Arriving any moment now';
@@ -64,6 +69,16 @@ function etaLine(d: TrackPayload): string {
   const dist = fmtDistance(d.live?.distanceM);
   if (dist) return `${dist} to your site`;
   return 'On the way to your site';
+}
+
+// Headline label — refined by the driver-reported trip stage when dispatched.
+function statusHeadline(d: TrackPayload): string {
+  if (d.status === 'dispatched') {
+    if (d.tripStatus === 'reached_site') return 'Arrived at site';
+    if (d.tripStatus === 'unloading') return 'Unloading';
+    return 'On the way';
+  }
+  return STATUS_LABEL[d.status] || d.status;
 }
 
 // Pour-by freshness chip (concrete must be poured within a window).
@@ -237,7 +252,7 @@ export default function TrackTrip() {
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.15 }}>
-                    {STATUS_LABEL[data.status] || data.status}
+                    {statusHeadline(data)}
                   </div>
                   <div style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 3, fontWeight: 600 }}>
                     {etaLine(data)}
@@ -257,6 +272,29 @@ export default function TrackTrip() {
                 </div>
               )}
             </div>
+
+            {/* CLOSED NOTICE — tracking stops once the delivery is complete */}
+            {data.closed && (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px 16px', borderRadius: 16, marginBottom: 14,
+                background: `color-mix(in srgb, ${accent} 12%, var(--surface))`,
+                border: `1px solid color-mix(in srgb, ${accent} 32%, var(--line))`,
+              }}>
+                {delivered ? <CircleCheck size={20} color={accent} style={{ flexShrink: 0, marginTop: 1 }} />
+                  : <XCircle size={20} color={accent} style={{ flexShrink: 0, marginTop: 1 }} />}
+                <div style={{ fontSize: 13.5, fontWeight: 700 }}>
+                  {delivered
+                    ? 'Delivery completed. Live tracking is now closed.'
+                    : 'This trip was cancelled. Live tracking is now closed.'}
+                  {data.plantContact && (
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--muted)', marginTop: 6 }}>
+                      Questions about this delivery? Call {data.plantName || 'the plant'} at{' '}
+                      <a href={`tel:${data.plantContact}`} style={{ color: 'var(--gold)', fontWeight: 800, textDecoration: 'none' }}>{data.plantContact}</a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* PROGRESS STEPPER */}
             {!cancelled && (
@@ -363,6 +401,13 @@ export default function TrackTrip() {
                 {delivered && <Field label="Delivered" value={fmtTime(data.deliveryTime)} />}
               </div>
             </div>
+
+            {!data.closed && data.plantContact && (
+              <div style={{ marginTop: 14, fontSize: 12.5, color: 'var(--muted)', textAlign: 'center', fontWeight: 600 }}>
+                Need help? Call {data.plantName || 'the plant'} at{' '}
+                <a href={`tel:${data.plantContact}`} style={{ color: 'var(--gold)', fontWeight: 800, textDecoration: 'none' }}>{data.plantContact}</a>
+              </div>
+            )}
 
             <div style={{ marginTop: 16, fontSize: 11, color: 'var(--muted)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               {isLive && <span className="ck-live-dot" style={{ background: '#22c55e' }} />}

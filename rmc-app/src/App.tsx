@@ -49,6 +49,7 @@ const Kiosk          = lazy(() => import('@/pages/Kiosk'));
 const SsoCallback    = lazy(() => import('@/pages/SsoCallback'));
 const TrackTrip      = lazy(() => import('@/pages/TrackTrip'));
 const Attendance     = lazy(() => import('@/pages/Attendance'));
+const LiveDrivers    = lazy(() => import('@/pages/LiveDrivers'));
 const CommandCenter  = lazy(() => import('@/pages/CommandCenter'));
 
 const PageSpinner = (
@@ -123,6 +124,7 @@ function ProtectedRoutes() {
         <Route path="/drivers"      component={() => <GuardedRoute path="/drivers"      component={Drivers}     />} />
         <Route path="/batch-report" component={() => <GuardedRoute path="/batch-report" component={BatchReport} />} />
         <Route path="/attendance"   component={() => <GuardedRoute path="/attendance"   component={Attendance}  />} />
+        <Route path="/live-drivers" component={() => <GuardedRoute path="/live-drivers" component={LiveDrivers} />} />
         <Route path="/mix-design"   component={() => <GuardedRoute path="/mix-design"   component={MixDesign}   />} />
         <Route path="/reports"      component={() => <GuardedRoute path="/reports"      component={Reports}     />} />
         <Route path="/freshness"    component={() => <GuardedRoute path="/freshness"    component={FreshnessGuard}  />} />
@@ -178,7 +180,12 @@ export default function App() {
             <Route path="/sso-callback" component={() => (
               <Suspense fallback={PageSpinner}><SsoCallback /></Suspense>
             )} />
-            {/* PUBLIC, no-login: anyone with the share link can watch the trip. */}
+            {/* PUBLIC, no-login: anyone with the share link can watch the trip.
+                The customer auto-send uses /track-trip/:token; /track/:token is
+                kept as a legacy alias for links shared before the rename. */}
+            <Route path="/track-trip/:token" component={() => (
+              <Suspense fallback={PageSpinner}><TrackTrip /></Suspense>
+            )} />
             <Route path="/track/:token" component={() => (
               <Suspense fallback={PageSpinner}><TrackTrip /></Suspense>
             )} />

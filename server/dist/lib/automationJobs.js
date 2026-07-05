@@ -255,7 +255,7 @@ export async function maybeSendTripShare(challanId) {
             return;
         const ttlMs = num(eff.config, 'ttlHours', 24) * 60 * 60 * 1000;
         const token = await createTrackingToken(row.id, null, ttlMs);
-        const url = `${base}/track/${token}`;
+        const url = `${base}/track-trip/${token}`;
         if (bool(eff.config, 'email') && isRealEmail(row.email)) {
             await sendAutomationEmail({
                 to: [row.email],
@@ -273,7 +273,7 @@ export async function maybeSendTripShare(challanId) {
             await sendPushToClientUsers(row.clientId, {
                 title: 'Track your delivery live',
                 body: `Challan ${row.challanNo} is on the way — tap to watch it live.`,
-                url: `/track/${token}`,
+                url: `/track-trip/${token}`,
                 tag: `tripshare-${row.id}`,
             }).catch(() => 0);
         }

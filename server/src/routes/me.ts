@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { eq, desc, gte, lte, and, sql, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries, recurringOrders, plants, plantCustomers, auditLogs } from '../db/schema.js';
+import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries, recurringOrders, plants, plantCustomers, auditLogs, tripSessions } from '../db/schema.js';
 import { requireAuth, requireRole, bumpSessionVersion } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore } from '../lib/proofPhoto.js';
@@ -585,11 +585,12 @@ router.get('/trips', requireRole('driver'), async (req, res) => {
     filters.push(lte(challans.dispatchTime, todayEnd));
   }
 
-  const rows = await db.select(driverChallanSelect).from(challans)
+  const rows = await db.select({ ...driverChallanSelect, tripStatus: tripSessions.status }).from(challans)
     .leftJoin(clients, eq(challans.clientId, clients.id))
     .leftJoin(sites, eq(challans.siteId, sites.id))
     .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
     .leftJoin(drivers, eq(challans.driverId, drivers.id))
+    .leftJoin(tripSessions, eq(tripSessions.challanId, challans.id))
     .where(and(...filters))
     .orderBy(desc(challans.dispatchTime));
   res.json(rows);

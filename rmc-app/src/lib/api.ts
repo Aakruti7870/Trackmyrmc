@@ -208,6 +208,7 @@ export interface Challan {
   dispatchTime?: string; deliveryTime?: string;
   siteArrivalTime?: string | null; siteReleaseTime?: string | null;
   status: string; notes?: string; createdAt: string;
+  tripStatus?: string | null;
   clientName?: string; siteName?: string;
   siteLat?: string | null; siteLng?: string | null;
   vehicleNo?: string; driverName?: string; driverPhone?: string;

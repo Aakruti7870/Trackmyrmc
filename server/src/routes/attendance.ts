@@ -1,9 +1,11 @@
 import { Router } from 'express';
-import { and, eq, desc, gte, lte, isNull } from 'drizzle-orm';
+import { and, eq, desc, gte, lte, isNull, inArray } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { attendanceRecords, users } from '../db/schema.js';
+import { attendanceRecords, users, drivers, vehicles, tripSessions, driverLocations } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
+import { emitSSEEvent } from '../lib/sseEmitter.js';
+import { activeTripForDriver } from '../lib/tripSessions.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -13,6 +15,48 @@ const REPORT_ROLES = ['admin', 'plant_owner', 'supervisor', 'authority'];
 
 // Who may record attendance: every staff/driver role, but never customers.
 const ATTEND_ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'driver', 'plant_owner', 'supervisor'];
+
+// Who receives the live driver-location SSE stream. Broader than STAFF_ROLES so
+// supervisory + platform roles (plant_owner/supervisor/authority) also get it,
+// mirroring the /live REST view; plant-scoped so a plant admin only sees their
+// own drivers.
+const LIVE_VIEW_ROLES = ['admin', 'plant_owner', 'supervisor', 'authority', 'dispatcher', 'plant_operator'];
+
+// The trip statuses that count as "still running" for the live view / active-trip
+// tagging (anything before the terminal delivered/cancelled).
+const OPEN_TRIP_STATUSES = ['dispatched', 'in_transit', 'reached_site', 'unloading'] as const;
+
+// Latest live location per checked-in user, kept in-memory for the instant staff
+// view (persisted rows in driver_locations are the history). Cleared on
+// check-out. Ephemeral by design, exactly like livePositions in positions.ts.
+type DriverLiveLocation = {
+  userId: number;
+  name: string | null;
+  phone: string | null;
+  role: string | null;
+  driverId: number | null;
+  vehicleId: number | null;
+  vehicleNo: string | null;
+  plantId: number | null;
+  tripId: number | null;
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+  battery: number | null;
+  updatedAt: string;
+};
+const driverLiveLocations = new Map<number, DriverLiveLocation>();
+
+function numOrNull(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function intOrNull(v: unknown): number | null {
+  const n = numOrNull(v);
+  return n == null ? null : Math.round(n);
+}
 
 // Current open shift for the calling user, if any.
 async function openRecordFor(userId: number) {
@@ -84,7 +128,158 @@ router.post('/check-out', requireRole(...ATTEND_ROLES), async (req, res) => {
     .set({ checkOutAt: new Date(), checkOutNote: note })
     .where(and(eq(attendanceRecords.id, open.id), isNull(attendanceRecords.checkOutAt)))
     .returning();
+  // Tracking stops on check-out: drop the in-memory live fix and tell staff so
+  // the driver falls off the live board immediately.
+  driverLiveLocations.delete(userId);
+  emitSSEEvent('driver.offline', { userId }, { roles: LIVE_VIEW_ROLES, plantId: open.plantId ?? null });
   res.json(row ?? open);
+});
+
+// Driver/staff stream a live GPS fix while checked in. Rejected unless the caller
+// has an OPEN attendance record, so location only flows between check-in and
+// check-out. Each fix is persisted (history) and cached in-memory (instant live
+// view), then fanned out to staff, plant-scoped.
+router.post('/location', requireRole(...ATTEND_ROLES), async (req, res) => {
+  const userId = req.user!.id;
+  const open = await openRecordFor(userId);
+  if (!open) {
+    res.status(409).json({ error: 'You are not checked in.' });
+    return;
+  }
+  const latitude = Number(req.body?.lat);
+  const longitude = Number(req.body?.lng);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    res.status(400).json({ error: 'lat and lng must be valid numbers' });
+    return;
+  }
+  const accuracy = intOrNull(req.body?.accuracy);
+  const speed = numOrNull(req.body?.speed);
+  const heading = numOrNull(req.body?.heading);
+  const battery = intOrNull(req.body?.battery);
+
+  const driverId = req.user!.linkedDriverId ?? null;
+  const plantId = open.plantId ?? req.user!.plantId ?? null;
+
+  // Resolve the driver's assigned truck + any active trip so the live board can
+  // show the truck number and on-trip status without extra client lookups.
+  let vehicleId: number | null = null;
+  let vehicleNo: string | null = null;
+  let tripId: number | null = null;
+  if (driverId) {
+    const [v] = await db
+      .select({ id: vehicles.id, vehicleNo: vehicles.vehicleNo })
+      .from(vehicles)
+      .where(eq(vehicles.driverId, driverId))
+      .limit(1);
+    vehicleId = v?.id ?? null;
+    vehicleNo = v?.vehicleNo ?? null;
+    const trip = await activeTripForDriver(driverId);
+    tripId = trip?.id ?? null;
+  }
+
+  await db.insert(driverLocations).values({
+    userId,
+    attendanceId: open.id,
+    driverId,
+    vehicleId,
+    plantId,
+    tripId,
+    lat: latitude.toString(),
+    lng: longitude.toString(),
+    accuracy,
+    speed: speed != null ? speed.toString() : null,
+    heading: heading != null ? heading.toString() : null,
+    battery,
+  });
+
+  const live: DriverLiveLocation = {
+    userId,
+    name: req.user!.name ?? null,
+    phone: null,
+    role: req.user!.role ?? null,
+    driverId,
+    vehicleId,
+    vehicleNo,
+    plantId,
+    tripId,
+    lat: latitude,
+    lng: longitude,
+    accuracy,
+    speed,
+    heading,
+    battery,
+    updatedAt: new Date().toISOString(),
+  };
+  driverLiveLocations.set(userId, live);
+  emitSSEEvent('driver.location', live, { roles: LIVE_VIEW_ROLES, plantId });
+  res.json({ ok: true });
+});
+
+// Staff live view: every currently checked-in user with their identity, truck,
+// check-in time, current status, and last-known location. Plant-scoped.
+router.get('/live', requireRole(...REPORT_ROLES), async (req, res) => {
+  const openRows = await db
+    .select({
+      attendanceId: attendanceRecords.id,
+      userId: attendanceRecords.userId,
+      checkInAt: attendanceRecords.checkInAt,
+      plantId: attendanceRecords.plantId,
+      userName: users.name,
+      userPhone: users.phone,
+      role: users.role,
+      linkedDriverId: users.linkedDriverId,
+      driverName: drivers.name,
+      driverPhone: drivers.phone,
+    })
+    .from(attendanceRecords)
+    .leftJoin(users, eq(attendanceRecords.userId, users.id))
+    .leftJoin(drivers, eq(users.linkedDriverId, drivers.id))
+    .where(and(isNull(attendanceRecords.checkOutAt), plantScope(req.user!.plantId, attendanceRecords.plantId)))
+    .orderBy(desc(attendanceRecords.checkInAt))
+    .limit(500);
+
+  const driverIds = openRows
+    .map((r) => r.linkedDriverId)
+    .filter((x): x is number => x != null);
+
+  const truckByDriver = new Map<number, string>();
+  const tripByDriver = new Map<number, { status: string; challanId: number }>();
+  if (driverIds.length) {
+    const vehRows = await db
+      .select({ driverId: vehicles.driverId, vehicleNo: vehicles.vehicleNo })
+      .from(vehicles)
+      .where(inArray(vehicles.driverId, driverIds));
+    for (const v of vehRows) if (v.driverId != null) truckByDriver.set(v.driverId, v.vehicleNo);
+    const tripRows = await db
+      .select({ driverId: tripSessions.driverId, status: tripSessions.status, challanId: tripSessions.challanId, startedAt: tripSessions.startedAt })
+      .from(tripSessions)
+      .where(and(inArray(tripSessions.driverId, driverIds), inArray(tripSessions.status, [...OPEN_TRIP_STATUSES])))
+      .orderBy(tripSessions.startedAt);
+    // Later rows overwrite earlier ones, so each driver keeps their most recent
+    // open trip.
+    for (const t of tripRows) if (t.driverId != null) tripByDriver.set(t.driverId, { status: t.status, challanId: t.challanId });
+  }
+
+  const drivers_ = openRows.map((r) => {
+    const live = driverLiveLocations.get(r.userId) ?? null;
+    const trip = r.linkedDriverId != null ? tripByDriver.get(r.linkedDriverId) ?? null : null;
+    return {
+      userId: r.userId,
+      name: r.userName ?? r.driverName ?? null,
+      phone: r.driverPhone ?? r.userPhone ?? null,
+      role: r.role,
+      driverId: r.linkedDriverId,
+      vehicleNo: r.linkedDriverId != null ? truckByDriver.get(r.linkedDriverId) ?? null : null,
+      checkInAt: r.checkInAt,
+      status: trip ? trip.status : 'on_duty',
+      tripChallanId: trip?.challanId ?? null,
+      location: live
+        ? { lat: live.lat, lng: live.lng, speed: live.speed, heading: live.heading, updatedAt: live.updatedAt }
+        : null,
+    };
+  });
+
+  res.json({ drivers: drivers_, generatedAt: new Date().toISOString() });
 });
 
 // Plant-scoped attendance report. Restricted to supervisory roles. Optional
