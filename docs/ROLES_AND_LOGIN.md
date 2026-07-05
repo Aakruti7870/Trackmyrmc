@@ -11,7 +11,7 @@ the system, and what it is allowed to do**.
 
 ---
 
-## 1. The roles at a glance
+## 1. The roles at a/ glance
 
 | # | Role (code value) | Who they are | Scope |
 |---|-------------------|--------------|-------|
