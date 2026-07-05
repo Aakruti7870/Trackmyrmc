@@ -6,6 +6,7 @@ import {
 } from '../ui';
 import { mix } from '../tokens';
 import { GMV_TREND, WEEKLY_DISPATCH, COMPLAINTS, inr } from '../data';
+import LiveDutyMap from '@/components/LiveDutyMap';
 
 export default function Overview({ accent }: { accent: string }) {
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
@@ -103,6 +104,10 @@ export default function Overview({ accent }: { accent: string }) {
             })}
           </div>
         </GlassPanel>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <LiveDutyMap title="Live Duty Map — all plants" />
       </div>
     </div>
   );

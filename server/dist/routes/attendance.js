@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { and, eq, desc, gte, lte, isNull, inArray } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { attendanceRecords, users, drivers, vehicles, tripSessions, driverLocations } from '../db/schema.js';
+import { attendanceRecords, users, drivers, vehicles, tripSessions, driverLocations, plants } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
@@ -10,13 +10,24 @@ const router = Router();
 router.use(requireAuth);
 // Who may view the plant-wide attendance report (vs. just their own status).
 const REPORT_ROLES = ['admin', 'plant_owner', 'supervisor', 'authority'];
-// Who may record attendance: every staff/driver role, but never customers.
-const ATTEND_ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'driver', 'plant_owner', 'supervisor'];
+// Who may record attendance: every on-duty staff/driver role, but never
+// customers. Fleet Manager and Quality Engineer are on-duty roles too, so they
+// mark attendance and stream live location like the rest.
+const ATTEND_ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'driver', 'plant_owner', 'supervisor', 'fleet_manager', 'quality_engineer'];
 // Who receives the live driver-location SSE stream. Broader than STAFF_ROLES so
 // supervisory + platform roles (plant_owner/supervisor/authority) also get it,
 // mirroring the /live REST view; plant-scoped so a plant admin only sees their
 // own drivers.
 const LIVE_VIEW_ROLES = ['admin', 'plant_owner', 'supervisor', 'authority', 'dispatcher', 'plant_operator'];
+// SSE audience for a live duty event, scoped to the on-duty user's plant. Mirrors
+// the tenant scoping of the REST GET /live query: a plant-bound user's fixes only
+// reach staff of the same plant, and a null-plant platform user's fixes reach
+// platform staff only (never plant-bound staff of an arbitrary plant). Without
+// platformOnly, a null audience.plantId is treated as "unscoped" and would leak a
+// platform user's live location to every plant's dispatchers/operators.
+function dutyAudience(plantId) {
+    return { roles: LIVE_VIEW_ROLES, plantId, platformOnly: plantId == null };
+}
 // The trip statuses that count as "still running" for the live view / active-trip
 // tagging (anything before the terminal delivered/cancelled).
 const OPEN_TRIP_STATUSES = ['dispatched', 'in_transit', 'reached_site', 'unloading'];
@@ -43,7 +54,7 @@ const liveGpsSweep = setInterval(() => {
     for (const [userId, live] of driverLiveLocations) {
         if (!isFreshFix(live.updatedAt, now)) {
             driverLiveLocations.delete(userId);
-            emitSSEEvent('driver.offline', { userId }, { roles: LIVE_VIEW_ROLES, plantId: live.plantId ?? null });
+            emitSSEEvent('driver.offline', { userId }, dutyAudience(live.plantId ?? null));
         }
     }
 }, 30 * 1000);
@@ -55,6 +66,35 @@ function numOrNull(v) {
 function intOrNull(v) {
     const n = numOrNull(v);
     return n == null ? null : Math.round(n);
+}
+// Parse a best-effort {lat,lng} pair from a request body. Coordinates are
+// optional on check-in/out (GPS may be denied/unavailable), so an invalid or
+// missing pair yields nulls rather than an error — attendance still records.
+function coordsFromBody(body) {
+    const b = body;
+    const lat = numOrNull(b?.lat);
+    const lng = numOrNull(b?.lng);
+    if (lat == null || lng == null || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+        return { lat: null, lng: null };
+    }
+    return { lat: lat.toString(), lng: lng.toString() };
+}
+// Total shift hours (2dp) between check-in and now/check-out; null if unusable.
+function totalHours(checkInAt, checkOutAt) {
+    const start = new Date(checkInAt).getTime();
+    const end = checkOutAt ? new Date(checkOutAt).getTime() : Date.now();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start)
+        return null;
+    return Math.round(((end - start) / 3_600_000) * 100) / 100;
+}
+// Explicit attendance status derived from the open/closed state.
+function attendanceStatus(checkOutAt) {
+    return checkOutAt ? 'CHECKED_OUT' : 'CHECKED_IN';
+}
+// Decorate a raw attendance row with the derived status + total hours the
+// clients render, without persisting redundant columns.
+function decorateRecord(row) {
+    return { ...row, status: attendanceStatus(row.checkOutAt), totalHours: totalHours(row.checkInAt, row.checkOutAt) };
 }
 // Current open shift for the calling user, if any.
 async function openRecordFor(userId) {
@@ -77,7 +117,11 @@ router.get('/me', async (req, res) => {
         .where(eq(attendanceRecords.userId, userId))
         .orderBy(desc(attendanceRecords.checkInAt))
         .limit(30);
-    res.json({ open, checkedIn: open != null, recent });
+    res.json({
+        open: open ? decorateRecord(open) : null,
+        checkedIn: open != null,
+        recent: recent.map(decorateRecord),
+    });
 });
 // Start a shift. Rejects if the user already has an open record (also enforced
 // by the partial unique index attendance_open_unique as a race backstop).
@@ -89,12 +133,13 @@ router.post('/check-in', requireRole(...ATTEND_ROLES), async (req, res) => {
         res.status(409).json({ error: 'You are already checked in.', open: existing });
         return;
     }
+    const { lat, lng } = coordsFromBody(req.body);
     try {
         const [row] = await db
             .insert(attendanceRecords)
-            .values({ userId, plantId: req.user.plantId ?? null, checkInNote: note })
+            .values({ userId, plantId: req.user.plantId ?? null, checkInNote: note, checkInLat: lat, checkInLng: lng })
             .returning();
-        res.status(201).json(row);
+        res.status(201).json(decorateRecord(row));
     }
     catch (err) {
         // Lost the race against the partial unique index — treat as already-in.
@@ -115,16 +160,17 @@ router.post('/check-out', requireRole(...ATTEND_ROLES), async (req, res) => {
         res.status(409).json({ error: 'You are not checked in.' });
         return;
     }
+    const { lat, lng } = coordsFromBody(req.body);
     const [row] = await db
         .update(attendanceRecords)
-        .set({ checkOutAt: new Date(), checkOutNote: note })
+        .set({ checkOutAt: new Date(), checkOutNote: note, checkOutLat: lat, checkOutLng: lng })
         .where(and(eq(attendanceRecords.id, open.id), isNull(attendanceRecords.checkOutAt)))
         .returning();
     // Tracking stops on check-out: drop the in-memory live fix and tell staff so
-    // the driver falls off the live board immediately.
+    // the user falls off the live duty map immediately.
     driverLiveLocations.delete(userId);
-    emitSSEEvent('driver.offline', { userId }, { roles: LIVE_VIEW_ROLES, plantId: open.plantId ?? null });
-    res.json(row ?? open);
+    emitSSEEvent('driver.offline', { userId }, dutyAudience(open.plantId ?? null));
+    res.json(decorateRecord(row ?? open));
 });
 // Driver/staff stream a live GPS fix while checked in. Rejected unless the caller
 // has an OPEN attendance record, so location only flows between check-in and
@@ -198,7 +244,7 @@ router.post('/location', requireRole(...ATTEND_ROLES), async (req, res) => {
         updatedAt: new Date().toISOString(),
     };
     driverLiveLocations.set(userId, live);
-    emitSSEEvent('driver.location', live, { roles: LIVE_VIEW_ROLES, plantId });
+    emitSSEEvent('driver.location', live, dutyAudience(plantId));
     res.json({ ok: true });
 });
 // Staff live view: every currently checked-in user with their identity, truck,
@@ -216,10 +262,12 @@ router.get('/live', requireRole(...REPORT_ROLES), async (req, res) => {
         linkedDriverId: users.linkedDriverId,
         driverName: drivers.name,
         driverPhone: drivers.phone,
+        plantName: plants.name,
     })
         .from(attendanceRecords)
         .leftJoin(users, eq(attendanceRecords.userId, users.id))
         .leftJoin(drivers, eq(users.linkedDriverId, drivers.id))
+        .leftJoin(plants, eq(attendanceRecords.plantId, plants.id))
         .where(and(isNull(attendanceRecords.checkOutAt), plantScope(req.user.plantId, attendanceRecords.plantId)))
         .orderBy(desc(attendanceRecords.checkInAt))
         .limit(500);
@@ -260,10 +308,17 @@ router.get('/live', requireRole(...REPORT_ROLES), async (req, res) => {
             name: r.userName ?? r.driverName ?? null,
             phone: r.driverPhone ?? r.userPhone ?? null,
             role: r.role,
+            plantId: r.plantId,
+            plantName: r.plantName ?? null,
             driverId: r.linkedDriverId,
             vehicleNo: r.linkedDriverId != null ? truckByDriver.get(r.linkedDriverId) ?? null : null,
             checkInAt: r.checkInAt,
             status: trip ? trip.status : 'on_duty',
+            // Presence for the duty map: a checked-in user with a fresh fix is Online;
+            // one whose GPS has gone stale is "gps_inactive" (kept visible, not dropped
+            // silently). Checked-out users never appear here (filtered by the query).
+            presence: live ? 'online' : 'gps_inactive',
+            lastUpdatedAt: live?.updatedAt ?? null,
             tripChallanId: trip?.challanId ?? null,
             location: live
                 ? { lat: live.lat, lng: live.lng, speed: live.speed, heading: live.heading, updatedAt: live.updatedAt }
@@ -292,12 +347,16 @@ router.get('/', requireRole(...REPORT_ROLES), async (req, res) => {
         checkOutAt: attendanceRecords.checkOutAt,
         checkInNote: attendanceRecords.checkInNote,
         checkOutNote: attendanceRecords.checkOutNote,
+        checkInLat: attendanceRecords.checkInLat,
+        checkInLng: attendanceRecords.checkInLng,
+        checkOutLat: attendanceRecords.checkOutLat,
+        checkOutLng: attendanceRecords.checkOutLng,
     })
         .from(attendanceRecords)
         .leftJoin(users, eq(attendanceRecords.userId, users.id))
         .where(and(...conds))
         .orderBy(desc(attendanceRecords.checkInAt))
         .limit(500);
-    res.json(rows);
+    res.json(rows.map(decorateRecord));
 });
 export default router;

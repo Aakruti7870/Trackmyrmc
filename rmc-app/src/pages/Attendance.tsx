@@ -37,6 +37,19 @@ function fmt(iso: string | null): string {
   return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+// One-shot geolocation as a promise; resolves null if unavailable or denied so
+// the caller can still record attendance and warn the user separately.
+function getCurrentCoords(): Promise<{ lat: number; lng: number } | null> {
+  if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 },
+    );
+  });
+}
+
 function duration(from: string, to: string | null): string {
   const start = new Date(from).getTime();
   const end = to ? new Date(to).getTime() : Date.now();
@@ -56,6 +69,7 @@ export default function Attendance() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gpsWarning, setGpsWarning] = useState<string | null>(null);
 
   const loadStatus = () => api.get<MyStatus>('/attendance/me').then(setStatus);
   const loadReport = () => api.get<ReportRow[]>('/attendance').then(setReport).catch(() => {});
@@ -68,8 +82,17 @@ export default function Attendance() {
   const act = async (action: 'check-in' | 'check-out') => {
     setBusy(true);
     setError(null);
+    setGpsWarning(null);
+    // Best-effort one-shot fix so the shift's start/end point is recorded. If the
+    // user denies location we still record attendance, but warn that live duty
+    // tracking needs it.
+    const coords = await getCurrentCoords();
+    if (!coords) setGpsWarning('Location permission is required for active duty tracking.');
     try {
-      await api.post(`/attendance/${action}`, { note: note.trim() || undefined });
+      await api.post(`/attendance/${action}`, {
+        note: note.trim() || undefined,
+        ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
+      });
       setNote('');
       await loadStatus();
       if (canViewReport) await loadReport();
@@ -139,6 +162,17 @@ export default function Attendance() {
           border: '1px solid color-mix(in srgb, #ef4444 40%, transparent)',
         }}>
           {error}
+        </div>
+      )}
+
+      {gpsWarning && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 10, marginBottom: 14, fontSize: 13,
+          background: 'color-mix(in srgb, #f59e0b 12%, var(--surface))',
+          border: '1px solid color-mix(in srgb, #f59e0b 40%, transparent)',
+          color: 'var(--text)',
+        }}>
+          {gpsWarning}
         </div>
       )}
 

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { api, type DashboardKPIs, type Challan, type Order } from '@/lib/api';
 import PlantsMap from '@/components/PlantsMap';
+import LiveDutyMap from '@/components/LiveDutyMap';
 import { useAuth } from '@/lib/auth';
 import { useSSE } from '@/lib/useSSE';
 import { canAccess } from '@/lib/permissions';
@@ -28,6 +29,10 @@ export default function Dashboard() {
 
   const canDispatch = user ? canAccess(user.role, '/dispatch') : false;
   const canOrders = user ? canAccess(user.role, '/orders') : false;
+  // The Live Duty Map is a supervisory view — same roles that see the plant-wide
+  // attendance report (admin/plant_owner/supervisor/authority).
+  const DUTY_ROLES = new Set(['admin', 'plant_owner', 'supervisor', 'authority']);
+  const canViewDuty = user ? DUTY_ROLES.has(user.role) : false;
 
   const reload = useCallback(() => {
     Promise.all([
@@ -372,6 +377,13 @@ export default function Dashboard() {
       <div className="dash-hero" style={{ marginBottom: 16 }}>
         <PlantsMap />
       </div>
+
+      {/* ===== Live duty map: everyone currently on shift, all roles ===== */}
+      {canViewDuty && (
+        <div style={{ marginBottom: 16 }}>
+          <LiveDutyMap />
+        </div>
+      )}
 
       {/* ===== Lower grid: recent dispatch + active orders + notification center ===== */}
       <div className="dash-lower" style={{ display: 'grid', gridTemplateColumns: '1.2fr .9fr .9fr', gap: 14 }}>

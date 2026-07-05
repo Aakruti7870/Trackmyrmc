@@ -390,6 +390,15 @@ export const attendanceRecords = pgTable('attendance_records', {
   checkOutAt: timestamp('check_out_at'),
   checkInNote: text('check_in_note'),
   checkOutNote: text('check_out_note'),
+  // Where the shift was opened/closed, captured from the device on check-in and
+  // check-out (best-effort — null when GPS was denied/unavailable). Distinct
+  // from the streaming driver_locations history: these two fixes bookend the
+  // shift. The live CHECKED_IN/CHECKED_OUT status and total hours are derived
+  // from checkOutAt + the timestamps, so no status/hours columns are stored.
+  checkInLat: decimal('check_in_lat', { precision: 10, scale: 7 }),
+  checkInLng: decimal('check_in_lng', { precision: 10, scale: 7 }),
+  checkOutLat: decimal('check_out_lat', { precision: 10, scale: 7 }),
+  checkOutLng: decimal('check_out_lng', { precision: 10, scale: 7 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('attendance_open_unique').on(t.userId).where(sql`${t.checkOutAt} IS NULL`),
