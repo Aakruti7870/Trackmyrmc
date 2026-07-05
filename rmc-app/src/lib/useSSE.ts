@@ -113,6 +113,10 @@ export function useSSE() {
         dispatchEvent('driver.offline', JSON.parse(e.data));
       });
 
+      es.addEventListener('duty.stale', (e: MessageEvent) => {
+        dispatchEvent('duty.stale', JSON.parse(e.data));
+      });
+
       es.addEventListener('ping', () => {});
     }
 

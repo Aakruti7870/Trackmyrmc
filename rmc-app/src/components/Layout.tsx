@@ -203,7 +203,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       window.dispatchEvent(new CustomEvent('whatsapp-message', { detail: d }));
     });
 
-    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); unsubInvite(); unsubWaFailed(); unsubGaveUp(); unsubWaMsg(); };
+    // A checked-in staffer's live GPS aged out while still on duty — their phone
+    // went dark, not a normal check-out (supervisory roles only, scoped
+    // server-side). Surfaced as an error toast so a supervisor can call/check on
+    // them instead of the marker just silently vanishing from the duty map.
+    const unsubDutyStale = subscribe('duty.stale', (data: unknown) => {
+      const d = data as { name?: string; role?: string | null };
+      if (!d?.name) return;
+      const role = d.role ? d.role.replace(/[._-]/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase()) : null;
+      const who = role ? `${d.name} (${role})` : d.name;
+      showToast(`${who} has gone offline — GPS inactive, check on them`, 'error');
+    });
+
+    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); unsubInvite(); unsubWaFailed(); unsubGaveUp(); unsubWaMsg(); unsubDutyStale(); };
   }, [subscribe, showToast, isClient]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';

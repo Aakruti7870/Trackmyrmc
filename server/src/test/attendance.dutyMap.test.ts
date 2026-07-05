@@ -10,7 +10,12 @@ import { users, plants } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
 import { hashPassword } from '../lib/password.js';
 import { addSSEClient, removeSSEClient, type SSEIdentity } from '../lib/sseEmitter.js';
+import { sweepStaleLiveFixes, __resetLiveLocationsForTest } from '../routes/attendance.js';
 import type { Response } from 'express';
+
+// A timestamp far enough past the default stale window that any streamed fix is
+// treated as aged-out when the sweep runs — deterministic, no timers/env needed.
+const STALE_NOW = Date.now() + 10 * 60 * 1000;
 
 let app: Express;
 
@@ -222,6 +227,92 @@ test('check-out driver.offline is scoped to the same plant (parity with driver.l
     assert.ok(!otherplant.events().includes('driver.offline'), 'other-plant staff never receive the offline event');
   } finally {
     sameplant.close(); otherplant.close();
+  }
+});
+
+test('a stale on-duty GPS fix alerts same-plant + platform supervisors, not other plants or non-supervisory coworkers', async () => {
+  const [plantA] = await db.insert(plants).values({
+    name: 'Plant A', city: 'Mumbai', latitude: '19.0', longitude: '73.0',
+    plantStatus: 'approved', isActive: true, subscriptionStatus: 'active',
+  }).returning();
+  const [plantB] = await db.insert(plants).values({
+    name: 'Plant B', city: 'Pune', latitude: '18.5', longitude: '73.8',
+    plantStatus: 'approved', isActive: true, subscriptionStatus: 'active',
+  }).returning();
+  const staffA = await createUser('Amy A', 'amy@test.com', 'dispatcher', plantA.id);
+
+  __resetLiveLocationsForTest();
+  await request(app).post('/api/attendance/check-in')
+    .set('Authorization', `Bearer ${tokenFor(staffA)}`).send({});
+  await request(app).post('/api/attendance/location')
+    .set('Authorization', `Bearer ${tokenFor(staffA)}`).send({ lat: 12.9, lng: 77.5 });
+
+  const sameSup = captureSSE({ role: 'supervisor', plantId: plantA.id });
+  const platformSup = captureSSE({ role: 'admin', plantId: null });
+  const otherSup = captureSSE({ role: 'supervisor', plantId: plantB.id });
+  const sameCoworker = captureSSE({ role: 'dispatcher', plantId: plantA.id });
+  try {
+    await sweepStaleLiveFixes(STALE_NOW);
+
+    assert.ok(sameSup.events().includes('duty.stale'), 'same-plant supervisor is alerted the staffer went dark');
+    assert.ok(platformSup.events().includes('duty.stale'), 'platform supervisor is alerted too');
+    assert.ok(!otherSup.events().includes('duty.stale'), 'a different plant\'s supervisor is never alerted');
+    assert.ok(!sameCoworker.events().includes('duty.stale'), 'non-supervisory coworkers get the marker removal, not the alert');
+    // The existing silent marker-removal still fans out to every on-duty viewer.
+    assert.ok(sameCoworker.events().includes('driver.offline'), 'the map still drops the marker for coworkers');
+  } finally {
+    sameSup.close(); platformSup.close(); otherSup.close(); sameCoworker.close();
+  }
+});
+
+test('a null-plant platform staffer going dark alerts platform supervisors only', async () => {
+  const [plantB] = await db.insert(plants).values({
+    name: 'Plant B', city: 'Pune', latitude: '18.5', longitude: '73.8',
+    plantStatus: 'approved', isActive: true, subscriptionStatus: 'active',
+  }).returning();
+  const boss = await createUser('Ava Authority', 'ava@test.com', 'authority', null);
+
+  __resetLiveLocationsForTest();
+  await request(app).post('/api/attendance/check-in')
+    .set('Authorization', `Bearer ${tokenFor(boss)}`).send({});
+  await request(app).post('/api/attendance/location')
+    .set('Authorization', `Bearer ${tokenFor(boss)}`).send({ lat: 12.9, lng: 77.5 });
+
+  const platformSup = captureSSE({ role: 'admin', plantId: null });
+  const plantSup = captureSSE({ role: 'supervisor', plantId: plantB.id });
+  try {
+    await sweepStaleLiveFixes(STALE_NOW);
+
+    assert.ok(platformSup.events().includes('duty.stale'), 'platform supervisor is alerted');
+    assert.ok(!plantSup.events().includes('duty.stale'), 'a plant-bound supervisor never sees a platform staffer\'s alert');
+  } finally {
+    platformSup.close(); plantSup.close();
+  }
+});
+
+test('a normal check-out never raises a gone-dark alert (only the silent offline event)', async () => {
+  const [plantA] = await db.insert(plants).values({
+    name: 'Plant A', city: 'Mumbai', latitude: '19.0', longitude: '73.0',
+    plantStatus: 'approved', isActive: true, subscriptionStatus: 'active',
+  }).returning();
+  const staffA = await createUser('Amy A', 'amy@test.com', 'dispatcher', plantA.id);
+
+  __resetLiveLocationsForTest();
+  await request(app).post('/api/attendance/check-in')
+    .set('Authorization', `Bearer ${tokenFor(staffA)}`).send({});
+  await request(app).post('/api/attendance/location')
+    .set('Authorization', `Bearer ${tokenFor(staffA)}`).send({ lat: 12.9, lng: 77.5 });
+
+  const sup = captureSSE({ role: 'supervisor', plantId: plantA.id });
+  try {
+    const out = await request(app).post('/api/attendance/check-out')
+      .set('Authorization', `Bearer ${tokenFor(staffA)}`).send({});
+    assert.equal(out.status, 200);
+
+    assert.ok(sup.events().includes('driver.offline'), 'check-out still drops the marker');
+    assert.ok(!sup.events().includes('duty.stale'), 'check-out is not a gone-dark event, so no alert');
+  } finally {
+    sup.close();
   }
 });
 
