@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'wouter';
 import { api, type Challan, type PositionUpdateResult, type FreshnessConfig } from '@/lib/api';
-import { Truck, MapPin, CheckCircle, Clock, Package, AlertCircle, CalendarDays, Navigation, Satellite, AlertTriangle, Camera, X, Map as MapIcon, Timer, LogOut } from 'lucide-react';
+import { Truck, MapPin, CheckCircle, Clock, Package, AlertCircle, CalendarDays, Navigation, Satellite, AlertTriangle, Camera, X, Timer, LogOut, Phone, MessageCircle, Siren } from 'lucide-react';
 import FreshnessCountdown from '@/components/FreshnessCountdown';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 
@@ -106,8 +107,8 @@ const TRIP_STAGES: { key: string; label: string }[] = [
 ];
 const STAGE_RANK: Record<string, number> = { dispatched: 0, in_transit: 1, reached_site: 2, unloading: 3, delivered: 4 };
 
-function TripCard({ challan, onMarkDelivered, onLeftSite, onTripStatus, tracking, liveDistanceM, freshnessConfig }: {
-  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[], odometerEnd?: string) => void; onLeftSite: (id: number, odometerEnd?: string) => Promise<void>; onTripStatus: (id: number, status: string) => Promise<void>; tracking: boolean; liveDistanceM?: number | null; freshnessConfig: FreshnessConfig | null;
+function TripCard({ challan, onMarkDelivered, onLeftSite, onTripStatus, onStartTracking, tracking, liveDistanceM, freshnessConfig }: {
+  challan: Challan; onMarkDelivered: (id: number, notes?: string, deliveredQuantity?: string, proofPhotos?: string[], odometerEnd?: string) => void; onLeftSite: (id: number, odometerEnd?: string) => Promise<void>; onTripStatus: (id: number, status: string) => Promise<void>; onStartTracking: () => void; tracking: boolean; liveDistanceM?: number | null; freshnessConfig: FreshnessConfig | null;
 }) {
   const s = STATUS_STYLES[challan.status] || STATUS_STYLES.pending;
   const StatusIcon = s.icon;
@@ -130,6 +131,34 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, onTripStatus, tracking
   const [photoErr, setPhotoErr] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
   const hasPin = challan.siteLat != null && challan.siteLng != null;
+  // Start Navigation deep-links to Google Maps: prefer the exact GPS pin, else
+  // fall back to the delivery address / site name text.
+  const navDest = hasPin
+    ? `${challan.siteLat},${challan.siteLng}`
+    : (challan.siteAddress || challan.siteName)
+      ? encodeURIComponent(challan.siteAddress || challan.siteName || '')
+      : null;
+  const navUrl = navDest ? `https://www.google.com/maps/dir/?api=1&destination=${navDest}&travelmode=driving` : null;
+  const phoneDigits = (challan.contactNumber || '').replace(/\D/g, '');
+  const waDigits = phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits;
+
+  // Trip is "started" once live tracking is on or the driver has advanced past
+  // the assigned/dispatched stage.
+  const tripStarted = tracking || currentRank >= STAGE_RANK.in_transit;
+
+  // Big "Start Trip" button: request GPS permission + begin live tracking, mark
+  // the trip en route (Assigned → in transit) the first time, then open Google
+  // Maps turn-by-turn navigation to the site. Once started it becomes "Navigate
+  // to Site" and just re-opens Maps (tracking keeps running until Delivered).
+  function handleStartTrip() {
+    if (!tripStarted) {
+      onStartTracking();
+      if (currentRank < STAGE_RANK.in_transit) {
+        onTripStatus(challan.id, 'in_transit').catch(() => { /* non-blocking */ });
+      }
+    }
+    if (navUrl) window.open(navUrl, '_blank', 'noopener,noreferrer');
+  }
 
   function composeNotes(): string | undefined {
     const r = recipient.trim();
@@ -222,15 +251,33 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, onTripStatus, tracking
           <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>{challan.clientName || '—'}</div>
         </div>
         <div>
-          <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Vehicle</div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Transit Mixer</div>
           <div style={{ fontSize: 13, fontFamily: 'monospace', color: 'var(--gold)', fontWeight: 700 }}>{challan.vehicleNo || '—'}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Plant</div>
+          <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>{challan.plantName || '—'}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Contact Person</div>
+          <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>{challan.contactPerson || '—'}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Customer Mobile</div>
+          {challan.contactNumber
+            ? <a href={`tel:${challan.contactNumber}`} style={{ fontSize: 13, color: 'var(--blue)', fontWeight: 700, textDecoration: 'none' }}>{challan.contactNumber}</a>
+            : <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>—</div>}
         </div>
       </div>
 
-      {challan.siteName && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, padding: '7px 10px', background: 'var(--chip-bg)', borderRadius: 8 }}>
-          <MapPin size={12} style={{ color: 'var(--muted)' }} />
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{challan.siteName}</span>
+      {(challan.siteAddress || challan.siteName) && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 14, padding: '7px 10px', background: 'var(--chip-bg)', borderRadius: 8 }}>
+          <MapPin size={12} style={{ color: 'var(--muted)', flexShrink: 0, marginTop: 2 }} />
+          <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
+            {challan.siteName ? <span style={{ color: 'var(--text)', fontWeight: 600 }}>{challan.siteName}</span> : null}
+            {challan.siteName && challan.siteAddress ? ' — ' : null}
+            {challan.siteAddress || null}
+          </span>
         </div>
       )}
 
@@ -238,20 +285,67 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, onTripStatus, tracking
         <FreshnessCountdown dispatchTime={challan.dispatchTime} config={freshnessConfig} variant="banner" />
       )}
 
-      {isActionable && hasPin && (
-        <a
-          href={`https://www.google.com/maps/dir/?api=1&destination=${challan.siteLat},${challan.siteLng}&travelmode=driving`}
-          target="_blank"
-          rel="noopener noreferrer"
+      {isActionable && (
+        <button
+          type="button"
+          onClick={handleStartTrip}
           style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginBottom: 14,
-            padding: '10px 0', borderRadius: 10, textDecoration: 'none',
-            background: 'rgba(56,189,248,.1)', border: '1px solid rgba(56,189,248,.3)',
-            color: 'var(--blue)', fontSize: 13, fontWeight: 700,
+            width: '100%', border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12,
+            padding: '15px 0', borderRadius: 12,
+            background: tripStarted
+              ? 'linear-gradient(135deg,#0284c7,var(--blue))'
+              : 'linear-gradient(135deg,#16a34a,var(--green))',
+            color: '#fff', fontSize: 16, fontWeight: 800, letterSpacing: '.2px',
+            boxShadow: tripStarted ? '0 4px 16px rgba(56,189,248,.3)' : '0 4px 18px rgba(34,197,94,.35)',
           }}
         >
-          <MapIcon size={15} /> Navigate to site
-        </a>
+          <Navigation size={19} /> {tripStarted ? 'Navigate to Site' : 'Start Trip'}
+        </button>
+      )}
+
+      {isActionable && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <a
+            href={phoneDigits ? `tel:${challan.contactNumber}` : undefined}
+            aria-disabled={!phoneDigits}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '10px 0', borderRadius: 10, textDecoration: 'none',
+              background: 'rgba(34,197,94,.1)', border: '1px solid color-mix(in srgb, var(--green) 30%, transparent)',
+              color: 'var(--green)', fontSize: 12.5, fontWeight: 700,
+              opacity: phoneDigits ? 1 : 0.45, pointerEvents: phoneDigits ? 'auto' : 'none',
+            }}
+          >
+            <Phone size={15} /> Call
+          </a>
+          <a
+            href={waDigits ? `https://wa.me/${waDigits}` : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-disabled={!waDigits}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '10px 0', borderRadius: 10, textDecoration: 'none',
+              background: 'rgba(34,197,94,.1)', border: '1px solid color-mix(in srgb, var(--green) 30%, transparent)',
+              color: 'var(--green)', fontSize: 12.5, fontWeight: 700,
+              opacity: waDigits ? 1 : 0.45, pointerEvents: waDigits ? 'auto' : 'none',
+            }}
+          >
+            <MessageCircle size={15} /> WhatsApp
+          </a>
+          <Link
+            href="/sos"
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '10px 0', borderRadius: 10, textDecoration: 'none',
+              background: 'rgba(239,68,68,.1)', border: '1px solid color-mix(in srgb, var(--red) 34%, transparent)',
+              color: 'var(--red)', fontSize: 12.5, fontWeight: 800,
+            }}
+          >
+            <Siren size={15} /> SOS
+          </Link>
+        </div>
       )}
 
       {isActionable && tracking && (
@@ -728,6 +822,17 @@ export default function MyTrips() {
     window.setTimeout(() => setConfirmation(''), 4000);
   }
 
+  // Request GPS permission and begin live tracking. Shared by the GPS panel
+  // toggle and each trip card's "Start Trip" button.
+  const startTracking = useCallback(() => {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setGeoState('unsupported');
+      setGeoMsg('This device or browser does not support GPS location.');
+      return;
+    }
+    setGeoState('active'); setGeoMsg(''); setTracking(true);
+  }, []);
+
   // Driver advances the trip stage (In Transit → Reached Site → Unloading).
   // The server enforces forward-only progression and notifies the customer link.
   async function handleTripStatus(id: number, status: string) {
@@ -916,12 +1021,7 @@ export default function MyTrips() {
         activeCount={trackable}
         onToggle={() => {
           if (tracking) { setTracking(false); setGeoState('off'); return; }
-          if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
-            setGeoState('unsupported');
-            setGeoMsg('This device or browser does not support GPS location.');
-            return;
-          }
-          setGeoState('active'); setGeoMsg(''); setTracking(true);
+          startTracking();
         }}
       />
 
@@ -983,7 +1083,7 @@ export default function MyTrips() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 16 }}>
           {filtered.map(c => (
-            <TripCard key={c.id} challan={c} onMarkDelivered={handleMarkDelivered} onLeftSite={handleLeftSite} onTripStatus={handleTripStatus} tracking={tracking && geoState === 'active'} liveDistanceM={liveDist[c.id]} freshnessConfig={freshnessConfig} />
+            <TripCard key={c.id} challan={c} onMarkDelivered={handleMarkDelivered} onLeftSite={handleLeftSite} onTripStatus={handleTripStatus} onStartTracking={startTracking} tracking={tracking && geoState === 'active'} liveDistanceM={liveDist[c.id]} freshnessConfig={freshnessConfig} />
           ))}
         </div>
       )}

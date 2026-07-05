@@ -208,6 +208,13 @@ const driverChallanSelect = {
   ...challanSelect,
   odometerStart: challans.odometerStart,
   odometerEnd: challans.odometerEnd,
+  // Delivery-coordination contact + address the customer supplied on the order
+  // (the site delivery contact, not the anonymised customer account). Surfaced
+  // to the assigned driver so they can call/WhatsApp and navigate to the drop.
+  siteAddress: orders.siteAddress,
+  contactPerson: orders.contactPerson,
+  contactNumber: orders.contactNumber,
+  plantName: plants.name,
 };
 
 async function getLinkedClientId(userId: number): Promise<number | null> {
@@ -720,6 +727,8 @@ router.get('/trips', requireRole('driver'), async (req, res) => {
     .leftJoin(sites, eq(challans.siteId, sites.id))
     .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
     .leftJoin(drivers, eq(challans.driverId, drivers.id))
+    .leftJoin(orders, eq(challans.orderId, orders.id))
+    .leftJoin(plants, eq(challans.plantId, plants.id))
     .leftJoin(tripSessions, eq(tripSessions.challanId, challans.id))
     .where(and(...filters))
     .orderBy(desc(challans.dispatchTime));

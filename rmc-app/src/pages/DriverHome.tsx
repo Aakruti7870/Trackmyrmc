@@ -3,7 +3,7 @@ import { Link } from 'wouter';
 import { api, type Challan } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
-  Route, Wallet, Siren, CalendarClock, Truck, CheckCircle, Clock, ArrowRight, Package,
+  Route, Wallet, Siren, Truck, CheckCircle, Navigation, ArrowRight, Package, User,
 } from 'lucide-react';
 
 interface Expense {
@@ -16,6 +16,15 @@ function greeting(): string {
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
+}
+
+function navUrlFor(c: Challan): string | null {
+  const dest = c.siteLat != null && c.siteLng != null
+    ? `${c.siteLat},${c.siteLng}`
+    : (c.siteAddress || c.siteName)
+      ? encodeURIComponent(c.siteAddress || c.siteName || '')
+      : null;
+  return dest ? `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving` : null;
 }
 
 export default function DriverHome() {
@@ -38,9 +47,11 @@ export default function DriverHome() {
 
   const activeTrips = trips.filter(c => c.status === 'dispatched' || (c.siteArrivalTime != null && c.siteReleaseTime == null));
   const deliveredToday = trips.filter(c => c.status === 'delivered').length;
-  const pendingExpenses = expenses.filter(e => e.status === 'pending').length;
+  const pendingClaims = expenses.filter(e => e.status === 'pending').length;
 
   const firstName = (user?.name || 'Driver').split(' ')[0];
+  const primary = activeTrips[0];
+  const primaryNavUrl = primary ? navUrlFor(primary) : null;
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
@@ -58,27 +69,43 @@ export default function DriverHome() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 18 }}>
         <Stat label="Active" value={loading ? '—' : activeTrips.length} color="var(--blue)" icon={Truck} />
         <Stat label="Delivered" value={loading ? '—' : deliveredToday} color="var(--green)" icon={CheckCircle} />
-        <Stat label="Pending ₹" value={loading ? '—' : pendingExpenses} color="var(--gold)" icon={Clock} />
+        <Stat label="Claims" value={loading ? '—' : pendingClaims} color="var(--gold)" icon={Wallet} />
       </div>
 
-      {/* Active trip highlight */}
-      {activeTrips.length > 0 && (
-        <Link href="/my-trips" style={{ textDecoration: 'none' }}>
-          <div style={{ ...card, borderColor: 'color-mix(in srgb, var(--blue) 40%, transparent)', marginBottom: 18, cursor: 'pointer' }}>
+      {/* Current trip highlight */}
+      {primary && (
+        <div style={{ ...card, borderColor: 'color-mix(in srgb, var(--blue) 40%, transparent)', marginBottom: 18 }}>
+          <Link href="/my-trips" style={{ textDecoration: 'none', color: 'inherit' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 40, height: 40, borderRadius: 12, display: 'grid', placeItems: 'center', background: 'rgba(56,189,248,.14)', color: 'var(--blue)' }}>
                 <Package size={20} />
               </div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700 }}>{activeTrips.length} active {activeTrips.length === 1 ? 'trip' : 'trips'}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-                  {activeTrips[0].challanNo}{activeTrips[0].siteName ? ` → ${activeTrips[0].siteName}` : ''}
+                <div style={{ fontSize: 12.5, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {primary.challanNo}{primary.siteName ? ` → ${primary.siteName}` : ''}
                 </div>
               </div>
               <ArrowRight size={18} style={{ color: 'var(--muted)' }} />
             </div>
-          </div>
-        </Link>
+          </Link>
+          {primaryNavUrl && (
+            <a
+              href={primaryNavUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14,
+                padding: '12px 0', borderRadius: 12, textDecoration: 'none',
+                background: 'linear-gradient(135deg,#0284c7,var(--blue))',
+                color: '#fff', fontSize: 15, fontWeight: 800,
+                boxShadow: '0 4px 16px rgba(56,189,248,.3)',
+              }}
+            >
+              <Navigation size={18} /> Start Navigation
+            </a>
+          )}
+        </div>
       )}
 
       {/* Quick actions */}
@@ -86,8 +113,8 @@ export default function DriverHome() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
         <Action href="/my-trips" label="My Trips" sub="Deliveries & tracking" icon={Route} color="var(--blue)" />
         <Action href="/expenses" label="Expenses" sub="Submit a claim" icon={Wallet} color="var(--gold)" />
-        <Action href="/attendance" label="Attendance" sub="Check in / out" icon={CalendarClock} color="var(--green)" />
         <Action href="/sos" label="Emergency" sub="Raise an SOS" icon={Siren} color="var(--red)" />
+        <Action href="/profile" label="Profile" sub="Account & settings" icon={User} color="var(--green)" />
       </div>
     </div>
   );

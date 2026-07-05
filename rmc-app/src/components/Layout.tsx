@@ -467,7 +467,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <AIHelpAgent />
       {/* Mobile header */}
       <div style={{
-        display: 'none', background: 'var(--header-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
+        display: isDriver ? 'flex' : 'none', background: 'var(--header-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
         borderBottom: '1px solid var(--line)', padding: '12px 16px',
         paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
         alignItems: 'center', justifyContent: 'space-between',
@@ -481,45 +481,53 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <NotificationBell />
           <AiHeaderButton />
-          <button onClick={() => setMobileOpen(o => !o)}
-            style={{ background: 'none', color: 'var(--text)', padding: 4, border: 'none' }}>
-            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
+          {/* Drivers navigate solely via the bottom tab bar — no hamburger/drawer. */}
+          {!isDriver && (
+            <button onClick={() => setMobileOpen(o => !o)}
+              style={{ background: 'none', color: 'var(--text)', padding: 4, border: 'none' }}>
+              {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
+          )}
         </div>
       </div>
 
       <div style={{ display: 'flex', flex: 1 }}>
-        {/* Desktop sidebar */}
-        <aside id="desktop-sidebar" style={{
-          width: 240, flexShrink: 0,
-          background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
-          backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
-          borderRight: '1px solid var(--line)', padding: '18px 14px',
-          position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
-          display: 'flex', flexDirection: 'column',
-        }}>
-          {SidebarContent()}
-        </aside>
+        {/* Desktop sidebar + mobile drawer — every non-driver role. Drivers get a
+            bottom tab bar instead (no sidebar / drawer / hamburger at any width). */}
+        {!isDriver && (
+          <>
+            <aside id="desktop-sidebar" style={{
+              width: 240, flexShrink: 0,
+              background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
+              backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
+              borderRight: '1px solid var(--line)', padding: '18px 14px',
+              position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
+              display: 'flex', flexDirection: 'column',
+            }}>
+              {SidebarContent()}
+            </aside>
 
-        {/* Mobile overlay */}
-        {mobileOpen && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--overlay)', backdropFilter: 'blur(2px)' }}
-            onClick={() => setMobileOpen(false)} />
+            {/* Mobile overlay */}
+            {mobileOpen && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--overlay)', backdropFilter: 'blur(2px)' }}
+                onClick={() => setMobileOpen(false)} />
+            )}
+            <div id="mobile-sidebar" style={{
+              position: 'fixed', top: 0, left: 0, bottom: 0, width: 260, zIndex: 45,
+              background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
+              backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
+              borderRight: '1px solid var(--line)', padding: '18px 14px',
+              paddingTop: 'calc(18px + env(safe-area-inset-top, 0px))',
+              paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+              display: 'flex', flexDirection: 'column',
+              overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+              transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
+              transition: 'transform .25s ease',
+            }}>
+              {SidebarContent()}
+            </div>
+          </>
         )}
-        <div id="mobile-sidebar" style={{
-          position: 'fixed', top: 0, left: 0, bottom: 0, width: 260, zIndex: 45,
-          background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
-          backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
-          borderRight: '1px solid var(--line)', padding: '18px 14px',
-          paddingTop: 'calc(18px + env(safe-area-inset-top, 0px))',
-          paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
-          display: 'flex', flexDirection: 'column',
-          overflowY: 'auto', WebkitOverflowScrolling: 'touch',
-          transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform .25s ease',
-        }}>
-          {SidebarContent()}
-        </div>
 
         <main id="app-main" className={isDriver ? 'has-bottom-nav' : undefined} style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
           <LoginDebugCard />
@@ -527,10 +535,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      {/* Driver bottom tab bar — mobile only (hidden ≥901px via CSS). */}
+      {/* Driver bottom tab bar — the driver's sole navigation, shown at all widths. */}
       {isDriver && (
         <nav id="driver-bottom-nav" style={{
-          display: 'none', position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 55,
+          display: 'flex', position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 55,
           background: 'var(--header-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
           borderTop: '1px solid var(--line)',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
@@ -560,11 +568,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       <style>{`
+        /* Driver main always clears the fixed bottom tab bar (all widths). */
+        #app-main.has-bottom-nav { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
         @media (max-width: 900px) {
           #desktop-sidebar { display: none !important; }
           #mobile-header { display: flex !important; }
           #driver-bottom-nav { display: flex !important; }
-          #app-main.has-bottom-nav { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
         }
         @keyframes ssePulse {
           0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); }

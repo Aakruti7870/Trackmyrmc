@@ -211,6 +211,9 @@ export interface Challan {
   status: string; notes?: string; createdAt: string;
   tripStatus?: string | null;
   clientName?: string; siteName?: string;
+  // Delivery site contact + address the customer supplied on the order. Surfaced
+  // only in the driver trip view for delivery coordination (call / navigate).
+  siteAddress?: string | null; contactPerson?: string | null; contactNumber?: string | null;
   siteLat?: string | null; siteLng?: string | null;
   vehicleNo?: string; driverName?: string; driverPhone?: string;
   proofPhotos?: string[]; hasProofPhoto?: boolean;

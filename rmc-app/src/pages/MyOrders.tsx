@@ -81,6 +81,9 @@ const STATUS_STYLES: Record<string, { color: string; bg: string; label: string }
   completed:   { color: 'var(--green)', bg: 'rgba(34,197,94,.13)',   label: 'Completed' },
   cancelled:   { color: 'var(--red)', bg: 'rgba(239,68,68,.13)',   label: 'Cancelled' },
   dispatched:  { color: 'var(--blue)', bg: 'rgba(56,189,248,.13)',  label: 'Dispatched' },
+  in_transit:  { color: 'var(--blue)', bg: 'rgba(56,189,248,.13)',  label: 'In Transit' },
+  reached_site:{ color: 'var(--gold)', bg: 'color-mix(in srgb, var(--gold) 13%, transparent)', label: 'Reached Site' },
+  unloading:   { color: 'var(--gold)', bg: 'color-mix(in srgb, var(--gold) 13%, transparent)', label: 'Unloading' },
   delivered:   { color: 'var(--green)', bg: 'rgba(34,197,94,.13)',   label: 'Delivered' },
 };
 
@@ -262,7 +265,9 @@ export default function MyOrders() {
   const [fieldErrors, setFieldErrors] = useState<{
     plant?: string; grade?: string; quantity?: string;
     contactPerson?: string; contactNumber?: string; siteAddress?: string;
-    deliveryDate?: string; location?: string; pumpLineLength?: string;
+    deliveryDate?: string; deliveryTime?: string; siteName?: string;
+    paymentType?: string; poNumber?: string; notes?: string;
+    location?: string; pumpLineLength?: string;
   }>({});
   const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
   const [selectedPlantId, setSelectedPlantId] = useState<number | null>(null);
@@ -685,12 +690,23 @@ export default function MyOrders() {
     e.preventDefault();
     setFormError('');
     const fe: typeof fieldErrors = {};
-    // Keep placing an order low-friction: only the plant, grade and quantity are
-    // mandatory. Site, contact, delivery date and the map pin are optional — the
-    // plant confirms those details when they call to schedule the pour.
+    // Every delivery detail is mandatory so the plant has a complete, actionable
+    // order before it schedules the pour. PO Number is required only for credit
+    // payment terms.
+    const poRequired = form.paymentType === 'Credit';
     if (!selectedPlantId) fe.plant = 'Please choose a plant to order from.';
     if (!form.grade) fe.grade = 'Please select a concrete grade.';
     if (!(Number(form.quantity) > 0)) fe.quantity = 'Please enter a quantity greater than zero.';
+    if (!form.deliveryDate) fe.deliveryDate = 'Please choose a delivery date.';
+    if (!form.deliveryTime) fe.deliveryTime = 'Please choose a delivery time.';
+    if (!form.contactPerson.trim()) fe.contactPerson = 'Please enter the site contact person.';
+    if (!form.contactNumber.trim()) fe.contactNumber = 'Please enter a contact number.';
+    if (!form.siteName.trim()) fe.siteName = 'Please enter the site name.';
+    if (!form.siteAddress.trim()) fe.siteAddress = 'Please enter the full delivery address.';
+    if (!(Number(form.latitude) && Number(form.longitude))) fe.location = 'Please pin the delivery location on the map.';
+    if (!form.paymentType) fe.paymentType = 'Please select a payment type.';
+    if (poRequired && !form.poNumber.trim()) fe.poNumber = 'A PO number is required for credit orders.';
+    if (!form.notes.trim()) fe.notes = 'Please add notes or site details.';
     if (form.pumpRequired && !form.pumpLineLength.trim()) fe.pumpLineLength = 'Please enter the required pump line length.';
     setFieldErrors(fe);
     if (Object.keys(fe).length > 0) return;
@@ -1077,12 +1093,12 @@ export default function MyOrders() {
     return (
       <Card style={{ marginBottom: 16, padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <Navigation size={15} style={{ color: 'var(--green)' }} />
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Live Deliveries</h3>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent)' }} />
+          <Navigation size={17} style={{ color: 'var(--green)' }} />
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>Live Transit Mixer Tracking</h3>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent)' }} />
         </div>
         <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--muted)' }}>
-          Tracking your in-transit trucks in real time. Distance &amp; ETA are estimates.
+          Tracking your in-transit mixers in real time — route from plant to your site. Distance &amp; ETA are estimates.
         </p>
         {(() => {
           const markers: DeliveryMarker[] = dispatchedChallans.map(c => {
@@ -1097,7 +1113,7 @@ export default function MyOrders() {
               site: Number.isFinite(siteLat) && Number.isFinite(siteLng) ? { lat: siteLat, lng: siteLng, name: c.siteName } : null,
             };
           });
-          return <LiveDeliveryMap markers={markers} />;
+          return <LiveDeliveryMap markers={markers} height={460} />;
         })()}
         <div style={{ display: 'grid', gap: 12 }}>
           {dispatchedChallans.map(c => {
@@ -1133,6 +1149,16 @@ export default function MyOrders() {
                     )}
                     <FreshnessCountdown dispatchTime={c.dispatchTime} config={freshnessConfig} variant="chip" />
                   </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, color: 'var(--muted)' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <Truck size={12} style={{ color: 'var(--gold)' }} /> {c.vehicleNo || 'Mixer'}
+                  </span>
+                  <span>Driver: <strong style={{ color: 'var(--text)', fontWeight: 700 }}>{c.driverName || '—'}</strong></span>
+                  <span>Status: <StatusBadge status={live?.status || c.status} /></span>
+                  {live?.updatedAt && (
+                    <span>Updated {new Date(live.updatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                  )}
                 </div>
                 <LiveTimeline status={c.status} hasLive={!!live} />
               </div>
@@ -1329,8 +1355,8 @@ export default function MyOrders() {
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--red)' }}>{error}</div>
       ) : tab === 'today' ? (
         <>
-          {renderActiveOrdersTable(activeOrders)}
           {renderLiveDeliveries()}
+          {renderActiveOrdersTable(activeOrders)}
           <div style={{ marginTop: 20 }}>
             <SectionHeading icon={Truck} title="Today’s Challans" hint={`${todayChallans.length} dispatched today`} />
             {renderChallanTable(todayChallans, 'No challans dispatched today yet')}
@@ -1638,13 +1664,14 @@ export default function MyOrders() {
                 )}
               </div>
               <div>
-                <label style={labelStyle}>Delivery Date (optional)</label>
+                <label style={labelStyle}>Delivery Date *</label>
                 <input type="date" value={form.deliveryDate} onChange={e => { setForm(f => ({ ...f, deliveryDate: e.target.value })); if (e.target.value) setFieldErrors(fe => ({ ...fe, deliveryDate: undefined })); }} style={fieldErrors.deliveryDate ? inputErrorStyle : inputStyle} />
                 <FieldError msg={fieldErrors.deliveryDate} />
               </div>
               <div>
-                <label style={labelStyle}>Delivery Time</label>
-                <input type="time" value={form.deliveryTime} onChange={e => setForm(f => ({ ...f, deliveryTime: e.target.value }))} style={inputStyle} />
+                <label style={labelStyle}>Delivery Time *</label>
+                <input type="time" value={form.deliveryTime} onChange={e => { setForm(f => ({ ...f, deliveryTime: e.target.value })); if (e.target.value) setFieldErrors(fe => ({ ...fe, deliveryTime: undefined })); }} style={fieldErrors.deliveryTime ? inputErrorStyle : inputStyle} />
+                <FieldError msg={fieldErrors.deliveryTime} />
               </div>
             </div>
 
@@ -1652,24 +1679,25 @@ export default function MyOrders() {
                 confirms these details when scheduling the pour. */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
               <div>
-                <label style={labelStyle}>Site Contact Person (optional)</label>
+                <label style={labelStyle}>Site Contact Person *</label>
                 <input value={form.contactPerson} onChange={e => { setForm(f => ({ ...f, contactPerson: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, contactPerson: undefined })); }} placeholder="Name at delivery site" style={fieldErrors.contactPerson ? inputErrorStyle : inputStyle} />
                 <FieldError msg={fieldErrors.contactPerson} />
               </div>
               <div>
-                <label style={labelStyle}>Contact Number (optional)</label>
+                <label style={labelStyle}>Contact Number *</label>
                 <input value={form.contactNumber} onChange={e => { setForm(f => ({ ...f, contactNumber: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, contactNumber: undefined })); }} placeholder="Phone at site" style={fieldErrors.contactNumber ? inputErrorStyle : inputStyle} />
                 <FieldError msg={fieldErrors.contactNumber} />
               </div>
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>Site Name (optional)</label>
-              <input value={form.siteName} onChange={e => setForm(f => ({ ...f, siteName: e.target.value }))} placeholder="e.g. Tower B Foundation" style={inputStyle} />
+              <label style={labelStyle}>Site Name *</label>
+              <input value={form.siteName} onChange={e => { setForm(f => ({ ...f, siteName: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, siteName: undefined })); }} placeholder="e.g. Tower B Foundation" style={fieldErrors.siteName ? inputErrorStyle : inputStyle} />
+              <FieldError msg={fieldErrors.siteName} />
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>Delivery Site Address (optional)</label>
+              <label style={labelStyle}>Delivery Site Address *</label>
               <textarea value={form.siteAddress} onChange={e => { setForm(f => ({ ...f, siteAddress: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, siteAddress: undefined })); }} rows={2} placeholder="Full delivery address" style={{ ...(fieldErrors.siteAddress ? inputErrorStyle : inputStyle), resize: 'vertical' }} />
               <FieldError msg={fieldErrors.siteAddress} />
             </div>
@@ -1677,7 +1705,7 @@ export default function MyOrders() {
             {/* Pin the exact pour location — optional, but powers live tracking
                 when provided. */}
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>Pin Delivery Location on Map (optional)</label>
+              <label style={labelStyle}>Pin Delivery Location on Map *</label>
               <LocationPicker
                 value={Number(form.latitude) && Number(form.longitude) ? { lat: Number(form.latitude), lng: Number(form.longitude) } as LatLng : null}
                 onChange={(p) => { setForm(f => ({ ...f, latitude: p ? String(p.lat) : '', longitude: p ? String(p.lng) : '' })); if (p) setFieldErrors(fe => ({ ...fe, location: undefined })); }}
@@ -1703,21 +1731,24 @@ export default function MyOrders() {
             {/* Payment + PO reference. */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
               <div>
-                <label style={labelStyle}>Payment Type (optional)</label>
-                <select value={form.paymentType} onChange={e => setForm(f => ({ ...f, paymentType: e.target.value }))} style={inputStyle}>
+                <label style={labelStyle}>Payment Type *</label>
+                <select value={form.paymentType} onChange={e => { setForm(f => ({ ...f, paymentType: e.target.value })); setFieldErrors(fe => ({ ...fe, paymentType: e.target.value ? undefined : fe.paymentType, poNumber: e.target.value !== 'Credit' ? undefined : fe.poNumber })); }} style={fieldErrors.paymentType ? inputErrorStyle : inputStyle}>
                   <option value="">Select…</option>
                   {PAYMENT_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
+                <FieldError msg={fieldErrors.paymentType} />
               </div>
               <div>
-                <label style={labelStyle}>PO Number (optional)</label>
-                <input value={form.poNumber} onChange={e => setForm(f => ({ ...f, poNumber: e.target.value }))} placeholder="Purchase order ref" style={inputStyle} />
+                <label style={labelStyle}>PO Number {form.paymentType === 'Credit' ? '*' : '(if required)'}</label>
+                <input value={form.poNumber} onChange={e => { setForm(f => ({ ...f, poNumber: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, poNumber: undefined })); }} placeholder="Purchase order ref" style={fieldErrors.poNumber ? inputErrorStyle : inputStyle} />
+                <FieldError msg={fieldErrors.poNumber} />
               </div>
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>Notes / Site details (optional)</label>
-              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Special instructions…" style={{ ...inputStyle, resize: 'vertical' }} />
+              <label style={labelStyle}>Notes / Site details *</label>
+              <textarea value={form.notes} onChange={e => { setForm(f => ({ ...f, notes: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, notes: undefined })); }} rows={3} placeholder="Special instructions…" style={{ ...(fieldErrors.notes ? inputErrorStyle : inputStyle), resize: 'vertical' }} />
+              <FieldError msg={fieldErrors.notes} />
             </div>
 
             {/* Optional site photo — helps the plant plan access/placement. */}
