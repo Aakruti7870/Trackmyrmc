@@ -219,40 +219,38 @@ export default function Login() {
       <div className="ck-login-grid" style={{ width: '100%', maxWidth: 900, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
 
         {/* Left — brand */}
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 32px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
-            <div style={{
-              display: 'grid', placeItems: 'center', borderRadius: 16,
-              boxShadow: '0 8px 24px color-mix(in srgb, var(--gold) 30%, transparent)',
-            }}>
-              <ConcreteKingLogo size={52} />
-            </div>
-            <div>
-              <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>
-                {PLATFORM_NAME}
+        <div className="ck-login-brand" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 32px' }}>
+          {/* Advertising / marketing copy — hidden on mobile so the login card fits */}
+          <div className="ck-login-ad">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+              <div style={{
+                display: 'grid', placeItems: 'center', borderRadius: 16,
+                boxShadow: '0 8px 24px color-mix(in srgb, var(--gold) 30%, transparent)',
+              }}>
+                <ConcreteKingLogo size={52} />
               </div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>
-                {PLATFORM_TAGLINE}
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>
+                  {PLATFORM_NAME}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  {PLATFORM_TAGLINE}
+                </div>
               </div>
             </div>
+
+            <h1 style={{ margin: '0 0 12px', fontSize: 34, fontWeight: 900, lineHeight: 1.1, color: 'var(--text)' }}>
+              Ready Mix Concrete<br />
+              <span style={{ color: 'var(--gold)' }}>Management Platform</span>
+            </h1>
+            <p style={{ color: 'var(--muted)', lineHeight: 1.7, marginBottom: 24, fontSize: 14 }}>
+              End-to-end RMC plant operations — orders, dispatch, production, fleet & financials in one premium dashboard.
+            </p>
           </div>
 
-          <h1 style={{ margin: '0 0 12px', fontSize: 34, fontWeight: 900, lineHeight: 1.1, color: 'var(--text)' }}>
-            Ready Mix Concrete<br />
-            <span style={{ color: 'var(--gold)' }}>Management Platform</span>
-          </h1>
-          <p style={{ color: 'var(--muted)', lineHeight: 1.7, marginBottom: 24, fontSize: 14 }}>
-            End-to-end RMC plant operations — orders, dispatch, production, fleet & financials in one premium dashboard.
-          </p>
-
-          {/* Prominent install / download (PWA) call-to-action */}
-          <div style={{ maxWidth: 320 }}>
+          {/* Prominent install / download (PWA) call-to-action — kept on mobile */}
+          <div className="ck-login-install" style={{ maxWidth: 320 }}>
             <InstallAppButton />
-          </div>
-
-          {/* Powered / sponsored credits */}
-          <div style={{ maxWidth: 320, marginTop: 20 }}>
-            <BrandCredits align="left" />
           </div>
         </div>
 
@@ -478,6 +476,11 @@ export default function Login() {
           )}
 
           <AuthLegalFooter consentPrefix="By continuing, you agree to our Terms of Service and Privacy Policy." />
+
+          {/* Sponsor / partner credits — single row, below the social icons */}
+          <div style={{ marginTop: 12 }}>
+            <BrandCredits oneRow />
+          </div>
         </div>
       </div>
     </div>

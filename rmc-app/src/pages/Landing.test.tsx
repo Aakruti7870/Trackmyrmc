@@ -14,18 +14,18 @@ function renderAt(path = '/') {
   );
 }
 
-describe('Landing marketing deck', () => {
+describe('Landing home page', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('renders the brand and the two above-the-fold hero CTAs', () => {
+  it('renders the brand and the four feature cards', () => {
     renderAt();
-    // NavBar brand is always mounted, independent of the current slide.
     expect(screen.getAllByText(/concrete king/i).length).toBeGreaterThan(0);
-    // Slide 1 (hero) is the initial slide.
-    expect(screen.getByRole('button', { name: /get started/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /watch demo/i })).toBeInTheDocument();
+    expect(screen.getByText(/live tracking/i)).toBeInTheDocument();
+    expect(screen.getByText(/easy to use/i)).toBeInTheDocument();
+    expect(screen.getByText(/kyc verified users/i)).toBeInTheDocument();
+    expect(screen.getByText(/verified plants/i)).toBeInTheDocument();
   });
 
   it('exposes a Login entry point in the top navigation', () => {
@@ -33,26 +33,19 @@ describe('Landing marketing deck', () => {
     expect(screen.getAllByRole('button', { name: /^login$/i }).length).toBeGreaterThan(0);
   });
 
-  it('keeps the Live Feed heading and intro copy in the hydrated DOM (SEO parity with index.html)', () => {
+  it('shows a next-page navigation card into the login flow', () => {
     renderAt();
-    // The feed slide is display:none until navigated to, but its semantic
-    // content must stay in the DOM for crawlers — mirroring the prerendered
-    // shell in index.html (<h2>Live Feed</h2> + intro sentence).
-    expect(
-      screen.getByRole('heading', { level: 2, name: /^live feed$/i, hidden: true }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/watch our plants in action — concrete plant, batching, transit, arrival, pouring, and quality testing\./i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/sign in to continue/i)).toBeInTheDocument();
+    expect(screen.getByText(/go to login/i)).toBeInTheDocument();
   });
 
-  it('routes the hero CTA into the app login flow', async () => {
+  it('routes the navigation card into the app login flow', async () => {
     const user = userEvent.setup();
     // openLogin() SPA-navigates via window.history rather than the wouter hook.
     const pushSpy = vi.spyOn(window.history, 'pushState');
     renderAt();
 
-    await user.click(screen.getByRole('button', { name: /get started/i }));
+    await user.click(screen.getByText(/go to login/i));
     expect(pushSpy).toHaveBeenCalledWith({}, '', '/login');
   });
 });

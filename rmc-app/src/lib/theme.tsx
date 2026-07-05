@@ -18,9 +18,8 @@ const SEMANTIC = {
   '--orange': '#f59e0b',
 };
 
-/* Cinematic teal chrome kit — glassmorphism on deep teal-black.
-   Shared by every variant so the whole app keeps one dark, glowing look. */
-const CINEMATIC_SURFACES = {
+/* NIGHT chrome kit — glassmorphism on deep teal-black (glowing, cinematic). */
+const NIGHT_SURFACES = {
   '--shadow-rgb': '0,0,0',
   '--glass-1': 'color-mix(in srgb, var(--surface) 78%, transparent)',
   '--glass-2': 'color-mix(in srgb, var(--bg-deep) 82%, transparent)',
@@ -37,59 +36,66 @@ const CINEMATIC_SURFACES = {
   '--sheen': 'rgba(255,255,255,.03)',
 };
 
-/* Teal accent ramp shared across every variant (legacy --gold* key names). */
-const TEAL_ACCENT = {
+/* DAY chrome kit — crisp frosted-white glass with soft teal-tinted shadows. */
+const DAY_SURFACES = {
+  '--shadow-rgb': '18,54,48',
+  '--glass-1': 'color-mix(in srgb, #ffffff 92%, transparent)',
+  '--glass-2': 'color-mix(in srgb, #ffffff 74%, transparent)',
+  '--glass-border': 'rgba(18,54,48,0.10)',
+  '--glass-hi': 'rgba(255,255,255,.75)',
+  '--glass-blur': 'blur(18px) saturate(135%)',
+  '--sidebar-1': 'rgba(255,255,255,.94)',
+  '--sidebar-2': 'rgba(236,244,242,.94)',
+  '--header-bg': 'rgba(255,255,255,.82)',
+  '--menu-bg': 'rgba(255,255,255,.99)',
+  '--menu-hover': 'rgba(9,150,124,.10)',
+  '--overlay': 'rgba(16,38,34,.32)',
+  '--chip-bg': 'rgba(9,150,124,.08)',
+  '--sheen': 'rgba(255,255,255,.45)',
+};
+
+/* Accent ramps (legacy --gold* key names). Night runs a bright teal that glows on
+   black; Day runs a deeper teal so text/borders keep AA contrast on white. */
+const NIGHT_ACCENT = {
   '--gold-hi': '#3fe3c5', '--gold-mid': '#12d6b0', '--gold': '#00C9A7', '--gold-dark': '#00a488',
   '--glow-1': 'rgba(0,201,167,.20)', '--glow-2': 'rgba(0,201,167,.07)',
 };
+const DAY_ACCENT = {
+  '--gold-hi': '#0fb894', '--gold-mid': '#0aa585', '--gold': '#09967c', '--gold-dark': '#077763',
+  '--glow-1': 'rgba(9,150,124,.16)', '--glow-2': 'rgba(9,150,124,.06)',
+};
 
 export const THEMES: Theme[] = [
-  /* ===== Cinematic — deep teal-black glass (DEFAULT) ===== */
+  /* ===== Night — deep teal-black glass (DEFAULT) ===== */
   {
-    id: 'king',
-    name: 'Cinematic',
+    id: 'night',
+    name: 'Night',
     tagline: 'Dark · teal glass',
     fontName: 'Inter',
     font: "'Inter', system-ui, -apple-system, sans-serif",
     tokens: {
-      '--bg-top': '#0a1417', '--bg': '#050A0C', '--bg-deep': '#02070A',
-      '--panel': '#0a1618', '--panel2': '#0d1d20', '--surface': '#112427', '--line': 'rgba(0,201,167,0.15)',
-      '--text': '#E8F0EE', '--muted': '#7A8F8D',
-      ...TEAL_ACCENT,
+      '--bg-top': '#0c1a1e', '--bg': '#06110F', '--bg-deep': '#030b0c',
+      '--panel': '#0b1c1f', '--panel2': '#102428', '--surface': '#163034', '--line': 'rgba(0,201,167,0.16)',
+      '--text': '#EBF4F1', '--muted': '#8aa29d',
+      ...NIGHT_ACCENT,
       ...SEMANTIC,
-      ...CINEMATIC_SURFACES,
+      ...NIGHT_SURFACES,
     },
   },
-  /* ===== Obsidian — near-black teal ===== */
-  {
-    id: 'night',
-    name: 'Obsidian',
-    tagline: 'Darker · near-black',
-    fontName: 'Inter',
-    font: "'Inter', system-ui, -apple-system, sans-serif",
-    tokens: {
-      '--bg-top': '#050d0f', '--bg': '#02070A', '--bg-deep': '#010405',
-      '--panel': '#071113', '--panel2': '#0a181b', '--surface': '#0d1f22', '--line': 'rgba(0,201,167,0.13)',
-      '--text': '#E8F0EE', '--muted': '#6f8482',
-      ...TEAL_ACCENT,
-      ...SEMANTIC,
-      ...CINEMATIC_SURFACES,
-    },
-  },
-  /* ===== Steel — lighter charcoal-teal (still fully dark, no white) ===== */
+  /* ===== Day — professional frosted-white with teal accent ===== */
   {
     id: 'day',
-    name: 'Steel',
-    tagline: 'Lighter · charcoal teal',
+    name: 'Day',
+    tagline: 'Light · frosted white',
     fontName: 'Inter',
     font: "'Inter', system-ui, -apple-system, sans-serif",
     tokens: {
-      '--bg-top': '#122327', '--bg': '#0d1c1f', '--bg-deep': '#081416',
-      '--panel': '#132528', '--panel2': '#173035', '--surface': '#1b393e', '--line': 'rgba(0,201,167,0.18)',
-      '--text': '#EAF3F1', '--muted': '#8ba39f',
-      ...TEAL_ACCENT,
+      '--bg-top': '#f8fbfa', '--bg': '#eef4f2', '--bg-deep': '#dfeae7',
+      '--panel': '#ffffff', '--panel2': '#f3f8f7', '--surface': '#ffffff', '--line': 'rgba(16,50,45,0.11)',
+      '--text': '#0e2b26', '--muted': '#5a706b',
+      ...DAY_ACCENT,
       ...SEMANTIC,
-      ...CINEMATIC_SURFACES,
+      ...DAY_SURFACES,
     },
   },
 ];

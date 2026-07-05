@@ -3,12 +3,13 @@ name: RMC runtime theming
 description: How CONCRETE KING's themes are wired, the cinematic-teal dark default, and the CSS-var override layers to keep in sync.
 ---
 
-# RMC theming (dark cinematic TEAL is the DEFAULT)
+# RMC theming (true two-mode Day/Night; Night dark-teal is the DEFAULT)
 
-Themes are defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied to `documentElement`. All variants are **DARK — there is no white/light theme**:
-- `THEMES[0]` = **"Cinematic"** (id `king`) — the default. `--bg #050A0C`, teal accent ramp `--gold #00C9A7`.
-- `THEMES[1]` = **"Obsidian"** (id `night`) — deepest black-teal.
-- `THEMES[2]` = **"Steel"** (id `day`) — a LIGHTER charcoal-teal (still dark, NOT white).
+Themes are defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied to `documentElement`. There are now exactly **TWO** modes (the old 3 all-dark variants king/night/day were collapsed): **Night** (id `night`, DEFAULT, dark teal-black glass) and **Day** (id `day`, a REAL light/frosted-white mode). Each has its own SURFACES kit (`NIGHT_SURFACES`/`DAY_SURFACES`) and ACCENT ramp (`NIGHT_ACCENT`/`DAY_ACCENT`).
+
+**Why the accent hue is NOT the same in both modes:** Day uses a DEEPER teal accent than Night so text/borders keep AA contrast on white — but keep the same *hue*; do not diverge the hue, or the many hardcoded `rgba(0,201,167,…)` layers (index.css, static shell, Clerk appearance) drift from the accent. The `id==='night'?Moon:Sun` toggle (Layout.tsx + theme-providers.tsx) renders one button per mode; stale stored ids (e.g. old `king`) fall back to Night.
+
+**Verifying Day mode:** screenshots hit the auth wall, so eyeball the light theme on the PUBLIC `/login` (temporarily force the loader to the `day` theme, then revert). It renders clean because nearly all surfaces — including `body`/`body::before` — are token-driven.
 
 **Accent tokens keep legacy `--gold*` names** (`--gold`, `--gold-hi/mid/dark`) referenced all over the codebase; they now hold the **teal** ramp (`#00C9A7`). Don't rename them — huge churn. Palette: teal `#00C9A7`, text `#E8F0EE`, muted `#7A8F8D`, glass border `rgba(0,201,167,.15)`. Fonts: Inter (+ JetBrains Mono) via `FONT_URLS['Inter']`.
 

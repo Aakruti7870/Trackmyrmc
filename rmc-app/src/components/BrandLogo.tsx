@@ -55,7 +55,7 @@ export function ConcreteKingLogo({ size = 44 }: { size?: number }) {
  * VR INFRA". Rendered wherever the brand needs to breathe (sidebar footer,
  * login panel). `align` controls text alignment for the different placements.
  */
-export function BrandCredits({ align = 'left' }: { align?: 'left' | 'center' }) {
+export function BrandCredits({ align = 'left', oneRow = false }: { align?: 'left' | 'center'; oneRow?: boolean }) {
   const rowStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -77,6 +77,23 @@ export function BrandCredits({ align = 'left' }: { align?: 'left' | 'center' }) 
     backgroundClip: 'text',
     color: 'transparent',
   };
+
+  // Compact single-row variant: "Powered by GOLD e Tech · Sponsored by VR INFRA"
+  // on one line — used below the social icons in the auth footer.
+  if (oneRow) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexWrap: 'wrap', gap: 6, fontSize: 10.5, lineHeight: 1.5,
+      }}>
+        <span style={label}>Powered by</span>
+        <span style={name}>GOLD e Tech</span>
+        <span style={{ color: 'var(--muted)', opacity: 0.6 }} aria-hidden>·</span>
+        <span style={label}>Sponsored by</span>
+        <span style={name}>VR INFRA</span>
+      </div>
+    );
+  }
 
   return (
     <div
