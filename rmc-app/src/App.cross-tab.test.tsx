@@ -21,6 +21,7 @@ function stub(name: string) {
 }
 vi.mock('@/pages/Orders', () => stub('orders'));
 vi.mock('@/pages/MyTrips', () => stub('my-trips'));
+vi.mock('@/pages/DriverHome', () => stub('home'));
 vi.mock('@/pages/Dashboard', () => stub('dashboard'));
 vi.mock('@/pages/Login', () => stub('login'));
 vi.mock('@/pages/Landing', () => stub('landing'));
@@ -108,16 +109,16 @@ describe('App cross-tab auth routing', () => {
     expect(screen.getByTestId('page-orders')).toBeInTheDocument();
 
     // Another tab logs in as a driver, who cannot access /orders. The route
-    // must redirect to the driver's default path.
+    // must redirect to the driver's default path (the Home dashboard).
     setSession(2, 'driver');
     fireStorage('rmc_user');
 
     // The account switch keys a full remount (key={user.id}) of the protected
-    // tree, so the lazy-loaded MyTrips page suspends for a microtask behind the
-    // PageSpinner fallback before it resolves. Await that settling rather than
-    // asserting synchronously against the "Loading…" frame.
-    expect(await screen.findByTestId('page-my-trips')).toBeInTheDocument();
-    expect(screen.getByTestId('location')).toHaveTextContent('/my-trips');
+    // tree, so the lazy-loaded DriverHome page suspends for a microtask behind
+    // the PageSpinner fallback before it resolves. Await that settling rather
+    // than asserting synchronously against the "Loading…" frame.
+    expect(await screen.findByTestId('page-home')).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/home');
     expect(screen.queryByTestId('page-orders')).not.toBeInTheDocument();
   });
 });
