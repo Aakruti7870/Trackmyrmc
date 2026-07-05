@@ -208,7 +208,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     // server-side). Surfaced as an error toast so a supervisor can call/check on
     // them instead of the marker just silently vanishing from the duty map.
     const unsubDutyStale = subscribe('duty.stale', (data: unknown) => {
-      const d = data as { name?: string; role?: string | null };
+      const d = data as { name?: string; role?: string | null; count?: number };
+      // Batch alert: many staffers aged out in one sweep (shift change / signal
+      // blackout) — a single grouped toast instead of one per person.
+      if (typeof d?.count === 'number' && d.count > 1) {
+        showToast(`${d.count} staffers have gone offline — GPS inactive, check on them`, 'error');
+        return;
+      }
       if (!d?.name) return;
       const role = d.role ? d.role.replace(/[._-]/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase()) : null;
       const who = role ? `${d.name} (${role})` : d.name;

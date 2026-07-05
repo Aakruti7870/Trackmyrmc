@@ -95,6 +95,18 @@ describe('Layout live status-change toasts', () => {
     expect(screen.queryByText(/please call the customer/i)).not.toBeInTheDocument();
   });
 
+  it('names the individual staffer on a single duty.stale drop-off', () => {
+    renderLayout();
+    emit('duty.stale', { userId: 7, name: 'Amy A', role: 'dispatcher', plantId: 1 });
+    expect(screen.getByText(/Amy A \(Dispatcher\) has gone offline/i)).toBeInTheDocument();
+  });
+
+  it('shows a single grouped toast for a batched duty.stale alert', () => {
+    renderLayout();
+    emit('duty.stale', { plantId: 1, count: 3, staffers: [] });
+    expect(screen.getByText(/3 staffers have gone offline/i)).toBeInTheDocument();
+  });
+
   it('removes its SSE handlers when Layout unmounts', () => {
     const { unmount } = renderLayout();
 

@@ -11,7 +11,10 @@ import { signToken } from '../middleware/auth.js';
 import { hashPassword } from '../lib/password.js';
 import { addSSEClient, removeSSEClient, type SSEIdentity } from '../lib/sseEmitter.js';
 import { sweepStaleLiveFixes, __resetLiveLocationsForTest } from '../routes/attendance.js';
+import { plantAndPlatformStaffIds } from '../lib/push.js';
 import type { Response } from 'express';
+
+const REPORT_ROLES = ['admin', 'plant_owner', 'supervisor', 'authority'];
 
 // A timestamp far enough past the default stale window that any streamed fix is
 // treated as aged-out when the sweep runs — deterministic, no timers/env needed.
@@ -33,6 +36,12 @@ function captureSSE(identity: SSEIdentity) {
   return {
     events() {
       return raw.map((c) => /^event: (.+)$/m.exec(c)?.[1]).filter((e): e is string => Boolean(e));
+    },
+    // Parsed payloads for a given event name (in receive order).
+    data(event: string): Record<string, unknown>[] {
+      return raw
+        .filter((c) => new RegExp(`^event: ${event}$`, 'm').test(c))
+        .map((c) => JSON.parse(/^data: (.+)$/m.exec(c)?.[1] ?? '{}'));
     },
     close() { removeSSEClient(id); },
   };
@@ -288,6 +297,94 @@ test('a null-plant platform staffer going dark alerts platform supervisors only'
   } finally {
     platformSup.close(); plantSup.close();
   }
+});
+
+test('several staffers going dark in one sweep raise a single grouped alert, not one per person', async () => {
+  const [plantA] = await db.insert(plants).values({
+    name: 'Plant A', city: 'Mumbai', latitude: '19.0', longitude: '73.0',
+    plantStatus: 'approved', isActive: true, subscriptionStatus: 'active',
+  }).returning();
+  const staff1 = await createUser('Amy A', 'amy@test.com', 'dispatcher', plantA.id);
+  const staff2 = await createUser('Ben B', 'ben@test.com', 'plant_operator', plantA.id);
+  const staff3 = await createUser('Cal C', 'cal@test.com', 'dispatcher', plantA.id);
+
+  __resetLiveLocationsForTest();
+  for (const s of [staff1, staff2, staff3]) {
+    await request(app).post('/api/attendance/check-in')
+      .set('Authorization', `Bearer ${tokenFor(s)}`).send({});
+    await request(app).post('/api/attendance/location')
+      .set('Authorization', `Bearer ${tokenFor(s)}`).send({ lat: 12.9, lng: 77.5 });
+  }
+
+  const sup = captureSSE({ role: 'supervisor', plantId: plantA.id });
+  try {
+    await sweepStaleLiveFixes(STALE_NOW);
+
+    const alerts = sup.data('duty.stale');
+    assert.equal(alerts.length, 1, 'three simultaneous drop-offs collapse into one supervisor alert');
+    assert.equal(alerts[0].count, 3, 'the grouped alert carries the number of staffers who went dark');
+    // Per-user marker removal is NOT batched — the map still drops each marker.
+    assert.equal(sup.events().filter((e) => e === 'driver.offline').length, 3, 'each marker is still removed individually');
+  } finally {
+    sup.close();
+  }
+});
+
+test('a single drop-off still names the individual staffer (no spurious grouping)', async () => {
+  const [plantA] = await db.insert(plants).values({
+    name: 'Plant A', city: 'Mumbai', latitude: '19.0', longitude: '73.0',
+    plantStatus: 'approved', isActive: true, subscriptionStatus: 'active',
+  }).returning();
+  const staff = await createUser('Amy A', 'amy@test.com', 'dispatcher', plantA.id);
+
+  __resetLiveLocationsForTest();
+  await request(app).post('/api/attendance/check-in')
+    .set('Authorization', `Bearer ${tokenFor(staff)}`).send({});
+  await request(app).post('/api/attendance/location')
+    .set('Authorization', `Bearer ${tokenFor(staff)}`).send({ lat: 12.9, lng: 77.5 });
+
+  const sup = captureSSE({ role: 'supervisor', plantId: plantA.id });
+  try {
+    await sweepStaleLiveFixes(STALE_NOW);
+
+    const alerts = sup.data('duty.stale');
+    assert.equal(alerts.length, 1, 'the lone staffer is alerted');
+    assert.equal(alerts[0].count, undefined, 'a single drop-off is not a grouped alert');
+    assert.equal(alerts[0].name, 'Amy A', 'the individual staffer is named');
+  } finally {
+    sup.close();
+  }
+});
+
+test('the stale-GPS push audience matches the SSE audience (same plant + platform, never other plants)', async () => {
+  const [plantA] = await db.insert(plants).values({
+    name: 'Plant A', city: 'Mumbai', latitude: '19.0', longitude: '73.0',
+    plantStatus: 'approved', isActive: true, subscriptionStatus: 'active',
+  }).returning();
+  const [plantB] = await db.insert(plants).values({
+    name: 'Plant B', city: 'Pune', latitude: '18.5', longitude: '73.8',
+    plantStatus: 'approved', isActive: true, subscriptionStatus: 'active',
+  }).returning();
+  const supA = await createUser('Sup A', 'supa@test.com', 'supervisor', plantA.id);
+  const supB = await createUser('Sup B', 'supb@test.com', 'supervisor', plantB.id);
+  const platformSup = await createUser('Platform Admin', 'plat@test.com', 'admin', null);
+  const coworkerA = await createUser('Cara Coworker', 'cara@test.com', 'dispatcher', plantA.id);
+
+  // A plant-bound staffer's push reaches their plant's supervisors AND platform
+  // supervisors — never another plant's, never a non-supervisory coworker.
+  const forPlantA = await plantAndPlatformStaffIds(plantA.id, REPORT_ROLES);
+  assert.ok(forPlantA.includes(supA.id), 'same-plant supervisor is pushed');
+  assert.ok(forPlantA.includes(platformSup.id), 'platform supervisor is pushed (off-app parity with the toast)');
+  assert.ok(!forPlantA.includes(supB.id), 'a different plant\'s supervisor is never pushed');
+  assert.ok(!forPlantA.includes(coworkerA.id), 'a non-supervisory coworker is never pushed');
+  // No duplicate: each qualifying supervisor appears exactly once.
+  assert.equal(new Set(forPlantA).size, forPlantA.length, 'a supervisor is never targeted twice');
+
+  // A null-plant platform staffer's push reaches platform supervisors only.
+  const forPlatform = await plantAndPlatformStaffIds(null, REPORT_ROLES);
+  assert.ok(forPlatform.includes(platformSup.id), 'platform supervisor is pushed');
+  assert.ok(!forPlatform.includes(supA.id), 'a plant-bound supervisor never gets a platform staffer\'s push');
+  assert.ok(!forPlatform.includes(supB.id), 'a plant-bound supervisor never gets a platform staffer\'s push');
 });
 
 test('a normal check-out never raises a gone-dark alert (only the silent offline event)', async () => {
