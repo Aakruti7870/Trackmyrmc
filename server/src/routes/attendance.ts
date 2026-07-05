@@ -49,6 +49,35 @@ type DriverLiveLocation = {
 };
 const driverLiveLocations = new Map<number, DriverLiveLocation>();
 
+// A live GPS fix older than this window is treated as inactive: the driver's
+// live location expires from the board and a driver.offline event is fanned out,
+// so staff stop tracking a phone that has gone silent (GPS off, app closed, dead
+// battery) even though the driver never explicitly checked out. Read lazily so
+// tests can shrink the window.
+function liveGpsStaleMs(): number {
+  const n = Number(process.env.LIVE_GPS_STALE_MS);
+  return Number.isFinite(n) && n > 0 ? n : 3 * 60 * 1000;
+}
+function isFreshFix(updatedAt: string, now = Date.now()): boolean {
+  const t = Date.parse(updatedAt);
+  return Number.isFinite(t) && now - t <= liveGpsStaleMs();
+}
+
+// Periodically expire live locations whose last GPS fix has aged past the stale
+// window, emitting driver.offline so connected staff drop the marker in real
+// time. A fresh GET /live read applies the same freshness gate. Unref'd so the
+// timer never keeps the process (or a test run) alive.
+const liveGpsSweep = setInterval(() => {
+  const now = Date.now();
+  for (const [userId, live] of driverLiveLocations) {
+    if (!isFreshFix(live.updatedAt, now)) {
+      driverLiveLocations.delete(userId);
+      emitSSEEvent('driver.offline', { userId }, { roles: LIVE_VIEW_ROLES, plantId: live.plantId ?? null });
+    }
+  }
+}, 30 * 1000);
+liveGpsSweep.unref?.();
+
 function numOrNull(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
@@ -260,8 +289,13 @@ router.get('/live', requireRole(...REPORT_ROLES), async (req, res) => {
     for (const t of tripRows) if (t.driverId != null) tripByDriver.set(t.driverId, { status: t.status, challanId: t.challanId });
   }
 
+  const nowMs = Date.now();
   const drivers_ = openRows.map((r) => {
-    const live = driverLiveLocations.get(r.userId) ?? null;
+    const cached = driverLiveLocations.get(r.userId) ?? null;
+    // Expose the fix only while it is still fresh; a GPS-inactive driver shows as
+    // checked-in with no live location (their marker stops), matching the
+    // driver.offline the sweep fans out to already-connected staff.
+    const live = cached && isFreshFix(cached.updatedAt, nowMs) ? cached : null;
     const trip = r.linkedDriverId != null ? tripByDriver.get(r.linkedDriverId) ?? null : null;
     return {
       userId: r.userId,

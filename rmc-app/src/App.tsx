@@ -180,12 +180,7 @@ export default function App() {
             <Route path="/sso-callback" component={() => (
               <Suspense fallback={PageSpinner}><SsoCallback /></Suspense>
             )} />
-            {/* PUBLIC, no-login: anyone with the share link can watch the trip.
-                The customer auto-send uses /track-trip/:token; /track/:token is
-                kept as a legacy alias for links shared before the rename. */}
-            <Route path="/track-trip/:token" component={() => (
-              <Suspense fallback={PageSpinner}><TrackTrip /></Suspense>
-            )} />
+            {/* PUBLIC, no-login: anyone with the share link can watch the trip. */}
             <Route path="/track/:token" component={() => (
               <Suspense fallback={PageSpinner}><TrackTrip /></Suspense>
             )} />

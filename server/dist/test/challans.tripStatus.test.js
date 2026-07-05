@@ -208,3 +208,31 @@ test('a driver cannot read the staff live-drivers board (403)', async () => {
         .set('Authorization', `Bearer ${tokenFor(user)}`);
     assert.equal(res.status, 403);
 });
+test('a GPS-inactive driver keeps their board row but their stale fix expires', async () => {
+    const prev = process.env.LIVE_GPS_STALE_MS;
+    process.env.LIVE_GPS_STALE_MS = '10';
+    try {
+        const { user } = await createDriverUser('Gus Driver', 'gus@test.com');
+        const admin = await createAdminUser('boss@test.com');
+        const ci = await request(app).post('/api/attendance/check-in')
+            .set('Authorization', `Bearer ${tokenFor(user)}`).send({});
+        assert.ok(ci.status === 200 || ci.status === 201, 'driver check-in succeeds');
+        const loc = await request(app).post('/api/attendance/location')
+            .set('Authorization', `Bearer ${tokenFor(user)}`).send({ lat: 12.9, lng: 77.5 });
+        assert.equal(loc.status, 200, 'a live fix is accepted while checked in');
+        // Let the fix age past the (10ms) stale window.
+        await new Promise((r) => setTimeout(r, 40));
+        const res = await request(app).get('/api/attendance/live')
+            .set('Authorization', `Bearer ${tokenFor(admin)}`);
+        assert.equal(res.status, 200);
+        const me = res.body.drivers.find((d) => d.userId === user.id);
+        assert.ok(me, 'the driver stays on the board (still checked in)');
+        assert.equal(me.location, null, 'the stale GPS fix no longer shows as a live location');
+    }
+    finally {
+        if (prev === undefined)
+            delete process.env.LIVE_GPS_STALE_MS;
+        else
+            process.env.LIVE_GPS_STALE_MS = prev;
+    }
+});

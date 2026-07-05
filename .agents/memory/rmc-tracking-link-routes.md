@@ -1,20 +1,25 @@
 ---
-name: RMC customer tracking link routes
-description: Two public trip-tracking URL conventions and the three places a new one must be wired
+name: RMC customer tracking link route
+description: The single public trip-tracking URL convention and the places it must stay in sync
 ---
 
-The customer live-trip link has TWO path conventions that both render `TrackTrip`:
-- `/track-trip/:token` — the CUSTOMER auto-send link (automationJobs trip-share).
-- `/track/:token` — a legacy/manual share alias (challans share endpoint).
+The customer live-trip link uses ONE path convention: `/track/:token`, which
+renders `TrackTrip` (reads the token via `useParams<{ token }>()`).
 
-**Why:** the two link generators (`server/src/lib/automationJobs.ts` vs
-`server/src/routes/challans.ts`) emit different base paths, and only `/track` was
-originally routed in the SPA — so the customer auto-send link fell through to the
-login redirect, silently breaking the no-login flow.
+Both link generators emit this same path:
+- `server/src/lib/automationJobs.ts` (tripShare auto-send — email + web push).
+- `server/src/routes/challans.ts` (manual share endpoint).
 
-**How to apply:** any new public no-login tracking path must be wired in ALL THREE
-places or it 404s / redirects to login in prod:
-1. `rmc-app/src/App.tsx` — a `<Route path="/…/:token">` ABOVE `ProtectedRoutes`.
+**Why:** a prior change gratuitously renamed the auto-send link to `/track-trip/`,
+which had no App.tsx route (so the no-login link fell through to the login
+redirect) AND broke `server/src/test/automations.tripShare.test.ts`, which asserts
+the share URL matches `/track/[48-hex]`. That test is the source of truth — keep
+the auto-send on `/track/`.
+
+**How to apply:** any change to the public tracking path must move in lockstep
+across ALL of:
+1. `rmc-app/src/App.tsx` — a `<Route path="/track/:token">` ABOVE `ProtectedRoutes`.
 2. `server/src/index.ts` `SPA_PATTERNS` — a regex so prod serves index.html.
-3. the link generator(s) — keep the emitted path in sync with the route.
-`TrackTrip` reads the token via `useParams<{ token }>()`, so any `:token` route works.
+3. both link generators (automationJobs + challans).
+4. `automations.tripShare.test.ts`'s asserted URL shape.
+Do NOT introduce a second alias path without updating every one of these.
