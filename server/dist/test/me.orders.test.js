@@ -26,8 +26,8 @@ async function createUser(role, email, linkedClientId) {
 function tokenFor(u) {
     return signToken({ id: u.id, email: u.email, role: u.role, name: u.name });
 }
-// Customer orders now capture mandatory delivery details up front. Spread this
-// into every valid POST body so tests exercise status/scoping, not validation.
+// A full set of (now-optional) delivery details. Spread into valid POST bodies
+// so tests that care about status/scoping carry realistic data.
 const ORDER_FIELDS = {
     deliveryDate: '2026-06-15',
     contactPerson: 'Site Manager',
@@ -89,18 +89,20 @@ test('a client with no linked client gets a clear 400', async () => {
         .send({ grade: 'M25', quantity: 10, ...ORDER_FIELDS });
     assert.equal(res.status, 400);
 });
-test('missing mandatory delivery details are rejected with 400', async () => {
+test('delivery details are optional, but an invalid map pin is rejected with 400', async () => {
     const client = await createClient();
     const clientUser = await createUser('client', 'client4@test.com', client.id);
     const auth = `Bearer ${tokenFor(clientUser)}`;
-    // No contact person / address / location — must fail validation.
-    const res = await request(app).post('/api/me/orders').set('Authorization', auth)
-        .send({ grade: 'M25', quantity: 10, deliveryDate: '2026-06-15' });
-    assert.equal(res.status, 400);
-    // Missing map pin (lat/lng) specifically.
-    const noPin = await request(app).post('/api/me/orders').set('Authorization', auth)
-        .send({ grade: 'M25', quantity: 10, deliveryDate: '2026-06-15', contactPerson: 'A', contactNumber: '1', siteAddress: 'X' });
-    assert.equal(noPin.status, 400);
+    // Low-friction placement: grade + quantity alone is accepted; the plant
+    // confirms contact/address/date/pin when it schedules the pour.
+    const minimal = await request(app).post('/api/me/orders').set('Authorization', auth)
+        .send({ grade: 'M25', quantity: 10 });
+    assert.equal(minimal.status, 201);
+    // An out-of-range coordinate is still rejected so we never store a nonsense
+    // location that would break live tracking (the client sends coords as strings).
+    const badPin = await request(app).post('/api/me/orders').set('Authorization', auth)
+        .send({ grade: 'M25', quantity: 10, latitude: '999', longitude: '73.8567' });
+    assert.equal(badPin.status, 400);
 });
 test('missing grade or non-positive quantity is rejected with 400', async () => {
     const client = await createClient();
