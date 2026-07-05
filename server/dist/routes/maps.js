@@ -6,10 +6,11 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { getLivePosition } from './positions.js';
 import { isOpenNow } from './plants.js';
 const router = Router();
-// Every route here requires an authenticated staff/authority session; the
-// per-route requireRole guards below refine which roles may see what. Without
-// this, requireRole would run with no req.user and reject everyone (403).
-router.use(requireAuth);
+// NOTE: this router is mounted at the broad '/api' prefix, so a router-level
+// `router.use(requireAuth)` would run for EVERY /api/* request (including public
+// routes mounted after it, e.g. webhooks) and 401 them before they reach their
+// own routers. requireAuth is therefore applied PER-ROUTE below, so it only runs
+// when the path actually matches. requireRole still needs it (it reads req.user).
 // Roles allowed to see the live fleet map. Super Admin (authority) sees every
 // plant's vehicles; the plant-bound staff roles below see only their own plant's
 // vehicles (enforced server-side, never by the client). Drivers and customers
@@ -28,7 +29,7 @@ const FLEET_ROLES = [
 // unless they are the Super Admin. The latest GPS fix is folded in from the
 // in-memory live-position store; a load with no fix yet still appears (so staff
 // can see the truck is out) but carries null coordinates.
-router.get('/live-fleet-map', requireRole(...FLEET_ROLES), async (req, res) => {
+router.get('/live-fleet-map', requireAuth, requireRole(...FLEET_ROLES), async (req, res) => {
     const actor = req.user;
     const scoped = actor.role !== 'authority';
     if (scoped && actor.plantId == null) {
@@ -82,7 +83,7 @@ router.get('/live-fleet-map', requireRole(...FLEET_ROLES), async (req, res) => {
 // (open-now) status — not just customer-visible plants. Super Admin (authority)
 // ONLY; plant staff have no cross-plant visibility, so the route rejects
 // everyone else at the server. Shape matches the client MapPlant type.
-router.get('/plant-network-map', requireRole('authority'), async (_req, res) => {
+router.get('/plant-network-map', requireAuth, requireRole('authority'), async (_req, res) => {
     const rows = await db.select().from(plants);
     const mapped = rows
         .map(p => ({
