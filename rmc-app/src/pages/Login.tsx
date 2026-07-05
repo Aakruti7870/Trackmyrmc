@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
-import { Building2, Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft, Users, ShieldCheck, KeyRound } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft, Users, ShieldCheck, KeyRound } from 'lucide-react';
 import bg from '@/assets/rmc-aerial-bg.png';
 import { ConcreteKingLogo, BrandCredits } from '@/components/BrandLogo';
 import InstallAppButton from '@/components/InstallAppButton';
@@ -54,7 +54,6 @@ export default function Login() {
 
   // Phone OTP (customers) — unchanged flow, now using the shared 6-box input.
   const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
   const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
   const [code, setCode] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
@@ -171,7 +170,7 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await api.post<{ ok: boolean; channel: string; devMode: boolean; devCode?: string }>(
-        '/auth/otp/send', { phone, name: name || undefined },
+        '/auth/otp/send', { phone },
       );
       setDevCode(res.devCode ?? null);
       setCode('');
@@ -189,7 +188,7 @@ export default function Login() {
     setLoading(true);
     try {
       const data = await api.post<{ token: string; user: User }>(
-        '/auth/otp/verify', { phone, code: c, name: name || undefined },
+        '/auth/otp/verify', { phone, code: c },
       );
       updateUser(data.user, data.token);
       // Route by role: a driver whose number is on file lands on the driver
@@ -322,20 +321,6 @@ export default function Login() {
                       <input
                         type="tel" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)}
                         placeholder="98765 43210" required autoFocus
-                        style={inputStyle}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: 24 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                      Your Name <span style={{ fontWeight: 500, textTransform: 'none' }}>(new customers only)</span>
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <Building2 size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                      <input
-                        type="text" value={name} onChange={e => setName(e.target.value)}
-                        placeholder="Optional"
                         style={inputStyle}
                       />
                     </div>
