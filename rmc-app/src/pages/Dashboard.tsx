@@ -29,9 +29,10 @@ export default function Dashboard() {
 
   const canDispatch = user ? canAccess(user.role, '/dispatch') : false;
   const canOrders = user ? canAccess(user.role, '/orders') : false;
-  // The Live Duty Map is a supervisory view — same roles that see the plant-wide
-  // attendance report (admin/plant_owner/supervisor/authority).
-  const DUTY_ROLES = new Set(['admin', 'plant_owner', 'supervisor', 'authority']);
+  // The Live Duty Map is shown to every on-duty staff role (not just supervisory
+  // ones) so staff can see their coworkers on shift. Customers and drivers never
+  // see it. Kept in lockstep with the backend LIVE_VIEW_ROLES gate.
+  const DUTY_ROLES = new Set(['admin', 'plant_owner', 'supervisor', 'authority', 'dispatcher', 'plant_operator', 'fleet_manager', 'quality_engineer']);
   const canViewDuty = user ? DUTY_ROLES.has(user.role) : false;
 
   const reload = useCallback(() => {

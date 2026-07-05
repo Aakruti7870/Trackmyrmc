@@ -14,11 +14,12 @@ const REPORT_ROLES = ['admin', 'plant_owner', 'supervisor', 'authority'];
 // customers. Fleet Manager and Quality Engineer are on-duty roles too, so they
 // mark attendance and stream live location like the rest.
 const ATTEND_ROLES = ['authority', 'admin', 'dispatcher', 'plant_operator', 'driver', 'plant_owner', 'supervisor', 'fleet_manager', 'quality_engineer'];
-// Who receives the live driver-location SSE stream. Broader than STAFF_ROLES so
-// supervisory + platform roles (plant_owner/supervisor/authority) also get it,
-// mirroring the /live REST view; plant-scoped so a plant admin only sees their
-// own drivers.
-const LIVE_VIEW_ROLES = ['admin', 'plant_owner', 'supervisor', 'authority', 'dispatcher', 'plant_operator'];
+// Who may view the Live Duty Map — both the REST GET /live board and the live
+// SSE stream. Every on-duty staff role sees their coworkers (the map lives on the
+// staff dashboards, not just supervisory ones), but customers and drivers never
+// view it. Kept in lockstep with the frontend DUTY_ROLES gate. Plant-scoped so a
+// plant-bound viewer only sees their own plant's on-duty people.
+const LIVE_VIEW_ROLES = ['admin', 'plant_owner', 'supervisor', 'authority', 'dispatcher', 'plant_operator', 'fleet_manager', 'quality_engineer'];
 // SSE audience for a live duty event, scoped to the on-duty user's plant. Mirrors
 // the tenant scoping of the REST GET /live query: a plant-bound user's fixes only
 // reach staff of the same plant, and a null-plant platform user's fixes reach
@@ -249,7 +250,7 @@ router.post('/location', requireRole(...ATTEND_ROLES), async (req, res) => {
 });
 // Staff live view: every currently checked-in user with their identity, truck,
 // check-in time, current status, and last-known location. Plant-scoped.
-router.get('/live', requireRole(...REPORT_ROLES), async (req, res) => {
+router.get('/live', requireRole(...LIVE_VIEW_ROLES), async (req, res) => {
     const openRows = await db
         .select({
         attendanceId: attendanceRecords.id,

@@ -121,6 +121,28 @@ test('a streamed fix flips presence to online on the live board', async () => {
   assert.ok(me.lastUpdatedAt, 'the last-updated timestamp is surfaced');
 });
 
+test('the live duty board is readable by staff roles and denied to customers', async () => {
+  const [plant] = await db.insert(plants).values({
+    name: 'Plant A', city: 'Mumbai', latitude: '19.0', longitude: '73.0',
+    plantStatus: 'approved', isActive: true, subscriptionStatus: 'active',
+  }).returning();
+
+  // Every on-duty staff role that the map is surfaced to can read /live.
+  for (const role of ['dispatcher', 'plant_operator', 'fleet_manager', 'quality_engineer', 'supervisor']) {
+    const staff = await createUser(`${role} u`, `${role}@test.com`, role, plant.id);
+    const res = await request(app).get('/api/attendance/live')
+      .set('Authorization', `Bearer ${tokenFor(staff)}`);
+    assert.equal(res.status, 200, `${role} may read the duty board`);
+    assert.ok(Array.isArray(res.body.drivers), `${role} gets the on-duty list`);
+  }
+
+  // Customers are never allowed to see where staff are.
+  const customer = await createUser('Cara Client', 'cara@test.com', 'client', null);
+  const denied = await request(app).get('/api/attendance/live')
+    .set('Authorization', `Bearer ${tokenFor(customer)}`);
+  assert.equal(denied.status, 403, 'customers are denied the duty board');
+});
+
 test('a plant A user\'s live fix is not delivered to plant B staff (SSE tenant isolation)', async () => {
   const [plantA] = await db.insert(plants).values({
     name: 'Plant A', city: 'Mumbai', latitude: '19.0', longitude: '73.0',
