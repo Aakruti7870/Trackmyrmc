@@ -8,6 +8,18 @@ description: Durable root-cause heuristics for the recurring `pnpm test` gate fa
 Heuristics for the failures that keep recurring in the test gate (server
 `pnpm test` then rmc-app `pnpm test`). When the gate is red, check these first.
 
+## Server — STANDING baseline failures (fail even in isolation, NOT yours)
+- The gate is NO LONGER fully green. As of the on-duty-location work, two
+  server suites fail deterministically in isolation, independent of any
+  attendance/notification change:
+  - `multitenant.isolation.test.ts` — ~8 fails, order-creation returns `400`
+    instead of `201` and a query throws `invalid input syntax for type integer:
+    "NaN"` (an order/site id is `NaN` somewhere in the create path).
+  - `me.sites.test.ts` — 1 fail, same order-creation `400 != 201` family.
+  Prove it's not yours by running the named file ALONE; if it still fails and
+  you never touched order/site creation, it's this baseline. Don't fix it from
+  an unrelated task.
+
 ## Server
 - Raw pg error-code assertions are fragile: drizzle-orm (>=0.44) wraps every
   failed query in a `DrizzleQueryError` and hangs the real pg `DatabaseError`

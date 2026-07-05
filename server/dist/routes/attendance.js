@@ -5,6 +5,7 @@ import { attendanceRecords, users, drivers, vehicles, tripSessions, driverLocati
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
+import { sendPushToStaff } from '../lib/push.js';
 import { activeTripForDriver } from '../lib/tripSessions.js';
 const router = Router();
 router.use(requireAuth);
@@ -29,6 +30,14 @@ const LIVE_VIEW_ROLES = ['admin', 'plant_owner', 'supervisor', 'authority', 'dis
 function dutyAudience(plantId) {
     return { roles: LIVE_VIEW_ROLES, plantId, platformOnly: plantId == null };
 }
+// SSE audience for a "gone dark" supervisor alert. Same plant/platform tenant
+// scoping as dutyAudience above, but narrowed to the supervisory roles who act
+// on it (REPORT_ROLES) rather than every on-duty coworker: a plant-bound
+// staffer's alert reaches their plant's supervisors plus platform supervisors,
+// and a null-plant platform staffer's alert reaches platform supervisors only.
+function staleAlertAudience(plantId) {
+    return { roles: REPORT_ROLES, plantId, platformOnly: plantId == null };
+}
 // The trip statuses that count as "still running" for the live view / active-trip
 // tagging (anything before the terminal delivered/cancelled).
 const OPEN_TRIP_STATUSES = ['dispatched', 'in_transit', 'reached_site', 'unloading'];
@@ -50,16 +59,51 @@ function isFreshFix(updatedAt, now = Date.now()) {
 // window, emitting driver.offline so connected staff drop the marker in real
 // time. A fresh GET /live read applies the same freshness gate. Unref'd so the
 // timer never keeps the process (or a test run) alive.
-const liveGpsSweep = setInterval(() => {
-    const now = Date.now();
+export async function sweepStaleLiveFixes(now = Date.now()) {
+    const stale = [];
     for (const [userId, live] of driverLiveLocations) {
         if (!isFreshFix(live.updatedAt, now)) {
             driverLiveLocations.delete(userId);
             emitSSEEvent('driver.offline', { userId }, dutyAudience(live.plantId ?? null));
+            stale.push({ userId, name: live.name, role: live.role, plantId: live.plantId ?? null });
         }
     }
-}, 30 * 1000);
+    if (stale.length)
+        await alertStaleStaff(stale);
+}
+const liveGpsSweep = setInterval(() => { void sweepStaleLiveFixes(); }, 30 * 1000);
 liveGpsSweep.unref?.();
+// Alert supervisors that an on-duty staffer's live GPS aged out while they were
+// still checked in (phone off, app closed, dead battery) — an actionable "gone
+// dark" signal, not a normal check-out (check-out clears the map silently and
+// never lands here). Fires an in-app toast via SSE to same-plant + platform
+// supervisors and a best-effort web push to the same-plant supervisors. Purely a
+// side effect: any failure is swallowed so the sweep timer never crashes.
+async function alertStaleStaff(stale) {
+    try {
+        for (const s of stale) {
+            const name = s.name ?? 'A staff member';
+            emitSSEEvent('duty.stale', { userId: s.userId, name, role: s.role, plantId: s.plantId }, staleAlertAudience(s.plantId));
+            // Best-effort, fire-and-forget: the .catch keeps a push/DB failure from
+            // escaping as an unhandled rejection (the surrounding try/catch can't see a
+            // non-awaited promise) so the sweep timer never crashes.
+            void sendPushToStaff(s.plantId, REPORT_ROLES, {
+                title: 'On-duty GPS lost',
+                body: `${name}'s location has gone dark while on duty — check on them.`,
+                url: '/',
+                tag: `duty-stale-${s.userId}`,
+            }).catch((err) => console.warn('[attendance] stale-GPS push failed:', err));
+        }
+    }
+    catch (err) {
+        console.warn('[attendance] Failed to alert supervisors of stale on-duty GPS:', err);
+    }
+}
+// Test-only: clear the in-memory live-location map so a sweep test isn't polluted
+// by fixes streamed in earlier tests sharing this module instance.
+export function __resetLiveLocationsForTest() {
+    driverLiveLocations.clear();
+}
 function numOrNull(v) {
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
