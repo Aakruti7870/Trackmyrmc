@@ -4,25 +4,33 @@ import request from 'supertest';
 import { eq, sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, clients, orders } from '../db/schema.js';
+import { users, clients, orders, plants } from '../db/schema.js';
 import { hashPassword } from '../lib/password.js';
 import { signToken } from '../middleware/auth.js';
 let app;
 const PASSWORD = 'secret123';
-async function createUser(role, email, linkedClientId) {
+async function createUser(role, email, linkedClientId, plantId) {
     const passwordHash = await hashPassword(PASSWORD);
     const [user] = await db.insert(users).values({
         name: `${role} user`, email, passwordHash, role: role,
-        isActive: true, linkedClientId: linkedClientId ?? null,
+        isActive: true, linkedClientId: linkedClientId ?? null, plantId: plantId ?? null,
     }).returning();
     return user;
 }
 function tokenFor(u) {
-    return signToken({ id: u.id, email: u.email, role: u.role, name: u.name });
+    return signToken({ id: u.id, email: u.email, role: u.role, name: u.name, plantId: u.plantId ?? null });
 }
-async function createClient() {
+let plantSeq = 0;
+async function createPlant() {
+    plantSeq += 1;
+    const [row] = await db.insert(plants).values({
+        name: `Plant ${plantSeq}`, latitude: '18.5', longitude: '73.8',
+    }).returning();
+    return row;
+}
+async function createClient(plantId) {
     const [row] = await db.insert(clients).values({
-        name: 'Acme Co', contactPerson: 'Jane', phone: '1112223333',
+        name: 'Acme Co', contactPerson: 'Jane', phone: '1112223333', plantId: plantId ?? null,
     }).returning();
     return row;
 }
@@ -43,7 +51,8 @@ before(() => {
     app = buildTestApp();
 });
 beforeEach(async () => {
-    await db.execute(sql `TRUNCATE TABLE challans, orders, clients, audit_logs, users, login_attempts RESTART IDENTITY CASCADE`);
+    await db.execute(sql `TRUNCATE TABLE challans, orders, clients, audit_logs, users, login_attempts, plants RESTART IDENTITY CASCADE`);
+    plantSeq = 0;
 });
 after(async () => {
     await pool.end();
@@ -131,6 +140,68 @@ test('a customer edit of only a minor field on an approved order keeps it approv
     // Change only the notes (a minor field) — status must stay approved.
     const res = await request(app).put(`/api/me/orders/${orderId}`).set('Authorization', clientAuth)
         .send({ grade: 'M25', quantity: 12, ...ORDER_FIELDS, notes: 'Gate code 4321' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, 'approved');
+});
+// Seed a pending_approval order that belongs to `plant`, owned by a client of
+// that same plant. Returns the order row so tests can assert its status later.
+async function seedPendingOrderForPlant(plantId, orderNo) {
+    const client = await createClient(plantId);
+    const [ord] = await db.insert(orders).values({
+        orderNo, clientId: client.id, grade: 'M25', quantity: '10.00',
+        status: 'pending_approval', plantId,
+    }).returning();
+    return ord;
+}
+test("a plant-bound admin cannot approve another plant's order (404, unchanged)", async () => {
+    const plantA = await createPlant();
+    const plantB = await createPlant();
+    const adminA = await createUser('admin', 'admina@test.com', undefined, plantA.id);
+    const ord = await seedPendingOrderForPlant(plantB.id, 'ORD-XT1');
+    const res = await request(app)
+        .post(`/api/orders/${ord.id}/approve`)
+        .set('Authorization', `Bearer ${tokenFor(adminA)}`)
+        .send({});
+    assert.equal(res.status, 404);
+    const [row] = await db.select().from(orders).where(eq(orders.id, ord.id));
+    assert.equal(row.status, 'pending_approval', "the other plant's order must be untouched");
+});
+test("a plant-bound admin cannot reject another plant's order (404, unchanged)", async () => {
+    const plantA = await createPlant();
+    const plantB = await createPlant();
+    const adminA = await createUser('admin', 'admina2@test.com', undefined, plantA.id);
+    const ord = await seedPendingOrderForPlant(plantB.id, 'ORD-XT2');
+    const res = await request(app)
+        .post(`/api/orders/${ord.id}/reject`)
+        .set('Authorization', `Bearer ${tokenFor(adminA)}`)
+        .send({ reason: 'Not my plant' });
+    assert.equal(res.status, 404);
+    const [row] = await db.select().from(orders).where(eq(orders.id, ord.id));
+    assert.equal(row.status, 'pending_approval', "the other plant's order must be untouched");
+    assert.equal(row.rejectionReason, null, 'no rejection reason should be written cross-tenant');
+});
+test("the owning plant's admin can approve their own plant's order", async () => {
+    const plantA = await createPlant();
+    const plantB = await createPlant();
+    // A foreign admin exists but must not be the one acting here.
+    await createUser('admin', 'foreign@test.com', undefined, plantA.id);
+    const adminB = await createUser('admin', 'adminb@test.com', undefined, plantB.id);
+    const ord = await seedPendingOrderForPlant(plantB.id, 'ORD-XT3');
+    const res = await request(app)
+        .post(`/api/orders/${ord.id}/approve`)
+        .set('Authorization', `Bearer ${tokenFor(adminB)}`)
+        .send({});
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, 'approved');
+});
+test("a platform (null-plant) admin can approve any plant's order", async () => {
+    const plantB = await createPlant();
+    const platformAdmin = await createUser('admin', 'platform@test.com', undefined, null);
+    const ord = await seedPendingOrderForPlant(plantB.id, 'ORD-XT4');
+    const res = await request(app)
+        .post(`/api/orders/${ord.id}/approve`)
+        .set('Authorization', `Bearer ${tokenFor(platformAdmin)}`)
+        .send({});
     assert.equal(res.status, 200);
     assert.equal(res.body.status, 'approved');
 });
