@@ -34,15 +34,25 @@ async function createPlant(opts: {
   name: string; verified?: boolean; locationVerified?: boolean; isActive?: boolean;
   plantStatus?: 'pending' | 'approved' | 'rejected'; grades?: string[]; city?: string;
 }) {
+  const plantStatus = opts.plantStatus ?? 'approved';
+  const isActive = opts.isActive ?? true;
+  const locationVerified = opts.locationVerified ?? true;
+  const verified = opts.verified ?? true;
+  // Customer directory visibility is gated by networkStatus === 'active' (see
+  // customerVisible() in routes/plants.ts). A plant reaches that terminal state
+  // only once it is a fully-onboarded, approved, active, verified partner; a
+  // lead / unverified / inactive / pending plant stays 'pending' and hidden.
+  const fullyOrderable = plantStatus === 'approved' && isActive && locationVerified && verified;
   const [row] = await db.insert(plants).values({
     name: opts.name,
     city: opts.city ?? 'Pune',
     latitude: '19.0330000',
     longitude: '73.0297000',
-    plantStatus: opts.plantStatus ?? 'approved',
-    isActive: opts.isActive ?? true,
-    locationVerified: opts.locationVerified ?? true,
-    verified: opts.verified ?? true,
+    plantStatus,
+    isActive,
+    locationVerified,
+    verified,
+    networkStatus: fullyOrderable ? 'active' : 'pending',
     deliveryRadiusKm: 40,
     grades: opts.grades ?? ['M20', 'M25'],
     openTime: '06:00',
