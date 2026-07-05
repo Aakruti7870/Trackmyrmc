@@ -66,6 +66,15 @@ test('live-fleet-map: Super Admin sees every plant, a plant admin only their own
     assert.ok(!adminVehicles.some(t => t.vehicleNo === 'TM-B'));
     void b;
 });
+test('live-fleet-map: a plant-scoped staffer with no plant fails closed (empty)', async () => {
+    await seedPlantWithTruck('A', '19.0000000', '73.0000000');
+    // An admin whose account is not yet bound to a plant must see nothing rather
+    // than every plant's trucks — the scoping branch fails closed.
+    const unboundAdmin = await makeUser('admin', 'unbound@test.com', null);
+    const res = await request(app).get('/api/live-fleet-map').set('Authorization', bearer(unboundAdmin));
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, []);
+});
 test('live-fleet-map: drivers and clients are rejected', async () => {
     const [client] = await db.insert(clients).values({ name: 'C', contactPerson: 'C', phone: '911' }).returning();
     const clientUser = await makeUser('client', 'client@test.com', null);
