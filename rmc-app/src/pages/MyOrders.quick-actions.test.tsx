@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -86,19 +86,28 @@ describe('MyOrders quick actions', () => {
     expect(screen.getByText(/from riverside rmc/i)).toBeInTheDocument();
   });
 
-  it('reorder lets the customer submit in one tap without a plant error', async () => {
-    mockLists([makeOrder({ id: 5, grade: 'M30', quantity: '8.00', plantId: 42, plantName: 'Riverside RMC', pumpRequired: false })], []);
+  it('reorder carries the whole delivery brief forward; only the new schedule is needed', async () => {
+    // A past order stores the full delivery brief; reorder copies plant, grade,
+    // qty, contact, site, payment, notes + the map pin forward. Only the
+    // delivery date/time (which can't be reused) must be re-entered.
+    mockLists([makeOrder({
+      id: 5, grade: 'M30', quantity: '8.00', plantId: 42, plantName: 'Riverside RMC', pumpRequired: false,
+      contactPerson: 'Ravi Kumar', contactNumber: '9876543210', siteName: 'Tower B', siteAddress: 'MG Road, Pune',
+      latitude: '18.52', longitude: '73.85', paymentType: 'Cash', notes: 'Call on arrival',
+    })], []);
     vi.mocked(api.post).mockResolvedValue(
       makeOrder({ id: 99, orderNo: 'ORD-099', grade: 'M30', quantity: '8.00', plantId: 42 }) as never,
     );
     const user = userEvent.setup();
-    render(<MyOrders />);
+    const { container } = render(<MyOrders />);
 
     await user.click(await screen.findByRole('button', { name: /reorder/i }));
     await screen.findByRole('heading', { name: /place new order/i });
 
-    // Reorder carries the plant, grade + qty forward; only these are mandatory,
-    // so the customer can resubmit in a single tap.
+    // The customer only sets a fresh delivery date/time, then submits.
+    fireEvent.change(container.querySelector('input[type="date"]')!, { target: { value: '2026-07-10' } });
+    fireEvent.change(container.querySelector('input[type="time"]')!, { target: { value: '09:00' } });
+
     const submitBtns = screen.getAllByRole('button', { name: /place order/i });
     await user.click(submitBtns[submitBtns.length - 1]);
 
