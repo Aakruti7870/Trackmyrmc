@@ -965,3 +965,63 @@ export const driverLocations = pgTable('driver_locations', {
     index('driver_locations_plant_idx').on(t.plantId),
     index('driver_locations_recorded_at_idx').on(t.recordedAt),
 ]);
+// --- Driver mobile app: general expenses + SOS/emergency ---------------------
+// A driver-submitted field expense (fuel/toll/food/repair/…). Distinct from the
+// staff-only fuel_logs vehicle-refuel ledger: this is a driver's own out-of-pocket
+// claim with a single-step review (approve/reject) and a reimbursement flag.
+export const expenseStatusEnum = pgEnum('expense_status', ['pending', 'approved', 'rejected']);
+export const reimbursementStatusEnum = pgEnum('reimbursement_status', ['pending', 'reimbursed']);
+export const emergencyStatusEnum = pgEnum('emergency_status', ['open', 'acknowledged', 'resolved']);
+export const driverExpenses = pgTable('driver_expenses', {
+    id: serial('id').primaryKey(),
+    // The submitting driver's profile + login user. userId is the source of truth
+    // for "own" scoping (driverId can be null for legacy/unlinked accounts).
+    driverId: integer('driver_id').references(() => drivers.id, { onDelete: 'set null' }),
+    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    // Stamped from the submitter's plant so the staff review list stays plant-private.
+    plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
+    // Optional links to the trip/vehicle the expense was incurred on.
+    challanId: integer('challan_id').references(() => challans.id, { onDelete: 'set null' }),
+    vehicleId: integer('vehicle_id').references(() => vehicles.id, { onDelete: 'set null' }),
+    category: text('category').notNull(),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    description: text('description'),
+    // Direct object-storage path (same presigned-upload flow as proof photos).
+    receiptPhoto: text('receipt_photo'),
+    gpsLat: decimal('gps_lat', { precision: 10, scale: 7 }),
+    gpsLng: decimal('gps_lng', { precision: 10, scale: 7 }),
+    expenseAt: timestamp('expense_at').notNull(),
+    status: expenseStatusEnum('status').notNull().default('pending'),
+    reviewerRemark: text('reviewer_remark'),
+    reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+    reviewedByName: text('reviewed_by_name'),
+    reviewedAt: timestamp('reviewed_at'),
+    reimbursementStatus: reimbursementStatusEnum('reimbursement_status').notNull().default('pending'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+    index('driver_expenses_user_idx').on(t.userId),
+    index('driver_expenses_plant_idx').on(t.plantId),
+    index('driver_expenses_status_idx').on(t.status),
+]);
+// A driver-raised SOS/emergency. On create it fans out to plant + platform
+// supervisors (same audience as the on-duty stale-fix alert) via SSE + push.
+export const emergencies = pgTable('emergencies', {
+    id: serial('id').primaryKey(),
+    driverId: integer('driver_id').references(() => drivers.id, { onDelete: 'set null' }),
+    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
+    challanId: integer('challan_id').references(() => challans.id, { onDelete: 'set null' }),
+    type: text('type').notNull(),
+    message: text('message'),
+    lat: decimal('lat', { precision: 10, scale: 7 }),
+    lng: decimal('lng', { precision: 10, scale: 7 }),
+    status: emergencyStatusEnum('status').notNull().default('open'),
+    acknowledgedBy: integer('acknowledged_by').references(() => users.id, { onDelete: 'set null' }),
+    acknowledgedByName: text('acknowledged_by_name'),
+    acknowledgedAt: timestamp('acknowledged_at'),
+    resolvedAt: timestamp('resolved_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+    index('emergencies_plant_idx').on(t.plantId),
+    index('emergencies_status_idx').on(t.status),
+]);

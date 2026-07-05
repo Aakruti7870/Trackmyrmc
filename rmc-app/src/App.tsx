@@ -51,6 +51,11 @@ const TrackTrip      = lazy(() => import('@/pages/TrackTrip'));
 const Attendance     = lazy(() => import('@/pages/Attendance'));
 const LiveDrivers    = lazy(() => import('@/pages/LiveDrivers'));
 const CommandCenter  = lazy(() => import('@/pages/CommandCenter'));
+const DriverHome     = lazy(() => import('@/pages/DriverHome'));
+const DriverExpenses = lazy(() => import('@/pages/DriverExpenses'));
+const DriverSOS      = lazy(() => import('@/pages/DriverSOS'));
+const ExpenseReview  = lazy(() => import('@/pages/ExpenseReview'));
+const Emergencies    = lazy(() => import('@/pages/Emergencies'));
 
 const PageSpinner = (
   <div style={{
@@ -117,6 +122,11 @@ function ProtectedRoutes() {
         <Route path="/nearby-plants" component={() => <GuardedRoute path="/nearby-plants" component={NearbyPlants} />} />
         <Route path="/plants"       component={() => <GuardedRoute path="/plants"       component={Plants}      />} />
         <Route path="/my-trips"     component={() => <GuardedRoute path="/my-trips"     component={MyTrips}     />} />
+        <Route path="/home"         component={() => <GuardedRoute path="/home"         component={DriverHome}  />} />
+        <Route path="/expenses"     component={() => <GuardedRoute path="/expenses"     component={DriverExpenses} />} />
+        <Route path="/sos"          component={() => <GuardedRoute path="/sos"          component={DriverSOS}   />} />
+        <Route path="/expense-review" component={() => <GuardedRoute path="/expense-review" component={ExpenseReview} />} />
+        <Route path="/emergencies"  component={() => <GuardedRoute path="/emergencies"  component={Emergencies} />} />
         <Route path="/orders"       component={() => <GuardedRoute path="/orders"       component={Orders}      />} />
         <Route path="/dispatch"     component={() => <GuardedRoute path="/dispatch"     component={Dispatch}    />} />
         <Route path="/clients"      component={() => <GuardedRoute path="/clients"      component={Clients}     />} />

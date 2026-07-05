@@ -1,7 +1,7 @@
 export type Role = 'authority' | 'plant_owner' | 'admin' | 'supervisor' | 'dispatcher' | 'plant_operator' | 'accountant' | 'quality_engineer' | 'fleet_manager' | 'store_manager' | 'client' | 'driver';
 
 // AUTHORITY is a super-admin: it can reach everything an admin can.
-const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/plants', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/profile', '/kiosk'];
+const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/plants', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/profile', '/kiosk'];
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   // Authority (Super Admin) also owns the /command control center and the
@@ -13,20 +13,20 @@ export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   // admins, and the sidebar additionally hides it from them (Layout).
   admin:          ['/whatsapp', ...ADMIN_PATHS],
   // Supervisor oversees plant operations & dispatch (no user/plant admin).
-  supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile', '/kiosk'],
+  supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/profile', '/kiosk'],
   dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile', '/kiosk'],
   plant_operator: ['/', '/freshness', '/batch-report', '/attendance', '/mix-design', '/shift-report', '/profile'],
   // Accountant is a read-only finance role: reports/analytics + delivery
   // documents (for billing reconciliation) and their own profile. No writes.
-  accountant:     ['/reports', '/challans', '/profile'],
+  accountant:     ['/reports', '/challans', '/expense-review', '/profile'],
   // Quality Engineer owns concrete quality: mix designs, batch QC, freshness.
   quality_engineer: ['/', '/batch-report', '/mix-design', '/freshness', '/reports', '/attendance', '/profile'],
   // Fleet Manager runs the transit-mixer fleet: vehicles, drivers, fuel, dispatch visibility.
-  fleet_manager:  ['/', '/vehicles', '/drivers', '/dispatch', '/challans', '/fuel-log', '/attendance', '/reports', '/profile'],
+  fleet_manager:  ['/', '/vehicles', '/drivers', '/dispatch', '/challans', '/fuel-log', '/expense-review', '/attendance', '/reports', '/profile'],
   // Store Manager tracks material stock via production/batch usage.
   store_manager:  ['/', '/batch-report', '/mix-design', '/attendance', '/reports', '/profile'],
   client:         ['/my-orders', '/nearby-plants', '/challans', '/profile'],
-  driver:         ['/my-trips', '/attendance', '/challans', '/profile'],
+  driver:         ['/home', '/my-trips', '/expenses', '/sos', '/attendance', '/challans', '/profile'],
 };
 
 export const ROLE_DEFAULT_PATH: Record<Role, string> = {
@@ -41,7 +41,7 @@ export const ROLE_DEFAULT_PATH: Record<Role, string> = {
   fleet_manager: '/vehicles',
   store_manager: '/batch-report',
   client: '/nearby-plants',
-  driver: '/my-trips',
+  driver: '/home',
 };
 
 // DB-backed overrides, merged over the static defaults at runtime. Loaded once

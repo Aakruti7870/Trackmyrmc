@@ -5,6 +5,7 @@ import {
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
   Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon, CalendarClock,
   Crown, Building2, HardHat, Wallet, User, Zap, MessageCircle, Radio,
+  Home, Siren,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -62,6 +63,16 @@ const CLIENT_NAV: { path: string; label: string; icon: typeof LayoutDashboard; t
   { path: '/my-orders',     label: 'Financial Statement', icon: FileText,      tab: 'billing' },
   { path: '/nearby-plants', label: 'Find Plants',         icon: MapPin },
   { path: '/profile',       label: 'Account',             icon: Settings },
+];
+
+// Drivers get a phone-first bottom tab bar on mobile (and these entries in the
+// sidebar on desktop). Five fixed destinations mirroring the driver app scope.
+const DRIVER_NAV: { path: string; label: string; icon: typeof LayoutDashboard }[] = [
+  { path: '/home',     label: 'Home',     icon: Home },
+  { path: '/my-trips', label: 'Trips',    icon: Route },
+  { path: '/expenses', label: 'Expenses', icon: Wallet },
+  { path: '/sos',      label: 'SOS',      icon: Siren },
+  { path: '/profile',  label: 'Profile',  icon: User },
 ];
 
 const ROLE_COLOR: Record<string, string> = {
@@ -137,6 +148,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
 
   const isClient = user?.role === 'client';
+  const isDriver = user?.role === 'driver';
 
   useEffect(() => {
     const toastFor = (event: 'challan.created' | 'challan.updated' | 'order.updated') => (data: unknown) => {
@@ -222,7 +234,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       showToast(`${who} has gone offline — GPS inactive, check on them`, 'error');
     });
 
-    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); unsubInvite(); unsubWaFailed(); unsubGaveUp(); unsubWaMsg(); unsubDutyStale(); };
+    // A driver raised an SOS/emergency (supervisory roles only, scoped
+    // server-side). Surfaced as a red error toast so a supervisor responds at
+    // once, wherever they are in the app.
+    const unsubEmergency = subscribe('emergency.raised', (data: unknown) => {
+      const d = data as { type?: string; driverName?: string | null; message?: string | null };
+      const who = d?.driverName ? d.driverName : 'A driver';
+      const kind = d?.type ? d.type.replace(/[._-]/g, ' ') : 'emergency';
+      const extra = d?.message ? ` — ${d.message}` : '';
+      showToast(`SOS: ${who} reported a ${kind}${extra}`, 'error');
+    });
+
+    return () => { unsubCreated(); unsubUpdated(); unsubOrder(); unsubFresh(); unsubInvite(); unsubWaFailed(); unsubGaveUp(); unsubWaMsg(); unsubDutyStale(); unsubEmergency(); };
   }, [subscribe, showToast, isClient]);
 
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';
@@ -240,8 +263,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems: { path: string; label: string; icon: typeof LayoutDashboard; tab?: string }[] =
     isClient
       ? CLIENT_NAV.filter(item => allowedPaths.includes(item.path))
-      : ALL_NAV_ITEMS.filter(item =>
-          allowedPaths.includes(item.path) && (item.path !== '/whatsapp' || isPlatformStaff));
+      : isDriver
+        ? DRIVER_NAV.filter(item => allowedPaths.includes(item.path))
+        : ALL_NAV_ITEMS.filter(item =>
+            allowedPaths.includes(item.path) && (item.path !== '/whatsapp' || isPlatformStaff));
 
   const SidebarContent = () => (
     <>
@@ -496,16 +521,50 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {SidebarContent()}
         </div>
 
-        <main id="app-main" style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
+        <main id="app-main" className={isDriver ? 'has-bottom-nav' : undefined} style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
           <LoginDebugCard />
           {children}
         </main>
       </div>
 
+      {/* Driver bottom tab bar — mobile only (hidden ≥901px via CSS). */}
+      {isDriver && (
+        <nav id="driver-bottom-nav" style={{
+          display: 'none', position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 55,
+          background: 'var(--header-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
+          borderTop: '1px solid var(--line)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          alignItems: 'stretch', justifyContent: 'space-around',
+        }}>
+          {DRIVER_NAV.filter(item => allowedPaths.includes(item.path)).map(({ path, label, icon: Icon }) => {
+            const active = path === '/home' ? location === '/home' : location.startsWith(path);
+            const isSos = path === '/sos';
+            const color = active ? (isSos ? 'var(--red)' : 'var(--gold)') : 'var(--muted)';
+            return (
+              <Link
+                key={path}
+                href={path}
+                onClick={() => setMobileOpen(false)}
+                style={{
+                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                  padding: '8px 2px 7px', textDecoration: 'none',
+                  color, fontSize: 10.5, fontWeight: active ? 800 : 600,
+                }}
+              >
+                <Icon size={21} />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+
       <style>{`
         @media (max-width: 900px) {
           #desktop-sidebar { display: none !important; }
           #mobile-header { display: flex !important; }
+          #driver-bottom-nav { display: flex !important; }
+          #app-main.has-bottom-nav { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
         }
         @keyframes ssePulse {
           0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); }

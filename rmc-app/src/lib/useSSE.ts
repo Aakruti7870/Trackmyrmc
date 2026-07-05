@@ -117,6 +117,10 @@ export function useSSE() {
         dispatchEvent('duty.stale', JSON.parse(e.data));
       });
 
+      es.addEventListener('emergency.raised', (e: MessageEvent) => {
+        dispatchEvent('emergency.raised', JSON.parse(e.data));
+      });
+
       es.addEventListener('ping', () => {});
     }
 
