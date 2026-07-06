@@ -102,6 +102,30 @@ uri = "file://rmc-app/src/assets/landing/slide5-plant.png"
 type = "image"
 title = "batching plant night"
 
+[[generated]]
+id = "CepMRq59P233THRoVC4sy"
+uri = "file://artifacts/mockup-sandbox/public/images/hero-bottom-sheet-truck.png"
+type = "image"
+title = "Mixer truck at construction site"
+
+[[generated]]
+id = "irrntQJrr1W_QCKtms9-r"
+uri = "file://artifacts/mockup-sandbox/public/images/friendly-truck.png"
+type = "image"
+title = "friendly truck illustration"
+
+[[generated]]
+id = "D1SapVCHJGnRJKzQumPGj"
+uri = "file://artifacts/mockup-sandbox/public/images/warm-concrete-illustration.png"
+type = "image"
+title = "Warm concrete illustration"
+
+[[generated]]
+id = "xXRtvn_XOQRBuD3o2Umia"
+uri = "file://artifacts/mockup-sandbox/public/images/industrial-concrete-bg.png"
+type = "image"
+title = "Dark industrial concrete texture"
+
 [[outputs]]
 id = "oaHn9kwGbYywEoOBjUmqg"
 uri = "file://screenshots/theme-1-midnight-gold.jpg"
