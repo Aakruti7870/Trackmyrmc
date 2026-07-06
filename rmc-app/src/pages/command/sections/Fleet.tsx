@@ -43,7 +43,7 @@ export default function Fleet({ accent }: { accent: string }) {
         subtitle="Transit mixer fleet health and driver roster"
       />
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 16 }}>
+      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', marginBottom: 16 }}>
         <StatCard icon={<Truck size={17} />} label="Total vehicles" accent={accent} value={loaded ? vehicles.length : '…'} />
         <StatCard icon={<CircleCheck size={17} />} label="Available" accent="var(--green)" value={loaded ? active : '…'} />
         <StatCard icon={<Wrench size={17} />} label="In service" accent="var(--orange)" value={loaded ? maint : '…'} />
@@ -52,7 +52,7 @@ export default function Fleet({ accent }: { accent: string }) {
 
       <GlassPanel accent={accent}>
         <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text)', marginBottom: 12 }}>Fleet roster</div>
-        <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
           {vehicles.map(v => {
             const col = statusColor(v.status);
             return (

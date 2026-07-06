@@ -206,7 +206,7 @@ export default function Dashboard() {
               color: 'var(--gold)', background: 'color-mix(in srgb, var(--gold) 16%, transparent)',
             }}>{pendingQueue.length} waiting</span>
           </div>
-          <div className="dash-queue" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 10 }}>
+          <div className="dash-queue" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(260px, 100%), 1fr))', gap: 10 }}>
             {pendingQueue.map(({ order, remaining }) => (
               <div key={order.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
@@ -266,7 +266,7 @@ export default function Dashboard() {
       </div>
 
       {/* ===== Stat cards (glassmorphism + floating depth) ===== */}
-      <div className="dash-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 16 }}>
+      <div className="dash-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(170px, 100%), 1fr))', gap: 12, marginBottom: 16 }}>
         {loading
           ? Array(7).fill(0).map((_, i) => (
             <div key={i} className="glass-card" style={{ padding: '18px 16px', minHeight: 96 }}>
@@ -448,7 +448,7 @@ export default function Dashboard() {
         .route-track {
           position: relative;
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
           gap: 10px;
           min-height: 64px;
           padding: 6px 4px;

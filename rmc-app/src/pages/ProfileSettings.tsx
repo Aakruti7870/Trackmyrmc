@@ -2474,7 +2474,7 @@ export default function ProfileSettings() {
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading permissions…</div>
           ) : (
             <form onSubmit={handleRolePermsSave}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 14 }}>
                 {Object.keys(ROLE_ALLOWED_PATHS).map(role => (
                   <div key={role}>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--text)', marginBottom: 6, textTransform: 'capitalize' }}>
@@ -2671,7 +2671,7 @@ export default function ProfileSettings() {
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading links…</div>
           ) : (
             <form onSubmit={handleSocialSave}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: 12 }}>
                 <SmtpTextField
                   label="YouTube"
                   value={socialForm.youtube}

@@ -15,7 +15,7 @@ export default function Analytics({ accent }: { accent: string }) {
         right={<SampleTag text="Illustrative" />}
       />
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))' }}>
         <GlassPanel accent="#a78bfa">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <PieChart size={16} color="#a78bfa" />

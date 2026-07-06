@@ -589,7 +589,7 @@ function TripCard({ challan, onMarkDelivered, onLeftSite, onTripStatus, onStartT
               style={{ display: 'none' }}
             />
             {photos.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))', gap: 8, marginBottom: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(96px, 100%), 1fr))', gap: 8, marginBottom: 10 }}>
                 {photos.map((p, i) => (
                   <div key={i} style={{ position: 'relative' }}>
                     <img
@@ -1081,7 +1081,7 @@ export default function MyTrips() {
           )}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(300px, 100%), 1fr))', gap: 16 }}>
           {filtered.map(c => (
             <TripCard key={c.id} challan={c} onMarkDelivered={handleMarkDelivered} onLeftSite={handleLeftSite} onTripStatus={handleTripStatus} onStartTracking={startTracking} tracking={tracking && geoState === 'active'} liveDistanceM={liveDist[c.id]} freshnessConfig={freshnessConfig} />
           ))}

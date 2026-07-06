@@ -113,7 +113,7 @@ export default function Clients() {
           style={{ ...inputStyle, paddingLeft: 36 }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(300px, 100%), 1fr))', gap: 14 }}>
         {filtered.map(c => (
           <div key={c.id} className="glass-card" style={{ padding: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>

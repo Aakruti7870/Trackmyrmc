@@ -94,7 +94,7 @@ export default function DriverSOS() {
 
       <div style={{ ...card, border: '1px solid rgba(239,68,68,.3)' }}>
         <label style={label}>What's happening?</label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(96px, 100%), 1fr))', gap: 8, marginBottom: 16 }}>
           {TYPES.map(t => {
             const M = TYPE_META[t];
             const Icon = M.icon;

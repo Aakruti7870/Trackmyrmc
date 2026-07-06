@@ -155,7 +155,7 @@ export default function LiveDrivers() {
           No one is checked in right now.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(320px, 100%), 1fr))', gap: 14 }}>
           {drivers.map((d) => {
             const meta = STATUS_META[d.status] ?? { label: d.status, color: 'var(--muted)' };
             const loc = d.location;

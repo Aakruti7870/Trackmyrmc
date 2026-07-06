@@ -191,7 +191,7 @@ export default function Reports() {
       </div>
 
       {/* Planned vs delivered variance summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 12, marginBottom: 18 }}>
         <div className="glass-card" style={{ padding: '14px 16px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>TOTAL PLANNED</div>
           <div style={{ fontSize: 22, fontWeight: 800 }}>{totalPlanned.toFixed(1)} <span style={{ fontSize: 13, color: 'var(--muted)' }}>m³</span></div>
@@ -314,7 +314,7 @@ export default function Reports() {
                 const fmt = (m: number) => { const h = Math.floor(m / 60); const mm = Math.round(m % 60); return h ? `${h}h ${mm}m` : `${mm}m`; };
                 return (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: 12, marginBottom: 18 }}>
                       <div style={{ padding: '12px 14px', background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 10 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>AVG TRAVEL</div>
                         <div style={{ fontSize: 20, fontWeight: 800 }}>{fmt(avgTravel)}</div>

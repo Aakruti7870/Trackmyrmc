@@ -581,7 +581,7 @@ export default function SupplierDiscoveryMap() {
               style={{
                 display: "grid",
                 gap: 12,
-                gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))",
               }}
             >
               {shown.map((s) => (

@@ -332,7 +332,7 @@ export default function UserManagement() {
         ) : filteredPlants.length === 0 ? (
           <div style={{ ...card, color: 'var(--muted)', textAlign: 'center', padding: 34 }}>No plants match.</div>
         ) : (
-          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))' }}>
             {filteredPlants.map(p => (
               <button
                 key={p.id}
@@ -444,7 +444,7 @@ export default function UserManagement() {
           {tab === 'deleted' ? 'No deleted users.' : 'No users match.'}
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))' }}>
+        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(min(290px, 100%), 1fr))' }}>
           {shownUsers.map(u => (
             <div key={u.id} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>

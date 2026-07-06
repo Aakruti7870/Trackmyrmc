@@ -238,7 +238,7 @@ export default function ShiftReport() {
             No mixers in transit right now.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(240px, 100%), 1fr))', gap: 14 }}>
             {inTransit.map(ch => (
               <div key={ch.id} className="glass-card cc-card" style={{ padding: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 10 }}>

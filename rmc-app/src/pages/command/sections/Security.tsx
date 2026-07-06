@@ -18,14 +18,14 @@ export default function Security({ accent }: { accent: string }) {
         subtitle="Authentication events, sessions and platform guards"
       />
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 16 }}>
+      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', marginBottom: 16 }}>
         <StatCard icon={<ShieldCheck size={17} />} label="2FA enforced" accent="var(--green)" value="On" sub="Super Admin logins" />
         <StatCard icon={<Monitor size={17} />} label="Active sessions" accent="var(--blue)" value={ACTIVE_SESSIONS.length} />
         <StatCard icon={<Ban size={17} />} label="Blocked attempts" accent="var(--red)" value={SECURITY_EVENTS.filter(e => !e.ok).length} sub="Last 24h" />
         <StatCard icon={<ShieldAlert size={17} />} label="Threat level" accent="var(--orange)" value="Low" />
       </div>
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))' }}>
         <GlassPanel accent={accent}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text)' }}>Recent security events</span>

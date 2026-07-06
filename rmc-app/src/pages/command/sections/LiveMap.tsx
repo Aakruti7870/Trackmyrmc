@@ -48,7 +48,7 @@ export default function LiveMap({ accent, showStats = true }: { accent: string; 
       />
 
       {showStats && (
-        <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 14 }}>
+        <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', marginBottom: 14 }}>
           <StatCard icon={<Navigation size={17} />} label="Vehicles tracked" accent={accent} value={positions.length} />
           <StatCard icon={<Gauge size={17} />} label="On the move" accent="var(--green)" value={moving} />
           <StatCard icon={<MapPin size={17} />} label="Idle / stopped" accent="var(--orange)" value={Math.max(0, positions.length - moving)} />

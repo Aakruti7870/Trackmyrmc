@@ -257,7 +257,7 @@ export default function FreshnessGuard() {
       {isAdmin && <SettingsPanel onSaved={setCfgOverride} />}
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12, marginBottom: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(140px, 100%), 1fr))', gap: 12, marginBottom: 18 }}>
         {(['expired', 'critical', 'warning', 'fresh'] as FreshnessLevel[]).map(lvl => (
           <Card key={lvl} style={{ padding: 14, borderColor: `color-mix(in srgb, ${LEVEL_META[lvl].color} 35%, transparent)` }}>
             <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>{LEVEL_META[lvl].label}</div>
@@ -278,7 +278,7 @@ export default function FreshnessGuard() {
           </div>
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(310px,1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(310px, 100%), 1fr))', gap: 14 }}>
           {enriched.map(e => <LoadCard key={e.load.challanId} load={e.load} now={now} cfg={cfg} />)}
         </div>
       )}

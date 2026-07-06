@@ -77,7 +77,7 @@ export default function Vehicles() {
           style={{ ...inputStyle, paddingLeft: 36 }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(280px, 100%), 1fr))', gap: 14 }}>
         {filtered.map(v => {
           const insExpiry = daysUntil(v.insuranceExpiry);
           const insWarning = insExpiry !== null && insExpiry < 60;

@@ -370,7 +370,7 @@ export default function NearbyPlants() {
                     title="Verified partner plants"
                     sub="Approved on CONCRETE KING — order directly."
                   />
-                  <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', marginTop: 12 }}>
+                  <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(min(290px, 100%), 1fr))', marginTop: 12 }}>
                     {shownPlants.map(p => <PlantCard key={p.id} p={p} onOrder={() => placeOrder(p)} onMap={() => viewOnMap(p)} />)}
                   </div>
                 </>
@@ -396,7 +396,7 @@ export default function NearbyPlants() {
                     title="Other concrete plants nearby"
                     sub="Found live on the map — unverified, not yet onboarded."
                   />
-                  <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', marginTop: 12 }}>
+                  <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(min(290px, 100%), 1fr))', marginTop: 12 }}>
                     {shownDiscovered.map(p => (
                       <LeadCard
                         key={p.placeId}

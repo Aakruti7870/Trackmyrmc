@@ -36,7 +36,7 @@ export default function QuickActions({ accent, onInvite }: { accent: string; onI
         subtitle="Jump straight to the tools you use most"
       />
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 18 }}>
+      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', marginBottom: 18 }}>
         {actions.map(a => (
           <button
             key={a.label}

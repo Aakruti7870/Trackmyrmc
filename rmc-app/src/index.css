@@ -66,6 +66,15 @@
   box-sizing: border-box;
 }
 
+/* Mobile screen-fit safety net: never let a stray wide element create a
+   horizontal scrollbar (the classic "whole app is zoomed out / doesn't fit"
+   symptom on phones). Wide content (tables etc.) must scroll inside its own
+   overflow container, not blow out the page width. */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 body {
   margin: 0;
   font-family: var(--font-app);
@@ -78,6 +87,13 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+/* Prefer the dynamic viewport height where supported so full-height screens
+   fit under mobile browser chrome (address bar) instead of clipping the
+   bottom. Falls back to 100vh (fine in the native WebView, which has no chrome). */
+@supports (min-height: 100dvh) {
+  body, #root { min-height: 100dvh; }
 }
 
 input, select, textarea, button {

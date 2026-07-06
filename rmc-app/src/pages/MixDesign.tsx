@@ -54,7 +54,7 @@ export default function MixDesign() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(340px, 100%), 1fr))', gap: 16 }}>
         {mixes.map(m => (
           <div key={m.id} className="glass-card" style={{ padding: 22 }} data-testid={`mix-card-${m.id}`}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

@@ -41,7 +41,7 @@ export default function Plants({ accent, onInvite }: { accent: string; onInvite:
         right={<PrimaryButton accent={accent} onClick={onInvite}><UserPlus size={15} /> Invite</PrimaryButton>}
       />
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 16 }}>
+      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', marginBottom: 16 }}>
         <StatCard icon={<Building2 size={17} />} label="Total plants" accent={accent} value={loaded ? plants.length : '…'} />
         <StatCard icon={<CheckCircle2 size={17} />} label="Verified & live" accent="var(--green)" value={loaded ? verified : '…'} />
         <StatCard icon={<Clock size={17} />} label="Leads / pending" accent="var(--orange)" value={loaded ? leads : '…'} />
@@ -60,7 +60,7 @@ export default function Plants({ accent, onInvite }: { accent: string; onInvite:
           />
         </div>
 
-        <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))' }}>
+        <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(230px, 100%), 1fr))' }}>
           {filtered.map(p => {
             const ok = !!p.verified;
             const col = ok ? 'var(--green)' : 'var(--orange)';

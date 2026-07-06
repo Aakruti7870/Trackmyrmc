@@ -28,7 +28,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 export function ThemeSwitcher() {
   const { theme, themes, setTheme } = useTheme();
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))', gap: 12 }}>
       {themes.map(t => {
         const selected = t.id === theme.id;
         return (

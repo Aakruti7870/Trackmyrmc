@@ -525,7 +525,7 @@ export default function MappingPlant({ accent }: { accent: string }) {
         <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
           <Building2 size={16} color={accent} /> Mapped plants{loaded ? ` (${plants.length})` : ''}
         </div>
-        <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
           {plants.map(p => {
             const st = ((STATUSES as readonly string[]).includes(p.networkStatus) ? p.networkStatus : 'pending') as NetworkStatus;
             const on = p.id === selectedId;

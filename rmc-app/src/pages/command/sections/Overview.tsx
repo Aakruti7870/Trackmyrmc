@@ -30,7 +30,7 @@ export default function Overview({ accent }: { accent: string }) {
         right={<LiveDot color="var(--green)" />}
       />
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 16 }}>
+      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', marginBottom: 16 }}>
         <StatCard icon={<Factory size={17} />} label="Production today" accent="var(--gold)"
           value={kpis ? `${kpis.todayProduction.toLocaleString()} m³` : '…'} loading={!kpis}
           sub={kpis ? `${kpis.todayBatches} batches` : undefined} trend={{ value: '8%', up: true }} />
@@ -49,7 +49,7 @@ export default function Overview({ accent }: { accent: string }) {
           value={kpis ? kpis.totalClients : '…'} loading={!kpis} trend={{ value: '3', up: true }} />
       </div>
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))' }}>
         <GlassPanel accent="var(--green)">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

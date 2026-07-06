@@ -37,13 +37,13 @@ export default function Notifications({ accent }: { accent: string }) {
         subtitle="Delivery channels and the platform audit trail"
       />
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 16 }}>
+      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', marginBottom: 16 }}>
         {CHANNELS.map(c => (
           <StatCard key={c.name} icon={c.icon} label={c.name} accent={c.color} value={c.status} sub={c.detail} />
         ))}
       </div>
 
-      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+      <div className="cc-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))' }}>
         <GlassPanel accent={accent}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <History size={16} color={accent} />

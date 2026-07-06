@@ -114,7 +114,7 @@ export default function DemandForecast() {
         <>
           <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 14, fontWeight: 600 }}>{prettyDate}</div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(170px, 100%), 1fr))', gap: 12, marginBottom: 18 }}>
             <Stat icon={<TrendingUp size={13} />} label="Predicted demand" value={`${data.totalPredicted.toFixed(1)} m³`} sub={`${data.grades.length} grade${data.grades.length === 1 ? '' : 's'}`} color="var(--gold)" />
             <Stat icon={<ClipboardList size={13} />} label="Already booked" value={`${data.totalBooked.toFixed(1)} m³`} sub={`${data.totalRecurring.toFixed(1)} m³ recurring`} color="var(--green)" />
             <Stat icon={<Truck size={13} />} label="Truck loads" value={String(data.recommendedTruckLoads)} sub={`@ ${data.avgTruckCapacity} m³ avg capacity`} color="var(--blue)" />
