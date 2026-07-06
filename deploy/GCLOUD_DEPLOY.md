@@ -20,7 +20,7 @@ working.
 | `Dockerfile` | Multi-stage build: installs deps, builds backend + frontend, runs the server. Preserves the monorepo layout the server expects. |
 | `.dockerignore` | Keeps the image lean; stops host `node_modules`/build outputs from leaking in. |
 | `.gcloudignore` | Same idea for `gcloud`/Cloud Build source uploads. |
-| `cloudbuild.yaml` | Build → Artifact Registry → Cloud Run pipeline (single-container / public-IP DB path). |
+| `cloudbuild.yaml` | Build → Artifact Registry → Cloud Run pipeline (single-container; built-in Cloud SQL socket DB path, DATABASE_URL + JWT_SECRET wired from Secret Manager). |
 | `deploy/service.yaml` | Multi-container Cloud Run manifest: app + Cloud SQL Auth Proxy sidecar (the `localhost` DB path). |
 | `deploy/env.example` | Every env var the server reads, grouped and annotated. |
 | `deploy/GCLOUD_DEPLOY.md` | This runbook. |
@@ -66,12 +66,27 @@ gcloud sql users create appuser --instance=concreteking-db --password='STRONG_PA
 Note the **instance connection name** (`PROJECT:REGION:INSTANCE`) — Cloud Run uses it.
 
 **Connecting without a code change.** The app turns TLS *off* only when the
-`DATABASE_URL` host is the literal string `localhost`. Pick **one** of these two
-paths and keep it consistent — do **not** mix them:
+`DATABASE_URL` **string contains** the literal substring `localhost`. Pick **one**
+of these paths and keep it consistent — do **not** mix them:
 
-- **Path 1 — Auth Proxy sidecar (recommended, private).** Deploy the multi-container
-  manifest `deploy/service.yaml`, which runs the Cloud SQL Auth Proxy on
-  `localhost:5432` alongside the app. Then use host `localhost`:
+- **Path 0 — Built-in Cloud SQL socket (recommended; what the production deploy uses).**
+  Use Cloud Run's `--add-cloudsql-instances=<INSTANCE_CONNECTION_NAME>`, which mounts
+  the Cloud SQL Auth Proxy as a Unix socket at `/cloudsql/<INSTANCE_CONNECTION_NAME>`.
+  A Unix socket doesn't do SSL, so the `DATABASE_URL` must route to the socket **and**
+  still contain `localhost` to keep the app's TLS-off path:
+  ```
+  DATABASE_URL=postgresql://appuser:STRONG_PASSWORD@localhost/trackmyrmc?host=/cloudsql/trackmyrmc-production:asia-south1:trackmyrmc-prod-db
+  ```
+  How this works (verified against `pg-connection-string`): the `?host=/cloudsql/...`
+  query param is the **real** connection target (a Unix socket), so pg ignores the
+  `localhost` authority for connecting — but the raw string still contains `localhost`,
+  so the app sets `ssl:false`, which is exactly right for a socket. URL-encode any
+  special characters in the password. The runtime service account needs
+  `roles/cloudsql.client` and `roles/secretmanager.secretAccessor`. No sidecar needed.
+
+- **Path 1 — Auth Proxy sidecar (private, no built-in socket).** Deploy the
+  multi-container manifest `deploy/service.yaml`, which runs the Cloud SQL Auth Proxy
+  on `localhost:5432` alongside the app. Then use host `localhost`:
   ```
   DATABASE_URL=postgres://appuser:STRONG_PASSWORD@localhost:5432/trackmyrmc
   ```
@@ -84,9 +99,6 @@ paths and keep it consistent — do **not** mix them:
   DATABASE_URL=postgres://appuser:STRONG_PASSWORD@PUBLIC_IP:5432/trackmyrmc
   ```
   This works with the single-container `cloudbuild.yaml` / `gcloud run deploy`.
-
-> Do **not** use Cloud Run's built-in `--add-cloudsql-instances` (it exposes a Unix
-> socket at `/cloudsql/INSTANCE`, which does not match the `localhost` TLS-off rule).
 
 **Import your data:**
 ```bash
@@ -116,7 +128,22 @@ Use `deploy/env.example` as the checklist of what to create. Non-secret config
 
 Choose the deploy style that matches your DB path from Step 1.
 
-**Option A — single container (use with DB Path 2, public IP):**
+**Option A — Cloud Build pipeline (recommended; DB Path 0, built-in socket).** One
+command builds, pushes to Artifact Registry, and deploys with the Cloud SQL socket +
+secrets already wired in `cloudbuild.yaml`:
+```bash
+# One-time: create the Artifact Registry repo (Docker format) in the region.
+gcloud artifacts repositories create concreteking \
+  --repository-format=docker --location=asia-south1
+
+gcloud builds submit --config cloudbuild.yaml \
+  --substitutions=_REGION=asia-south1,_REPO=concreteking,_SERVICE=concreteking,_CLOUDSQL_INSTANCE=trackmyrmc-production:asia-south1:trackmyrmc-prod-db
+```
+The resulting image is
+`asia-south1-docker.pkg.dev/trackmyrmc-production/concreteking/concreteking:<SHORT_SHA>`.
+
+**Option A′ — equivalent single `gcloud run deploy` (DB Path 0, built-in socket).**
+If you'd rather build from source and deploy in one shot:
 ```bash
 gcloud run deploy concreteking \
   --source . \
@@ -124,16 +151,20 @@ gcloud run deploy concreteking \
   --allow-unauthenticated \
   --min-instances=1 \
   --timeout=3600 \
-  --set-env-vars=NODE_ENV=production,APP_URL=https://trackmyrmc.com,PUBLIC_URL=https://trackmyrmc.com,CORS_ALLOWED_ORIGINS=https://trackmyrmc.com \
-  --set-secrets=JWT_SECRET=JWT_SECRET:latest,SMTP_PASS=SMTP_PASS:latest,DATABASE_URL=DATABASE_URL:latest
+  --cpu=1 --memory=1Gi \
+  --add-cloudsql-instances=trackmyrmc-production:asia-south1:trackmyrmc-prod-db \
+  --set-env-vars=^|^NODE_ENV=production|APP_URL=https://trackmyrmc.com|PUBLIC_URL=https://trackmyrmc.com|CORS_ALLOWED_ORIGINS=https://trackmyrmc.com,https://www.trackmyrmc.com \
+  --set-secrets=DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest
 ```
-(Extend `--set-env-vars` / `--set-secrets` with the rest from `deploy/env.example`.)
-The `cloudbuild.yaml` pipeline (`gcloud builds submit --config cloudbuild.yaml`)
-does the same build → push → deploy; attach env/secrets to the service afterward.
+Extend `--set-secrets` with the rest from `deploy/env.example` (e.g. `SMTP_PASS`,
+`WHATSAPP_META_ACCESS_TOKEN`, `TWILIO_AUTH_TOKEN`, `VAPID_PRIVATE_KEY`, …) so every
+feature keeps working. **Reminder:** the `DATABASE_URL` secret must use the socket
+form from DB Path 0 (`…@localhost/trackmyrmc?host=/cloudsql/…`), or the app will try
+SSL over the socket and fail to connect.
 
-**Option B — sidecar (use with DB Path 1, `localhost`):** build & push the image
-(steps 1–2 of `cloudbuild.yaml`, or `gcloud builds submit`), then edit
-`deploy/service.yaml` (image tag, project, service account, env/secrets) and apply:
+**Option B — sidecar (DB Path 1, `localhost`):** build & push the image (steps 1–2 of
+`cloudbuild.yaml`, or `gcloud builds submit`), then edit `deploy/service.yaml` (image
+tag, project, service account, env/secrets) and apply:
 ```bash
 gcloud run services replace deploy/service.yaml --region=asia-south1
 ```

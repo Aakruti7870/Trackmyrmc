@@ -3,7 +3,6 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/account-home/DeliveryStyle.tsx": () => import("../components/mockups/account-home/DeliveryStyle.tsx"),
   "./components/mockups/admin-home/DeliveryStyle.tsx": () => import("../components/mockups/admin-home/DeliveryStyle.tsx"),
-  "./components/mockups/ck-landing/Landing.tsx": () => import("../components/mockups/ck-landing/Landing.tsx"),
   "./components/mockups/concrete-king-deck/BlueprintDeck.tsx": () => import("../components/mockups/concrete-king-deck/BlueprintDeck.tsx"),
   "./components/mockups/concrete-king-deck/EditorialDeck.tsx": () => import("../components/mockups/concrete-king-deck/EditorialDeck.tsx"),
   "./components/mockups/concrete-king-deck/EtherealGlassDeck.tsx": () => import("../components/mockups/concrete-king-deck/EtherealGlassDeck.tsx"),
@@ -12,6 +11,7 @@ export const modules: ModuleMap = {
   "./components/mockups/concrete-king-deck/MagazineEditorialDeck.tsx": () => import("../components/mockups/concrete-king-deck/MagazineEditorialDeck.tsx"),
   "./components/mockups/concrete-king-deck/SiteBrutalistDeck.tsx": () => import("../components/mockups/concrete-king-deck/SiteBrutalistDeck.tsx"),
   "./components/mockups/concrete-king-deck/SoftSereneDeck.tsx": () => import("../components/mockups/concrete-king-deck/SoftSereneDeck.tsx"),
+  "./components/mockups/ck-landing/Landing.tsx": () => import("../components/mockups/ck-landing/Landing.tsx"),
   "./components/mockups/customer-home/DeliveryStyle.tsx": () => import("../components/mockups/customer-home/DeliveryStyle.tsx"),
   "./components/mockups/dispatcher-home/DeliveryStyle.tsx": () => import("../components/mockups/dispatcher-home/DeliveryStyle.tsx"),
   "./components/mockups/driver-home/DeliveryStyle.tsx": () => import("../components/mockups/driver-home/DeliveryStyle.tsx"),

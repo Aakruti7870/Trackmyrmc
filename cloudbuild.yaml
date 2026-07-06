@@ -2,21 +2,31 @@
 # deploy to Cloud Run. Run with:
 #
 #   gcloud builds submit --config cloudbuild.yaml \
-#     --substitutions=_REGION=asia-south1,_REPO=concreteking,_SERVICE=concreteking
+#     --substitutions=_REGION=asia-south1,_REPO=concreteking,_SERVICE=concreteking,_CLOUDSQL_INSTANCE=trackmyrmc-production:asia-south1:trackmyrmc-prod-db
 #
-# Secrets/env are attached to the Cloud Run service separately (see
-# deploy/GCLOUD_DEPLOY.md) so they are never baked into the image.
+# Non-DATABASE secrets/env can be attached to the service separately (see
+# deploy/GCLOUD_DEPLOY.md) so they are never baked into the image. This step
+# already wires DATABASE_URL + JWT_SECRET from Secret Manager and connects to
+# Cloud SQL over the built-in Auth-proxy Unix socket.
 #
-# DATABASE CONNECTIVITY: this pipeline deploys a SINGLE container, which matches
-# the "public IP + SSL" DB path (DATABASE_URL host = the instance's public IP).
-# If you prefer the Cloud SQL Auth Proxy sidecar (DATABASE_URL host = localhost),
-# deploy the multi-container manifest instead: `gcloud run services replace
-# deploy/service.yaml` — do NOT mix that path with this single-container step.
+# DATABASE CONNECTIVITY: this deploy uses Cloud Run's built-in Cloud SQL
+# connection (`--add-cloudsql-instances`), which exposes a Unix socket at
+# /cloudsql/<INSTANCE_CONNECTION_NAME>. Because the app disables Postgres TLS only
+# when DATABASE_URL contains the literal string "localhost", the DATABASE_URL
+# secret MUST be of the form (note both the `localhost` authority AND the socket
+# `host` query param — the query param is the real connection target, localhost is
+# only there to keep the app's TLS-off path; see deploy/GCLOUD_DEPLOY.md):
+#
+#   postgresql://USER:PASSWORD@localhost/trackmyrmc?host=/cloudsql/trackmyrmc-production:asia-south1:trackmyrmc-prod-db
+#
+# (The Auth-Proxy sidecar manifest deploy/service.yaml remains an alternative; do
+# NOT mix the two paths.)
 
 substitutions:
   _REGION: "asia-south1"
   _REPO: "concreteking"
   _SERVICE: "concreteking"
+  _CLOUDSQL_INSTANCE: "trackmyrmc-production:asia-south1:trackmyrmc-prod-db"
 
 images:
   - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}"
@@ -40,7 +50,10 @@ steps:
   #    - min-instances=1 keeps the in-process recurring scheduler alive
   #      (it would stop if the service scaled to zero).
   #    - timeout=3600 supports long-lived SSE connections.
-  #    Attach env vars / secrets (incl. DATABASE_URL) to the service per the runbook.
+  #    - add-cloudsql-instances mounts the Cloud SQL Unix socket at /cloudsql/<inst>.
+  #    - DATABASE_URL + JWT_SECRET come from Secret Manager (never baked in).
+  #    Extend --set-secrets with the rest from deploy/env.example for full features
+  #    (SMTP_PASS, WHATSAPP_META_ACCESS_TOKEN, TWILIO_AUTH_TOKEN, VAPID_PRIVATE_KEY, ...).
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: gcloud
     args:
@@ -55,6 +68,11 @@ steps:
       - "--timeout=3600"
       - "--cpu=1"
       - "--memory=1Gi"
+      - "--add-cloudsql-instances=${_CLOUDSQL_INSTANCE}"
+      # CORS_ALLOWED_ORIGINS holds a comma, so use gcloud's alternate-delimiter
+      # form (^|^ = split on `|`) — a plain comma would be mis-parsed as a new var.
+      - "--set-env-vars=^|^NODE_ENV=production|APP_URL=https://trackmyrmc.com|PUBLIC_URL=https://trackmyrmc.com|CORS_ALLOWED_ORIGINS=https://trackmyrmc.com,https://www.trackmyrmc.com"
+      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest"
 
 options:
   logging: CLOUD_LOGGING_ONLY
