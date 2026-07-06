@@ -18,7 +18,6 @@ async function fillRequiredDelivery(
     c => within(c).queryByRole('option', { name: 'Cash' }),
   )!;
   await user.selectOptions(paymentSelect, 'Cash');
-  await user.type(screen.getByPlaceholderText(/special instructions/i), 'Call on arrival');
   // Drop the map pin via the full-screen delivery picker: open it from the order
   // form, use the current-location shortcut (geolocation is mocked in
   // beforeEach), then confirm the pin. The picker is a plain overlay (no nested
@@ -28,8 +27,7 @@ async function fillRequiredDelivery(
   await user.click(await screen.findByRole('button', { name: /confirm delivery location/i }));
 }
 
-// The order modal has two <select> comboboxes (concrete grade + delivery site),
-// so target the grade one by the "Select grade…" placeholder option it contains.
+// Target the grade <select> by the "Select grade…" placeholder option it contains.
 function gradeSelect(): HTMLElement {
   const el = screen.getAllByRole('combobox').find(
     c => within(c).queryByRole('option', { name: /select grade/i }),

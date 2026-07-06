@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { useSearch } from 'wouter';
-import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type Site, type RecurringOrder, type FreshnessConfig, type IdleConfig, type PlantDirectoryEntry } from '@/lib/api';
+import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type RecurringOrder, type FreshnessConfig, type IdleConfig, type PlantDirectoryEntry } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 import FreshnessCountdown from '@/components/FreshnessCountdown';
 import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle, Info, Star, Search } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
 import { downloadAccountStatement } from '@/pages/accountStatement';
-import SitePicker from '@/components/SitePicker';
 import DeliveryLocationPicker from '@/components/DeliveryLocationPicker';
 import LiveDeliveryMap, { type DeliveryMarker } from '@/components/LiveDeliveryMap';
 
@@ -246,7 +245,6 @@ export default function MyOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [challans, setChallans] = useState<Challan[]>([]);
   const [ledger, setLedger] = useState<LedgerData>({ entries: [], outstanding: 0, creditLimit: 0 });
-  const [sites, setSites] = useState<Site[]>([]);
   const [recurring, setRecurring] = useState<RecurringOrder[]>([]);
   const [tab, setTab] = useState<TabKey>(() => readTab(search));
   const [recModalOpen, setRecModalOpen] = useState(false);
@@ -310,18 +308,11 @@ export default function MyOrders() {
       api.get<Order[]>('/me/orders'),
       api.get<Challan[]>('/me/challans'),
       api.get<LedgerData>('/me/ledger'),
-      api.get<Site[]>('/me/sites'),
       api.get<RecurringOrder[]>('/me/recurring'),
     ])
-      .then(([o, c, l, s, r]) => { setOrders(o); setChallans(c); setLedger(l); setSites(s); setRecurring(r); })
+      .then(([o, c, l, r]) => { setOrders(o); setChallans(c); setLedger(l); setRecurring(r); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
-
-  const createSite = useCallback(async (payload: { name: string; address?: string; city?: string; latitude?: string; longitude?: string }) => {
-    const site = await api.post<Site>('/me/sites', payload);
-    setSites(prev => [site, ...prev]);
-    return site;
   }, []);
 
   useEffect(() => { reloadAll(); }, [reloadAll]);
@@ -710,7 +701,6 @@ export default function MyOrders() {
     if (!(Number(form.latitude) && Number(form.longitude))) fe.location = 'Please pin the delivery location on the map.';
     if (!form.paymentType) fe.paymentType = 'Please select a payment type.';
     if (poRequired && !form.poNumber.trim()) fe.poNumber = 'A PO number is required for credit orders.';
-    if (!form.notes.trim()) fe.notes = 'Please add notes or site details.';
     if (form.pumpRequired && !form.pumpLineLength.trim()) fe.pumpLineLength = 'Please enter the required pump line length.';
     setFieldErrors(fe);
     if (Object.keys(fe).length > 0) return;
@@ -1765,21 +1755,6 @@ export default function MyOrders() {
               <FieldError msg={fieldErrors.location} />
             </div>
 
-            <div style={{ marginTop: 14 }}>
-              <SitePicker sites={sites} value={form.siteId} onChange={id => {
-                setForm(f => ({ ...f, siteId: id }));
-                // Prefill address + pin from the chosen saved site for convenience.
-                const s = sites.find(x => String(x.id) === id);
-                if (s) setForm(f => ({
-                  ...f, siteId: id,
-                  siteName: f.siteName || s.name,
-                  siteAddress: f.siteAddress || s.address || '',
-                  latitude: (Number(s.latitude) ? String(s.latitude) : f.latitude),
-                  longitude: (Number(s.longitude) ? String(s.longitude) : f.longitude),
-                }));
-              }} onCreate={createSite} />
-            </div>
-
             {/* Payment + PO reference. */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
               <div>
@@ -1795,12 +1770,6 @@ export default function MyOrders() {
                 <input value={form.poNumber} onChange={e => { setForm(f => ({ ...f, poNumber: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, poNumber: undefined })); }} placeholder="Purchase order ref" style={fieldErrors.poNumber ? inputErrorStyle : inputStyle} />
                 <FieldError msg={fieldErrors.poNumber} />
               </div>
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>Notes / Site details *</label>
-              <textarea value={form.notes} onChange={e => { setForm(f => ({ ...f, notes: e.target.value })); if (e.target.value.trim()) setFieldErrors(fe => ({ ...fe, notes: undefined })); }} rows={3} placeholder="Special instructions…" style={{ ...(fieldErrors.notes ? inputErrorStyle : inputStyle), resize: 'vertical' }} />
-              <FieldError msg={fieldErrors.notes} />
             </div>
 
             {/* Optional site photo — helps the plant plan access/placement. */}
@@ -2125,15 +2094,6 @@ export default function MyOrders() {
                 <label style={labelStyle}>Preferred Time (optional)</label>
                 <input type="time" value={recForm.deliveryTime} onChange={e => setRecForm(f => ({ ...f, deliveryTime: e.target.value }))} style={inputStyle} />
               </div>
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <SitePicker sites={sites} value={recForm.siteId} onChange={id => setRecForm(f => ({ ...f, siteId: id }))} onCreate={createSite} />
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>Notes (optional)</label>
-              <textarea value={recForm.notes} onChange={e => setRecForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Special instructions…" style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, cursor: 'pointer', color: 'var(--text)', fontSize: 13 }}>
