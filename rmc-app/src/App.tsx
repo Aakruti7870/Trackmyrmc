@@ -43,7 +43,6 @@ const FuelLog        = lazy(() => import('@/pages/FuelLog'));
 const Users          = lazy(() => import('@/pages/Users'));
 const UserManagement = lazy(() => import('@/pages/UserManagement'));
 const ActivityLog    = lazy(() => import('@/pages/ActivityLog'));
-const AuditLog       = lazy(() => import('@/pages/AuditLog'));
 const ProfileSettings = lazy(() => import('@/pages/ProfileSettings'));
 const Kiosk          = lazy(() => import('@/pages/Kiosk'));
 const SsoCallback    = lazy(() => import('@/pages/SsoCallback'));
@@ -145,7 +144,7 @@ function ProtectedRoutes() {
         <Route path="/users"        component={() => <GuardedRoute path="/users"        component={Users}           />} />
         <Route path="/user-management" component={() => <GuardedRoute path="/user-management" component={UserManagement} />} />
         <Route path="/activity-log" component={() => <GuardedRoute path="/activity-log" component={ActivityLog}      />} />
-        <Route path="/audit-log"    component={() => <GuardedRoute path="/audit-log"    component={AuditLog}        />} />
+        <Route path="/audit-log"><Redirect to="/activity-log" /></Route>
         <Route path="/automations"  component={() => <GuardedRoute path="/automations"  component={Automations}     />} />
         <Route path="/whatsapp"     component={() => <GuardedRoute path="/whatsapp"     component={WhatsAppChat}    />} />
         <Route path="/profile"      component={() => <GuardedRoute path="/profile"      component={ProfileSettings} />} />

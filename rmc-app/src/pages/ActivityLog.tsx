@@ -12,6 +12,7 @@ type AuditEntry = {
   action: string;
   targetUserId: number | null;
   targetUserEmail: string | null;
+  status: string | null;
   detail: string | null;
   emailSent: boolean | null;
   createdAt: string;
@@ -31,6 +32,8 @@ type AuditPage = {
 const PAGE_SIZE = 100;
 
 const ACTION_LABEL: Record<string, string> = {
+  smtp_test: 'SMTP Test',
+  welcome_email: 'Welcome Email',
   password_reset: 'Password Reset',
   lockout_cleared: 'Lockout Cleared',
   name_change: 'Name Changed',
@@ -45,6 +48,8 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 const ACTION_COLOR: Record<string, string> = {
+  smtp_test: '#22c55e',
+  welcome_email: '#38bdf8',
   password_reset: '#38bdf8',
   lockout_cleared: '#22c55e',
   name_change: '#a78bfa',
@@ -201,10 +206,10 @@ export default function ActivityLog() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <History size={22} style={{ color: 'var(--gold)' }} />
-            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Activity Log</h2>
+            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Activity &amp; Audit Log</h2>
           </div>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>
-            Every account and email event across the system, newest first
+            Every system event — account changes, email tests, password resets, lockouts — newest first
             {!loading ? ` · ${total.toLocaleString('en-IN')} ${total === 1 ? 'entry' : 'entries'}` : ''}
           </p>
         </div>
@@ -326,10 +331,10 @@ export default function ActivityLog() {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 760 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 860 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--chip-bg)' }}>
-                  {['Timestamp', 'Action', 'Details', 'Target Account', 'Performed By', 'Email'].map(h => (
+                  {['Timestamp', 'Action', 'Status', 'Details', 'Target Account', 'Performed By', 'Email'].map(h => (
                     <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
                       {h}
                     </th>
@@ -352,6 +357,19 @@ export default function ActivityLog() {
                         }}>
                           {actionLabel(entry.action)}
                         </span>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        {entry.status ? (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600,
+                            color: entry.status === 'success' ? 'var(--green)' : entry.status === 'failure' ? 'var(--red)' : 'var(--muted)',
+                          }}>
+                            {entry.status === 'success' ? <CheckCircle size={13} /> : entry.status === 'failure' ? <XCircle size={13} /> : null}
+                            {entry.status}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+                        )}
                       </td>
                       <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{entry.detail ?? '—'}</td>
                       <td style={{ padding: '11px 14px', color: 'var(--text)' }}>

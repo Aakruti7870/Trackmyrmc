@@ -25,7 +25,7 @@ export default function QuickActions({ accent, onInvite }: { accent: string; onI
     { label: 'Customers', icon: <Users size={20} />, color: 'var(--green)', go: '/clients' },
     { label: 'Reports', icon: <BarChart3 size={20} />, color: '#22d3ee', go: '/reports' },
     { label: 'Users & access', icon: <ShieldCheck size={20} />, color: 'var(--red)', go: '/users' },
-    { label: 'Audit log', icon: <Bell size={20} />, color: '#f59e0b', go: '/audit-log' },
+    { label: 'Activity log', icon: <Bell size={20} />, color: '#f59e0b', go: '/activity-log' },
   ].filter(a => !a.go || (user && canAccess(user.role, a.go)));
 
   return (

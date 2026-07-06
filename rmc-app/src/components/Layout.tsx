@@ -2,7 +2,7 @@ import { Link, useLocation, useSearch } from 'wouter';
 import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
-  ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, ScrollText, Repeat,
+  ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, Repeat,
   Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon, CalendarClock,
   Crown, Building2, HardHat, Wallet, User, Zap, MessageCircle, Radio,
   Home, Siren,
@@ -45,8 +45,7 @@ const ALL_NAV_ITEMS = [
   { path: '/plants',      label: 'Plants',     icon: Factory },
   { path: '/users',       label: 'Users',      icon: ShieldCheck },
   { path: '/user-management', label: 'Plant Users', icon: UserCheck },
-  { path: '/activity-log', label: 'Activity Log', icon: History },
-  { path: '/audit-log',   label: 'Audit Log',  icon: ScrollText },
+  { path: '/activity-log', label: 'Activity & Audit', icon: History },
   { path: '/automations', label: 'Automations', icon: Zap },
   { path: '/whatsapp',    label: 'WhatsApp',   icon: MessageCircle },
 ];
@@ -267,6 +266,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         : ALL_NAV_ITEMS.filter(item =>
             allowedPaths.includes(item.path) && (item.path !== '/whatsapp' || isPlatformStaff));
 
+  // Mobile bottom tab bar (non-driver, phones only): show up to 5 items inline;
+  // if there are more, show the first 4 + a "More" tab that opens the full menu
+  // sheet — so nothing (incl. account, theme, sign-out) is lost on mobile.
+  const mobileHasMore = navItems.length > 5;
+  const mobilePrimary = mobileHasMore ? navItems.slice(0, 4) : navItems;
+
   const SidebarContent = () => (
     <>
       {/* Brand */}
@@ -480,13 +485,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <NotificationBell />
           <AiHeaderButton />
-          {/* Drivers navigate solely via the bottom tab bar — no hamburger/drawer. */}
-          {!isDriver && (
-            <button onClick={() => setMobileOpen(o => !o)}
-              style={{ background: 'none', color: 'var(--text)', padding: 4, border: 'none' }}>
-              {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-            </button>
-          )}
+          {/* Everyone navigates via the bottom tab bar on mobile — no hamburger. */}
         </div>
       </div>
 
@@ -511,24 +510,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--overlay)', backdropFilter: 'blur(2px)' }}
                 onClick={() => setMobileOpen(false)} />
             )}
+            {/* "More" menu — slides up as a bottom card sheet on mobile. */}
             <div id="mobile-sidebar" style={{
-              position: 'fixed', top: 0, left: 0, bottom: 0, width: 260, zIndex: 45,
+              position: 'fixed', left: 0, right: 0, bottom: 0, maxHeight: '86vh', zIndex: 45,
               background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
               backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
-              borderRight: '1px solid var(--line)', padding: '18px 14px',
-              paddingTop: 'calc(18px + env(safe-area-inset-top, 0px))',
-              paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+              borderTop: '1px solid var(--line)',
+              borderTopLeftRadius: 20, borderTopRightRadius: 20,
+              padding: '10px 14px',
+              paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
               display: 'flex', flexDirection: 'column',
               overflowY: 'auto', WebkitOverflowScrolling: 'touch',
-              transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
-              transition: 'transform .25s ease',
+              transform: mobileOpen ? 'translateY(0)' : 'translateY(110%)',
+              transition: 'transform .28s cubic-bezier(.4,0,.2,1)',
+              boxShadow: '0 -20px 60px rgba(0,0,0,.4)',
+              pointerEvents: mobileOpen ? 'auto' : 'none',
             }}>
+              <div style={{ width: 40, height: 4, borderRadius: 4, background: 'var(--line)', margin: '2px auto 12px', flexShrink: 0 }} />
               {SidebarContent()}
             </div>
           </>
         )}
 
-        <main id="app-main" className={isDriver ? 'has-bottom-nav' : undefined} style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
+        <main id="app-main" className={isDriver ? 'has-bottom-nav' : 'has-bottom-nav-mobile'} style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
           {children}
         </main>
       </div>
@@ -565,6 +569,53 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
       )}
 
+      {/* Mobile bottom tab bar — non-driver roles, phones only. The sidebar
+          stays on desktop; this replaces the mobile drawer/hamburger. */}
+      {!isDriver && (
+        <nav id="mobile-bottom-nav" style={{
+          display: 'none', position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 55,
+          background: 'var(--header-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
+          borderTop: '1px solid var(--line)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          alignItems: 'stretch', justifyContent: 'space-around',
+        }}>
+          {mobilePrimary.map(({ path, label, icon: Icon, tab }) => {
+            const active = tab
+              ? (location.startsWith('/my-orders') && currentTab === tab)
+              : (path === '/' ? location === '/' : location.startsWith(path));
+            const href = tab && tab !== 'today' ? `${path}?tab=${tab}` : path;
+            return (
+              <Link
+                key={`${path}:${tab ?? ''}`}
+                href={href}
+                onClick={() => { setMobileOpen(false); if (tab) window.dispatchEvent(new CustomEvent('myorders:set-tab', { detail: tab })); }}
+                style={{
+                  flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                  padding: '8px 2px 7px', textDecoration: 'none',
+                  color: active ? 'var(--gold)' : 'var(--muted)', fontSize: 10.5, fontWeight: active ? 800 : 600,
+                }}
+              >
+                <Icon size={21} />
+                <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+              </Link>
+            );
+          })}
+          {mobileHasMore && (
+            <button
+              onClick={() => setMobileOpen(o => !o)}
+              style={{
+                flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                padding: '8px 2px 7px', background: 'none', border: 'none', cursor: 'pointer',
+                color: mobileOpen ? 'var(--gold)' : 'var(--muted)', fontSize: 10.5, fontWeight: mobileOpen ? 800 : 600,
+              }}
+            >
+              {mobileOpen ? <X size={21} /> : <Menu size={21} />}
+              More
+            </button>
+          )}
+        </nav>
+      )}
+
       <style>{`
         /* Driver main always clears the fixed bottom tab bar (all widths). */
         #app-main.has-bottom-nav { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
@@ -572,6 +623,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           #desktop-sidebar { display: none !important; }
           #mobile-header { display: flex !important; }
           #driver-bottom-nav { display: flex !important; }
+          #mobile-bottom-nav { display: flex !important; }
+          /* Non-driver main clears the mobile bottom tab bar on phones only. */
+          #app-main.has-bottom-nav-mobile { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
         }
         @keyframes ssePulse {
           0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); }
