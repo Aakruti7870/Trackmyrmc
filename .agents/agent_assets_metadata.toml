@@ -178,7 +178,7 @@ title = "stt test sample"
 id = "lKoNzuFvLjz5nyUUTkUJd"
 uri = "file://concrete-king-android-src.zip"
 type = "unspecified"
-title = "CONCRETE KING — Android source (ready to build)"
+title = "CONCRETE KING — Android source (current build, ready for AAB)"
 
 [[outputs]]
 id = "zZgIfZ0UH2LePIlnc4Ag4"
