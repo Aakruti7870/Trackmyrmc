@@ -437,3 +437,9 @@ id = "EbZueT3Fzx6Qxu2NXfJ0a"
 uri = "file://attached_assets/screenshots/replit_com_login.png"
 type = "image"
 title = "ignore"
+
+[[outputs]]
+id = "L058t-wWfVq6xo3GWfm6S"
+uri = "file://concrete-king-android-v1.8-vc9.zip"
+type = "unspecified"
+title = "CONCRETE KING Android source — v1.8 (versionCode 9)"
