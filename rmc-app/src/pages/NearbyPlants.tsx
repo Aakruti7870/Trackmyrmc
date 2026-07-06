@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { MapContainer, TileLayer, Marker, Popup, FitBounds } from '@/components/map';
 import L from 'leaflet';
 import { MapPin, List, Map as MapIcon, Phone, Clock, Navigation, PackagePlus, Loader2, LocateFixed, RefreshCw, Headphones, Search, ShieldCheck, ShieldAlert, HandHeart, Check } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 
@@ -108,10 +108,6 @@ export default function NearbyPlants() {
   const [plants, setPlants] = useState<NearbyPlant[] | null>(null);
   const [discovered, setDiscovered] = useState<DiscoveredPlant[]>([]);
   const [discovering, setDiscovering] = useState(false);
-  // Live discovery is best-effort, but a failure must NOT be silently swallowed
-  // into an empty list — surface a friendly message so the customer understands
-  // why the wider map search came back empty (vs. genuinely no plants nearby).
-  const [discoverError, setDiscoverError] = useState('');
   const [phase, setPhase] = useState<'locating' | 'loading' | 'ready' | 'geoerror'>('locating');
   const [fetchError, setFetchError] = useState('');
   const [view, setView] = useState<'list' | 'map'>('list');
@@ -130,26 +126,14 @@ export default function NearbyPlants() {
   const radiusRef = useRef(radiusKm);
 
   // Live discovery is best-effort: a failure (key missing, upstream down, rate
-  // limited) must never block the onboarded results, so it owns its own state and
-  // records the failure in discoverError instead of silently emptying the list.
+  // limited) must never block the onboarded results, so on any error we simply
+  // fall back to the onboarded partner plants without surfacing a banner.
   const loadDiscovered = useCallback((c: LatLng, radius: number) => {
     setDiscovering(true);
-    setDiscoverError('');
     return api
       .get<DiscoveredPlant[]>(`/plants/discover?lat=${c.lat}&lng=${c.lng}&radius=${radius}`)
-      .then(data => { setDiscovered(data); setDiscoverError(''); })
-      .catch((e: unknown) => {
-        setDiscovered([]);
-        // A 503 means the live directory is intentionally not configured; any
-        // other failure is a transient upstream/network error the customer can
-        // retry. Either way we say so plainly rather than showing an empty list.
-        const status = e instanceof ApiError ? e.status : 0;
-        setDiscoverError(
-          status === 503
-            ? 'Live map search isn’t available right now, so this list shows only our onboarded partner plants.'
-            : 'We couldn’t search the wider map directory just now — showing our onboarded partner plants. Refresh to try again.',
-        );
-      })
+      .then(data => { setDiscovered(data); })
+      .catch(() => { setDiscovered([]); })
       .finally(() => setDiscovering(false));
   }, []);
 
@@ -373,15 +357,6 @@ export default function NearbyPlants() {
                   <Navigation size={15} /> Change location
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* Live discovery failed/unconfigured: say so instead of leaving the
-              customer to assume there simply are no other plants nearby. */}
-          {discoverError && !discovering && (
-            <div style={{ ...softCard, marginTop: 14, display: 'flex', gap: 10, alignItems: 'flex-start', borderColor: 'color-mix(in srgb, #f59e0b 40%, transparent)', background: 'color-mix(in srgb, #f59e0b 8%, transparent)', fontSize: 13.5 }}>
-              <ShieldAlert size={18} style={{ color: '#f59e0b', flexShrink: 0, marginTop: 1 }} />
-              <span style={{ color: 'var(--text)' }}>{discoverError}</span>
             </div>
           )}
 

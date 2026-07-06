@@ -61,8 +61,8 @@ beforeEach(() => {
   mockGeolocation();
 });
 
-describe('NearbyPlants — discovery failure surfacing', () => {
-  it('shows a friendly message when live discovery errors, while still listing partner plants', async () => {
+describe('NearbyPlants — discovery failure fallback', () => {
+  it('falls back to partner plants without a warning banner when live discovery errors', async () => {
     vi.mocked(api.get).mockImplementation((path: string) => {
       if (path.startsWith('/plants/nearby')) return Promise.resolve([PLANT] as never);
       if (path.startsWith('/plants/discover')) return Promise.reject(new ApiError('boom', 502, {}));
@@ -70,13 +70,13 @@ describe('NearbyPlants — discovery failure surfacing', () => {
     });
     renderPage();
 
-    // Partner plant still renders.
+    // Partner plant still renders — the failure is swallowed, not surfaced.
     expect(await screen.findByText('CoreMix Pune')).toBeInTheDocument();
-    // Discovery failure is surfaced, not swallowed into an empty list.
-    expect(await screen.findByText(/couldn’t search the wider map directory/i)).toBeInTheDocument();
+    // No warning banner is shown.
+    expect(screen.queryByText(/couldn’t search the wider map directory/i)).not.toBeInTheDocument();
   });
 
-  it('shows the "not available" message when discovery is unconfigured (503)', async () => {
+  it('falls back silently when discovery is unconfigured (503)', async () => {
     vi.mocked(api.get).mockImplementation((path: string) => {
       if (path.startsWith('/plants/nearby')) return Promise.resolve([PLANT] as never);
       if (path.startsWith('/plants/discover')) return Promise.reject(new ApiError('nope', 503, {}));
@@ -84,7 +84,8 @@ describe('NearbyPlants — discovery failure surfacing', () => {
     });
     renderPage();
 
-    expect(await screen.findByText(/live map search isn’t available right now/i)).toBeInTheDocument();
+    expect(await screen.findByText('CoreMix Pune')).toBeInTheDocument();
+    expect(screen.queryByText(/live map search isn’t available right now/i)).not.toBeInTheDocument();
   });
 });
 
