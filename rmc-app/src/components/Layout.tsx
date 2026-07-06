@@ -263,11 +263,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         : ALL_NAV_ITEMS.filter(item =>
             allowedPaths.includes(item.path) && (item.path !== '/whatsapp' || isPlatformStaff));
 
-  // Mobile bottom tab bar (non-driver, phones only): show up to 5 items inline;
-  // if there are more, show the first 4 + a "More" tab that opens the full menu
-  // sheet — so nothing (incl. account, theme, sign-out) is lost on mobile.
-  const mobileHasMore = navItems.length > 5;
-  const mobilePrimary = mobileHasMore ? navItems.slice(0, 4) : navItems;
+  // Mobile bottom tab bar (non-driver, phones only): show up to 4 items inline
+  // plus a "More" tab that opens the full menu sheet.
+  // The slide-up sheet is the ONLY place that holds account settings, theme, and
+  // sign-out on mobile (none of these are bottom-nav destinations — /profile is
+  // not in ALL_NAV_ITEMS), so the "More" tab must ALWAYS be present. Otherwise
+  // roles whose nav fits inline (accountant, plant_operator, quality_engineer,
+  // store_manager) would have no way to reach Sign Out on a phone.
+  const mobileHasMore = true;
+  const mobilePrimary = navItems.length > 4 ? navItems.slice(0, 4) : navItems;
 
   const SidebarContent = () => (
     <>
