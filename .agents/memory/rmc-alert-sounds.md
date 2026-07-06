@@ -6,6 +6,10 @@ description: How audible alert chimes hook into toasts and the constraints that 
 In-app alert chimes are synthesised with the Web Audio API (no asset file) and play from
 `ToastProvider.showToast` for EVERY toast, so any SSE-driven alert routed through `showToast`
 chimes automatically. User mute toggle persists in localStorage `rmc_alert_sound` (`'off'` = muted).
+The user can also pick which sound plays (choices `chime`/`bell`/`alert`, persisted in
+`rmc_alert_sound_choice`, default `chime`); `playAlertSound(type, choiceOverride?)` takes an
+optional override so the settings UI (NotificationsCard) can preview a specific sound. Sounds are
+deliberately loud (peak gain ~0.3, up from 0.12) and lengthy (~0.6–1s sequences with error repeats).
 
 **Why / constraints (non-obvious):**
 - **jsdom has no `AudioContext`** — the sound layer MUST feature-detect (`window.AudioContext || webkitAudioContext`) and no-op when absent, or the whole toast/Layout test suite crashes. Never assume audio APIs exist.

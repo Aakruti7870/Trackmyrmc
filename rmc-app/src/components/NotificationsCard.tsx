@@ -12,6 +12,10 @@ import {
   setAlertSoundEnabled,
   playAlertSound,
   unlockAlertSound,
+  getAlertSoundChoice,
+  setAlertSoundChoice,
+  ALERT_SOUND_CHOICES,
+  type AlertSoundChoice,
 } from '@/lib/alertSound';
 import { useToast } from '@/lib/toast';
 
@@ -33,6 +37,7 @@ export default function NotificationsCard() {
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [soundOn, setSoundOn] = useState(() => isAlertSoundEnabled());
+  const [soundChoice, setSoundChoice] = useState<AlertSoundChoice>(() => getAlertSoundChoice());
 
   const toggleSound = () => {
     const next = !soundOn;
@@ -42,8 +47,16 @@ export default function NotificationsCard() {
       // This runs inside a click handler, so it doubles as the gesture that
       // unlocks audio, and previews the chime so the user hears the change.
       unlockAlertSound();
-      playAlertSound('success');
+      playAlertSound('success', soundChoice);
     }
+  };
+
+  const pickSound = (choice: AlertSoundChoice) => {
+    setSoundChoice(choice);
+    setAlertSoundChoice(choice);
+    // Runs inside a click, so it can unlock audio and preview the picked sound.
+    unlockAlertSound();
+    if (soundOn) playAlertSound('success', choice);
   };
 
   useEffect(() => {
@@ -231,6 +244,49 @@ export default function NotificationsCard() {
           />
         </button>
       </div>
+
+      {/* Sound picker — choose which chime plays; tapping one previews it. */}
+      {soundOn && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 }}>
+            Notification sound — tap to preview
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {ALERT_SOUND_CHOICES.map((c) => {
+              const selected = c.value === soundChoice;
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => pickSound(c.value)}
+                  style={{
+                    flex: '1 1 140px',
+                    textAlign: 'left',
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                    background: selected
+                      ? 'color-mix(in srgb, var(--green) 14%, transparent)'
+                      : 'var(--menu-bg)',
+                    border: `1px solid ${selected ? 'var(--green)' : 'var(--line)'}`,
+                    transition: 'background .15s, border-color .15s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Volume2
+                      size={14}
+                      style={{ color: selected ? 'var(--green)' : 'var(--muted)', flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{c.label}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{c.description}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
