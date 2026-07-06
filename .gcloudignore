@@ -14,6 +14,9 @@ rmc-app/dev-dist
 rmc-app/android
 *.zip
 
+# Database export artifacts (imported into Cloud SQL out-of-band, not into the build)
+deploy/db-export
+
 # Replit-only + agent tooling
 .replit
 .local

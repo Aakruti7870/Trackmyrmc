@@ -443,3 +443,9 @@ id = "L058t-wWfVq6xo3GWfm6S"
 uri = "file://concrete-king-android-v1.8-vc9.zip"
 type = "unspecified"
 title = "CONCRETE KING Android source — v1.8 (versionCode 9)"
+
+[[outputs]]
+id = "KiXPzhfLfLyzT_SgffWN6"
+uri = "file://deploy/db-export/trackmyrmc-heliumdb.sql.gz"
+type = "unspecified"
+title = "TrackMyRMC DB export (gzipped, Cloud SQL ready)"

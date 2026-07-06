@@ -12,6 +12,9 @@ rmc-app/dev-dist
 rmc-app/android
 *.zip
 
+# Database export artifacts (imported into Cloud SQL out-of-band, not into the image)
+deploy/db-export
+
 # VCS / editor / OS cruft
 .git
 .gitignore
