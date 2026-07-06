@@ -1,7 +1,7 @@
 import { Link, useLocation, useSearch } from 'wouter';
 import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
-  FileText, BarChart3, Menu, X, UserCheck, LogOut, FlaskConical,
+  FileText, BarChart3, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, Repeat,
   Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon, CalendarClock,
   Crown, Building2, HardHat, Wallet, User, Zap, MessageCircle,
@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
-import { allowedPaths as roleAllowedPaths, HOME_ROLES } from '@/lib/permissions';
+import { allowedPaths as roleAllowedPaths } from '@/lib/permissions';
 import { useSSE, type SSEStatus } from '@/lib/useSSE';
 import { formatNotification } from '@/lib/notifications';
 import { PLATFORM_NAME } from '@/lib/brand';
@@ -20,6 +20,7 @@ import NotificationBell from '@/components/NotificationBell';
 import AIHelpAgent, { AiHeaderButton } from '@/components/ai/AIHelpAgent';
 import InstallAppButton from '@/components/InstallAppButton';
 import { ConcreteKingLogo, BrandCredits } from '@/components/BrandLogo';
+import { DeliveryHeader, DeliveryBottomNav } from '@/components/DeliveryMobileChrome';
 
 const ALL_NAV_ITEMS = [
   { path: '/command',      label: 'Command Center', icon: Crown },
@@ -263,23 +264,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         : ALL_NAV_ITEMS.filter(item =>
             allowedPaths.includes(item.path) && (item.path !== '/whatsapp' || isPlatformStaff));
 
-  // Mobile bottom tab bar (non-driver, phones only): show up to 4 items inline
-  // plus a "More" tab that opens the full menu sheet.
-  // The slide-up sheet is the ONLY place that holds account settings, theme, and
-  // sign-out on mobile (none of these are bottom-nav destinations — /profile is
-  // not in ALL_NAV_ITEMS), so the "More" tab must ALWAYS be present. Otherwise
-  // roles whose nav fits inline (accountant, plant_operator, quality_engineer,
-  // store_manager) would have no way to reach Sign Out on a phone.
-  const mobileHasMore = true;
-  // On phones, home-capable non-driver roles get a leading "Home" tab pointing
-  // at their unified /home landing. This is mobile-only — the desktop sidebar
-  // (SidebarContent navItems) is untouched. Driver already has Home in DRIVER_NAV.
-  const showMobileHome = !!user && !isDriver && (HOME_ROLES as string[]).includes(user.role);
-  const mobileNav = showMobileHome
-    ? [{ path: '/home', label: 'Home', icon: Home }, ...navItems]
-    : navItems;
-  const mobilePrimary = mobileNav.length > 4 ? mobileNav.slice(0, 4) : mobileNav;
-
   const SidebarContent = () => (
     <>
       {/* Brand */}
@@ -473,165 +457,76 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     </>
   );
 
+  const isHome = location === '/home';
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className={isDriver ? 'role-driver' : undefined} style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <CommandPalette />
       <AIHelpAgent />
-      {/* Mobile header */}
-      <div style={{
-        display: isDriver ? 'flex' : 'none', background: 'var(--header-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
-        borderBottom: '1px solid var(--line)', padding: '12px 16px',
-        paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
-        alignItems: 'center', justifyContent: 'space-between',
-        position: 'sticky', top: 0, zIndex: 50,
-      }} id="mobile-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <ConcreteKingLogo size={36} />
-          <span style={{ fontWeight: 700, fontSize: 14 }}>TrackMyRMC</span>
-          <SSEDot status={sseStatus} onReconnect={reconnect} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <NotificationBell />
-          <AiHeaderButton />
-          {/* Everyone navigates via the bottom tab bar on mobile — no hamburger. */}
-        </div>
-      </div>
+      {/* Mobile header — unified delivery-style chrome for every role on phones
+          (and at all widths for drivers, who have no desktop sidebar). */}
+      <DeliveryHeader onProfile={() => setMobileOpen(true)} />
 
       <div style={{ display: 'flex', flex: 1 }}>
-        {/* Desktop sidebar + mobile drawer — every non-driver role. Drivers get a
-            bottom tab bar instead (no sidebar / drawer / hamburger at any width). */}
+        {/* Desktop sidebar — every non-driver role. Drivers get the bottom tab
+            bar at all widths instead (no sidebar at any width). */}
         {!isDriver && (
-          <>
-            <aside id="desktop-sidebar" style={{
-              width: 240, flexShrink: 0,
-              background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
-              backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
-              borderRight: '1px solid var(--line)', padding: '18px 14px',
-              position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
-              display: 'flex', flexDirection: 'column',
-            }}>
-              {SidebarContent()}
-            </aside>
-
-            {/* Mobile overlay */}
-            {mobileOpen && (
-              <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--overlay)', backdropFilter: 'blur(2px)' }}
-                onClick={() => setMobileOpen(false)} />
-            )}
-            {/* "More" menu — slides up as a bottom card sheet on mobile. */}
-            <div id="mobile-sidebar" style={{
-              position: 'fixed', left: 0, right: 0, bottom: 0, maxHeight: '86vh', zIndex: 45,
-              background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
-              backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
-              borderTop: '1px solid var(--line)',
-              borderTopLeftRadius: 20, borderTopRightRadius: 20,
-              padding: '10px 14px',
-              paddingBottom: 'calc(76px + env(safe-area-inset-bottom, 0px))',
-              display: 'flex', flexDirection: 'column',
-              overflowY: 'auto', WebkitOverflowScrolling: 'touch',
-              transform: mobileOpen ? 'translateY(0)' : 'translateY(110%)',
-              transition: 'transform .28s cubic-bezier(.4,0,.2,1)',
-              boxShadow: '0 -20px 60px rgba(0,0,0,.4)',
-              pointerEvents: mobileOpen ? 'auto' : 'none',
-            }}>
-              <div style={{ width: 40, height: 4, borderRadius: 4, background: 'var(--line)', margin: '2px auto 12px', flexShrink: 0 }} />
-              {SidebarContent()}
-            </div>
-          </>
+          <aside id="desktop-sidebar" style={{
+            width: 240, flexShrink: 0,
+            background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
+            backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
+            borderRight: '1px solid var(--line)', padding: '18px 14px',
+            position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            {SidebarContent()}
+          </aside>
         )}
 
-        <main id="app-main" className={isDriver ? 'has-bottom-nav' : 'has-bottom-nav-mobile'} style={{ flex: 1, padding: '22px', minWidth: 0, overflowX: 'hidden' }}>
+        {/* Mobile overlay + "More" slide-up sheet — available to every role
+            (the sheet holds account settings, theme and sign-out on phones). */}
+        {mobileOpen && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--overlay)', backdropFilter: 'blur(2px)' }}
+            onClick={() => setMobileOpen(false)} />
+        )}
+        <div id="mobile-sidebar" style={{
+          position: 'fixed', left: 0, right: 0, bottom: 0, maxHeight: '86vh', zIndex: 45,
+          background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
+          backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
+          borderTop: '1px solid var(--line)',
+          borderTopLeftRadius: 20, borderTopRightRadius: 20,
+          padding: '10px 14px',
+          paddingBottom: 'calc(76px + env(safe-area-inset-bottom, 0px))',
+          display: 'flex', flexDirection: 'column',
+          overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+          transform: mobileOpen ? 'translateY(0)' : 'translateY(110%)',
+          transition: 'transform .28s cubic-bezier(.4,0,.2,1)',
+          boxShadow: '0 -20px 60px rgba(0,0,0,.4)',
+          pointerEvents: mobileOpen ? 'auto' : 'none',
+        }}>
+          <div style={{ width: 40, height: 4, borderRadius: 4, background: 'var(--line)', margin: '2px auto 12px', flexShrink: 0 }} />
+          {SidebarContent()}
+        </div>
+
+        <main id="app-main" className={isDriver ? 'has-bottom-nav' : 'has-bottom-nav-mobile'} style={{ flex: 1, padding: isHome ? 0 : '22px', minWidth: 0, overflowX: 'hidden' }}>
           {children}
         </main>
       </div>
 
-      {/* Driver bottom tab bar — the driver's sole navigation, shown at all widths. */}
-      {isDriver && (
-        <nav id="driver-bottom-nav" style={{
-          display: 'flex', position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 55,
-          background: 'var(--header-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
-          borderTop: '1px solid var(--line)',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-          alignItems: 'stretch', justifyContent: 'space-around',
-        }}>
-          {DRIVER_NAV.filter(item => allowedPaths.includes(item.path)).map(({ path, label, icon: Icon }) => {
-            const active = path === '/home' ? location === '/home' : location.startsWith(path);
-            const isSos = path === '/sos';
-            const color = active ? (isSos ? 'var(--red)' : 'var(--gold)') : 'var(--muted)';
-            return (
-              <Link
-                key={path}
-                href={path}
-                onClick={() => setMobileOpen(false)}
-                style={{
-                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-                  padding: '8px 2px 7px', textDecoration: 'none',
-                  color, fontSize: 10.5, fontWeight: active ? 800 : 600,
-                }}
-              >
-                <Icon size={21} />
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
-      )}
-
-      {/* Mobile bottom tab bar — non-driver roles, phones only. The sidebar
-          stays on desktop; this replaces the mobile drawer/hamburger. */}
-      {!isDriver && (
-        <nav id="mobile-bottom-nav" style={{
-          display: 'none', position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 55,
-          background: 'var(--header-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
-          borderTop: '1px solid var(--line)',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-          alignItems: 'stretch', justifyContent: 'space-around',
-        }}>
-          {mobilePrimary.map(({ path, label, icon: Icon, tab }) => {
-            const active = tab
-              ? (location.startsWith('/my-orders') && currentTab === tab)
-              : (path === '/' ? location === '/' : location.startsWith(path));
-            const href = tab && tab !== 'today' ? `${path}?tab=${tab}` : path;
-            return (
-              <Link
-                key={`${path}:${tab ?? ''}`}
-                href={href}
-                onClick={() => { setMobileOpen(false); if (tab) window.dispatchEvent(new CustomEvent('myorders:set-tab', { detail: tab })); }}
-                style={{
-                  flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-                  padding: '8px 2px 7px', textDecoration: 'none',
-                  color: active ? 'var(--gold)' : 'var(--muted)', fontSize: 10.5, fontWeight: active ? 800 : 600,
-                }}
-              >
-                <Icon size={21} />
-                <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-              </Link>
-            );
-          })}
-          {mobileHasMore && (
-            <button
-              onClick={() => setMobileOpen(o => !o)}
-              style={{
-                flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-                padding: '8px 2px 7px', background: 'none', border: 'none', cursor: 'pointer',
-                color: mobileOpen ? 'var(--gold)' : 'var(--muted)', fontSize: 10.5, fontWeight: mobileOpen ? 800 : 600,
-              }}
-            >
-              {mobileOpen ? <X size={21} /> : <Menu size={21} />}
-              More
-            </button>
-          )}
-        </nav>
-      )}
+      {/* Unified delivery-style bottom tab bar with role-aware center FAB.
+          Shown on phones for every role; at all widths for drivers. */}
+      <DeliveryBottomNav onMore={() => setMobileOpen(true)} />
 
       <style>{`
         /* Driver main always clears the fixed bottom tab bar (all widths). */
         #app-main.has-bottom-nav { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+        /* Drivers use the delivery chrome at every width (no desktop sidebar). */
+        .role-driver #delivery-mobile-header { display: flex !important; }
+        .role-driver #delivery-bottom-nav { display: flex !important; }
         @media (max-width: 900px) {
           #desktop-sidebar { display: none !important; }
-          #mobile-header { display: flex !important; }
-          #driver-bottom-nav { display: flex !important; }
-          #mobile-bottom-nav { display: flex !important; }
+          #delivery-mobile-header { display: flex !important; }
+          #delivery-bottom-nav { display: flex !important; }
           /* Non-driver main clears the mobile bottom tab bar on phones only. */
           #app-main.has-bottom-nav-mobile { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
         }

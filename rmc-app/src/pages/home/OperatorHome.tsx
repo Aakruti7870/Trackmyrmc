@@ -1,16 +1,22 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { api, type DashboardKPIs, type BatchRecord } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
-import { Boxes, Layers, Package, ClipboardList, FlaskConical, Timer, BarChart3, CalendarClock } from 'lucide-react';
-import { HomeHeader, StatTile, StatRow, Section, RowLink, ActionGrid, ActionTile } from './primitives';
+import {
+  Boxes, Layers, Truck, ClipboardList, FlaskConical, Timer, BarChart3,
+  CalendarCheck, User, Plus,
+} from 'lucide-react';
+import {
+  Screen, SectionHead, StatCard, QuickAction, QuickGrid, ListRow,
+} from './deliveryKit';
 import { greeting, firstNameOf } from './format';
 
 export default function OperatorHome() {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [batches, setBatches] = useState<BatchRecord[]>([]);
-  const [, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.allSettled([
@@ -19,45 +25,59 @@ export default function OperatorHome() {
     ]).then(([k, b]) => {
       if (k.status === 'fulfilled') setKpis(k.value);
       if (b.status === 'fulfilled') setBatches(b.value);
-    }).finally(() => setLoading(false));
+    });
   }, []);
 
   const can = (p: string) => (user ? canAccess(user.role, p) : false);
+  const go = (p: string) => navigate(p);
   const recentBatches = batches.slice(0, 3);
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto' }}>
-      <HomeHeader name={firstNameOf(user?.name, 'Operator')} subtitle={greeting()} />
+    <Screen>
+      <div>
+        <p className="text-[13px]" style={{ color: '#78716c' }}>{greeting()},</p>
+        <h1 className="text-[19px] font-extrabold leading-tight" style={{ color: '#1c1917' }}>
+          {firstNameOf(user?.name, 'Operator')}
+        </h1>
+      </div>
 
       {kpis && (
-        <StatRow cols={3}>
-          <StatTile label="Production" value={Number(kpis.todayProduction).toFixed(1)} sub="m³ today" color="var(--blue)" icon={Boxes} />
-          <StatTile label="Batches" value={kpis.todayBatches} sub="today" color="var(--gold)" icon={Layers} />
-          <StatTile label="Dispatch" value={Number(kpis.todayDispatch).toFixed(1)} sub="m³ today" color="var(--green)" icon={Package} />
-        </StatRow>
+        <div className="mt-4 grid grid-cols-2 gap-2.5">
+          <StatCard value={Number(kpis.todayProduction).toFixed(1)} label="Produced today (m³)" color="#15803d" icon={<Boxes className="h-4 w-4" />} />
+          <StatCard value={kpis.todayBatches} label="Batches today" color="#0f766e" icon={<Layers className="h-4 w-4" />} />
+          <StatCard value={Number(kpis.todayDispatch).toFixed(1)} label="Dispatched (m³)" color="#0284c7" icon={<Truck className="h-4 w-4" />} />
+          <StatCard value={`${kpis.activeVehicles}/${kpis.totalVehicles}`} label="Vehicles online" color="#0f766e" icon={<Truck className="h-4 w-4" />} />
+        </div>
       )}
 
       {recentBatches.length > 0 && (
-        <Section title="Recent batches" href={can('/batch-report') ? '/batch-report' : undefined}>
-          {recentBatches.map(b => (
-            <RowLink
-              key={b.id}
-              href="/batch-report"
-              title={`${b.batchNo} · ${b.grade}`}
-              sub={`${b.quantity} m³${b.operator ? ' · ' + b.operator : ''}`}
-            />
-          ))}
-        </Section>
+        <>
+          <SectionHead title="Recent Batches" actionLabel={can('/batch-report') ? 'View All' : undefined} onAction={() => go('/batch-report')} />
+          <div className="space-y-2.5">
+            {recentBatches.map(b => (
+              <ListRow
+                key={b.id}
+                icon={<Layers className="h-5 w-5" />}
+                title={`${b.batchNo} · ${b.grade}`}
+                sub={`${b.quantity} m³${b.operator ? ` · ${b.operator}` : ''}`}
+                onClick={can('/batch-report') ? () => go('/batch-report') : undefined}
+              />
+            ))}
+          </div>
+        </>
       )}
 
-      <h2 style={{ fontSize: 14, fontWeight: 800, margin: '18px 0 10px' }}>Quick actions</h2>
-      <ActionGrid>
-        {can('/batch-report') && <ActionTile href="/batch-report" label="Log batch" sub="Record production" icon={ClipboardList} color="var(--gold)" />}
-        {can('/mix-design') && <ActionTile href="/mix-design" label="Mix design" sub="Grade proportions" icon={FlaskConical} color="var(--blue)" />}
-        {can('/freshness') && <ActionTile href="/freshness" label="Freshness" sub="Pour-by guard" icon={Timer} color="var(--orange)" />}
-        {can('/reports') && <ActionTile href="/reports" label="Reports" sub="Production analytics" icon={BarChart3} color="var(--green)" />}
-        {can('/attendance') && <ActionTile href="/attendance" label="Attendance" sub="Clock in / out" icon={CalendarClock} color="var(--muted)" />}
-      </ActionGrid>
-    </div>
+      <SectionHead title="Quick Actions" />
+      <QuickGrid cols={4}>
+        {can('/batch-report') && <QuickAction label="New Batch" icon={<Plus className="h-6 w-6" />} onClick={() => go('/batch-report')} />}
+        {can('/batch-report') && <QuickAction label="Batch Report" icon={<ClipboardList className="h-6 w-6" />} onClick={() => go('/batch-report')} />}
+        {can('/mix-design') && <QuickAction label="Mix Design" icon={<FlaskConical className="h-6 w-6" />} onClick={() => go('/mix-design')} />}
+        {can('/freshness') && <QuickAction label="Freshness" icon={<Timer className="h-6 w-6" />} onClick={() => go('/freshness')} />}
+        {can('/shift-report') && <QuickAction label="Shift Report" icon={<BarChart3 className="h-6 w-6" />} onClick={() => go('/shift-report')} />}
+        {can('/reports') && <QuickAction label="Reports" icon={<BarChart3 className="h-6 w-6" />} onClick={() => go('/reports')} />}
+        {can('/attendance') && <QuickAction label="Attendance" icon={<CalendarCheck className="h-6 w-6" />} onClick={() => go('/attendance')} />}
+        {can('/profile') && <QuickAction label="Profile" icon={<User className="h-6 w-6" />} onClick={() => go('/profile')} />}
+      </QuickGrid>
+    </Screen>
   );
 }

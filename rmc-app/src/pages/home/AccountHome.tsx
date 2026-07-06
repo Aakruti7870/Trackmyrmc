@@ -1,71 +1,89 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { api, type Challan } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
-import { CheckCircle, Wallet, BarChart3, FileText, User } from 'lucide-react';
-import { HomeHeader, StatTile, StatRow, Section, RowLink, ActionGrid, ActionTile, AlertBand } from './primitives';
+import {
+  Wallet, CheckCircle, FileText, Truck, BarChart3, Building2, CalendarCheck,
+  User, IndianRupee,
+} from 'lucide-react';
+import {
+  Screen, SectionHead, StatCard, QuickAction, QuickGrid, ListRow, StatusPill,
+} from './deliveryKit';
 import { greeting, firstNameOf, statusColor, statusBg, statusLabel } from './format';
+import PendingExpensesCard from './PendingExpensesCard';
 
-interface Expense { id: number; status: string }
+interface ExpenseLite { id: number; status: 'pending' | 'approved' | 'rejected' }
 
 export default function AccountHome() {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const [challans, setChallans] = useState<Challan[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [expenses, setExpenses] = useState<ExpenseLite[]>([]);
 
   useEffect(() => {
     Promise.allSettled([
       api.get<Challan[]>('/challans'),
-      api.get<Expense[]>('/expenses'),
+      api.get<ExpenseLite[]>('/expenses'),
     ]).then(([c, e]) => {
       if (c.status === 'fulfilled') setChallans(c.value);
       if (e.status === 'fulfilled') setExpenses(e.value);
-    }).finally(() => setLoading(false));
+    });
   }, []);
 
   const can = (p: string) => (user ? canAccess(user.role, p) : false);
-  const delivered = challans.filter(c => c.status === 'delivered');
-  const pendingExpenses = expenses.filter(e => e.status === 'pending');
+  const go = (p: string) => navigate(p);
+  const pendingExpenses = expenses.filter(e => e.status === 'pending').length;
+  const delivered = challans.filter(c => c.status === 'delivered').length;
   const recent = challans.slice(0, 3);
-  const hasStats = !loading && (challans.length > 0 || expenses.length > 0);
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto' }}>
-      <HomeHeader name={firstNameOf(user?.name, 'there')} subtitle={greeting()} />
+    <Screen>
+      <div>
+        <p className="text-[13px]" style={{ color: '#78716c' }}>{greeting()},</p>
+        <h1 className="text-[19px] font-extrabold leading-tight" style={{ color: '#1c1917' }}>
+          {firstNameOf(user?.name, 'there')}
+        </h1>
+      </div>
 
-      {pendingExpenses.length > 0 && can('/expense-review') && (
-        <AlertBand tone="var(--gold)" icon={Wallet} title={`${pendingExpenses.length} expense${pendingExpenses.length === 1 ? '' : 's'} to review`} sub="Approvals waiting" href="/expense-review" actionLabel="Review" />
-      )}
+      <div className="mt-4 grid grid-cols-3 gap-2.5">
+        <StatCard value={pendingExpenses} label="To review" color="#b45309" icon={<Wallet className="h-4 w-4" />} />
+        <StatCard value={delivered} label="Delivered" color="#15803d" icon={<CheckCircle className="h-4 w-4" />} />
+        <StatCard value={challans.length} label="Challans" color="#0284c7" icon={<FileText className="h-4 w-4" />} />
+      </div>
 
-      {hasStats && (
-        <StatRow cols={2}>
-          <StatTile label="Deliveries" value={delivered.length} sub="delivered" color="var(--green)" icon={CheckCircle} />
-          <StatTile label="To review" value={pendingExpenses.length} sub="expenses" color="var(--gold)" icon={Wallet} />
-        </StatRow>
-      )}
+      {can('/expense-review') && <PendingExpensesCard onViewAll={() => go('/expense-review')} />}
 
       {recent.length > 0 && (
-        <Section title="Recent deliveries" href={can('/challans') ? '/challans' : undefined}>
-          {recent.map(ch => (
-            <RowLink
-              key={ch.id}
-              href="/challans"
-              title={`#${ch.challanNo} · ${ch.grade}`}
-              sub={`${ch.clientName || '—'} · ${ch.quantity} m³`}
-              badge={{ label: statusLabel(ch.status), color: statusColor(ch.status), bg: statusBg(ch.status) }}
-            />
-          ))}
-        </Section>
+        <>
+          <SectionHead title="Recent Challans" actionLabel={can('/challans') ? 'View All' : undefined} onAction={() => go('/challans')} />
+          <div className="space-y-2.5">
+            {recent.map(ch => (
+              <ListRow
+                key={ch.id}
+                mono
+                icon={<FileText className="h-5 w-5" />}
+                title={`#${ch.challanNo} · ${ch.grade}`}
+                badge={<StatusPill label={statusLabel(ch.status)} color={statusColor(ch.status)} bg={statusBg(ch.status)} />}
+                sub={`${ch.clientName || '—'} · ${ch.quantity} m³`}
+                onClick={can('/challans') ? () => go('/challans') : undefined}
+              />
+            ))}
+          </div>
+        </>
       )}
 
-      <h2 style={{ fontSize: 14, fontWeight: 800, margin: '18px 0 10px' }}>Quick actions</h2>
-      <ActionGrid>
-        {can('/reports') && <ActionTile href="/reports" label="Reports" sub="Financial analytics" icon={BarChart3} color="var(--green)" />}
-        {can('/challans') && <ActionTile href="/challans" label="Deliveries" sub="Billing documents" icon={FileText} color="var(--blue)" />}
-        {can('/expense-review') && <ActionTile href="/expense-review" label="Expenses" sub="Review & approve" icon={Wallet} color="var(--orange)" />}
-        {can('/profile') && <ActionTile href="/profile" label="Account" sub="Profile & settings" icon={User} color="var(--muted)" />}
-      </ActionGrid>
-    </div>
+      <SectionHead title="Quick Actions" />
+      <QuickGrid cols={4}>
+        {can('/expense-review') && <QuickAction label="Expenses" icon={<Wallet className="h-6 w-6" />} onClick={() => go('/expense-review')} />}
+        {can('/challans') && <QuickAction label="Challans" icon={<FileText className="h-6 w-6" />} onClick={() => go('/challans')} />}
+        {can('/clients') && <QuickAction label="Clients" icon={<Building2 className="h-6 w-6" />} onClick={() => go('/clients')} />}
+        {can('/reports') && <QuickAction label="Reports" icon={<BarChart3 className="h-6 w-6" />} onClick={() => go('/reports')} />}
+        {can('/dispatch') && <QuickAction label="Dispatch" icon={<Truck className="h-6 w-6" />} onClick={() => go('/dispatch')} />}
+        {can('/fuel-log') && <QuickAction label="Fuel Log" icon={<IndianRupee className="h-6 w-6" />} onClick={() => go('/fuel-log')} />}
+        {can('/attendance') && <QuickAction label="Attendance" icon={<CalendarCheck className="h-6 w-6" />} onClick={() => go('/attendance')} />}
+        {can('/profile') && <QuickAction label="Profile" icon={<User className="h-6 w-6" />} onClick={() => go('/profile')} />}
+      </QuickGrid>
+    </Screen>
   );
 }
