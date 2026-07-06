@@ -103,6 +103,7 @@ function parseCustomerOrderInput(body) {
             siteAddress: siteAddress || null,
             latitude,
             longitude,
+            placeId: str(body.placeId) || null,
             paymentType: str(body.paymentType) || null,
             poNumber: str(body.poNumber) || null,
             sitePhoto,
@@ -254,6 +255,8 @@ router.get('/orders', requireRole('client'), async (req, res) => {
         deliveryDate: orders.deliveryDate, deliveryTime: orders.deliveryTime,
         status: orders.status, notes: orders.notes, createdAt: orders.createdAt,
         clientId: orders.clientId, siteId: orders.siteId, plantId: orders.plantId,
+        siteAddress: orders.siteAddress, latitude: orders.latitude,
+        longitude: orders.longitude, placeId: orders.placeId,
         clientName: clients.name, siteName: sites.name,
         plantName: plants.name, plantCode: plants.plantCode,
     }).from(orders)
@@ -268,10 +271,10 @@ router.get('/orders', requireRole('client'), async (req, res) => {
 // caller's linked client and starts as 'pending' for staff to process — the
 // client can never set the client, status, or order number.
 router.post('/orders', requireRole('client'), async (req, res) => {
-    const { plantId: bodyPlantId, grade, quantity, pumpRequired, pumpLineLength, deliveryDate, deliveryTime, notes, siteId, contactPerson, contactNumber, siteName, siteAddress, latitude, longitude, paymentType, poNumber, sitePhoto, } = req.body;
+    const { plantId: bodyPlantId, grade, quantity, pumpRequired, pumpLineLength, deliveryDate, deliveryTime, notes, siteId, contactPerson, contactNumber, siteName, siteAddress, latitude, longitude, placeId, paymentType, poNumber, sitePhoto, } = req.body;
     const parsed = parseCustomerOrderInput({
         grade, quantity, pumpRequired, pumpLineLength, deliveryDate, deliveryTime, notes,
-        contactPerson, contactNumber, siteName, siteAddress, latitude, longitude, paymentType, poNumber, sitePhoto,
+        contactPerson, contactNumber, siteName, siteAddress, latitude, longitude, placeId, paymentType, poNumber, sitePhoto,
     });
     if (!parsed.ok) {
         res.status(400).json({ error: parsed.error });

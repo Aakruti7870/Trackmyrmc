@@ -4,11 +4,11 @@ import { api, type Order, type Challan, type LedgerEntry, type LivePosition, typ
 import { useSSE } from '@/lib/useSSE';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 import FreshnessCountdown from '@/components/FreshnessCountdown';
-import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle, Info, Star } from 'lucide-react';
+import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle, Info, Star, Search } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
 import { downloadAccountStatement } from '@/pages/accountStatement';
 import SitePicker from '@/components/SitePicker';
-import LocationPicker, { type LatLng } from '@/components/LocationPicker';
+import DeliveryLocationPicker from '@/components/DeliveryLocationPicker';
 import LiveDeliveryMap, { type DeliveryMarker } from '@/components/LiveDeliveryMap';
 
 const GRADES = ['M10', 'M15', 'M20', 'M25', 'M30', 'M35', 'M40', 'M45', 'M50', 'M55', 'M60'];
@@ -35,6 +35,7 @@ interface OrderForm {
   siteAddress: string;
   latitude: string;
   longitude: string;
+  placeId: string;
   paymentType: string;
   poNumber: string;
   sitePhoto: string;
@@ -43,7 +44,7 @@ interface OrderForm {
 const EMPTY_FORM: OrderForm = {
   grade: '', quantity: '', deliveryDate: '', deliveryTime: '', pumpRequired: false, pumpLineLength: '',
   notes: '', siteId: '', contactPerson: '', contactNumber: '', siteName: '', siteAddress: '',
-  latitude: '', longitude: '', paymentType: '', poNumber: '', sitePhoto: '',
+  latitude: '', longitude: '', placeId: '', paymentType: '', poNumber: '', sitePhoto: '',
 };
 
 const PAYMENT_TYPES = ['Cash', 'Credit', 'Advance', 'Bank Transfer', 'Cheque', 'UPI'];
@@ -257,6 +258,7 @@ export default function MyOrders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [form, setForm] = useState<OrderForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
@@ -462,6 +464,7 @@ export default function MyOrders() {
       siteAddress: o.siteAddress ?? '',
       latitude: o.latitude ?? '',
       longitude: o.longitude ?? '',
+      placeId: o.placeId ?? '',
       paymentType: o.paymentType ?? '',
       poNumber: o.poNumber ?? '',
       sitePhoto: '',
@@ -497,6 +500,7 @@ export default function MyOrders() {
       siteAddress: o.siteAddress ?? '',
       latitude: o.latitude ?? '',
       longitude: o.longitude ?? '',
+      placeId: o.placeId ?? '',
       paymentType: o.paymentType ?? '',
       poNumber: o.poNumber ?? '',
       sitePhoto: o.sitePhoto ?? '',
@@ -728,6 +732,7 @@ export default function MyOrders() {
         siteAddress: form.siteAddress.trim(),
         latitude: form.latitude || undefined,
         longitude: form.longitude || undefined,
+        placeId: form.placeId || undefined,
         paymentType: form.paymentType || undefined,
         poNumber: form.poNumber.trim() || undefined,
         sitePhoto: form.sitePhoto || undefined,
@@ -1552,6 +1557,29 @@ export default function MyOrders() {
         </>
       )}
 
+      {/* Full-screen delivery-location picker (opens above the order modal). */}
+      {locationPickerOpen && (
+        <DeliveryLocationPicker
+          initial={Number(form.latitude) && Number(form.longitude)
+            ? { lat: Number(form.latitude), lng: Number(form.longitude), address: form.siteAddress ?? '', placeId: form.placeId || null }
+            : null}
+          onClose={() => setLocationPickerOpen(false)}
+          onConfirm={(loc) => {
+            setForm(f => ({
+              ...f,
+              latitude: String(loc.lat),
+              longitude: String(loc.lng),
+              placeId: loc.placeId ?? '',
+              // Auto-fill the address from the picked place, but never clobber an
+              // address the customer already typed with an empty reverse-geocode.
+              siteAddress: loc.address ? loc.address : f.siteAddress,
+            }));
+            setFieldErrors(fe => ({ ...fe, location: undefined, siteAddress: loc.address ? undefined : fe.siteAddress }));
+            setLocationPickerOpen(false);
+          }}
+        />
+      )}
+
       {/* Place Order modal */}
       {modalOpen && (
         <div
@@ -1702,15 +1730,38 @@ export default function MyOrders() {
               <FieldError msg={fieldErrors.siteAddress} />
             </div>
 
-            {/* Pin the exact pour location — optional, but powers live tracking
-                when provided. */}
+            {/* Pin the exact pour location via a full-screen Places picker — the
+                confirmed pin powers nearest-plant matching, driver navigation and
+                live tracking. Opening the picker never navigates away. */}
             <div style={{ marginTop: 14 }}>
               <label style={labelStyle}>Pin Delivery Location on Map *</label>
-              <LocationPicker
-                address={form.siteAddress}
-                value={form.latitude.trim() !== '' && form.longitude.trim() !== '' && Number.isFinite(Number(form.latitude)) && Number.isFinite(Number(form.longitude)) ? { lat: Number(form.latitude), lng: Number(form.longitude) } as LatLng : null}
-                onChange={(p) => { setForm(f => ({ ...f, latitude: p ? String(p.lat) : '', longitude: p ? String(p.lng) : '' })); if (p) setFieldErrors(fe => ({ ...fe, location: undefined })); }}
-              />
+              <button
+                type="button"
+                onClick={() => setLocationPickerOpen(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left',
+                  padding: '12px 13px', borderRadius: 10, cursor: 'pointer',
+                  background: 'var(--chip-bg)', color: 'var(--text)',
+                  border: `1px solid ${fieldErrors.location ? 'var(--red)' : 'var(--line)'}`,
+                }}
+              >
+                <MapPin size={18} style={{ flexShrink: 0, color: 'var(--gold)' }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  {Number(form.latitude) && Number(form.longitude) ? (
+                    <>
+                      <span style={{ display: 'block', fontSize: 13, fontWeight: 700 }}>
+                        {form.siteAddress?.trim() ? form.siteAddress : 'Delivery location pinned'}
+                      </span>
+                      <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
+                        {Number(form.latitude).toFixed(5)}, {Number(form.longitude).toFixed(5)} · tap to change
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>Search delivery location</span>
+                  )}
+                </span>
+                <Search size={16} style={{ flexShrink: 0, color: 'var(--muted)' }} />
+              </button>
               <FieldError msg={fieldErrors.location} />
             </div>
 

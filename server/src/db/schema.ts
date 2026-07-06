@@ -224,6 +224,10 @@ export const orders = pgTable('orders', {
   siteAddress: text('site_address'),
   latitude: decimal('latitude', { precision: 10, scale: 7 }),
   longitude: decimal('longitude', { precision: 10, scale: 7 }),
+  // Google Place ID for the confirmed delivery pin (when picked via Places
+  // Autocomplete). Powers nearest-plant matching, driver navigation and
+  // live-tracking deep links. Null for map-tap / free geocoder pins.
+  placeId: text('place_id'),
   paymentType: text('payment_type'),
   poNumber: text('po_number'),
   // Optional site photo (object-storage entity path, never base64 in the DB).

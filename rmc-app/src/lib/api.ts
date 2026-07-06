@@ -149,6 +149,8 @@ export interface Order {
   contactPerson?: string | null; contactNumber?: string | null;
   siteAddress?: string | null;
   latitude?: string | null; longitude?: string | null;
+  // Google Place ID for the confirmed delivery pin (when picked via Places).
+  placeId?: string | null;
   paymentType?: string | null; poNumber?: string | null;
   sitePhoto?: string | null; rejectionReason?: string | null;
   cancellationReason?: string | null;

@@ -74,7 +74,7 @@ export function configureGoogleMaps(key?: string | null, mapIdOpt?: string | nul
   const params = new URLSearchParams({
     key,
     v: 'weekly',
-    libraries: 'marker',
+    libraries: 'marker,places',
     loading: 'async',
     callback: '__onGoogleMapsReady',
   });
