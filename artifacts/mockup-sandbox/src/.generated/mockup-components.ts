@@ -22,6 +22,7 @@ export const modules: ModuleMap = {
   "./components/mockups/login-screens/RideFriendly.tsx": () => import("../components/mockups/login-screens/RideFriendly.tsx"),
   "./components/mockups/login-screens/SplitBrand.tsx": () => import("../components/mockups/login-screens/SplitBrand.tsx"),
   "./components/mockups/login-screens/TrustSocialProof.tsx": () => import("../components/mockups/login-screens/TrustSocialProof.tsx"),
+  "./components/mockups/operator-home/DeliveryStyle.tsx": () => import("../components/mockups/operator-home/DeliveryStyle.tsx"),
   "./components/mockups/redesign/AuroraGlass.tsx": () => import("../components/mockups/redesign/AuroraGlass.tsx"),
   "./components/mockups/redesign/DaylightGlass.tsx": () => import("../components/mockups/redesign/DaylightGlass.tsx"),
   "./components/mockups/redesign/DaylightOps.tsx": () => import("../components/mockups/redesign/DaylightOps.tsx"),
