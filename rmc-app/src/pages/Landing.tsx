@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { MapPin, MousePointerClick, ShieldCheck, BadgeCheck, Crown, ArrowRight, LogIn } from "lucide-react";
 import SocialLinksBar from "@/components/SocialLinksBar";
-import drumImg from "../assets/landing/slide1-drum.png";
 
 /* ════════════════════════════════════════════════════════
    CONCRETE KING – RMC OPERATIONS OS
@@ -9,13 +8,14 @@ import drumImg from "../assets/landing/slide1-drum.png";
    take the user straight to the real /login page (SPA nav).
 ════════════════════════════════════════════════════════ */
 
+/* One flat warm-white palette — matches the login + the rest of the app. */
 const C = {
-  teal:   "#00C9A7",
-  dark:   "#050A0C",
-  panel:  "rgba(10,22,24,0.78)",
-  border: "rgba(0,201,167,0.15)",
-  text:   "#E8F0EE",
-  muted:  "#7A8F8D",
+  teal:   "#0f766e",
+  dark:   "#fdfbf7",
+  panel:  "#ffffff",
+  border: "rgba(28,25,23,0.10)",
+  text:   "#1c1917",
+  muted:  "#78716c",
 };
 
 /* SPA-navigate to the real main-app /login page (wouter listens to popstate). */
@@ -25,20 +25,9 @@ const openLogin = () => {
   window.dispatchEvent(new PopStateEvent("popstate"));
 };
 
-/* ── PHOTO BACKGROUND (cinematic slide image + legibility overlay) ── */
-function PhotoBg({src,overlay,pos="center"}:{src:string;overlay?:string;pos?:string}){
-  return(
-    <div style={{position:"absolute",inset:0,overflow:"hidden"}}>
-      <img src={src} alt="" loading="eager" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",objectPosition:pos}}/>
-      <div style={{position:"absolute",inset:0,background:overlay??`linear-gradient(90deg, ${C.dark} 0%, rgba(5,10,12,0.82) 42%, rgba(5,10,12,0.35) 100%)`}}/>
-      <div style={{position:"absolute",inset:0,background:`linear-gradient(0deg, ${C.dark} 0%, rgba(5,10,12,0) 42%)`}}/>
-    </div>
-  );
-}
-
-/* ── GLASS CARD ── */
+/* ── FLAT CARD ── */
 const Glass=({children,style={}}:{children:React.ReactNode;style?:React.CSSProperties})=>(
-  <div style={{background:C.panel,backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",border:`1px solid ${C.border}`,borderRadius:20,...style}}>{children}</div>
+  <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:20,boxShadow:"0 1px 3px rgba(28,25,23,0.06), 0 8px 24px rgba(28,25,23,0.05)",...style}}>{children}</div>
 );
 
 /* ── LABEL CHIP ── */
@@ -52,11 +41,10 @@ const Label=({children,color=C.teal}:{children:React.ReactNode;color?:string})=>
 function Home(){
   const [word,setWord]=useState(0);
   const words=["Dispatch.","Freshness.","Fleet.","Output."];
-  const colors=[C.teal,"#4ADE80","#60A5FA","#F5A524"];
+  const colors=[C.teal,"#16a34a","#2563eb","#d97706"];
   useEffect(()=>{const id=setInterval(()=>setWord(w=>(w+1)%4),2800);return()=>clearInterval(id);},[]);
   return(
     <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"center"}}>
-      <PhotoBg src={drumImg}/>
       <div className="ck-hero-grid" style={{position:"relative",zIndex:2,width:"100%",padding:"0 6vw",display:"grid",gridTemplateColumns:"1.15fr 0.85fr",alignItems:"center",gap:40}}>
         <div>
           <Label>READY MIX CONCRETE · OPERATIONS OS</Label>
@@ -82,7 +70,7 @@ function Home(){
           <button onClick={openLogin} style={{textAlign:"left",cursor:"pointer",background:"none",border:"none",padding:0,width:"100%",maxWidth:340}}>
             <Glass style={{padding:"26px 26px",display:"flex",flexDirection:"column",gap:18}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:46,height:46,borderRadius:13,background:"rgba(0,201,167,0.1)",border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:C.teal,flexShrink:0}}><LogIn size={22}/></div>
+                <div style={{width:46,height:46,borderRadius:13,background:"rgba(15,118,110,0.10)",border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:C.teal,flexShrink:0}}><LogIn size={22}/></div>
                 <div>
                   <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.16em",color:C.teal,fontFamily:"'JetBrains Mono',monospace",marginBottom:4}}>NEXT</div>
                   <div style={{fontSize:18,fontWeight:800,color:C.text,fontFamily:"Inter,sans-serif",lineHeight:1.1}}>Sign in to continue</div>
@@ -91,7 +79,7 @@ function Home(){
               <p style={{fontSize:13,color:C.muted,lineHeight:1.6,margin:0}}>Customers and plant staff — one quick step to your dashboard.</p>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                 <span style={{fontSize:13,fontWeight:700,color:C.text}}>Go to Login</span>
-                <span style={{width:34,height:34,borderRadius:"50%",background:C.teal,color:"#04110E",display:"flex",alignItems:"center",justifyContent:"center"}}><ArrowRight size={18}/></span>
+                <span style={{width:34,height:34,borderRadius:"50%",background:C.teal,color:"#ffffff",display:"flex",alignItems:"center",justifyContent:"center"}}><ArrowRight size={18}/></span>
               </div>
             </Glass>
           </button>
@@ -104,15 +92,15 @@ function Home(){
 /* ════════════ NAVBAR ════════════ */
 function NavBar(){
   return(
-    <div style={{position:"absolute",top:0,left:0,right:0,zIndex:100,height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 32px",background:"rgba(5,10,12,0.82)",backdropFilter:"blur(22px)",WebkitBackdropFilter:"blur(22px)",borderBottom:"1px solid rgba(0,201,167,0.08)"}}>
+    <div style={{position:"absolute",top:0,left:0,right:0,zIndex:100,height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 32px",background:"rgba(255,255,255,0.92)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderBottom:`1px solid ${C.border}`}}>
       <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-        <div style={{width:32,height:32,borderRadius:9,background:C.teal,display:"flex",alignItems:"center",justifyContent:"center"}}><Crown size={18} color="#04110E"/></div>
+        <div style={{width:32,height:32,borderRadius:9,background:C.teal,display:"flex",alignItems:"center",justifyContent:"center"}}><Crown size={18} color="#ffffff"/></div>
         <div>
           <div style={{fontSize:14,fontWeight:900,color:C.text,letterSpacing:"-0.02em",lineHeight:1,fontFamily:"Inter,sans-serif"}}>Concrete King</div>
           <div style={{fontSize:8,color:C.muted,fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.15em",lineHeight:1.2}}>RMC OPERATIONS OS</div>
         </div>
       </div>
-      <button onClick={openLogin} style={{padding:"9px 24px",borderRadius:99,border:"none",background:C.teal,color:"#04110E",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"Inter,sans-serif",flexShrink:0}}>Login</button>
+      <button onClick={openLogin} style={{padding:"9px 24px",borderRadius:99,border:"none",background:C.teal,color:"#ffffff",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"Inter,sans-serif",flexShrink:0}}>Login</button>
     </div>
   );
 }
@@ -124,7 +112,7 @@ export default function Landing(){
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap');
         @keyframes ckFadeIn{from{opacity:0;transform:scale(0.983)}to{opacity:1;transform:scale(1)}}
-        input::placeholder{color:#2A4042}
+        input::placeholder{color:#a8a29e}
         .ck-deck button:hover{opacity:0.92}
         @media (max-width:920px){
           .ck-hero-grid{grid-template-columns:1fr !important;gap:28px !important;align-content:center;padding-top:24px !important;padding-bottom:24px !important;overflow-y:auto;max-height:100%}

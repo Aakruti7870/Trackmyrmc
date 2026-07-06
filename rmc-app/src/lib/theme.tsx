@@ -18,84 +18,49 @@ const SEMANTIC = {
   '--orange': '#f59e0b',
 };
 
-/* NIGHT chrome kit — glassmorphism on deep teal-black (glowing, cinematic). */
-const NIGHT_SURFACES = {
-  '--shadow-rgb': '0,0,0',
-  '--glass-1': 'color-mix(in srgb, var(--surface) 78%, transparent)',
-  '--glass-2': 'color-mix(in srgb, var(--bg-deep) 82%, transparent)',
-  '--glass-border': 'rgba(0,201,167,0.15)',
-  '--glass-hi': 'rgba(255,255,255,.05)',
-  '--glass-blur': 'blur(24px) saturate(115%)',
-  '--sidebar-1': 'rgba(8,20,22,.97)',
-  '--sidebar-2': 'rgba(4,11,13,.97)',
-  '--header-bg': 'rgba(5,12,14,.86)',
-  '--menu-bg': 'rgba(10,24,26,.98)',
-  '--menu-hover': 'rgba(0,201,167,.12)',
-  '--overlay': 'rgba(2,7,8,.66)',
-  '--chip-bg': 'rgba(0,201,167,.06)',
-  '--sheen': 'rgba(255,255,255,.03)',
+/* One simple FLAT chrome kit — solid warm-white surfaces, no glass blur, no
+   glows, soft hairline borders. This is the single app-wide look: clean and
+   easy to read like a delivery app, with the same warm palette as the login. */
+const FLAT_SURFACES = {
+  '--shadow-rgb': '28,25,23',
+  '--glass-1': '#ffffff',
+  '--glass-2': '#ffffff',
+  '--glass-border': 'rgba(28,25,23,0.10)',
+  '--glass-hi': 'transparent',
+  '--glass-blur': 'none',
+  '--sidebar-1': '#ffffff',
+  '--sidebar-2': '#ffffff',
+  '--header-bg': 'rgba(255,255,255,.92)',
+  '--menu-bg': '#ffffff',
+  '--menu-hover': 'rgba(15,118,110,.08)',
+  '--overlay': 'rgba(28,25,23,.32)',
+  '--chip-bg': '#f4efe7',
+  '--sheen': 'transparent',
 };
 
-/* DAY chrome kit — crisp frosted-white glass with soft teal-tinted shadows. */
-const DAY_SURFACES = {
-  '--shadow-rgb': '18,54,48',
-  '--glass-1': 'color-mix(in srgb, #ffffff 92%, transparent)',
-  '--glass-2': 'color-mix(in srgb, #ffffff 74%, transparent)',
-  '--glass-border': 'rgba(18,54,48,0.10)',
-  '--glass-hi': 'rgba(255,255,255,.75)',
-  '--glass-blur': 'blur(18px) saturate(135%)',
-  '--sidebar-1': 'rgba(255,255,255,.94)',
-  '--sidebar-2': 'rgba(236,244,242,.94)',
-  '--header-bg': 'rgba(255,255,255,.82)',
-  '--menu-bg': 'rgba(255,255,255,.99)',
-  '--menu-hover': 'rgba(9,150,124,.10)',
-  '--overlay': 'rgba(16,38,34,.32)',
-  '--chip-bg': 'rgba(9,150,124,.08)',
-  '--sheen': 'rgba(255,255,255,.45)',
-};
-
-/* Accent ramps (legacy --gold* key names). Night runs a bright teal that glows on
-   black; Day runs a deeper teal so text/borders keep AA contrast on white. */
-const NIGHT_ACCENT = {
-  '--gold-hi': '#3fe3c5', '--gold-mid': '#12d6b0', '--gold': '#00C9A7', '--gold-dark': '#00a488',
-  '--glow-1': 'rgba(0,201,167,.20)', '--glow-2': 'rgba(0,201,167,.07)',
-};
-const DAY_ACCENT = {
-  '--gold-hi': '#0fb894', '--gold-mid': '#0aa585', '--gold': '#09967c', '--gold-dark': '#077763',
-  '--glow-1': 'rgba(9,150,124,.16)', '--glow-2': 'rgba(9,150,124,.06)',
+/* Teal accent ramp (legacy --gold* key names). Kept close together so any
+   gradient built from these stops renders essentially flat. Tuned for AA
+   contrast on white. */
+const FLAT_ACCENT = {
+  '--gold-hi': '#12876f', '--gold-mid': '#0f766e', '--gold': '#0f766e', '--gold-dark': '#0d6560',
+  '--glow-1': 'rgba(15,118,110,.16)', '--glow-2': 'transparent',
 };
 
 export const THEMES: Theme[] = [
-  /* ===== Night — deep teal-black glass (DEFAULT) ===== */
-  {
-    id: 'night',
-    name: 'Night',
-    tagline: 'Dark · teal glass',
-    fontName: 'Inter',
-    font: "'Inter', system-ui, -apple-system, sans-serif",
-    tokens: {
-      '--bg-top': '#0c1a1e', '--bg': '#06110F', '--bg-deep': '#030b0c',
-      '--panel': '#0b1c1f', '--panel2': '#102428', '--surface': '#163034', '--line': 'rgba(0,201,167,0.16)',
-      '--text': '#EBF4F1', '--muted': '#8aa29d',
-      ...NIGHT_ACCENT,
-      ...SEMANTIC,
-      ...NIGHT_SURFACES,
-    },
-  },
-  /* ===== Day — professional frosted-white with teal accent ===== */
+  /* ===== Simple — one flat warm-white theme (the whole app uses this) ===== */
   {
     id: 'day',
-    name: 'Day',
-    tagline: 'Light · frosted white',
+    name: 'Simple',
+    tagline: 'Light · flat',
     fontName: 'Inter',
     font: "'Inter', system-ui, -apple-system, sans-serif",
     tokens: {
-      '--bg-top': '#f8fbfa', '--bg': '#eef4f2', '--bg-deep': '#dfeae7',
-      '--panel': '#ffffff', '--panel2': '#f3f8f7', '--surface': '#ffffff', '--line': 'rgba(16,50,45,0.11)',
-      '--text': '#0e2b26', '--muted': '#5a706b',
-      ...DAY_ACCENT,
+      '--bg-top': '#fdfbf7', '--bg': '#fdfbf7', '--bg-deep': '#f4efe7',
+      '--panel': '#ffffff', '--panel2': '#faf7f2', '--surface': '#ffffff', '--line': 'rgba(28,25,23,0.10)',
+      '--text': '#1c1917', '--muted': '#78716c',
+      ...FLAT_ACCENT,
       ...SEMANTIC,
-      ...DAY_SURFACES,
+      ...FLAT_SURFACES,
     },
   },
 ];

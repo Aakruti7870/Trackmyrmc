@@ -3,7 +3,6 @@ import { useLocation } from 'wouter';
 import { api, type User as AuthUser } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Building2, Lock, Mail, Eye, EyeOff, AlertCircle, User, Phone, MapPin, FileText, CheckCircle2, ArrowLeft, Check } from 'lucide-react';
-import bg from '@/assets/rmc-aerial-bg.png';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 import AuthLegalFooter from '@/components/AuthLegalFooter';
 
@@ -73,8 +72,7 @@ export default function Register() {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundImage: `linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 94%, transparent)), url(${bg})`,
-      backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
+      background: 'var(--bg)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 20, paddingTop: 'calc(20px + env(safe-area-inset-top, 0px))', fontFamily: 'var(--font-app)',
     }}>

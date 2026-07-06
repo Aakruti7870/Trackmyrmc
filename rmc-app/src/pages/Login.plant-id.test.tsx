@@ -38,16 +38,18 @@ beforeEach(() => {
 });
 
 describe('Login — portals and staff sign-in flow', () => {
-  it('exposes Customer and Plant Staff sign-in tabs', () => {
+  it('defaults to the customer phone entry and offers a staff email door', () => {
     renderLogin();
-    expect(screen.getByRole('tab', { name: /customer/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /plant staff/i })).toBeInTheDocument();
+    // Phone-first, delivery-app style: customers land on the mobile-number entry.
+    expect(screen.getByPlaceholderText(/98765 43210/i)).toBeInTheDocument();
+    // Staff reach their email sign-in via an explicit door.
+    expect(screen.getByRole('button', { name: /staff login with email/i })).toBeInTheDocument();
   });
 
   it('staff door is email-first and provisioned-only (no Plant ID, no sign-up)', async () => {
     const user = userEvent.setup();
     renderLogin();
-    await user.click(screen.getByRole('tab', { name: /plant staff/i }));
+    await user.click(screen.getByRole('button', { name: /staff login with email/i }));
 
     expect(screen.getByPlaceholderText(/you@company\.com/i)).toBeInTheDocument();
     expect(screen.getByText(/created by your administrator/i)).toBeInTheDocument();
@@ -64,7 +66,7 @@ describe('Login — portals and staff sign-in flow', () => {
     const user = userEvent.setup();
     renderLogin();
 
-    await user.click(screen.getByRole('tab', { name: /plant staff/i }));
+    await user.click(screen.getByRole('button', { name: /staff login with email/i }));
     await user.type(screen.getByPlaceholderText(/you@company\.com/i), 'disp@plant.com');
     await user.click(screen.getByRole('button', { name: /continue/i }));
 
@@ -83,7 +85,7 @@ describe('Login — portals and staff sign-in flow', () => {
     const user = userEvent.setup();
     renderLogin();
 
-    await user.click(screen.getByRole('tab', { name: /plant staff/i }));
+    await user.click(screen.getByRole('button', { name: /staff login with email/i }));
     await user.type(screen.getByPlaceholderText(/you@company\.com/i), 'krushnabade54@gmail.com');
     await user.click(screen.getByRole('button', { name: /continue/i }));
 

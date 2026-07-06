@@ -5,13 +5,19 @@ import L from 'leaflet';
 import { Crosshair, Search, Loader2, MapPin } from 'lucide-react';
 import { getMapEngine } from '@/lib/mapEngine';
 
-// Leaflet's default marker images are resolved relative to the CSS and break
-// under bundlers. Point them at the CDN copies once, globally.
-const markerIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+// Leaflet's default marker PNGs are resolved relative to the CSS and break
+// under bundlers, and a remote CDN copy silently vanishes when the network /
+// CSP blocks it — leaving the pin invisible so a dropped location looks like
+// nothing happened. Use a self-contained inline SVG pin instead: it needs no
+// network, and the Google compat layer converts this divIcon HTML into the
+// AdvancedMarkerElement content, so the same pin shows on BOTH map engines.
+const PIN_SVG = `<svg width="32" height="42" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))"><path fill="#0f766e" stroke="#ffffff" stroke-width="1.5" d="M12 .75C6.2.75 1.5 5.45 1.5 11.25c0 7.5 10.5 19.5 10.5 19.5s10.5-12 10.5-19.5C22.5 5.45 17.8.75 12 .75z"/><circle cx="12" cy="11.25" r="3.75" fill="#ffffff"/></svg>`;
+const markerIcon = L.divIcon({
+  html: PIN_SVG,
+  className: 'lp-pin',
+  iconSize: [32, 42],
+  iconAnchor: [16, 42],
+  popupAnchor: [0, -40],
 });
 
 export interface LatLng { lat: number; lng: number }
@@ -23,36 +29,111 @@ const DEFAULT_CENTER: LatLng = { lat: 18.5204, lng: 73.8567 };
 // (geolocation, search) without re-mounting the container.
 function Recenter({ center }: { center: LatLng }) {
   const handle = useMapHandle();
+  // Depend on the raw coordinates, NOT the object — `center` is a fresh literal
+  // on every render, so keying on the object would re-center on every keystroke
+  // in the search box and fight the user panning the map. Only an actual
+  // coordinate change (search, geolocation, pin drop) should move the view.
   useEffect(() => {
     handle.setView([center.lat, center.lng], Math.max(handle.getZoom(), 15));
-  }, [center, handle]);
+  }, [center.lat, center.lng, handle]);
   return null;
 }
 
 interface GeoResult { lat: string; lon: string; display_name: string }
 
+// Shared geocoder used by BOTH the search box and the automatic address→pin
+// follow. Prefers Google's geocoder when Google Maps is active (better hit rate
+// for Indian addresses/landmarks) and falls back to the free Nominatim service.
+async function geocodeQuery(q: string, signal?: AbortSignal): Promise<GeoResult[]> {
+  let data: GeoResult[] = [];
+  if (getMapEngine() === 'google' && window.google?.maps) {
+    try {
+      const geocoder = new google.maps.Geocoder();
+      const resp = await geocoder.geocode({ address: q, region: 'in' });
+      data = resp.results.slice(0, 5).map(r => ({
+        lat: String(r.geometry.location.lat()),
+        lon: String(r.geometry.location.lng()),
+        display_name: r.formatted_address,
+      }));
+    } catch {
+      data = [];
+    }
+  }
+  if (!data.length) {
+    // Free Nominatim geocoder — no API key. Bias results to India.
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=in&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error('Search failed');
+    data = (await res.json()) as GeoResult[];
+  }
+  return data;
+}
+
 export default function LocationPicker({
-  value, onChange,
+  value, onChange, address,
 }: {
   value: LatLng | null;
   onChange: (p: LatLng) => void;
+  // When provided, the map automatically geocodes this address and drops the pin
+  // as the customer fills it in — until they adjust the pin themselves, after
+  // which the map stops following the text so their manual choice is respected.
+  address?: string;
 }) {
   const center = value ?? DEFAULT_CENTER;
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
   const [note, setNote] = useState('');
+  const [autoPinned, setAutoPinned] = useState(false);
   // Geocoder matches the customer can pick from. We show a short list rather
   // than silently snapping to the first hit, so an ambiguous address (several
   // towns with the same name) is resolvable instead of landing on the wrong pin.
   const [results, setResults] = useState<GeoResult[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+  const autoAbortRef = useRef<AbortController | null>(null);
+  // True once the customer picks/drops/drags the pin themselves — freezes the
+  // automatic address-follow so we never yank their chosen spot away.
+  const manualRef = useRef(false);
+  // Last address string we auto-geocoded; seeded with the initial address so an
+  // order that already has a pin + address isn't re-geocoded on mount.
+  const lastGeoRef = useRef<string>(address ?? '');
+  // Hold the latest onChange without making it an effect dependency (the parent
+  // passes a fresh inline handler each render).
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => { abortRef.current?.abort(); autoAbortRef.current?.abort(); }, []);
 
-  // Centralise pin updates so every path (search pick, map click, my-location,
-  // drag) also clears the open results list.
+  // Automatic address → pin. Debounced so we geocode the settled address rather
+  // than every keystroke, and skipped once the customer has placed the pin
+  // manually so their adjustment is never overridden.
+  useEffect(() => {
+    const addr = (address ?? '').trim();
+    if (manualRef.current || addr.length < 6 || addr === lastGeoRef.current) return;
+    const t = setTimeout(() => {
+      autoAbortRef.current?.abort();
+      const ctrl = new AbortController();
+      autoAbortRef.current = ctrl;
+      geocodeQuery(addr, ctrl.signal)
+        .then(data => {
+          if (ctrl.signal.aborted || manualRef.current) return;
+          lastGeoRef.current = addr;
+          if (data.length) {
+            onChangeRef.current({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+            setAutoPinned(true);
+            setNote('');
+          }
+        })
+        .catch(() => { /* silent — the customer can still search or drop a pin */ });
+    }, 700);
+    return () => clearTimeout(t);
+  }, [address]);
+
+  // Centralise MANUAL pin updates so every path (search pick, map click,
+  // my-location, drag) clears the results list AND freezes the auto-follow.
   function pick(p: LatLng) {
+    manualRef.current = true;
+    setAutoPinned(false);
     setResults([]);
     onChange(p);
   }
@@ -61,6 +142,8 @@ export default function LocationPicker({
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
+    manualRef.current = true;
+    setAutoPinned(false);
     setSearching(true);
     setNote('');
     setResults([]);
@@ -68,34 +151,14 @@ export default function LocationPicker({
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
-      let data: GeoResult[] = [];
-      // Prefer Google's geocoder when Google Maps is active — better hit rate
-      // for Indian addresses/landmarks. Any failure falls back to Nominatim.
-      if (getMapEngine() === 'google' && window.google?.maps) {
-        try {
-          const geocoder = new google.maps.Geocoder();
-          const resp = await geocoder.geocode({ address: q, region: 'in' });
-          data = resp.results.slice(0, 5).map(r => ({
-            lat: String(r.geometry.location.lat()),
-            lon: String(r.geometry.location.lng()),
-            display_name: r.formatted_address,
-          }));
-        } catch {
-          data = [];
-        }
-      }
-      if (!data.length) {
-        // Free Nominatim geocoder — no API key. Bias results to India.
-        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=in&q=${encodeURIComponent(q)}`;
-        const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
-        if (!res.ok) throw new Error('Search failed');
-        data = (await res.json()) as GeoResult[];
-      }
+      const data = await geocodeQuery(q, ctrl.signal);
       if (!data.length) { setNote('No match found — try a nearby landmark or drop a pin.'); return; }
-      // A single confident hit applies straight away; multiple matches are
-      // listed so the customer disambiguates.
-      if (data.length === 1) { pick({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }); }
-      else { setResults(data); }
+      // Jump straight to the best match — searching a place should take you
+      // there and drop the pin immediately, no extra tap. When several places
+      // share the name we still list the alternatives below so an ambiguous
+      // search can be corrected with one tap.
+      onChange({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+      setResults(data.length > 1 ? data : []);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') setNote('Could not search right now — drop a pin instead.');
     } finally {
@@ -195,12 +258,16 @@ export default function LocationPicker({
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 6 }}>
         <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-          {value ? `Pin: ${value.lat.toFixed(5)}, ${value.lng.toFixed(5)}` : 'Tap the map to drop a pin.'}
+          {value
+            ? (autoPinned
+                ? 'Pinned from your address · drag the pin to fine-tune'
+                : `Pin: ${value.lat.toFixed(5)}, ${value.lng.toFixed(5)}`)
+            : 'Type the delivery address above, or tap the map to drop a pin.'}
         </span>
         {note && <span style={{ fontSize: 11.5, color: 'var(--red)' }}>{note}</span>}
       </div>
 
-      <style>{`@keyframes lp-spin{to{transform:rotate(360deg)}}.lp-spin{animation:lp-spin .8s linear infinite}`}</style>
+      <style>{`@keyframes lp-spin{to{transform:rotate(360deg)}}.lp-spin{animation:lp-spin .8s linear infinite}.lp-pin{background:none;border:none;}`}</style>
     </div>
   );
 }

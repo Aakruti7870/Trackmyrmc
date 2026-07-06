@@ -3,7 +3,6 @@ import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
 import { Building2, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-react';
-import bg from '@/assets/rmc-aerial-bg.png';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 import { defaultPath } from '@/lib/permissions';
 
@@ -62,8 +61,7 @@ export default function SetPassword() {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundImage: `linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 94%, transparent)), url(${bg})`,
-      backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
+      background: 'var(--bg)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 20, fontFamily: 'var(--font-app)',
     }}>

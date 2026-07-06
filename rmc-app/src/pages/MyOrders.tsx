@@ -1707,7 +1707,8 @@ export default function MyOrders() {
             <div style={{ marginTop: 14 }}>
               <label style={labelStyle}>Pin Delivery Location on Map *</label>
               <LocationPicker
-                value={Number(form.latitude) && Number(form.longitude) ? { lat: Number(form.latitude), lng: Number(form.longitude) } as LatLng : null}
+                address={form.siteAddress}
+                value={form.latitude.trim() !== '' && form.longitude.trim() !== '' && Number.isFinite(Number(form.latitude)) && Number.isFinite(Number(form.longitude)) ? { lat: Number(form.latitude), lng: Number(form.longitude) } as LatLng : null}
                 onChange={(p) => { setForm(f => ({ ...f, latitude: p ? String(p.lat) : '', longitude: p ? String(p.lng) : '' })); if (p) setFieldErrors(fe => ({ ...fe, location: undefined })); }}
               />
               <FieldError msg={fieldErrors.location} />

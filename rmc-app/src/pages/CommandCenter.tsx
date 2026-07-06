@@ -41,18 +41,6 @@ export default function CommandCenter() {
     <div style={{ position: 'relative', minHeight: '100%' }}>
       <CommandStyles />
 
-      {/* Control-room backdrop */}
-      <div aria-hidden style={{
-        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
-        backgroundImage: 'url(/backgrounds/command-center.png)',
-        backgroundSize: 'cover', backgroundPosition: 'center',
-        opacity: 0.14,
-      }} />
-      <div aria-hidden style={{
-        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
-        background: 'linear-gradient(180deg, color-mix(in srgb, var(--bg) 55%, transparent), var(--bg) 78%)',
-      }} />
-
       <div style={{ position: 'relative', zIndex: 1, padding: 'clamp(12px, 3vw, 22px)', maxWidth: 1240, margin: '0 auto' }}>
         {/* Hero header */}
         <GlassPanel accent={AUTHORITY_ACCENT} style={{ marginBottom: 16, padding: 'clamp(16px, 3vw, 24px)' }}>

@@ -2,31 +2,105 @@ import { useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
-import { Lock, Mail, Eye, EyeOff, Phone, MessageCircle, ArrowLeft, Users, ShieldCheck, KeyRound } from 'lucide-react';
-import bg from '@/assets/rmc-aerial-bg.png';
-import { ConcreteKingLogo, BrandCredits } from '@/components/BrandLogo';
+import {
+  Truck, ArrowRight, ArrowLeft, Mail, Lock, Eye, EyeOff,
+  KeyRound, ShieldCheck, MessageCircle,
+} from 'lucide-react';
+import warmIllustration from '@/assets/warm-concrete-illustration.png';
 import InstallAppButton from '@/components/InstallAppButton';
 import OtpInput from '@/components/OtpInput';
 import { defaultPath } from '@/lib/permissions';
-import { inputStyle } from '@/components/loginStyles';
-import { ErrorBox, SubmitButton } from '@/components/loginUi';
-import AuthLegalFooter from '@/components/AuthLegalFooter';
-import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
+import { BrandCredits } from '@/components/BrandLogo';
+import { SUPPORT_WHATSAPP_URL } from '@/lib/brand';
 
-// Small dev-only banner that reveals the generated code when no real delivery
-// channel is configured (never shown in production).
+// Warm, flat palette for the auth screen — self-contained so the login always
+// reads the same regardless of the app's runtime theme (like PhonePe / Rapido,
+// whose sign-in screens keep a fixed light look).
+const C = {
+  cream: '#fdfbf7',
+  ink: '#1c1917',
+  muted: '#78716c',
+  faint: '#a8a29e',
+  teal: '#0f766e',
+  tealDark: '#115e59',
+  tealTint: '#f0fdfa',
+  tealBorder: '#ccfbf1',
+  emerald: '#10b981',
+  amberTint: '#fffbeb',
+  inputBg: '#fafaf9',
+  inputBorder: '#f5f5f4',
+  white: '#ffffff',
+  red: '#dc2626',
+};
+
+// Dev-only banner revealing the generated code when no real delivery channel is
+// configured (never shown in production).
 function DevCodeBanner({ code }: { code: string }) {
   return (
     <div style={{
-      marginBottom: 18, padding: '10px 14px', borderRadius: 10,
-      background: 'color-mix(in srgb, var(--blue) 10%, transparent)',
-      border: '1px solid color-mix(in srgb, var(--blue) 25%, transparent)',
-      fontSize: 13, color: 'var(--blue)',
+      marginBottom: 16, padding: '10px 14px', borderRadius: 12,
+      background: C.tealTint, border: `1px solid ${C.tealBorder}`,
+      fontSize: 13, color: C.teal,
     }}>
-      <strong>Dev mode</strong> — your code is <strong style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{code}</strong>
+      <strong>Dev mode</strong> — your code is{' '}
+      <strong style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{code}</strong>
     </div>
   );
 }
+
+function ErrorNote({ message }: { message: string }) {
+  return (
+    <div style={{
+      marginBottom: 16, padding: '10px 14px', borderRadius: 12,
+      background: '#fef2f2', border: '1px solid #fecaca',
+      fontSize: 13, color: C.red, fontWeight: 500,
+    }}>
+      {message}
+    </div>
+  );
+}
+
+const fieldStyle: React.CSSProperties = {
+  width: '100%', padding: '14px 16px', borderRadius: 16,
+  border: `2px solid ${C.inputBorder}`, background: C.inputBg,
+  fontSize: 16, fontWeight: 600, color: C.ink, outline: 'none',
+  boxSizing: 'border-box', transition: 'all .15s',
+  fontFamily: 'inherit',
+};
+
+function PrimaryButton({
+  loading, label, icon, onClick, type = 'submit',
+}: {
+  loading: boolean; label: string; icon?: React.ReactNode;
+  onClick?: () => void; type?: 'submit' | 'button';
+}) {
+  return (
+    <button
+      type={type} disabled={loading} onClick={onClick}
+      style={{
+        width: '100%', padding: '15px', borderRadius: 16, border: 'none',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        background: loading ? C.tealDark : C.teal, color: '#fff',
+        fontWeight: 700, fontSize: 17, fontFamily: 'inherit',
+        cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.75 : 1,
+        boxShadow: '0 8px 20px rgba(15,118,110,0.2)', transition: 'all .15s',
+      }}
+    >
+      {label}{icon}
+    </button>
+  );
+}
+
+const linkBtn: React.CSSProperties = {
+  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+  color: C.teal, fontWeight: 600, fontSize: 15, fontFamily: 'inherit',
+};
+
+const textLink: React.CSSProperties = {
+  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+  color: C.teal, fontWeight: 600, fontSize: 13, fontFamily: 'inherit',
+  textDecoration: 'underline', textUnderlineOffset: 3,
+};
 
 export default function Login() {
   const { updateUser } = useAuth();
@@ -41,9 +115,6 @@ export default function Login() {
   const [error, setError] = useState('');
 
   // Staff / owner sign-in (provisioned-only, passwordless except the Super Admin).
-  //  email    → look up the sign-in method for this address
-  //  password → Super Admin only: first 2FA factor
-  //  code     → one-time code (staff OTP) or the Super Admin's second factor
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -52,7 +123,7 @@ export default function Login() {
   const [staffCode, setStaffCode] = useState('');
   const [staffDevCode, setStaffDevCode] = useState<string | null>(null);
 
-  // Phone OTP (customers) — unchanged flow, now using the shared 6-box input.
+  // Phone OTP (customers).
   const [phone, setPhone] = useState('');
   const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
   const [code, setCode] = useState('');
@@ -164,19 +235,36 @@ export default function Login() {
 
   // ---- Customer phone flow (unchanged endpoints) ----------------------------
 
+  async function sendPhoneOtpCore() {
+    const res = await api.post<{ ok: boolean; channel: string; devMode: boolean; devCode?: string }>(
+      '/auth/otp/send', { phone },
+    );
+    setDevCode(res.devCode ?? null);
+    setCode('');
+    setOtpStep('code');
+  }
+
   async function handleSendOtp(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const res = await api.post<{ ok: boolean; channel: string; devMode: boolean; devCode?: string }>(
-        '/auth/otp/send', { phone },
-      );
-      setDevCode(res.devCode ?? null);
-      setCode('');
-      setOtpStep('code');
+      await sendPhoneOtpCore();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not send the code');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendPhoneOtp() {
+    setError('');
+    setLoading(true);
+    try {
+      await sendPhoneOtpCore();
+      setCode('');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not resend the code.');
     } finally {
       setLoading(false);
     }
@@ -208,286 +296,267 @@ export default function Login() {
     setError('');
   }
 
+  const heading = { fontSize: 26, fontWeight: 700, color: C.ink, lineHeight: 1.2, margin: 0 } as React.CSSProperties;
+  const subheading = { margin: '8px 0 0', color: C.muted, fontSize: 15, fontWeight: 500 } as React.CSSProperties;
+
   return (
     <div style={{
-      minHeight: '100vh',
-      backgroundImage: `linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 94%, transparent)), url(${bg})`,
-      backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 20, paddingTop: 'calc(20px + env(safe-area-inset-top, 0px))', fontFamily: 'var(--font-app)',
+      minHeight: '100vh', background: C.cream, color: C.ink,
+      fontFamily: "'Outfit', var(--font-app, system-ui), sans-serif",
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      paddingTop: 'env(safe-area-inset-top, 0px)',
     }}>
-      <div className="ck-login-grid" style={{ width: '100%', maxWidth: 900, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-
-        {/* Left — brand */}
-        <div className="ck-login-brand" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 32px' }}>
-          {/* Advertising / marketing copy — hidden on mobile so the login card fits */}
-          <div className="ck-login-ad">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
-              <div style={{
-                display: 'grid', placeItems: 'center', borderRadius: 16,
-                boxShadow: '0 8px 24px color-mix(in srgb, var(--gold) 30%, transparent)',
-              }}>
-                <ConcreteKingLogo size={52} />
-              </div>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--text)' }}>
-                  {PLATFORM_NAME}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>
-                  {PLATFORM_TAGLINE}
-                </div>
-              </div>
-            </div>
-
-            <h1 style={{ margin: '0 0 12px', fontSize: 34, fontWeight: 900, lineHeight: 1.1, color: 'var(--text)' }}>
-              Ready Mix Concrete<br />
-              <span style={{ color: 'var(--gold)' }}>Management Platform</span>
-            </h1>
-            <p style={{ color: 'var(--muted)', lineHeight: 1.7, marginBottom: 24, fontSize: 14 }}>
-              End-to-end RMC plant operations — orders, dispatch, production, fleet & financials in one premium dashboard.
-            </p>
+      <div style={{
+        width: '100%', maxWidth: 430, flex: 1,
+        display: 'flex', flexDirection: 'column',
+      }}>
+        {/* Brand + back to home */}
+        <div style={{ padding: '20px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button onClick={() => setLoc('/')} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+            color: C.muted, fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
+          }}>
+            <ArrowLeft size={16} /> Home
+          </button>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Truck size={26} style={{ color: C.teal }} />
+            <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.5px' }}>
+              <span style={{ color: '#1e293b' }}>TrackMy</span>
+              <span style={{ color: C.teal }}>RMC</span>
+            </span>
           </div>
+          <span style={{ width: 52 }} aria-hidden />
+        </div>
 
-          {/* Prominent install / download (PWA) call-to-action — kept on mobile */}
-          <div className="ck-login-install" style={{ maxWidth: 320 }}>
-            <InstallAppButton />
+        {/* Friendly illustration */}
+        <div style={{
+          flex: '1 1 auto', minHeight: 120, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '12px 24px',
+        }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: 300, aspectRatio: '1 / 1' }}>
+            <div style={{ position: 'absolute', inset: 0, background: C.tealTint, borderRadius: 40, transform: 'rotate(-3deg) scale(0.95)', opacity: 0.7 }} />
+            <div style={{ position: 'absolute', inset: 0, background: C.amberTint, borderRadius: 40, transform: 'rotate(3deg) scale(0.95)', opacity: 0.7 }} />
+            <img
+              src={warmIllustration} alt="Friendly concrete delivery"
+              style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }}
+            />
           </div>
         </div>
 
-        {/* Right — login form */}
+        {/* Card */}
         <div style={{
-          background: 'linear-gradient(135deg, var(--glass-1), var(--glass-2))',
-          border: '1px solid var(--glass-border)',
-          borderRadius: 20, padding: '40px 32px',
-          backdropFilter: 'blur(12px)',
-          boxShadow: '0 30px 70px -30px rgba(var(--shadow-rgb),.28)',
+          background: C.white, borderTopLeftRadius: 32, borderTopRightRadius: 32,
+          padding: '28px 24px calc(24px + env(safe-area-inset-bottom, 0px))',
+          boxShadow: '0 -8px 30px rgba(15,118,110,0.05)',
+          display: 'flex', flexDirection: 'column',
         }}>
-          <button onClick={() => setLoc('/')} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 18,
-            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-            color: 'var(--muted)', fontSize: 13, fontWeight: 600,
-          }}>
-            <ArrowLeft size={15} /> Back to home
-          </button>
-
-          {/* Portal selector — customer (phone) vs plant staff (email) */}
-          <div role="tablist" aria-label="Sign in as" style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 22,
-            background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: 4,
-          }}>
-            {([
-              { key: 'phone', label: 'Customer', icon: <Phone size={14} /> },
-              { key: 'email', label: 'Plant Staff', icon: <Users size={14} /> },
-            ] as const).map(opt => {
-              const active = mode === opt.key;
-              return (
-                <button
-                  key={opt.key} type="button" role="tab" aria-selected={active}
-                  onClick={() => { setMode(opt.key); setError(''); }}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    padding: '9px 10px', borderRadius: 9, border: 'none', cursor: 'pointer',
-                    fontSize: 13, fontWeight: 700,
-                    background: active ? 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))' : 'transparent',
-                    color: active ? '#111827' : 'var(--muted)',
-                    transition: 'all .15s',
-                  }}
-                >
-                  {opt.icon}{opt.label}
-                </button>
-              );
-            })}
-          </div>
-
           {mode === 'phone' ? (
-            <>
-              <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Sign in with your phone</h2>
-              <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>
-                {otpStep === 'phone'
-                  ? 'We\u2019ll text you a one-time code by SMS.'
-                  : `Enter the 6-digit code sent to ${phone || 'your number'}.`}
-              </p>
+            otpStep === 'phone' ? (
+              <>
+                <h1 style={heading}>
+                  Ready Mix Concrete,<br />
+                  <span style={{ color: C.teal }}>On Time, Every Time.</span>
+                </h1>
+                <p style={subheading}>Enter your mobile number to get started.</p>
 
-              {otpStep === 'phone' ? (
-                <form onSubmit={handleSendOtp}>
-                  <div style={{ marginBottom: 18 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                      Mobile Number
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <Phone size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                      <input
-                        type="tel" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                        placeholder="98765 43210" required autoFocus
-                        style={inputStyle}
-                      />
+                <form onSubmit={handleSendOtp} style={{ marginTop: 24 }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                    <div style={{
+                      position: 'absolute', left: 6, display: 'flex', alignItems: 'center',
+                      background: C.tealTint, border: `1px solid ${C.tealBorder}`,
+                      borderRadius: 12, padding: '10px 12px',
+                    }}>
+                      <span style={{ color: C.teal, fontWeight: 700, fontSize: 16 }}>+91</span>
                     </div>
+                    <input
+                      type="tel" inputMode="numeric" value={phone} autoFocus required
+                      onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="98765 43210"
+                      style={{ ...fieldStyle, paddingLeft: 78 }}
+                      onFocus={e => { e.currentTarget.style.borderColor = C.emerald; e.currentTarget.style.background = C.white; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = C.inputBorder; e.currentTarget.style.background = C.inputBg; }}
+                    />
                   </div>
 
-                  {error && <ErrorBox message={error} />}
+                  {error && <ErrorNote message={error} />}
 
-                  <SubmitButton loading={loading} label={loading ? 'Sending code…' : 'Send code via SMS'} icon={<MessageCircle size={16} />} />
+                  <PrimaryButton loading={loading} label={loading ? 'Sending code…' : 'Get OTP'} icon={<ArrowRight size={18} />} />
                 </form>
-              ) : (
-                <form onSubmit={e => { e.preventDefault(); verifyPhoneOtp(); }}>
-                  {devCode && <DevCodeBanner code={devCode} />}
 
-                  <div style={{ marginBottom: 24 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 }}>
-                      Verification Code
-                    </label>
+                <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                  <button type="button" onClick={() => { setMode('email'); setError(''); }} style={linkBtn}>
+                    Staff login with email
+                  </button>
+                  <div style={{ width: '100%', maxWidth: 320 }}>
+                    <InstallAppButton />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <h1 style={heading}>Verify your number</h1>
+                <p style={subheading}>Enter the 6-digit code sent to +91 {phone}.</p>
+
+                <form onSubmit={e => { e.preventDefault(); verifyPhoneOtp(); }} style={{ marginTop: 24 }}>
+                  {devCode && <DevCodeBanner code={devCode} />}
+                  <div style={{ marginBottom: 20 }}>
                     <OtpInput value={code} onChange={setCode} onComplete={verifyPhoneOtp} disabled={loading} autoFocus />
                   </div>
 
-                  {error && <ErrorBox message={error} />}
+                  {error && <ErrorNote message={error} />}
 
-                  <SubmitButton loading={loading} label={loading ? 'Verifying…' : 'Verify & continue →'} />
-
-                  <button type="button" onClick={resetOtp} style={{
-                    marginTop: 14, display: 'flex', alignItems: 'center', gap: 6,
-                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                    color: 'var(--muted)', fontSize: 13, fontWeight: 600,
-                  }}>
-                    <ArrowLeft size={14} /> Use a different number
-                  </button>
+                  <PrimaryButton loading={loading} label={loading ? 'Verifying…' : 'Verify & continue'} icon={<ArrowRight size={18} />} />
                 </form>
-              )}
 
-              <div style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
-                Staff member?{' '}
-                <button type="button" onClick={() => { setMode('email'); setError(''); }} style={linkBtnStyle}>
-                  Sign in with email
-                </button>
-              </div>
-            </>
+                <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <button type="button" onClick={resetOtp} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                    color: C.muted, fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
+                  }}>
+                    <ArrowLeft size={15} /> Change number
+                  </button>
+                  <button type="button" onClick={resendPhoneOtp} disabled={loading} style={linkBtn}>
+                    Resend code
+                  </button>
+                </div>
+              </>
+            )
           ) : (
             <>
-              <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Staff Sign In</h2>
-              <p style={{ margin: '0 0 28px', color: 'var(--muted)', fontSize: 13 }}>
-                {staffStep === 'email' && 'Enter your work email to continue.'}
-                {staffStep === 'password' && 'Enter your password to continue.'}
-                {staffStep === 'code' && `Enter the 6-digit code sent to ${email || 'your email'}.`}
-              </p>
-
               {staffStep === 'email' && (
-                <form onSubmit={handleStaffEmailContinue}>
-                  <div style={{ marginBottom: 24 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                      Email Address
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <Mail size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                <>
+                  <h1 style={heading}>Staff sign in</h1>
+                  <p style={subheading}>Enter your work email to continue.</p>
+
+                  <form onSubmit={handleStaffEmailContinue} style={{ marginTop: 24 }}>
+                    <div style={{ position: 'relative', marginBottom: 16 }}>
+                      <Mail size={17} style={{ color: C.faint, position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
                       <input
                         type="email" value={email} onChange={e => setEmail(e.target.value)}
                         placeholder="you@company.com" required autoFocus
-                        style={inputStyle}
+                        style={{ ...fieldStyle, paddingLeft: 46 }}
+                        onFocus={e => { e.currentTarget.style.borderColor = C.emerald; e.currentTarget.style.background = C.white; }}
+                        onBlur={e => { e.currentTarget.style.borderColor = C.inputBorder; e.currentTarget.style.background = C.inputBg; }}
                       />
                     </div>
-                  </div>
 
-                  {error && <ErrorBox message={error} />}
+                    {error && <ErrorNote message={error} />}
 
-                  <SubmitButton loading={loading} label={loading ? 'Checking…' : 'Continue →'} />
+                    <PrimaryButton loading={loading} label={loading ? 'Checking…' : 'Continue'} icon={<ArrowRight size={18} />} />
 
-                  <p style={{ margin: '16px 2px 0', fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
-                    Staff accounts are created by your administrator. No sign-up here.
-                  </p>
-                </form>
+                    <p style={{ margin: '14px 2px 0', fontSize: 12, color: C.faint, textAlign: 'center' }}>
+                      Staff accounts are created by your administrator. No sign-up here.
+                    </p>
+                  </form>
+                </>
               )}
 
               {staffStep === 'password' && (
-                <form onSubmit={handleSuperAdminPassword}>
-                  <div style={{ marginBottom: 16, fontSize: 13, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <ShieldCheck size={15} style={{ color: 'var(--gold)' }} />
-                    <span style={{ fontWeight: 700 }}>{email}</span>
-                    <button type="button" onClick={resetStaff} style={{ ...linkBtnStyle, fontSize: 12 }}>change</button>
+                <>
+                  <h1 style={heading}>Enter your password</h1>
+                  <div style={{ margin: '10px 0 0', fontSize: 14, color: C.muted, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <ShieldCheck size={16} style={{ color: C.teal }} />
+                    <span style={{ fontWeight: 700, color: C.ink }}>{email}</span>
+                    <button type="button" onClick={resetStaff} style={{ ...textLink, fontSize: 13 }}>change</button>
                   </div>
 
-                  <div style={{ marginBottom: 18 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                      Password
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <Lock size={15} style={{ color: 'var(--muted)', position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+                  <form onSubmit={handleSuperAdminPassword} style={{ marginTop: 20 }}>
+                    <div style={{ position: 'relative', marginBottom: 12 }}>
+                      <Lock size={17} style={{ color: C.faint, position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
                       <input
                         type={showPw ? 'text' : 'password'} value={password}
                         onChange={e => setPassword(e.target.value)}
                         placeholder="••••••••" required autoFocus
-                        style={{ ...inputStyle, padding: '11px 40px 11px 38px' }}
+                        style={{ ...fieldStyle, padding: '14px 46px' }}
+                        onFocus={e => { e.currentTarget.style.borderColor = C.emerald; e.currentTarget.style.background = C.white; }}
+                        onBlur={e => { e.currentTarget.style.borderColor = C.inputBorder; e.currentTarget.style.background = C.inputBg; }}
                       />
                       <button type="button" onClick={() => setShowPw(s => !s)} style={{
-                        position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                        position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
                         background: 'none', border: 'none', cursor: 'pointer', padding: 0,
                       }}>
-                        {showPw ? <EyeOff size={15} style={{ color: 'var(--muted)' }} /> : <Eye size={15} style={{ color: 'var(--muted)' }} />}
+                        {showPw ? <EyeOff size={17} style={{ color: C.faint }} /> : <Eye size={17} style={{ color: C.faint }} />}
                       </button>
                     </div>
-                  </div>
 
-                  <div style={{ marginBottom: 24, textAlign: 'right' }}>
-                    <button type="button" onClick={() => setLoc('/forgot-password')} style={linkBtnStyle}>
-                      Forgot password?
-                    </button>
-                  </div>
+                    <div style={{ marginBottom: 18, textAlign: 'right' }}>
+                      <button type="button" onClick={() => setLoc('/forgot-password')} style={textLink}>
+                        Forgot password?
+                      </button>
+                    </div>
 
-                  {error && <ErrorBox message={error} />}
+                    {error && <ErrorNote message={error} />}
 
-                  <SubmitButton loading={loading} label={loading ? 'Verifying…' : 'Continue →'} icon={<Lock size={15} />} />
-                </form>
+                    <PrimaryButton loading={loading} label={loading ? 'Verifying…' : 'Continue'} icon={<Lock size={16} />} />
+                  </form>
+                </>
               )}
 
               {staffStep === 'code' && (
-                <form onSubmit={e => { e.preventDefault(); verifyStaffCode(); }}>
-                  {staffDevCode && <DevCodeBanner code={staffDevCode} />}
+                <>
+                  <h1 style={heading}>{staffCodeMode === 'superadmin' ? 'Two-factor code' : 'Login code'}</h1>
+                  <p style={subheading}>Enter the 6-digit code sent to {email || 'your email'}.</p>
 
-                  <div style={{ marginBottom: 24 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 }}>
-                      {staffCodeMode === 'superadmin' ? 'Two-Factor Code' : 'Login Code'}
-                    </label>
-                    <OtpInput value={staffCode} onChange={setStaffCode} onComplete={verifyStaffCode} disabled={loading} autoFocus />
-                  </div>
+                  <form onSubmit={e => { e.preventDefault(); verifyStaffCode(); }} style={{ marginTop: 24 }}>
+                    {staffDevCode && <DevCodeBanner code={staffDevCode} />}
+                    <div style={{ marginBottom: 20 }}>
+                      <OtpInput value={staffCode} onChange={setStaffCode} onComplete={verifyStaffCode} disabled={loading} autoFocus />
+                    </div>
 
-                  {error && <ErrorBox message={error} />}
+                    {error && <ErrorNote message={error} />}
 
-                  <SubmitButton loading={loading} label={loading ? 'Verifying…' : 'Verify & continue →'} icon={<KeyRound size={15} />} />
+                    <PrimaryButton loading={loading} label={loading ? 'Verifying…' : 'Verify & continue'} icon={<KeyRound size={16} />} />
 
-                  <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <button type="button" onClick={resetStaff} style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                      color: 'var(--muted)', fontSize: 13, fontWeight: 600,
-                    }}>
-                      <ArrowLeft size={14} /> Use a different email
-                    </button>
-                    <button type="button" onClick={resendStaffCode} disabled={loading} style={linkBtnStyle}>
-                      Resend code
-                    </button>
-                  </div>
-                </form>
+                    <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <button type="button" onClick={resetStaff} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                        color: C.muted, fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
+                      }}>
+                        <ArrowLeft size={15} /> Use a different email
+                      </button>
+                      <button type="button" onClick={resendStaffCode} disabled={loading} style={linkBtn}>
+                        Resend code
+                      </button>
+                    </div>
+                  </form>
+                </>
               )}
 
-              <div style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
+              <div style={{ marginTop: 22, textAlign: 'center', fontSize: 14, color: C.muted }}>
                 Customer?{' '}
-                <button type="button" onClick={() => { setMode('phone'); setError(''); }} style={linkBtnStyle}>
+                <button type="button" onClick={() => { setMode('phone'); resetStaff(); }} style={{ ...linkBtn, textDecoration: 'underline', textUnderlineOffset: 3 }}>
                   Sign in with your phone
                 </button>
               </div>
             </>
           )}
 
-          <AuthLegalFooter consentPrefix="By continuing, you agree to our Terms of Service and Privacy Policy." />
-
-          {/* Sponsor / partner credits — single row, below the social icons */}
-          <div style={{ marginTop: 12 }}>
-            <BrandCredits oneRow />
+          {/* Legal + support */}
+          <div style={{ marginTop: 22, textAlign: 'center' }}>
+            <p style={{ margin: 0, fontSize: 12.5, color: C.faint, lineHeight: 1.6 }}>
+              By continuing you agree to our{' '}
+              <button type="button" onClick={() => setLoc('/terms')} style={{ ...textLink, fontSize: 12.5 }}>Terms</button>
+              {' '}&amp;{' '}
+              <button type="button" onClick={() => setLoc('/privacy')} style={{ ...textLink, fontSize: 12.5 }}>Privacy Policy</button>
+            </p>
+            <a
+              href={SUPPORT_WHATSAPP_URL} target="_blank" rel="noopener noreferrer"
+              style={{
+                marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 5,
+                color: C.muted, fontSize: 12.5, fontWeight: 600, textDecoration: 'none',
+              }}
+            >
+              <MessageCircle size={13} /> Need help? Chat with support
+            </a>
+            <div style={{ marginTop: 14 }}>
+              <BrandCredits oneRow />
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-const linkBtnStyle: React.CSSProperties = {
-  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-  color: 'var(--gold)', fontWeight: 700, fontSize: 13, textDecoration: 'underline',
-};

@@ -21,45 +21,45 @@
   --radius-card: 18px;
 }
 
-/* ===== Theme tokens (swapped at runtime by ThemeProvider) — default: Cinematic teal ===== */
+/* ===== Theme tokens (swapped at runtime by ThemeProvider) — one flat warm-white theme ===== */
 :root {
-  --bg-top: #0a1417;
-  --bg: #050A0C;
-  --bg-deep: #02070A;
-  --panel: #0a1618;
-  --panel2: #0d1d20;
-  --surface: #112427;
-  --line: rgba(0,201,167,0.15);
-  --text: #E8F0EE;
-  --muted: #7A8F8D;
-  --gold-hi: #3fe3c5;
-  --gold-mid: #12d6b0;
-  --gold: #00C9A7;
-  --gold-dark: #00a488;
+  --bg-top: #fdfbf7;
+  --bg: #fdfbf7;
+  --bg-deep: #f4efe7;
+  --panel: #ffffff;
+  --panel2: #faf7f2;
+  --surface: #ffffff;
+  --line: rgba(28,25,23,0.10);
+  --text: #1c1917;
+  --muted: #78716c;
+  --gold-hi: #12876f;
+  --gold-mid: #0f766e;
+  --gold: #0f766e;
+  --gold-dark: #0d6560;
   --green: #22c55e;
   --green-dark: #15803d;
   --blue: #38bdf8;
   --red: #ef4444;
   --orange: #f59e0b;
-  --glow-1: rgba(0,201,167,.20);
-  --glow-2: rgba(0,201,167,.07);
+  --glow-1: rgba(15,118,110,.16);
+  --glow-2: transparent;
   --font-app: 'Inter', system-ui, -apple-system, sans-serif;
 
-  /* surface kit (Cinematic teal defaults — swapped per theme at runtime) */
-  --shadow-rgb: 0,0,0;
-  --glass-1: color-mix(in srgb, var(--surface) 78%, transparent);
-  --glass-2: color-mix(in srgb, var(--bg-deep) 82%, transparent);
-  --glass-border: rgba(0,201,167,0.15);
-  --glass-hi: rgba(255,255,255,0.05);
-  --glass-blur: blur(24px) saturate(115%);
-  --sidebar-1: rgba(8,20,22,0.97);
-  --sidebar-2: rgba(4,11,13,0.97);
-  --header-bg: rgba(5,12,14,0.86);
-  --menu-bg: rgba(10,24,26,0.98);
-  --menu-hover: rgba(0,201,167,0.12);
-  --overlay: rgba(2,7,8,0.66);
-  --chip-bg: rgba(0,201,167,0.06);
-  --sheen: rgba(255,255,255,.03);
+  /* flat surface kit (solid warm-white, no glass blur, no glows) */
+  --shadow-rgb: 28,25,23;
+  --glass-1: #ffffff;
+  --glass-2: #ffffff;
+  --glass-border: rgba(28,25,23,0.10);
+  --glass-hi: transparent;
+  --glass-blur: none;
+  --sidebar-1: #ffffff;
+  --sidebar-2: #ffffff;
+  --header-bg: rgba(255,255,255,0.92);
+  --menu-bg: #ffffff;
+  --menu-hover: rgba(15,118,110,0.08);
+  --overlay: rgba(28,25,23,0.32);
+  --chip-bg: #f4efe7;
+  --sheen: transparent;
 }
 
 * {
@@ -69,24 +69,11 @@
 body {
   margin: 0;
   font-family: var(--font-app);
-  background: radial-gradient(circle at top left, var(--bg-top) 0, var(--bg) 38%, var(--bg-deep) 100%);
+  background: var(--bg);
   color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   transition: background .4s ease, color .25s ease;
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 80% 10%, var(--glow-1), transparent 26%),
-    radial-gradient(circle at 72% 78%, var(--glow-2), transparent 28%),
-    linear-gradient(120deg, transparent, var(--sheen), transparent);
-  z-index: -1;
-  transition: background .4s ease;
 }
 
 #root {
@@ -119,7 +106,7 @@ input:hover, select:hover, textarea:hover {
 input:focus, select:focus, textarea:focus,
 input:focus-visible, select:focus-visible, textarea:focus-visible {
   border-color: var(--gold);
-  box-shadow: 0 0 0 3px var(--glow-1), inset 0 1px 2px rgba(0,0,0,0.22) !important;
+  box-shadow: 0 0 0 3px var(--glow-1) !important;
   outline: none;
 }
 
@@ -130,24 +117,14 @@ button { cursor: pointer; border: 0; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
 
-/* Card glass effect */
+/* Card surface — flat solid panel with a soft hairline border and gentle shadow. */
 .glass-card {
-  background: linear-gradient(160deg, var(--glass-1), var(--glass-2));
+  background: var(--surface);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 22px 70px rgba(var(--shadow-rgb),.30), inset 0 1px 0 var(--glass-hi);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: 0 1px 3px rgba(var(--shadow-rgb),.06), 0 6px 18px rgba(var(--shadow-rgb),.05);
   border-radius: 18px;
   position: relative;
   overflow: hidden;
-}
-
-.glass-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(125deg, var(--glass-hi), transparent 22%, transparent 72%, color-mix(in srgb, var(--gold) 12%, transparent));
-  pointer-events: none;
 }
 
 /* 3D Plant */

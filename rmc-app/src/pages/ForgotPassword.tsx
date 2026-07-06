@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { api } from '@/lib/api';
 import { Building2, Mail, AlertCircle, CheckCircle2, ArrowLeft, KeyRound } from 'lucide-react';
-import bg from '@/assets/rmc-aerial-bg.png';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from '@/lib/brand';
 
 export default function ForgotPassword() {
@@ -28,8 +27,7 @@ export default function ForgotPassword() {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundImage: `linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 94%, transparent)), url(${bg})`,
-      backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
+      background: 'var(--bg)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 20, fontFamily: 'var(--font-app)',
     }}>

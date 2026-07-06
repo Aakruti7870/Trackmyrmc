@@ -36,7 +36,7 @@ async function runSearch(term: string) {
 }
 
 describe('LocationPicker — geocoder result handling', () => {
-  it('lists multiple matches and only applies the one the customer picks', async () => {
+  it('jumps to the best match immediately and lists alternatives to correct an ambiguous search', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => [
@@ -49,15 +49,15 @@ describe('LocationPicker — geocoder result handling', () => {
 
     await runSearch('Springfield');
 
-    // Both ambiguous matches are offered; nothing is applied yet.
-    const pune = await screen.findByText('Springfield, Pune, Maharashtra');
-    expect(screen.getByText('Springfield, Nagpur, Maharashtra')).toBeInTheDocument();
-    expect(onChange).not.toHaveBeenCalled();
+    // Searching drops the pin on the best match straight away — no extra tap…
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ lat: 18.5204, lng: 73.8567 }));
+    // …while still offering the ambiguous alternatives to correct with one tap.
+    const nagpur = await screen.findByText('Springfield, Nagpur, Maharashtra');
+    expect(screen.getByText('Springfield, Pune, Maharashtra')).toBeInTheDocument();
 
-    // Picking one applies exactly that coordinate and clears the list.
-    await userEvent.setup().click(pune);
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith({ lat: 18.5204, lng: 73.8567 });
+    // Picking a different match applies exactly that coordinate and clears the list.
+    await userEvent.setup().click(nagpur);
+    expect(onChange).toHaveBeenLastCalledWith({ lat: 21.1458, lng: 79.0882 });
     await waitFor(() =>
       expect(screen.queryByText('Springfield, Nagpur, Maharashtra')).not.toBeInTheDocument(),
     );
@@ -89,6 +89,45 @@ describe('LocationPicker — geocoder result handling', () => {
     await runSearch('asdkjhaskdjh');
 
     expect(await screen.findByText(/no match found/i)).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('LocationPicker — automatic address → pin', () => {
+  it('geocodes the typed delivery address and drops the pin automatically', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [geoResult('12.9716', '77.5946', 'MG Road, Bengaluru')],
+    }));
+    const onChange = vi.fn();
+    // Mount with no address, then simulate the customer filling in the form's
+    // address field — the initial address is deliberately NOT re-geocoded, only
+    // subsequent changes trigger the auto-pin.
+    const { rerender } = render(<LocationPicker value={null} onChange={onChange} />);
+    rerender(<LocationPicker value={null} onChange={onChange} address="MG Road, Bengaluru" />);
+
+    await waitFor(
+      () => expect(onChange).toHaveBeenCalledWith({ lat: 12.9716, lng: 77.5946 }),
+      { timeout: 2000 },
+    );
+  });
+
+  it('stops following the address once the customer adjusts the pin manually', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [geoResult('19.0760', '72.8777', 'Gateway of India, Mumbai')],
+    }));
+    const onChange = vi.fn();
+    const { rerender } = render(<LocationPicker value={null} onChange={onChange} />);
+
+    // A manual search is an explicit action → it must freeze the auto-follow.
+    await runSearch('Gateway');
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ lat: 19.076, lng: 72.8777 }));
+    onChange.mockClear();
+
+    // Now the customer keeps editing the address text — the pin must NOT move.
+    rerender(<LocationPicker value={{ lat: 19.076, lng: 72.8777 }} onChange={onChange} address="Some Other Road, Pune" />);
+    await new Promise(r => setTimeout(r, 1000));
     expect(onChange).not.toHaveBeenCalled();
   });
 });
