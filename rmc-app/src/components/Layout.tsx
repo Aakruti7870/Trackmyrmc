@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
-import { allowedPaths as roleAllowedPaths } from '@/lib/permissions';
+import { allowedPaths as roleAllowedPaths, HOME_ROLES } from '@/lib/permissions';
 import { useSSE, type SSEStatus } from '@/lib/useSSE';
 import { formatNotification } from '@/lib/notifications';
 import { PLATFORM_NAME } from '@/lib/brand';
@@ -271,7 +271,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // roles whose nav fits inline (accountant, plant_operator, quality_engineer,
   // store_manager) would have no way to reach Sign Out on a phone.
   const mobileHasMore = true;
-  const mobilePrimary = navItems.length > 4 ? navItems.slice(0, 4) : navItems;
+  // On phones, home-capable non-driver roles get a leading "Home" tab pointing
+  // at their unified /home landing. This is mobile-only — the desktop sidebar
+  // (SidebarContent navItems) is untouched. Driver already has Home in DRIVER_NAV.
+  const showMobileHome = !!user && !isDriver && (HOME_ROLES as string[]).includes(user.role);
+  const mobileNav = showMobileHome
+    ? [{ path: '/home', label: 'Home', icon: Home }, ...navItems]
+    : navItems;
+  const mobilePrimary = mobileNav.length > 4 ? mobileNav.slice(0, 4) : mobileNav;
 
   const SidebarContent = () => (
     <>

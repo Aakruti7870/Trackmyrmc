@@ -47,7 +47,7 @@ const SsoCallback    = lazy(() => import('@/pages/SsoCallback'));
 const TrackTrip      = lazy(() => import('@/pages/TrackTrip'));
 const Attendance     = lazy(() => import('@/pages/Attendance'));
 const CommandCenter  = lazy(() => import('@/pages/CommandCenter'));
-const DriverHome     = lazy(() => import('@/pages/DriverHome'));
+const RoleHome       = lazy(() => import('@/pages/RoleHome'));
 const DriverExpenses = lazy(() => import('@/pages/DriverExpenses'));
 const DriverSOS      = lazy(() => import('@/pages/DriverSOS'));
 const ExpenseReview  = lazy(() => import('@/pages/ExpenseReview'));
@@ -118,7 +118,7 @@ function ProtectedRoutes() {
         <Route path="/nearby-plants" component={() => <GuardedRoute path="/nearby-plants" component={NearbyPlants} />} />
         <Route path="/plants"       component={() => <GuardedRoute path="/plants"       component={Plants}      />} />
         <Route path="/my-trips"     component={() => <GuardedRoute path="/my-trips"     component={MyTrips}     />} />
-        <Route path="/home"         component={() => <GuardedRoute path="/home"         component={DriverHome}  />} />
+        <Route path="/home"         component={() => <GuardedRoute path="/home"         component={RoleHome}    />} />
         <Route path="/expenses"     component={() => <GuardedRoute path="/expenses"     component={DriverExpenses} />} />
         <Route path="/sos"          component={() => <GuardedRoute path="/sos"          component={DriverSOS}   />} />
         <Route path="/expense-review" component={() => <GuardedRoute path="/expense-review" component={ExpenseReview} />} />

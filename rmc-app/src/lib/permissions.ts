@@ -47,6 +47,25 @@ export const ROLE_DEFAULT_PATH: Record<Role, string> = {
   driver: '/home',
 };
 
+// Roles that get a dedicated mobile "home" landing screen (post-login) at
+// /home. Desktop is unchanged — these roles still land on their original
+// default path on wide screens. Driver already used /home as its only home.
+export const HOME_ROLES: Role[] = [
+  'client', 'driver', 'plant_operator', 'dispatcher', 'supervisor', 'admin', 'plant_owner', 'accountant',
+];
+
+// True on phone-width viewports (mirrors the Layout / useIsMobile breakpoint).
+// Guarded so it is SSR-safe and returns false under jsdom, keeping unit tests
+// on the unchanged desktop routing path.
+function isMobileViewport(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  try {
+    return window.matchMedia('(max-width: 900px)').matches;
+  } catch {
+    return false;
+  }
+}
+
 // DB-backed overrides, merged over the static defaults at runtime. Loaded once
 // from /api/config at app bootstrap (see config-provider). When a role has no
 // override (or none were loaded) the built-in ROLE_ALLOWED_PATHS apply, so the
@@ -79,6 +98,10 @@ export function allowedPaths(role: string): string[] {
 }
 
 export function canAccess(role: string, path: string): boolean {
+  // The unified mobile home is reachable by any role that has one, independent
+  // of DB permission overrides (which never list /home). This prevents a
+  // redirect loop when a role's post-login landing is /home on phones.
+  if (path === '/home') return (HOME_ROLES as string[]).includes(role);
   const allowed = allowedPaths(role);
   if (!allowed.length) return false;
   return allowed.some(p => {
@@ -87,12 +110,29 @@ export function canAccess(role: string, path: string): boolean {
   });
 }
 
-export function defaultPath(role: string): string {
+// The role's landing screen on a desktop/wide viewport (its original behaviour,
+// viewport-independent). Kept separate so RoleHome can redirect to it without
+// re-triggering the mobile /home rule below (which would loop).
+export function desktopDefaultPath(role: string): string {
   const preferred = ROLE_DEFAULT_PATH[role as Role] ?? '/';
   // Guard against a stale DB override whose allow-list omits the role's default
   // path (which would trap the user in a redirect loop): fall back to the first
   // path the role can actually reach.
-  if (canAccess(role, preferred)) return preferred;
+  if (preferred !== '/home' && canAccess(role, preferred)) return preferred;
   const allowed = allowedPaths(role);
-  return allowed[0] ?? preferred;
+  // A non-driver role's DESKTOP landing must never resolve to /home (the
+  // mobile-only screen): a stale override listing /home would otherwise send
+  // RoleHome into a redirect loop on desktop. Driver legitimately lands on
+  // /home at every width (it renders DriverHome, not a redirect).
+  const desktopAllowed = role === 'driver' ? allowed : allowed.filter(p => p !== '/home');
+  return desktopAllowed[0] ?? (preferred === '/home' ? '/' : preferred);
+}
+
+export function defaultPath(role: string): string {
+  // On phones the supported roles land on their unified /home screen; desktop
+  // keeps every role on its original default (desktopDefaultPath).
+  if (isMobileViewport() && (HOME_ROLES as string[]).includes(role) && canAccess(role, '/home')) {
+    return '/home';
+  }
+  return desktopDefaultPath(role);
 }
