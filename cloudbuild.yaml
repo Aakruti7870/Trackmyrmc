@@ -1,0 +1,60 @@
+# Cloud Build pipeline: build the container, push it to Artifact Registry, and
+# deploy to Cloud Run. Run with:
+#
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_REGION=asia-south1,_REPO=concreteking,_SERVICE=concreteking
+#
+# Secrets/env are attached to the Cloud Run service separately (see
+# deploy/GCLOUD_DEPLOY.md) so they are never baked into the image.
+#
+# DATABASE CONNECTIVITY: this pipeline deploys a SINGLE container, which matches
+# the "public IP + SSL" DB path (DATABASE_URL host = the instance's public IP).
+# If you prefer the Cloud SQL Auth Proxy sidecar (DATABASE_URL host = localhost),
+# deploy the multi-container manifest instead: `gcloud run services replace
+# deploy/service.yaml` — do NOT mix that path with this single-container step.
+
+substitutions:
+  _REGION: "asia-south1"
+  _REPO: "concreteking"
+  _SERVICE: "concreteking"
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}"
+
+steps:
+  # 1) Build the image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}"
+      - "."
+
+  # 2) Push to Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}"
+
+  # 3) Deploy to Cloud Run
+  #    - min-instances=1 keeps the in-process recurring scheduler alive
+  #      (it would stop if the service scaled to zero).
+  #    - timeout=3600 supports long-lived SSE connections.
+  #    Attach env vars / secrets (incl. DATABASE_URL) to the service per the runbook.
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--allow-unauthenticated"
+      - "--min-instances=1"
+      - "--timeout=3600"
+      - "--cpu=1"
+      - "--memory=1Gi"
+
+options:
+  logging: CLOUD_LOGGING_ONLY

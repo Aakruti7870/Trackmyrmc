@@ -1,0 +1,39 @@
+# Keep the Docker build context small and prevent host artifacts from clobbering
+# the pnpm-installed dependencies inside the image.
+
+# Dependencies (reinstalled inside the image)
+**/node_modules
+
+# Build outputs (rebuilt inside the image)
+**/dist
+rmc-app/dev-dist
+
+# Native Android project (not part of the server/web deploy) + release zips
+rmc-app/android
+*.zip
+
+# VCS / editor / OS cruft
+.git
+.gitignore
+**/*.log
+**/.DS_Store
+
+# Replit-only + agent tooling (not needed to build/run on GCP)
+.replit
+.local
+.agents
+.upm
+.config
+.cache
+
+# Mockup sandbox / canvas artifacts (dev-only design tooling)
+artifacts
+mockup-sandbox
+
+# Uploaded design assets (not referenced by the production build)
+attached_assets
+
+# Local env files — provide these as Cloud Run env vars / Secret Manager instead
+**/.env
+**/.env.*
+!rmc-app/.env.capacitor

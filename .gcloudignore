@@ -1,0 +1,37 @@
+# Controls what `gcloud run deploy --source .` / Cloud Build uploads as the build
+# context. Mirrors .dockerignore so the Dockerfile still has everything it needs
+# to build, without shipping dependencies, build outputs, or Replit-only tooling.
+
+.git
+.gitignore
+
+# Dependencies + build outputs (reinstalled/rebuilt in the image)
+**/node_modules
+**/dist
+rmc-app/dev-dist
+
+# Native Android project + release zips (not part of the server/web deploy)
+rmc-app/android
+*.zip
+
+# Replit-only + agent tooling
+.replit
+.local
+.agents
+.upm
+.config
+.cache
+
+# Dev-only design tooling / uploaded assets
+artifacts
+mockup-sandbox
+attached_assets
+
+# Logs / OS cruft
+**/*.log
+**/.DS_Store
+
+# Local env files — configure these as Cloud Run env vars / Secret Manager
+**/.env
+**/.env.*
+!rmc-app/.env.capacitor
