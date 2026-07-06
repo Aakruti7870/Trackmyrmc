@@ -449,3 +449,9 @@ id = "KiXPzhfLfLyzT_SgffWN6"
 uri = "file://deploy/db-export/trackmyrmc-heliumdb.sql.gz"
 type = "unspecified"
 title = "TrackMyRMC DB export — complete (clean/if-exists, Cloud SQL ready)"
+
+[[outputs]]
+id = "UfjSnlvBeGe0efNNL-bTn"
+uri = "file://exports/trackmyrmc-deploy-files.zip"
+type = "unspecified"
+title = "TrackMyRMC deploy files (Dockerfile, cloudbuild.yaml, deploy/)"
