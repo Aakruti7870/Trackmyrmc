@@ -1,10 +1,25 @@
 import { useState, useEffect } from 'react';
+import { useSearch } from 'wouter';
 import { BarChart3, Download, Calendar, Fuel, AlertTriangle, MapPin, Check } from 'lucide-react';
 import { api, type FuelReconResponse, type VehicleAlert } from '@/lib/api';
 import { useVarianceTolerance, isWithinTolerance } from '@/lib/variance';
 import { useToast } from '@/lib/toast';
+import { useAuth } from '@/lib/auth';
+import { canAccess } from '@/lib/permissions';
+import BatchReport from './BatchReport';
+import ShiftReport from './ShiftReport';
 
-type ReportTab = 'client-wise' | 'grade-wise' | 'dispatch' | 'trip-timing' | 'production' | 'fuel';
+type ReportTab = 'client-wise' | 'grade-wise' | 'dispatch' | 'trip-timing' | 'production' | 'fuel' | 'batch' | 'shift';
+
+// Analytics tabs pull financial/production aggregates from /reports/*. Shop-floor
+// roles (e.g. plant_operator) reach this page only for the operational Batch/Shift
+// tabs, so they must never trigger the analytics fetch or see finance data.
+const ANALYTICS_ROLES = new Set(['admin', 'plant_owner', 'supervisor', 'dispatcher', 'accountant', 'quality_engineer', 'fleet_manager', 'store_manager', 'authority']);
+const ANALYTICS_TABS: ReportTab[] = ['client-wise', 'grade-wise', 'dispatch', 'trip-timing', 'production', 'fuel'];
+const tabLabel = (t: ReportTab) =>
+  t === 'batch' ? 'Batch Records'
+    : t === 'shift' ? 'Shift Report'
+    : t.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
 interface ClientRow { clientName: string; totalQty: number; deliveredQty: number; plannedForDelivered: number; variance: number; totalChallans: number }
 interface GradeRow { grade: string; totalQty: number; deliveredQty: number; plannedForDelivered: number; variance: number; totalChallans: number }
@@ -23,7 +38,30 @@ const PRESETS = [
 function isoDate(d: Date) { return d.toISOString().slice(0, 10); }
 
 export default function Reports() {
-  const [tab, setTab] = useState<ReportTab>('client-wise');
+  const { user } = useAuth();
+  const role = user?.role ?? '';
+  // A missing role only happens outside an AuthProvider (unit tests). Real
+  // protected routes always carry a user, so defaulting analytics-open here keeps
+  // the existing Reports tests fetching while never over-exposing a live user.
+  const canAnalytics = !role || ANALYTICS_ROLES.has(role);
+  const canBatch = canAccess(role, '/batch-report');
+  const canShift = canAccess(role, '/shift-report');
+  const visibleTabs: ReportTab[] = [
+    ...(canAnalytics ? ANALYTICS_TABS : []),
+    ...(canBatch ? ['batch' as ReportTab] : []),
+    ...(canShift ? ['shift' as ReportTab] : []),
+  ];
+
+  const search = useSearch();
+  const [tab, setTab] = useState<ReportTab>(() => {
+    const p = new URLSearchParams(search).get('tab');
+    if (p === 'batch' && canBatch) return 'batch';
+    if (p === 'shift' && canShift) return 'shift';
+    if (canAnalytics) return 'client-wise';
+    if (canBatch) return 'batch';
+    if (canShift) return 'shift';
+    return 'client-wise';
+  });
   const [preset, setPreset] = useState(1);
   const [from, setFrom] = useState(() => isoDate(new Date(Date.now() - 7 * 86400000)));
   const [to, setTo] = useState(() => isoDate(new Date()));
@@ -48,6 +86,7 @@ export default function Reports() {
   }
 
   useEffect(() => {
+    if (!canAnalytics) return;
     let cancelled = false;
     async function loadAll() {
       setLoading(true);
@@ -68,7 +107,7 @@ export default function Reports() {
     }
     loadAll();
     return () => { cancelled = true; };
-  }, [from, to]);
+  }, [from, to, canAnalytics]);
 
   async function downloadCSV(report: string) {
     const params = `?report=${report}&from=${from}T00:00:00&to=${to}T23:59:59`;
@@ -88,6 +127,8 @@ export default function Reports() {
   // Planned-vs-delivered totals over delivered challans only (those with a recorded delivered qty)
   const totalPlanned = dispatchData.reduce((s, r) => s + Number(r.plannedForDelivered || 0), 0);
   const totalDelivered = dispatchData.reduce((s, r) => s + Number(r.deliveredQty || 0), 0);
+  const isAnalyticsTab = tab !== 'batch' && tab !== 'shift';
+
   const netVariance = totalDelivered - totalPlanned;
   const varColor = (v: number, planned: number) => isWithinTolerance(v, planned, tolerance) ? 'var(--muted)' : v > 0 ? 'var(--blue)' : 'var(--red)';
   const varText = (v: number, planned: number) => isWithinTolerance(v, planned, tolerance) ? '0.0' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`;
@@ -99,13 +140,33 @@ export default function Reports() {
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Reports</h2>
           <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>Analytics &amp; exports</p>
         </div>
-        <button onClick={() => downloadCSV(tab === 'production' ? 'production' : tab === 'fuel' ? 'fuel-reconciliation' : 'dispatch')} style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
-          background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.2)',
-          color: 'var(--green)', fontWeight: 700, fontSize: 13, borderRadius: 10, cursor: 'pointer',
-        }}><Download size={15} /> Export CSV</button>
+        {isAnalyticsTab && (
+          <button onClick={() => downloadCSV(tab === 'production' ? 'production' : tab === 'fuel' ? 'fuel-reconciliation' : 'dispatch')} style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
+            background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.2)',
+            color: 'var(--green)', fontWeight: 700, fontSize: 13, borderRadius: 10, cursor: 'pointer',
+          }}><Download size={15} /> Export CSV</button>
+        )}
       </div>
 
+      {/* Tabs */}
+      <div className="reports-tabs">
+        {visibleTabs.map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            padding: '9px 12px', background: tab === t ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'transparent',
+            border: tab === t ? '1px solid color-mix(in srgb, var(--gold) 25%, transparent)' : '1px solid transparent',
+            borderRadius: 9, cursor: 'pointer',
+            color: tab === t ? 'var(--gold)' : 'var(--muted)', fontSize: 13, fontWeight: tab === t ? 700 : 500,
+            whiteSpace: 'nowrap',
+          }}>{tabLabel(t)}</button>
+        ))}
+      </div>
+
+      {tab === 'batch' && <BatchReport />}
+      {tab === 'shift' && <ShiftReport />}
+
+      {isAnalyticsTab && (
+      <>
       {/* Date range */}
       <div className="glass-card" style={{ padding: '14px 16px', marginBottom: 18 }}>
         <div className="reports-date-row">
@@ -146,19 +207,6 @@ export default function Reports() {
           <div style={{ fontSize: 22, fontWeight: 800, color: varColor(netVariance, totalPlanned) }}>{varText(netVariance, totalPlanned)} <span style={{ fontSize: 13, color: 'var(--muted)' }}>m³</span></div>
           <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{isWithinTolerance(netVariance, totalPlanned, tolerance) ? 'on target' : netVariance < 0 ? 'short delivery' : 'over delivery'}</div>
         </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="reports-tabs">
-        {(['client-wise', 'grade-wise', 'dispatch', 'trip-timing', 'production', 'fuel'] as ReportTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '9px 12px', background: tab === t ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'transparent',
-            border: tab === t ? '1px solid color-mix(in srgb, var(--gold) 25%, transparent)' : '1px solid transparent',
-            borderRadius: 9, cursor: 'pointer',
-            color: tab === t ? 'var(--gold)' : 'var(--muted)', fontSize: 13, fontWeight: tab === t ? 700 : 500,
-            whiteSpace: 'nowrap',
-          }}>{t.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}</button>
-        ))}
       </div>
 
       {loading && <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '40px', fontSize: 13 }}>Loading…</div>}
@@ -428,6 +476,8 @@ export default function Reports() {
             </div>
           )}
         </div>
+      )}
+      </>
       )}
     </div>
   );

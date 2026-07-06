@@ -25,12 +25,10 @@ const Dispatch       = lazy(() => import('@/pages/Dispatch'));
 const Clients        = lazy(() => import('@/pages/Clients'));
 const Vehicles       = lazy(() => import('@/pages/Vehicles'));
 const Drivers        = lazy(() => import('@/pages/Drivers'));
-const BatchReport    = lazy(() => import('@/pages/BatchReport'));
 const MixDesign      = lazy(() => import('@/pages/MixDesign'));
 const Reports        = lazy(() => import('@/pages/Reports'));
 const FreshnessGuard = lazy(() => import('@/pages/FreshnessGuard'));
 const DemandForecast = lazy(() => import('@/pages/DemandForecast'));
-const ShiftReport    = lazy(() => import('@/pages/ShiftReport'));
 const ChallanPrint   = lazy(() => import('@/pages/ChallanPrint'));
 const MyOrders       = lazy(() => import('@/pages/MyOrders'));
 const MyTrips        = lazy(() => import('@/pages/MyTrips'));
@@ -48,7 +46,6 @@ const Kiosk          = lazy(() => import('@/pages/Kiosk'));
 const SsoCallback    = lazy(() => import('@/pages/SsoCallback'));
 const TrackTrip      = lazy(() => import('@/pages/TrackTrip'));
 const Attendance     = lazy(() => import('@/pages/Attendance'));
-const LiveDrivers    = lazy(() => import('@/pages/LiveDrivers'));
 const CommandCenter  = lazy(() => import('@/pages/CommandCenter'));
 const DriverHome     = lazy(() => import('@/pages/DriverHome'));
 const DriverExpenses = lazy(() => import('@/pages/DriverExpenses'));
@@ -131,14 +128,14 @@ function ProtectedRoutes() {
         <Route path="/clients"      component={() => <GuardedRoute path="/clients"      component={Clients}     />} />
         <Route path="/vehicles"     component={() => <GuardedRoute path="/vehicles"     component={Vehicles}    />} />
         <Route path="/drivers"      component={() => <GuardedRoute path="/drivers"      component={Drivers}     />} />
-        <Route path="/batch-report" component={() => <GuardedRoute path="/batch-report" component={BatchReport} />} />
+        <Route path="/batch-report"><Redirect to="/reports?tab=batch" /></Route>
         <Route path="/attendance"   component={() => <GuardedRoute path="/attendance"   component={Attendance}  />} />
-        <Route path="/live-drivers" component={() => <GuardedRoute path="/live-drivers" component={LiveDrivers} />} />
+        <Route path="/live-drivers"><Redirect to="/attendance?tab=live" /></Route>
         <Route path="/mix-design"   component={() => <GuardedRoute path="/mix-design"   component={MixDesign}   />} />
         <Route path="/reports"      component={() => <GuardedRoute path="/reports"      component={Reports}     />} />
         <Route path="/freshness"    component={() => <GuardedRoute path="/freshness"    component={FreshnessGuard}  />} />
         <Route path="/forecast"     component={() => <GuardedRoute path="/forecast"     component={DemandForecast}  />} />
-        <Route path="/shift-report" component={() => <GuardedRoute path="/shift-report" component={ShiftReport} />} />
+        <Route path="/shift-report"><Redirect to="/reports?tab=shift" /></Route>
         <Route path="/recurring"    component={() => <GuardedRoute path="/recurring"    component={RecurringAdmin}  />} />
         <Route path="/fuel-log"     component={() => <GuardedRoute path="/fuel-log"     component={FuelLog}         />} />
         <Route path="/users"        component={() => <GuardedRoute path="/users"        component={Users}           />} />

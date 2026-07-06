@@ -18,7 +18,7 @@ export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   // Supervisor oversees plant operations & dispatch (no user/plant admin).
   supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/profile'],
   dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile'],
-  plant_operator: ['/', '/freshness', '/batch-report', '/attendance', '/mix-design', '/shift-report', '/profile'],
+  plant_operator: ['/', '/freshness', '/batch-report', '/attendance', '/mix-design', '/shift-report', '/reports', '/profile'],
   // Accountant is a read-only finance role: reports/analytics + delivery
   // documents (for billing reconciliation) and their own profile. No writes.
   accountant:     ['/reports', '/challans', '/expense-review', '/profile'],

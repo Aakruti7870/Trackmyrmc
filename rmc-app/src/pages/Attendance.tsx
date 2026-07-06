@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { LogIn, LogOut, CalendarClock, Clock, RefreshCw } from 'lucide-react';
+import { useSearch } from 'wouter';
+import { LogIn, LogOut, CalendarClock, Clock, RefreshCw, Radio } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import LiveDrivers from './LiveDrivers';
 
 interface AttendanceRecord {
   id: number;
@@ -63,6 +65,14 @@ function duration(from: string, to: string | null): string {
 export default function Attendance() {
   const { user } = useAuth();
   const canViewReport = user ? REPORT_ROLES.has(user.role) : false;
+  // Live Drivers is folded in as a staff-only tab; the roles that may see the
+  // real-time GPS grid are exactly the ones that already see the plant report.
+  const canLive = canViewReport;
+
+  const search = useSearch();
+  const [tab, setTab] = useState<'me' | 'live'>(
+    () => (canLive && new URLSearchParams(search).get('tab') === 'live' ? 'live' : 'me'),
+  );
 
   const [status, setStatus] = useState<MyStatus | null>(null);
   const [report, setReport] = useState<ReportRow[]>([]);
@@ -155,6 +165,25 @@ export default function Attendance() {
         </div>
       </div>
 
+      {canLive && (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--line)' }}>
+          {([['me', 'Attendance', CalendarClock], ['live', 'Live Drivers', Radio]] as const).map(([key, label, Icon]) => (
+            <button key={key} onClick={() => setTab(key)} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 14px', cursor: 'pointer',
+              background: 'none', border: 'none', marginBottom: -1,
+              borderBottom: tab === key ? '2px solid var(--gold)' : '2px solid transparent',
+              color: tab === key ? 'var(--text)' : 'var(--muted)', fontSize: 13, fontWeight: tab === key ? 800 : 600,
+            }}>
+              <Icon size={15} /> {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {canLive && tab === 'live' && <LiveDrivers />}
+
+      {(!canLive || tab === 'me') && (
+      <>
       {error && (
         <div style={{
           padding: '10px 14px', borderRadius: 10, marginBottom: 14, fontSize: 13,
@@ -261,6 +290,8 @@ export default function Attendance() {
           </div>
           <RecordTable rows={report} showWho />
         </>
+      )}
+      </>
       )}
     </div>
   );

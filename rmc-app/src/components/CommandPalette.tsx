@@ -72,7 +72,7 @@ export default function CommandPalette() {
       { id: 'n-clients', label: 'Clients', group: 'Navigate', icon: Users, path: '/clients', run: () => go('/clients') },
       { id: 'n-fleet', label: 'Fleet', group: 'Navigate', icon: CarFront, path: '/vehicles', run: () => go('/vehicles') },
       { id: 'n-drivers', label: 'Drivers', group: 'Navigate', icon: UserCheck, path: '/drivers', run: () => go('/drivers') },
-      { id: 'n-prod', label: 'Production', group: 'Navigate', icon: FileText, path: '/batch-report', run: () => go('/batch-report') },
+      { id: 'n-prod', label: 'Production', group: 'Navigate', icon: FileText, path: '/reports', run: () => go('/reports?tab=batch') },
       { id: 'n-mix', label: 'Mix Design', group: 'Navigate', icon: FlaskConical, path: '/mix-design', run: () => go('/mix-design') },
       { id: 'n-reports', label: 'Reports', group: 'Navigate', icon: BarChart3, path: '/reports', run: () => go('/reports') },
       { id: 'n-users', label: 'Users', group: 'Navigate', icon: ShieldCheck, path: '/users', run: () => go('/users') },

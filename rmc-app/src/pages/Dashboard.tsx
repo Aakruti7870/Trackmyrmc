@@ -153,7 +153,7 @@ export default function Dashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {user && canAccess(user.role, '/shift-report') && (
             <button
-              onClick={() => navigate('/shift-report')}
+              onClick={() => navigate('/reports?tab=shift')}
               title="Open the shift handover report"
               style={{
                 display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 999, cursor: 'pointer',
