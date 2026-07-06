@@ -126,6 +126,12 @@ uri = "file://artifacts/mockup-sandbox/public/images/industrial-concrete-bg.png"
 type = "image"
 title = "Dark industrial concrete texture"
 
+[[generated]]
+id = "OCBd05lxH-P-uB-xeXf0B"
+uri = "file://artifacts/mockup-sandbox/public/images/rmc-hero-truck.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "oaHn9kwGbYywEoOBjUmqg"
 uri = "file://screenshots/theme-1-midnight-gold.jpg"
@@ -425,3 +431,9 @@ id = "3KyHNGugw0utoXBBMrqly"
 uri = "file://docs/ROLES_AND_LOGIN.md"
 type = "text"
 title = "Roles, Login & Permissions — Full Reference"
+
+[[outputs]]
+id = "EbZueT3Fzx6Qxu2NXfJ0a"
+uri = "file://attached_assets/screenshots/replit_com_login.png"
+type = "image"
+title = "ignore"
