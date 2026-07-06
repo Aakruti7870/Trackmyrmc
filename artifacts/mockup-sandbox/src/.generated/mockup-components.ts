@@ -11,6 +11,7 @@ export const modules: ModuleMap = {
   "./components/mockups/concrete-king-deck/SiteBrutalistDeck.tsx": () => import("../components/mockups/concrete-king-deck/SiteBrutalistDeck.tsx"),
   "./components/mockups/concrete-king-deck/SoftSereneDeck.tsx": () => import("../components/mockups/concrete-king-deck/SoftSereneDeck.tsx"),
   "./components/mockups/customer-home/DeliveryStyle.tsx": () => import("../components/mockups/customer-home/DeliveryStyle.tsx"),
+  "./components/mockups/dispatcher-home/DeliveryStyle.tsx": () => import("../components/mockups/dispatcher-home/DeliveryStyle.tsx"),
   "./components/mockups/driver-home/DeliveryStyle.tsx": () => import("../components/mockups/driver-home/DeliveryStyle.tsx"),
   "./components/mockups/login-screens/DarkPremium.tsx": () => import("../components/mockups/login-screens/DarkPremium.tsx"),
   "./components/mockups/login-screens/FintechClean.tsx": () => import("../components/mockups/login-screens/FintechClean.tsx"),
