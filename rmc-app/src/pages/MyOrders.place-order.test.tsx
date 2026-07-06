@@ -19,8 +19,13 @@ async function fillRequiredDelivery(
   )!;
   await user.selectOptions(paymentSelect, 'Cash');
   await user.type(screen.getByPlaceholderText(/special instructions/i), 'Call on arrival');
-  // Drop the map pin via the geolocation shortcut (mocked in beforeEach).
-  await user.click(screen.getByRole('button', { name: /my location/i }));
+  // Drop the map pin via the full-screen delivery picker: open it from the order
+  // form, use the current-location shortcut (geolocation is mocked in
+  // beforeEach), then confirm the pin. The picker is a plain overlay (no nested
+  // <form>), so confirming autofills the coords without submitting the order.
+  await user.click(screen.getByRole('button', { name: /search delivery location/i }));
+  await user.click(await screen.findByRole('button', { name: /use current location/i }));
+  await user.click(await screen.findByRole('button', { name: /confirm delivery location/i }));
 }
 
 // The order modal has two <select> comboboxes (concrete grade + delivery site),
@@ -72,6 +77,11 @@ beforeEach(() => {
     configurable: true,
     value: { getCurrentPosition: (ok: PositionCallback) => ok({ coords: { latitude: 18.52, longitude: 73.85 } } as GeolocationPosition) },
   });
+  // The picker reverse-geocodes the dropped pin via Nominatim; stub fetch so it
+  // resolves an address instantly instead of hitting the network in jsdom.
+  global.fetch = vi.fn().mockResolvedValue({
+    ok: true, json: async () => ({ display_name: 'MG Road, Pune' }),
+  } as unknown as Response);
   vi.mocked(api.get).mockImplementation((path: string) => {
     // Only the ledger/config endpoints return objects; every other endpoint
     // MyOrders loads (orders, challans, sites, recurring, positions/mine) is an
