@@ -13,6 +13,7 @@ import {
   TEAL_SOFT, GREEN,
 } from './deliveryKit';
 import { statusColor, statusBg, statusLabel } from './format';
+import LiveFleetMap from '@/components/LiveFleetMap';
 
 function orderSteps(status: string): { label: string; icon: React.ReactNode; state: StepState }[] {
   const done = status === 'completed';
@@ -95,6 +96,19 @@ export default function CustomerHome() {
         {can('/my-orders') && <QuickAction label="Reorder" icon={<RotateCcw className="h-6 w-6" />} onClick={() => go('/my-orders')} />}
         {can('/profile') && <QuickAction label="Support" icon={<Headphones className="h-6 w-6" />} onClick={() => go('/profile')} />}
       </QuickGrid>
+
+      {/* Live deliveries — the customer's own in-transit transit mixers on a
+          Google Map (server-scoped to their loads only). */}
+      {can('/my-orders') && (
+        <>
+          <SectionHead title="Live Deliveries" actionLabel="Track All" onAction={() => go('/my-orders?tab=deliveries')} />
+          <LiveFleetMap
+            endpoint="/me/live-fleet-map"
+            title="Track your concrete, live"
+            subtitle="Your transit mixers on the road — live GPS, driver & status"
+          />
+        </>
+      )}
 
       {/* My Orders */}
       {primary && (

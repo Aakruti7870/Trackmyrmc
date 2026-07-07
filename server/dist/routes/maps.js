@@ -79,6 +79,58 @@ router.get('/live-fleet-map', requireAuth, requireRole(...FLEET_ROLES), async (r
     });
     res.json(fleet);
 });
+// A customer's own live fleet: only the in-transit (dispatched) loads that
+// belong to the signed-in client, with the latest GPS fix folded in from the
+// live-position store. Scoped strictly by the account's linked client id — a
+// customer never sees another client's or the plant-wide fleet. Returns [] when
+// the account isn't linked to a client. Mirrors the staff /live-fleet-map shape
+// so the same UI renders it.
+router.get('/me/live-fleet-map', requireAuth, requireRole('client'), async (req, res) => {
+    const clientId = req.user.linkedClientId ?? null;
+    if (clientId == null) {
+        res.json([]);
+        return;
+    }
+    const rows = await db
+        .select({
+        id: challans.id,
+        challanNo: challans.challanNo,
+        status: challans.status,
+        plantId: challans.plantId,
+        plantName: plants.name,
+        vehicleNo: vehicles.vehicleNo,
+        driverName: drivers.name,
+        siteName: sites.name,
+        siteLat: sites.latitude,
+        siteLng: sites.longitude,
+    })
+        .from(challans)
+        .leftJoin(plants, eq(challans.plantId, plants.id))
+        .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
+        .leftJoin(drivers, eq(challans.driverId, drivers.id))
+        .leftJoin(sites, eq(challans.siteId, sites.id))
+        .where(and(eq(challans.status, 'dispatched'), eq(challans.clientId, clientId)));
+    const fleet = rows.map(r => {
+        const pos = getLivePosition(r.id);
+        return {
+            challanId: r.id,
+            challanNo: r.challanNo,
+            plantId: r.plantId,
+            plantName: r.plantName,
+            vehicleNo: r.vehicleNo,
+            driverName: r.driverName,
+            status: pos?.status ?? r.status,
+            lat: pos?.lat ?? null,
+            lng: pos?.lng ?? null,
+            speed: pos?.speed ?? null,
+            updatedAt: pos?.updatedAt ?? null,
+            siteName: r.siteName,
+            siteLat: r.siteLat != null ? Number(r.siteLat) : null,
+            siteLng: r.siteLng != null ? Number(r.siteLng) : null,
+        };
+    });
+    res.json(fleet);
+});
 // Plant network map: the FULL onboarded plant network with online/offline
 // (open-now) status — not just customer-visible plants. Super Admin (authority)
 // ONLY; plant staff have no cross-plant visibility, so the route rejects

@@ -65,17 +65,30 @@ function gmapsUrl(t: FleetTruck): string | null {
   return `https://www.google.com/maps/search/?api=1&query=${t.lat},${t.lng}`;
 }
 
-export default function LiveFleetMap() {
+interface LiveFleetMapProps {
+  // Data source. Staff use the plant-scoped '/live-fleet-map' (default);
+  // customers pass '/me/live-fleet-map', which the server scopes to their own
+  // in-transit loads only.
+  endpoint?: string;
+  title?: string;
+  subtitle?: string;
+}
+
+export default function LiveFleetMap({
+  endpoint = '/live-fleet-map',
+  title = 'Live Fleet Google Map',
+  subtitle = 'Transit mixers on the road — live GPS, driver & status',
+}: LiveFleetMapProps = {}) {
   const [trucks, setTrucks] = useState<FleetTruck[]>([]);
   const [loaded, setLoaded] = useState(false);
   const { subscribe } = useSSE();
 
   const reload = useCallback(() => {
-    api.get<FleetTruck[]>('/live-fleet-map')
+    api.get<FleetTruck[]>(endpoint)
       .then(d => setTrucks(Array.isArray(d) ? d : []))
       .catch(() => { /* leave last-known list on transient errors */ })
       .finally(() => setLoaded(true));
-  }, []);
+  }, [endpoint]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -110,8 +123,8 @@ export default function LiveFleetMap() {
             <Truck size={17} />
           </div>
           <div style={{ minWidth: 0 }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>Live Fleet Google Map</h3>
-            <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Transit mixers on the road — live GPS, driver &amp; status</div>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>{title}</h3>
+            <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{subtitle}</div>
           </div>
         </div>
         <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11.5, fontWeight: 700, background: 'rgba(56,189,248,.12)', color: 'var(--blue)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>

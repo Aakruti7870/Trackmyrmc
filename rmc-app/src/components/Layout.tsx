@@ -465,7 +465,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <AIHelpAgent />
       {/* Mobile header — unified delivery-style chrome for every role on phones
           (and at all widths for drivers, who have no desktop sidebar). */}
-      <DeliveryHeader onProfile={() => setMobileOpen(true)} />
+      <DeliveryHeader onProfile={() => setMobileOpen(o => !o)} />
 
       <div style={{ display: 'flex', flex: 1 }}>
         {/* Desktop sidebar — every non-driver role. Drivers get the bottom tab
@@ -515,7 +515,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Unified delivery-style bottom tab bar with role-aware center FAB.
           Shown on phones for every role; at all widths for drivers. */}
-      <DeliveryBottomNav onMore={() => setMobileOpen(true)} />
+      <DeliveryBottomNav onMore={() => setMobileOpen(o => !o)} />
 
       <style>{`
         /* Driver main always clears the fixed bottom tab bar (all widths). */
