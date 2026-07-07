@@ -132,6 +132,24 @@ uri = "file://artifacts/mockup-sandbox/public/images/rmc-hero-truck.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "HNNydRkPgRmUxd0qalTH0"
+uri = "file://artifacts/mockup-sandbox/public/images/plant-thumb-1.png"
+type = "image"
+title = "Modern concrete plant isometric illustration"
+
+[[generated]]
+id = "C9vn91CyEJeerF7RCrCz0"
+uri = "file://artifacts/mockup-sandbox/public/images/plant-thumb-2.png"
+type = "image"
+title = "Concrete mixer truck illustration"
+
+[[generated]]
+id = "VJMrTusz0FPwEMDX_i5-A"
+uri = "file://artifacts/mockup-sandbox/public/images/map-bg.png"
+type = "image"
+title = "City map background"
+
 [[outputs]]
 id = "oaHn9kwGbYywEoOBjUmqg"
 uri = "file://screenshots/theme-1-midnight-gold.jpg"
