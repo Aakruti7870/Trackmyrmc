@@ -455,3 +455,9 @@ id = "UfjSnlvBeGe0efNNL-bTn"
 uri = "file://exports/trackmyrmc-deploy-files.zip"
 type = "unspecified"
 title = "TrackMyRMC deploy files (Dockerfile, cloudbuild.yaml, deploy/)"
+
+[[outputs]]
+id = "PNLfa6s7DA8RUnZ9YplUt"
+uri = "file://exports/concrete-king-cloudrun.zip"
+type = "unspecified"
+title = "concrete-king-cloudrun.zip — full Cloud Run deployment source"
