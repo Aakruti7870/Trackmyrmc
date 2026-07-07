@@ -97,18 +97,9 @@ export default function CustomerHome() {
         {can('/profile') && <QuickAction label="Support" icon={<Headphones className="h-6 w-6" />} onClick={() => go('/profile')} />}
       </QuickGrid>
 
-      {/* Live deliveries — the customer's own in-transit transit mixers on a
-          Google Map (server-scoped to their loads only). */}
-      {can('/my-orders') && (
-        <>
-          <SectionHead title="Live Deliveries" actionLabel="Track All" onAction={() => go('/my-orders?tab=deliveries')} />
-          <LiveFleetMap
-            endpoint="/me/live-fleet-map"
-            title="Track your concrete, live"
-            subtitle="Your transit mixers on the road — live GPS, driver & status"
-          />
-        </>
-      )}
+      {/* Live Fleet Google Map — the exact staff card, scoped server-side to
+          this customer's own in-transit loads (GET /api/me/live-fleet-map). */}
+      {can('/my-orders') && <LiveFleetMap endpoint="/me/live-fleet-map" />}
 
       {/* My Orders */}
       {primary && (

@@ -85,6 +85,34 @@ test('live-fleet-map: drivers and clients are rejected', async () => {
     const asDriver = await request(app).get('/api/live-fleet-map').set('Authorization', bearer(driverUser));
     assert.equal(asDriver.status, 403);
 });
+test('me/live-fleet-map: a client sees only their own dispatched loads', async () => {
+    const a = await seedPlantWithTruck('A', '19.0000000', '73.0000000');
+    const b = await seedPlantWithTruck('B', '18.5000000', '73.8000000');
+    // Link a customer account to plant A's client (the one that owns truck TM-A).
+    const [ownerRow] = await db.select({ clientId: challans.clientId }).from(challans).where(sql `${challans.id} = ${a.challan.id}`);
+    const clientUser = await makeUser('client', 'cust-a@test.com', null);
+    await db.update(users).set({ linkedClientId: ownerRow.clientId }).where(sql `${users.id} = ${clientUser.id}`);
+    const res = await request(app).get('/api/me/live-fleet-map').set('Authorization', bearer(clientUser));
+    assert.equal(res.status, 200);
+    const vehicles = res.body.map(t => t.vehicleNo);
+    assert.deepEqual(vehicles, ['TM-A']);
+    // The other client's truck must never leak through.
+    assert.ok(!vehicles.includes('TM-B'));
+    void b;
+});
+test('me/live-fleet-map: an unlinked client and non-clients fail closed / are rejected', async () => {
+    await seedPlantWithTruck('A', '19.0000000', '73.0000000');
+    // A client account not yet linked to a client record sees nothing.
+    const unlinked = await makeUser('client', 'unlinked@test.com', null);
+    const asUnlinked = await request(app).get('/api/me/live-fleet-map').set('Authorization', bearer(unlinked));
+    assert.equal(asUnlinked.status, 200);
+    assert.deepEqual(asUnlinked.body, []);
+    // Staff and drivers cannot reach the customer surface.
+    const admin = await makeUser('admin', 'admin-mine@test.com', 1);
+    const driver = await makeUser('driver', 'driver-mine@test.com', null);
+    assert.equal((await request(app).get('/api/me/live-fleet-map').set('Authorization', bearer(admin))).status, 403);
+    assert.equal((await request(app).get('/api/me/live-fleet-map').set('Authorization', bearer(driver))).status, 403);
+});
 test('plant-network-map: Super Admin only', async () => {
     await seedPlantWithTruck('A', '19.0000000', '73.0000000');
     await seedPlantWithTruck('B', '18.5000000', '73.8000000');
