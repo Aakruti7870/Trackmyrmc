@@ -154,13 +154,43 @@ gcloud run deploy concreteking \
   --cpu=1 --memory=1Gi \
   --add-cloudsql-instances=trackmyrmc-production:asia-south1:trackmyrmc-prod-db \
   --set-env-vars=^|^NODE_ENV=production|APP_URL=https://trackmyrmc.com|PUBLIC_URL=https://trackmyrmc.com|CORS_ALLOWED_ORIGINS=https://trackmyrmc.com,https://www.trackmyrmc.com \
-  --set-secrets=DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest
+  --set-secrets=DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest,SESSION_SECRET=SESSION_SECRET:latest,CLERK_SECRET_KEY=CLERK_SECRET_KEY:latest,GOOGLE_MAPS_API_KEY=GOOGLE_MAPS_API_KEY:latest,GOOGLE_PLACES_API_KEY=GOOGLE_PLACES_API_KEY:latest,AI_INTEGRATIONS_GEMINI_API_KEY=AI_INTEGRATIONS_GEMINI_API_KEY:latest,AI_INTEGRATIONS_GEMINI_BASE_URL=AI_INTEGRATIONS_GEMINI_BASE_URL:latest,DEFAULT_OBJECT_STORAGE_BUCKET_ID=DEFAULT_OBJECT_STORAGE_BUCKET_ID:latest,PRIVATE_OBJECT_DIR=PRIVATE_OBJECT_DIR:latest,PUBLIC_OBJECT_SEARCH_PATHS=PUBLIC_OBJECT_SEARCH_PATHS:latest,SMTP_FROM=SMTP_FROM:latest,SMTP_HOST=SMTP_HOST:latest,SMTP_PORT=SMTP_PORT:latest,SMTP_USER=SMTP_USER:latest,SMTP_PASS=SMTP_PASS:latest,SMTP_SYNC_FROM_ENV=SMTP_SYNC_FROM_ENV:latest,TWILIO_ACCOUNT_SID=TWILIO_ACCOUNT_SID:latest,TWILIO_WHATSAPP_FROM=TWILIO_WHATSAPP_FROM:latest,WHATSAPP_META_ACCESS_TOKEN=WHATSAPP_META_ACCESS_TOKEN:latest,WHATSAPP_META_REGISTER_PIN=WHATSAPP_META_REGISTER_PIN:latest,WHATSAPP_META_VERIFY_TOKEN=WHATSAPP_META_VERIFY_TOKEN:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest,MANUS_API_KEY=MANUS_API_KEY:latest,SLACK_TEST_API_KEY=SLACK_TEST_API_KEY:latest,AUTHORITY_BOOTSTRAP_PASSWORD=AUTHORITY_BOOTSTRAP_PASSWORD:latest,AUTHORITY_EMAILS=AUTHORITY_EMAILS:latest,REVIEW_DEMO_EMAIL=REVIEW_DEMO_EMAIL:latest,REVIEW_DEMO_OTP=REVIEW_DEMO_OTP:latest
 ```
-Extend `--set-secrets` with the rest from `deploy/env.example` (e.g. `SMTP_PASS`,
-`WHATSAPP_META_ACCESS_TOKEN`, `TWILIO_AUTH_TOKEN`, `VAPID_PRIVATE_KEY`, …) so every
-feature keeps working. **Reminder:** the `DATABASE_URL` secret must use the socket
-form from DB Path 0 (`…@localhost/trackmyrmc?host=/cloudsql/…`), or the app will try
-SSL over the socket and fail to connect.
+**Reminder:** the `DATABASE_URL` secret must use the socket form from DB Path 0
+(`…@localhost/trackmyrmc?host=/cloudsql/…`), or the app will try SSL over the socket
+and fail to connect.
+
+#### Secrets the code reads but that are NOT yet in Secret Manager
+Create these and append them to `--set-secrets` (same `KEY=NAME:latest` form), or the
+matching feature stays disabled (the app still boots — only JWT_SECRET/DATABASE_URL
+are boot-critical):
+
+| Secret | Feature affected |
+|---|---|
+| `WHATSAPP_META_PHONE_NUMBER_ID` | Meta WhatsApp send (OTP + notifications) — **required** for any Meta WhatsApp message |
+| `WHATSAPP_META_OTP_TEMPLATE` | WhatsApp OTP login (approved AUTHENTICATION template name) |
+| `TWILIO_AUTH_TOKEN` | Twilio SMS OTP (customer phone login fallback) |
+| `TWILIO_VERIFY_SERVICE_SID` | Twilio Verify service (if using Verify for OTP) |
+| `VAPID_PUBLIC_KEY` | Web push — needs BOTH keys; you only have `VAPID_PRIVATE_KEY` |
+| `WHATSAPP_META_APP_SECRET` | Inbound WhatsApp webhook signature verification |
+
+Optional (have sane defaults / fallbacks, add only if you need them):
+`WHATSAPP_META_API_VERSION` (default `v21.0`), `WHATSAPP_META_LANG` (default `en`),
+`VAPID_SUBJECT` (default `mailto:`), `GOOGLE_MAPS_BROWSER_KEY` (falls back to
+`GOOGLE_MAPS_API_KEY`), `GOOGLE_MAPS_MAP_ID`, `KYC_*` (KYC disabled unless
+`KYC_ENABLED=true`), `LIVE_GPS_STALE_MS`.
+
+Created-but-unused (present in Secret Manager, not read by current code — harmless):
+`SESSION_SECRET`, `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `MANUS_API_KEY`,
+`SLACK_TEST_API_KEY`, `WHATSAPP_META_REGISTER_PIN`.
+
+#### Frontend (build-time) values — NOT runtime secrets
+The React app reads `VITE_*` vars at **build time** (baked into the bundle by
+`vite build` inside the Docker image), so `--set-secrets` on Cloud Run does NOT reach
+them. If you use Clerk SSO in the browser, `VITE_CLERK_PUBLISHABLE_KEY` (a public,
+non-secret key) must be present during the build — pass it as a Docker build arg /
+Cloud Build substitution, not as a Cloud Run secret. `VITE_API_BASE_URL` stays empty
+for the same-origin web build.
 
 **Option B — sidecar (DB Path 1, `localhost`):** build & push the image (steps 1–2 of
 `cloudbuild.yaml`, or `gcloud builds submit`), then edit `deploy/service.yaml` (image

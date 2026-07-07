@@ -4,9 +4,9 @@
 #   gcloud builds submit --config cloudbuild.yaml \
 #     --substitutions=_REGION=asia-south1,_REPO=concreteking,_SERVICE=concreteking,_CLOUDSQL_INSTANCE=trackmyrmc-production:asia-south1:trackmyrmc-prod-db
 #
-# Non-DATABASE secrets/env can be attached to the service separately (see
-# deploy/GCLOUD_DEPLOY.md) so they are never baked into the image. This step
-# already wires DATABASE_URL + JWT_SECRET from Secret Manager and connects to
+# Secrets are injected from Secret Manager at runtime via --set-secrets (see the
+# deploy step below and deploy/GCLOUD_DEPLOY.md) so they are never baked into the
+# image. This step wires the full set of Secret Manager secrets and connects to
 # Cloud SQL over the built-in Auth-proxy Unix socket.
 #
 # DATABASE CONNECTIVITY: this deploy uses Cloud Run's built-in Cloud SQL
@@ -51,9 +51,8 @@ steps:
   #      (it would stop if the service scaled to zero).
   #    - timeout=3600 supports long-lived SSE connections.
   #    - add-cloudsql-instances mounts the Cloud SQL Unix socket at /cloudsql/<inst>.
-  #    - DATABASE_URL + JWT_SECRET come from Secret Manager (never baked in).
-  #    Extend --set-secrets with the rest from deploy/env.example for full features
-  #    (SMTP_PASS, WHATSAPP_META_ACCESS_TOKEN, TWILIO_AUTH_TOKEN, VAPID_PRIVATE_KEY, ...).
+  #    - All secrets come from Secret Manager via --set-secrets (never baked in).
+  #      To add more later, create the secret and append KEY=NAME:latest to that arg.
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: gcloud
     args:
@@ -69,10 +68,25 @@ steps:
       - "--cpu=1"
       - "--memory=1Gi"
       - "--add-cloudsql-instances=${_CLOUDSQL_INSTANCE}"
-      # CORS_ALLOWED_ORIGINS holds a comma, so use gcloud's alternate-delimiter
-      # form (^|^ = split on `|`) — a plain comma would be mis-parsed as a new var.
+      # Non-secret runtime config stays as plain env vars. CORS_ALLOWED_ORIGINS holds a
+      # comma, so use gcloud's alternate-delimiter form (^|^ = split on `|`) — a plain
+      # comma would be mis-parsed as a new var.
       - "--set-env-vars=^|^NODE_ENV=production|APP_URL=https://trackmyrmc.com|PUBLIC_URL=https://trackmyrmc.com|CORS_ALLOWED_ORIGINS=https://trackmyrmc.com,https://www.trackmyrmc.com"
-      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest"
+      # Every secret injected from Secret Manager (KEY=SECRET_NAME:VERSION). This list
+      # mirrors the secrets that exist in Secret Manager AND are read by server/src.
+      # NOTE: APP_URL is set as a plain env var above (per requirement), so the APP_URL
+      # secret is intentionally NOT referenced here (a var can't be both).
+      # NOTE: these secrets are also present in Secret Manager but are NOT read by the
+      # current code, so injecting them is harmless but unnecessary — included for
+      # completeness: SESSION_SECRET, DEFAULT_OBJECT_STORAGE_BUCKET_ID, MANUS_API_KEY,
+      # SLACK_TEST_API_KEY, WHATSAPP_META_REGISTER_PIN.
+      # MISSING from Secret Manager but READ by the code (create them, then append to
+      # this list, or the matching feature stays disabled — see deploy/GCLOUD_DEPLOY.md):
+      #   WHATSAPP_META_PHONE_NUMBER_ID, WHATSAPP_META_OTP_TEMPLATE  (Meta WhatsApp OTP/send)
+      #   TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID               (Twilio SMS OTP fallback)
+      #   VAPID_PUBLIC_KEY                                           (web push needs BOTH keys)
+      #   WHATSAPP_META_APP_SECRET                                   (inbound webhook signature)
+      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest,SESSION_SECRET=SESSION_SECRET:latest,CLERK_SECRET_KEY=CLERK_SECRET_KEY:latest,GOOGLE_MAPS_API_KEY=GOOGLE_MAPS_API_KEY:latest,GOOGLE_PLACES_API_KEY=GOOGLE_PLACES_API_KEY:latest,AI_INTEGRATIONS_GEMINI_API_KEY=AI_INTEGRATIONS_GEMINI_API_KEY:latest,AI_INTEGRATIONS_GEMINI_BASE_URL=AI_INTEGRATIONS_GEMINI_BASE_URL:latest,DEFAULT_OBJECT_STORAGE_BUCKET_ID=DEFAULT_OBJECT_STORAGE_BUCKET_ID:latest,PRIVATE_OBJECT_DIR=PRIVATE_OBJECT_DIR:latest,PUBLIC_OBJECT_SEARCH_PATHS=PUBLIC_OBJECT_SEARCH_PATHS:latest,SMTP_FROM=SMTP_FROM:latest,SMTP_HOST=SMTP_HOST:latest,SMTP_PORT=SMTP_PORT:latest,SMTP_USER=SMTP_USER:latest,SMTP_PASS=SMTP_PASS:latest,SMTP_SYNC_FROM_ENV=SMTP_SYNC_FROM_ENV:latest,TWILIO_ACCOUNT_SID=TWILIO_ACCOUNT_SID:latest,TWILIO_WHATSAPP_FROM=TWILIO_WHATSAPP_FROM:latest,WHATSAPP_META_ACCESS_TOKEN=WHATSAPP_META_ACCESS_TOKEN:latest,WHATSAPP_META_REGISTER_PIN=WHATSAPP_META_REGISTER_PIN:latest,WHATSAPP_META_VERIFY_TOKEN=WHATSAPP_META_VERIFY_TOKEN:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest,MANUS_API_KEY=MANUS_API_KEY:latest,SLACK_TEST_API_KEY=SLACK_TEST_API_KEY:latest,AUTHORITY_BOOTSTRAP_PASSWORD=AUTHORITY_BOOTSTRAP_PASSWORD:latest,AUTHORITY_EMAILS=AUTHORITY_EMAILS:latest,REVIEW_DEMO_EMAIL=REVIEW_DEMO_EMAIL:latest,REVIEW_DEMO_OTP=REVIEW_DEMO_OTP:latest"
 
 options:
   logging: CLOUD_LOGGING_ONLY
