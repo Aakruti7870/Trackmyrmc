@@ -13,11 +13,14 @@ describe('permissions — AUTHORITY super-role', () => {
     for (const path of probes) {
       expect(canAccess('authority', path)).toBe(canAccess('admin', path));
     }
-    // Authority owns everything admin can reach, with /command added on top.
-    expect(ROLE_ALLOWED_PATHS.authority).toEqual(['/command', ...ROLE_ALLOWED_PATHS.admin]);
-    // The Command Center is authority-only — admin (and lesser roles) cannot reach it.
+    // Authority owns everything admin can reach, with the exclusive /command
+    // Command Center and /kiosk Control Room added on top.
+    expect(ROLE_ALLOWED_PATHS.authority).toEqual(['/command', '/whatsapp', '/kiosk', ...ROLE_ALLOWED_PATHS.admin.filter((p) => p !== '/whatsapp')]);
+    // The Command Center + Control Room are authority-only — admin (and lesser roles) cannot reach them.
     expect(canAccess('authority', '/command')).toBe(true);
     expect(canAccess('admin', '/command')).toBe(false);
+    expect(canAccess('authority', '/kiosk')).toBe(true);
+    expect(canAccess('admin', '/kiosk')).toBe(false);
   });
 
   it('authority lands on the Command Center by default', () => {
