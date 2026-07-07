@@ -40,14 +40,45 @@ const FLAT_SURFACES = {
 
 /* Teal accent ramp (legacy --gold* key names). Kept close together so any
    gradient built from these stops renders essentially flat. Tuned for AA
-   contrast on white. */
+   contrast on white. The soft tints back the mobile delivery chrome / home
+   screens (deliveryKit reads them as var(--gold-soft/-tint/prompt-*)). */
 const FLAT_ACCENT = {
   '--gold-hi': '#12876f', '--gold-mid': '#0f766e', '--gold': '#0f766e', '--gold-dark': '#0d6560',
   '--glow-1': 'rgba(15,118,110,.16)', '--glow-2': 'transparent',
+  '--gold-soft': '#e7f2f0', '--gold-tint': '#eef4f2',
+  '--prompt-bg': '#f0f7f5', '--prompt-border': 'rgba(15,118,110,0.18)', '--prompt-icon-bg': '#d9ece8',
+};
+
+/* ===== Daylight — warm paper + terracotta accent, Outfit type. An opt-in
+   second theme: same flat white cards, but a softer editorial ink and a
+   terracotta accent so the WHOLE app (including the mobile chrome & home
+   screens) re-skins from this one token set. Semantics stay stable. ===== */
+const DAYLIGHT_SURFACES = {
+  '--shadow-rgb': '67,74,66',
+  '--glass-1': '#ffffff',
+  '--glass-2': '#ffffff',
+  '--glass-border': 'rgba(45,58,58,0.09)',
+  '--glass-hi': 'transparent',
+  '--glass-blur': 'none',
+  '--sidebar-1': '#ffffff',
+  '--sidebar-2': '#ffffff',
+  '--header-bg': 'rgba(253,251,247,.92)',
+  '--menu-bg': '#ffffff',
+  '--menu-hover': 'rgba(200,90,50,.08)',
+  '--overlay': 'rgba(45,58,58,.32)',
+  '--chip-bg': '#f4f2ec',
+  '--sheen': 'transparent',
+};
+
+const DAYLIGHT_ACCENT = {
+  '--gold-hi': '#d9683c', '--gold-mid': '#c85a32', '--gold': '#c85a32', '--gold-dark': '#b64d29',
+  '--glow-1': 'rgba(200,90,50,.16)', '--glow-2': 'transparent',
+  '--gold-soft': '#fff2eb', '--gold-tint': '#fbede6',
+  '--prompt-bg': '#fff4ee', '--prompt-border': 'rgba(200,90,50,0.20)', '--prompt-icon-bg': '#ffe3d5',
 };
 
 export const THEMES: Theme[] = [
-  /* ===== Simple — one flat warm-white theme (the whole app uses this) ===== */
+  /* ===== Simple — the original flat warm-white theme (default) ===== */
   {
     id: 'day',
     name: 'Simple',
@@ -63,6 +94,22 @@ export const THEMES: Theme[] = [
       ...FLAT_SURFACES,
     },
   },
+  /* ===== Daylight — warm paper + terracotta, Outfit type (opt-in) ===== */
+  {
+    id: 'daylight',
+    name: 'Daylight',
+    tagline: 'Warm · terracotta',
+    fontName: 'Outfit',
+    font: "'Outfit', system-ui, -apple-system, sans-serif",
+    tokens: {
+      '--bg-top': '#fdfbf7', '--bg': '#fdfbf7', '--bg-deep': '#f4f2ec',
+      '--panel': '#ffffff', '--panel2': '#faf7f2', '--surface': '#ffffff', '--line': 'rgba(45,58,58,0.09)',
+      '--text': '#2d3a3a', '--muted': '#7a8a8a',
+      ...DAYLIGHT_ACCENT,
+      ...SEMANTIC,
+      ...DAYLIGHT_SURFACES,
+    },
+  },
 ];
 
 const STORAGE_KEY = 'rmc-theme-v2';
@@ -70,6 +117,7 @@ const STORAGE_KEY = 'rmc-theme-v2';
 const FONT_URLS: Record<string, string> = {
   'Inter': 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap',
   'Sora': 'https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap',
+  'Outfit': 'https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap',
 };
 
 export function applyTheme(theme: Theme) {

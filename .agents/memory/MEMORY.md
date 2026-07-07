@@ -1,6 +1,6 @@
 - [RMC App Layout Fix](rmc-layout-fix.md) — Mobile header must NOT be a grid/flex child alongside sidebar; keep it above the flex row in a column container.
 - [Workbox runtimeCaching urlPattern](workbox-runtimecaching-urlpattern.md) — Workbox RegExp urlPatterns match the full href, not pathname; use a `({url})=>url.pathname.startsWith('/api')` callback or the rule silently no-ops.
-- [RMC runtime theming](rmc-theming.md) — single teal Day/Night theme under legacy --gold* keys; accent must be set in theme.tsx + index.css + Landing.css(.ck) + static index.html or a closer layer silently overrides var(--gold).
+- [RMC runtime theming](rmc-theming.md) — user-switchable flat themes (Simple teal default + Daylight terracotta) under legacy --gold* keys; deliveryKit + role-home screens must use tokens (not raw hex) or they won't re-skin; switchers auto-list THEMES.
 - [RMC 401 handling](rmc-401-handling.md) — global fetch wrapper clears session+redirects on 401, but only when a token was sent, so login's own 401 isn't hijacked.
 - [RMC last-admin guard](rmc-soft-delete-guard.md) — last-admin delete branch is unreachable via real API (self-delete shadows it); test it with a deletedAt+active admin actor and signToken.
 - [RMC server tests](rmc-server-tests.md) — `pnpm test` in server/ provisions a UNIQUE per-run `<db>_test_<pid>_<ts>` DB (safe to run concurrently with validation), pushes schema, runs node:test+supertest serially.

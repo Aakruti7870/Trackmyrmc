@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ClipboardList, Truck, Users, CarFront,
   FileText, BarChart3, UserCheck, LogOut, FlaskConical,
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, Repeat,
-  Timer, TrendingUp, Fuel, MapPin, Factory, Sun, Moon, CalendarClock,
+  Timer, TrendingUp, Fuel, MapPin, Factory, CalendarClock,
   Crown, Building2, HardHat, Wallet, User, Zap, MessageCircle,
   Home, Siren,
 } from 'lucide-react';
@@ -264,26 +264,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         : ALL_NAV_ITEMS.filter(item =>
             allowedPaths.includes(item.path) && (item.path !== '/whatsapp' || isPlatformStaff));
 
-  const SidebarContent = () => (
+  const SidebarContent = ({ mobile = false }: { mobile?: boolean } = {}) => (
     <>
-      {/* Brand */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-          <div style={{
-            flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 14,
-            boxShadow: '0 18px 38px color-mix(in srgb, var(--gold) 28%, transparent)',
-          }}>
-            <ConcreteKingLogo size={44} />
-          </div>
-          <div>
+      {/* Brand — hidden in the mobile "More" sheet (the delivery header already
+          carries the brand there, so we don't repeat the Concrete King mark). */}
+      <div style={{ marginBottom: mobile ? 14 : 28 }}>
+        {!mobile && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
             <div style={{
-              fontSize: 11, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase',
-              background: 'linear-gradient(90deg,var(--gold-hi),var(--gold),var(--text))',
-              WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
-            }}>{PLATFORM_NAME}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Command Center</div>
+              flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 14,
+              boxShadow: '0 18px 38px color-mix(in srgb, var(--gold) 28%, transparent)',
+            }}>
+              <ConcreteKingLogo size={44} />
+            </div>
+            <div>
+              <div style={{
+                fontSize: 11, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase',
+                background: 'linear-gradient(90deg,var(--gold-hi),var(--gold),var(--text))',
+                WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
+              }}>{PLATFORM_NAME}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Command Center</div>
+            </div>
           </div>
-        </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <SSEDot status={sseStatus} onReconnect={reconnect} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -411,7 +414,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div style={{ display: 'flex', gap: 6 }}>
                 {themes.map(t => {
                   const selected = t.id === theme.id;
-                  const Icon = t.id === 'night' ? Moon : Sun;
                   return (
                     <button
                       key={t.id}
@@ -426,7 +428,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                         transition: 'all .15s',
                       }}
                     >
-                      <Icon size={14} />
+                      <span style={{
+                        width: 12, height: 12, borderRadius: 999, flexShrink: 0,
+                        background: t.tokens['--gold'],
+                        border: '1px solid color-mix(in srgb, var(--text) 20%, transparent)',
+                      }} />
                       {t.name}
                     </button>
                   );
@@ -486,7 +492,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Mobile overlay + "More" slide-up sheet — available to every role
             (the sheet holds account settings, theme and sign-out on phones). */}
         {mobileOpen && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--overlay)', backdropFilter: 'blur(2px)' }}
+          <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--overlay)' }}
             onClick={() => setMobileOpen(false)} />
         )}
         <div id="mobile-sidebar" style={{
@@ -505,7 +511,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           pointerEvents: mobileOpen ? 'auto' : 'none',
         }}>
           <div style={{ width: 40, height: 4, borderRadius: 4, background: 'var(--line)', margin: '2px auto 12px', flexShrink: 0 }} />
-          {SidebarContent()}
+          {SidebarContent({ mobile: true })}
         </div>
 
         <main id="app-main" className={isDriver ? 'has-bottom-nav' : 'has-bottom-nav-mobile'} style={{ flex: 1, padding: isHome ? 0 : '22px', minWidth: 0, overflowX: 'hidden' }}>

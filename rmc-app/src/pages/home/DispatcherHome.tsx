@@ -40,8 +40,8 @@ export default function DispatcherHome() {
   return (
     <Screen>
       <div>
-        <p className="text-[13px]" style={{ color: '#78716c' }}>{greeting()},</p>
-        <h1 className="text-[19px] font-extrabold leading-tight" style={{ color: '#1c1917' }}>
+        <p className="text-[13px]" style={{ color: 'var(--muted)' }}>{greeting()},</p>
+        <h1 className="text-[19px] font-extrabold leading-tight" style={{ color: 'var(--text)' }}>
           {firstNameOf(user?.name, 'there')}
         </h1>
       </div>
@@ -60,7 +60,7 @@ export default function DispatcherHome() {
         <div className="mt-4 grid grid-cols-2 gap-2.5">
           <StatCard value={kpis.pendingOrders} label="Orders to dispatch" color="#b45309" icon={<ClipboardList className="h-4 w-4" />} />
           <StatCard value={inTransit.length} label="Challans in transit" color="#0284c7" icon={<Timer className="h-4 w-4" />} />
-          <StatCard value={`${kpis.activeVehicles}/${kpis.totalVehicles}`} label="Vehicles available" color="#0f766e" icon={<Truck className="h-4 w-4" />} />
+          <StatCard value={`${kpis.activeVehicles}/${kpis.totalVehicles}`} label="Vehicles available" color="var(--gold)" icon={<Truck className="h-4 w-4" />} />
           <StatCard value={Number(kpis.todayDispatch).toFixed(1)} label="Dispatched today (m³)" color="#15803d" icon={<TrendingUp className="h-4 w-4" />} />
         </div>
       )}

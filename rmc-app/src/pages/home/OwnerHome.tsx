@@ -39,8 +39,8 @@ export default function OwnerHome() {
   return (
     <Screen>
       <div>
-        <p className="text-[13px]" style={{ color: '#78716c' }}>{greeting()},</p>
-        <h1 className="text-[19px] font-extrabold leading-tight" style={{ color: '#1c1917' }}>
+        <p className="text-[13px]" style={{ color: 'var(--muted)' }}>{greeting()},</p>
+        <h1 className="text-[19px] font-extrabold leading-tight" style={{ color: 'var(--text)' }}>
           {firstNameOf(user?.name, 'there')}
         </h1>
       </div>

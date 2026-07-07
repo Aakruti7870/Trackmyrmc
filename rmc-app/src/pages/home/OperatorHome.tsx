@@ -35,8 +35,8 @@ export default function OperatorHome() {
   return (
     <Screen>
       <div>
-        <p className="text-[13px]" style={{ color: '#78716c' }}>{greeting()},</p>
-        <h1 className="text-[19px] font-extrabold leading-tight" style={{ color: '#1c1917' }}>
+        <p className="text-[13px]" style={{ color: 'var(--muted)' }}>{greeting()},</p>
+        <h1 className="text-[19px] font-extrabold leading-tight" style={{ color: 'var(--text)' }}>
           {firstNameOf(user?.name, 'Operator')}
         </h1>
       </div>
@@ -44,9 +44,9 @@ export default function OperatorHome() {
       {kpis && (
         <div className="mt-4 grid grid-cols-2 gap-2.5">
           <StatCard value={Number(kpis.todayProduction).toFixed(1)} label="Produced today (m³)" color="#15803d" icon={<Boxes className="h-4 w-4" />} />
-          <StatCard value={kpis.todayBatches} label="Batches today" color="#0f766e" icon={<Layers className="h-4 w-4" />} />
+          <StatCard value={kpis.todayBatches} label="Batches today" color="var(--gold)" icon={<Layers className="h-4 w-4" />} />
           <StatCard value={Number(kpis.todayDispatch).toFixed(1)} label="Dispatched (m³)" color="#0284c7" icon={<Truck className="h-4 w-4" />} />
-          <StatCard value={`${kpis.activeVehicles}/${kpis.totalVehicles}`} label="Vehicles online" color="#0f766e" icon={<Truck className="h-4 w-4" />} />
+          <StatCard value={`${kpis.activeVehicles}/${kpis.totalVehicles}`} label="Vehicles online" color="var(--gold)" icon={<Truck className="h-4 w-4" />} />
         </div>
       )}
 

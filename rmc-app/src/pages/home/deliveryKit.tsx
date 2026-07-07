@@ -1,26 +1,27 @@
 import type { ReactNode, CSSProperties } from 'react';
 
 // ---------------------------------------------------------------------------
-// Delivery-style design kit — the approved "Delivery Style" mockup language
-// (teal #0f766e on warm-beige #fdfbf7). Shared by all 8 mobile role-home
-// screens and the mobile app chrome (header + bottom tab bar). Light-only by
-// design — this is a distinct, opinionated surface, not theme-driven.
+// Delivery-style design kit — the approved "Delivery Style" mockup language.
+// Shared by all 8 mobile role-home screens and the mobile app chrome (header +
+// bottom tab bar). Now THEME-DRIVEN: the accent/ink/paper/tint constants read
+// live CSS variables, so it re-skins with the active theme (Simple = teal,
+// Daylight = terracotta). Semantic status colors stay stable across themes.
 // ---------------------------------------------------------------------------
 
-export const TEAL = '#0f766e';
-export const TEAL_HI = '#12876f';
-export const TEAL_DEEP = '#0d5b54';
-export const INK = '#1c1917';
-export const MUTED = '#78716c';
-export const BG = '#fdfbf7';
-export const LINE = 'rgba(28,25,23,0.10)';
+export const TEAL = 'var(--gold)';
+export const TEAL_HI = 'var(--gold-hi)';
+export const TEAL_DEEP = 'var(--gold-dark)';
+export const INK = 'var(--text)';
+export const MUTED = 'var(--muted)';
+export const BG = 'var(--bg)';
+export const LINE = 'var(--line)';
 export const GREEN = '#15803d';
 export const BLUE = '#0284c7';
 export const RED = '#ef4444';
-export const TEAL_SOFT = '#e7f2f0';
-export const TEAL_TINT = '#eef4f2';
-export const PROMPT_BG = '#f0f7f5';
-export const PROMPT_BORDER = 'rgba(15,118,110,0.18)';
+export const TEAL_SOFT = 'var(--gold-soft)';
+export const TEAL_TINT = 'var(--gold-tint)';
+export const PROMPT_BG = 'var(--prompt-bg)';
+export const PROMPT_BORDER = 'var(--prompt-border)';
 
 // Full-bleed beige page wrapper. Sits inside Layout <main> (padding stripped on
 // the /home route) so the delivery surface runs edge-to-edge under the fixed
@@ -194,7 +195,7 @@ export function InfoPrompt({
       className="mt-4 flex items-center gap-3 rounded-xl border px-3.5 py-3"
       style={{ background: PROMPT_BG, borderColor: PROMPT_BORDER }}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: '#d9ece8' }}>
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: 'var(--prompt-icon-bg)' }}>
         <span style={{ color: TEAL }}>{icon}</span>
       </div>
       <div className="flex-1">
