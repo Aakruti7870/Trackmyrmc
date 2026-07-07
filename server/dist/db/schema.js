@@ -365,6 +365,62 @@ export const batchRecords = pgTable('batch_records', {
     remarks: text('remarks'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+// Grade-wise mix design master for the batch report generator. One recipe per
+// grade per plant (a null-plant global admin keeps its own set — the unique
+// index coalesces NULL to 0 so "global" also gets one recipe per grade).
+// `materials` is an ordered jsonb array of
+//   { key, label, perCumKg, tolerancePct }
+// so a plant can model any weigh-scale layout (C Sand, 20mm, 10mm, Cement,
+// Flyash, Water, Admixture, …) instead of fixed columns.
+export const mixDesigns = pgTable('mix_designs', {
+    id: serial('id').primaryKey(),
+    plantId: integer('plant_id').references(() => plants.id),
+    grade: text('grade').notNull(),
+    recipeName: text('recipe_name').notNull(),
+    recipeCode: text('recipe_code'),
+    materials: jsonb('materials').notNull(),
+    notes: text('notes'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+    uniqueIndex('mix_designs_plant_grade_unique').on(sql `coalesce(${t.plantId}, 0)`, t.grade),
+]);
+// A generated batch sheet (Schwing-style production report, our own layout).
+// The recipe `materials` are SNAPSHOTTED at generation time so later mix-design
+// edits never rewrite an issued report. `batches` holds one row per mixed batch:
+//   { size, actuals: { [materialKey]: kg } }
+// Targets are derived (perCumKg × size), never stored, so target math can't
+// drift from the snapshot.
+export const batchReports = pgTable('batch_reports', {
+    id: serial('id').primaryKey(),
+    plantId: integer('plant_id').references(() => plants.id),
+    reportNo: text('report_no').notNull().unique(),
+    // Optional link to the delivery challan this load was batched for — header
+    // fields (truck, driver, customer, site, qtys) are prefilled from it and the
+    // printed sheet cross-references the challan number.
+    challanId: integer('challan_id').references(() => challans.id, { onDelete: 'set null' }),
+    grade: text('grade').notNull(),
+    recipeName: text('recipe_name').notNull(),
+    recipeCode: text('recipe_code'),
+    plantType: text('plant_type'),
+    mixerCapacity: decimal('mixer_capacity', { precision: 6, scale: 2 }),
+    batchSize: decimal('batch_size', { precision: 6, scale: 4 }).notNull(),
+    productionQty: decimal('production_qty', { precision: 8, scale: 2 }).notNull(),
+    orderedQty: decimal('ordered_qty', { precision: 8, scale: 2 }),
+    withThisLoad: decimal('with_this_load', { precision: 8, scale: 2 }),
+    truckNo: text('truck_no'),
+    truckDriver: text('truck_driver'),
+    customer: text('customer'),
+    site: text('site'),
+    batchDate: date('batch_date'),
+    startTime: text('start_time'),
+    endTime: text('end_time'),
+    materials: jsonb('materials').notNull(),
+    batches: jsonb('batches').notNull(),
+    createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
 // Staff/driver attendance — a check-in opens a row, a check-out closes it. Each
 // record is stamped with the actor's plant so the report stays plant-private
 // (a null-plant global admin sees all). A partial unique index allows only one

@@ -1,0 +1,114 @@
+Create a Batch Report Generator same as attached Schwing Stetter M1 T batch sheet.
+
+Study the attached format and logic carefully:
+
+- Plant Type: M1 T Belt
+- Mixer Capacity: 1.00 cum
+- Batch Size: 1.0000 cum
+- Production Qty: 6.00 cum
+- It creates 6 batch rows for 6 cum production.
+- Each row uses recipe target weights from mix design.
+- Actual values must allow small tolerance/difference and calculate total actual weight, set weight, difference %, and total mass difference %.
+- Report columns must include C Sand, 20mm, 10mm, Cement, Flyash, Water, Admixture and other empty material columns like the original report.
+
+Required logic:
+
+1. Admin enters plant capacity / mixer capacity:
+   
+   - Example: 1.00 cum M1 plant
+   - Example: 0.50 cum plant
+   - Example: 0.75 cum plant
+
+2. Admin enters production quantity:
+   
+   - Example: 6 cum
+
+3. System calculates number of batches:
+   
+   - Number of batches = Production Qty ÷ Batch Size
+   - For 1.00 cum plant and 6 cum qty = 6 batch rows
+   - For 0.50 cum plant and 6 cum qty = 12 batch rows
+   - For 0.50 cum plant, every target weight should become 50% of 1 cum mix design.
+
+4. System must use mix design as master recipe:
+   Example for M35:
+   
+   - C Sand
+   - 20mm
+   - 10mm
+   - Cement
+   - Flyash
+   - Water
+   - Admixture
+
+5. Batch target formula:
+   Per batch target weight = Mix Design Per Cum Weight × Batch Size
+
+6. Total set weight formula:
+   Total Set Weight = Per Batch Target Weight × Number of Batches
+
+7. Actual value logic:
+   
+   - Actual values should be generated or entered per batch.
+   - Actual values must be close to target values.
+   - Allow tolerance setting material-wise.
+   - Example tolerance:
+     Aggregate ±2%
+     Cement ±1%
+     Flyash ±1%
+     Water ±1%
+     Admixture ±2%
+   - Do not generate unrealistic weights.
+
+8. Difference % formula:
+   Difference % = ((Total Actual Weight - Total Set Weight) / Total Set Weight) × 100
+
+9. Total mass:
+   Mass of Recipe Targets = sum of all target materials per batch
+   Mass of Total Set Weight = sum of all total target materials
+   Mass of Total Actual Weight = sum of all actual material totals
+   Total Mass Difference % = ((Total Actual Mass - Total Set Mass) / Total Set Mass) × 100
+
+10. Report must include:
+
+- Batch Number
+- Recipe Name
+- Recipe Code
+- Batch Date
+- Batch Start Time
+- Batch End Time
+- Truck No
+- Truck Driver
+- Customer
+- Site
+- Production Qty
+- Ordered Qty
+- With This Load
+- Batch Size
+- Mixer Capacity
+- Target rows
+- Actual batch rows
+- Total Set Weight
+- Total Actual Weight
+- Difference in Percentage
+- Total Mass Difference in Percentage
+- PDF export
+
+11. Important:
+    The system should not copy Schwing Stetter software, SCADA, or any protected code. But it should create our own batch report generator using standard batching formulas and our mix design data.
+
+12. Add plant-wise settings:
+
+- Plant name
+- Plant type
+- Mixer capacity
+- Batch size
+- Material names
+- Tolerance %
+- Mix design per grade
+
+13. Add grade-wise mix design master:
+    Admin can add/update mix designs for M10, M15, M20, M25, M30, M35, M40, M45, M50.
+
+14. Output:
+    Create a professional PDF report visually similar to attached batch sheet, but with our TrackMyRMC branding.

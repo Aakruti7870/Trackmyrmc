@@ -5,7 +5,7 @@ import {
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, Repeat,
   Timer, TrendingUp, Fuel, MapPin, Factory, CalendarClock,
   Crown, Building2, HardHat, Wallet, User, Zap, MessageCircle,
-  Home, Siren,
+  Home, Siren, FileSpreadsheet,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -37,6 +37,7 @@ const ALL_NAV_ITEMS = [
   { path: '/drivers',     label: 'Drivers',    icon: UserCheck },
   { path: '/attendance',  label: 'Attendance', icon: CalendarClock },
   { path: '/mix-design',  label: 'Mix Design', icon: FlaskConical },
+  { path: '/batch-sheets', label: 'Batch Sheets', icon: FileSpreadsheet },
   { path: '/reports',     label: 'Reports',    icon: BarChart3 },
   { path: '/recurring',   label: 'Recurring',  icon: Repeat },
   { path: '/fuel-log',    label: 'Fuel Log',   icon: Fuel },

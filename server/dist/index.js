@@ -10,6 +10,8 @@ import challanRoutes from './routes/challans.js';
 import vehicleRoutes from './routes/vehicles.js';
 import driverRoutes from './routes/drivers.js';
 import batchRoutes from './routes/batches.js';
+import mixDesignRoutes from './routes/mixDesigns.js';
+import batchReportRoutes from './routes/batchReports.js';
 import dashboardRoutes from './routes/dashboard.js';
 import reportRoutes from './routes/reports.js';
 import meRoutes from './routes/me.js';
@@ -119,6 +121,8 @@ app.use('/api/challans', challanRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/drivers', driverRoutes);
 app.use('/api/batches', batchRoutes);
+app.use('/api/mix-designs', mixDesignRoutes);
+app.use('/api/batch-reports', batchReportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/me', meRoutes);
@@ -176,6 +180,7 @@ if (isProd) {
         '/vehicles',
         '/drivers',
         '/batch-report',
+        '/batch-sheets',
         '/mix-design',
         '/reports',
         '/freshness',
@@ -198,7 +203,7 @@ if (isProd) {
         '/emergencies',
     ]);
     // Dynamic SPA routes (e.g. /challans/:id/print, /track/:token)
-    const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/, /^\/track\/[^/]+$/];
+    const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/, /^\/track\/[^/]+$/, /^\/batch-sheets\/[^/]+\/print$/];
     app.get('*', (req, res) => {
         const p = req.path;
         const isSpaRoute = SPA_ROUTES.has(p) || SPA_PATTERNS.some((re) => re.test(p));

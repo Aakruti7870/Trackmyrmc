@@ -46,6 +46,10 @@ const TERMS: string[] = [
   'The customer has read and agreed to the above terms by signing this challan.',
 ];
 
+// Corporate teal used for the printed lettering (headings, labels, rules) so
+// the challan prints in the brand colour instead of plain black.
+const TEAL = '#0f6b56';
+
 // ————— one printed copy (ORIGINAL / DUPLICATE) —————
 function ChallanCopy({ challan, plant, copyLabel, qrDataUrl }: {
   challan: Challan; plant: PlantIdentity; copyLabel: 'ORIGINAL' | 'DUPLICATE'; qrDataUrl: string | null;
@@ -68,33 +72,33 @@ function ChallanCopy({ challan, plant, copyLabel, qrDataUrl }: {
 
   const cell = (label: string, value: string, opts?: { mono?: boolean; bold?: boolean }) => (
     <>
-      <td style={{ border: '1px solid #444', padding: '4px 8px', fontSize: 9.5, fontWeight: 700, color: '#333', textTransform: 'uppercase', letterSpacing: '.3px', width: '17%', background: '#f6f6f4' }}>{label}</td>
-      <td style={{ border: '1px solid #444', padding: '4px 8px', fontSize: 11, fontWeight: opts?.bold ? 800 : 600, fontFamily: opts?.mono ? 'monospace' : undefined, width: '33%' }}>{value || '—'}</td>
+      <td style={{ border: `1px solid ${TEAL}`, padding: '3px 8px', fontSize: 9, fontWeight: 800, color: TEAL, textTransform: 'uppercase', letterSpacing: '.3px', width: '17%', background: '#eef6f3' }}>{label}</td>
+      <td style={{ border: `1px solid ${TEAL}`, padding: '3px 8px', fontSize: 10.5, fontWeight: opts?.bold ? 800 : 600, fontFamily: opts?.mono ? 'monospace' : undefined, width: '33%', color: '#111' }}>{value || '—'}</td>
     </>
   );
 
   return (
-    <div style={{ border: '1.5px solid #333', padding: '12px 14px 8px', background: '#fff' }}>
+    <div className="challan-copy" style={{ border: `1.5px solid ${TEAL}`, padding: '10px 14px 6px', background: '#fff', display: 'flex', flexDirection: 'column' }}>
       {/* Letterhead — issuing plant identity, never hardcoded */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', borderBottom: '2px solid #333', paddingBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', borderBottom: `2px solid ${TEAL}`, paddingBottom: 6 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '.4px', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: '.4px', textTransform: 'uppercase', color: TEAL }}>
             M/S. {plant.legalName}
           </div>
-          <div style={{ fontSize: 9.5, color: '#333', marginTop: 3, lineHeight: 1.5 }}>
-            {line1 && <div><b>Plant Add :</b> {line1}</div>}
+          <div style={{ fontSize: 9, color: '#333', marginTop: 2, lineHeight: 1.45 }}>
+            {line1 && <div><b style={{ color: TEAL }}>Plant Add :</b> {line1}</div>}
             {metaBits.length > 0 && <div>{metaBits.join('  |  ')}</div>}
-            {plant.code && <div><b>Plant Code :</b> {plant.code}</div>}
+            {plant.code && <div><b style={{ color: TEAL }}>Plant Code :</b> {plant.code}</div>}
           </div>
         </div>
-        <div style={{ width: 74, textAlign: 'center', flexShrink: 0 }}>
+        <div style={{ width: 70, textAlign: 'center', flexShrink: 0 }}>
           {qrDataUrl ? (
             <>
-              <img src={qrDataUrl} alt="Live tracking QR" style={{ width: 64, height: 64, display: 'block', margin: '0 auto' }} />
-              <div style={{ fontSize: 7.5, color: '#555', fontWeight: 700, marginTop: 2 }}>SCAN FOR LIVE TRACKING</div>
+              <img src={qrDataUrl} alt="Live tracking QR" style={{ width: 58, height: 58, display: 'block', margin: '0 auto' }} />
+              <div style={{ fontSize: 7, color: TEAL, fontWeight: 700, marginTop: 2 }}>SCAN FOR LIVE TRACKING</div>
             </>
           ) : (
-            <div style={{ width: 64, height: 64, margin: '0 auto', border: '1.5px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: '#333' }}>
+            <div style={{ width: 58, height: 58, margin: '0 auto', border: `1.5px solid ${TEAL}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 900, color: TEAL }}>
               {(plant.code || plant.legalName).slice(0, 3).toUpperCase()}
             </div>
           )}
@@ -102,8 +106,8 @@ function ChallanCopy({ challan, plant, copyLabel, qrDataUrl }: {
       </div>
 
       {/* Title */}
-      <div style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 900, letterSpacing: '1px', padding: '7px 0' }}>
-        — DELIVERY CHALLAN ({copyLabel}) —
+      <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 900, letterSpacing: '1px', padding: '5px 0', color: TEAL }}>
+        — DELIVERY CHALLAN <span style={{ color: '#b91c1c' }}>({copyLabel})</span> —
       </div>
 
       {/* Field grid */}
@@ -118,7 +122,7 @@ function ChallanCopy({ challan, plant, copyLabel, qrDataUrl }: {
       </table>
 
       {/* Terms */}
-      <ul style={{ margin: '6px 0 4px', paddingLeft: 14, fontSize: 8.5, color: '#222', lineHeight: 1.55 }}>
+      <ul style={{ margin: '4px 0 3px', paddingLeft: 14, fontSize: 8, color: '#222', lineHeight: 1.45 }}>
         {TERMS.map(t => <li key={t}>{t}</li>)}
       </ul>
 
@@ -137,30 +141,30 @@ function ChallanCopy({ challan, plant, copyLabel, qrDataUrl }: {
       </table>
 
       {/* Status timestamps strip */}
-      <div style={{ fontSize: 8.5, color: '#333', padding: '4px 2px', borderBottom: '1px solid #999' }}>
+      <div style={{ fontSize: 8, color: '#333', padding: '3px 2px', borderBottom: `1px solid ${TEAL}` }}>
         {statusBits.join('   ·   ')}
       </div>
 
       {/* Signature blocks */}
-      <div style={{ display: 'flex', gap: 0, minHeight: 86 }}>
-        <div style={{ flex: 1, borderRight: '1px solid #999', padding: '6px 8px 4px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase' }}>Received By (Customer / Site)</div>
-          <div style={{ fontSize: 10, marginTop: 8, lineHeight: 2 }}>
+      <div style={{ display: 'flex', gap: 0, minHeight: 58, flex: 1 }}>
+        <div style={{ flex: 1, borderRight: `1px solid ${TEAL}`, padding: '4px 8px 3px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: TEAL }}>Received By (Customer / Site)</div>
+          <div style={{ fontSize: 9.5, marginTop: 4, lineHeight: 1.8 }}>
             <div>Approved By - <b>{approvedBy || '______________________'}</b></div>
             <div>Time & Date - <b style={{ fontFamily: 'monospace' }}>{approvedAt || '____:____:____ / ____/____/____'}</b></div>
           </div>
           <div style={{ flex: 1 }} />
-          <div style={{ fontSize: 8, color: '#666' }}>Signature & stamp</div>
+          <div style={{ fontSize: 7.5, color: '#666' }}>Signature & stamp</div>
         </div>
-        <div style={{ flex: 1, padding: '6px 8px 4px', display: 'flex', flexDirection: 'column', textAlign: 'right' }}>
-          <div style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase' }}>For, {plant.legalName}</div>
+        <div style={{ flex: 1, padding: '4px 8px 3px', display: 'flex', flexDirection: 'column', textAlign: 'right' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: TEAL }}>For, {plant.legalName}</div>
           <div style={{ flex: 1 }} />
-          <div style={{ fontSize: 9, fontWeight: 700, borderTop: '1px solid #999', paddingTop: 4, marginLeft: 'auto', width: 150 }}>Authorised Signatory</div>
+          <div style={{ fontSize: 8.5, fontWeight: 700, borderTop: '1px solid #999', paddingTop: 3, marginLeft: 'auto', width: 150 }}>Authorised Signatory</div>
         </div>
       </div>
 
       {/* Footer */}
-      <div style={{ borderTop: '1px solid #999', marginTop: 2, paddingTop: 4, textAlign: 'center', fontSize: 8, color: '#444' }}>
+      <div style={{ borderTop: `1px solid ${TEAL}`, marginTop: 2, paddingTop: 3, textAlign: 'center', fontSize: 7.5, color: TEAL, fontWeight: 600 }}>
         {[plant.email, plant.contact ? `Ph: ${plant.contact}` : null].filter(Boolean).join('  |  ')}
         {(plant.email || plant.contact) ? '  —  ' : ''}Download the {PLATFORM_NAME} app to place and track your orders live.
       </div>
@@ -306,10 +310,10 @@ export default function ChallanPrint() {
       }}>
         <ChallanCopy challan={challan} plant={plant} copyLabel="ORIGINAL" qrDataUrl={qrDataUrl} />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0', color: '#777' }}>
-          <div style={{ flex: 1, borderTop: '1.5px dashed #999' }} />
+        <div className="challan-cutline" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '8px 0', color: TEAL }}>
+          <div style={{ flex: 1, borderTop: `1.5px dashed ${TEAL}` }} />
           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '2px' }}>✂ CUT HERE</div>
-          <div style={{ flex: 1, borderTop: '1.5px dashed #999' }} />
+          <div style={{ flex: 1, borderTop: `1.5px dashed ${TEAL}` }} />
         </div>
 
         <ChallanCopy challan={challan} plant={plant} copyLabel="DUPLICATE" qrDataUrl={qrDataUrl} />
@@ -373,7 +377,21 @@ export default function ChallanPrint() {
           /* Isolate the challan sheet: hide all app chrome (header, sidebar, bottom nav) */
           body * { visibility: hidden; }
           .challan-page, .challan-page * { visibility: visible; }
-          .challan-page { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; margin: 0 !important; max-width: 100% !important; padding: 0 !important; }
+          .challan-page {
+            position: absolute; left: 0; top: 0; width: 100%;
+            box-shadow: none !important; margin: 0 !important; max-width: 100% !important; padding: 0 !important;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+          }
+          /* ONE page, two equal halves: printable area is 281mm tall (297 − 2×8mm
+             margins). Each copy gets a fixed half (~136mm) and clips any overflow,
+             with the cut line between them — never a second sheet for the copies. */
+          .challan-copy {
+            height: 136mm !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid;
+          }
+          .challan-cutline { margin: 2mm 0 !important; }
           .challan-annexure { page-break-before: always; border-top: none !important; padding-top: 0 !important; }
         }
       `}</style>

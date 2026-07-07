@@ -147,7 +147,7 @@ router.get('/:id', requireRole(...READ_ROLES), async (req, res) => {
         // Delivery brief for the printed challan — the contact + address the
         // customer supplied on the order, falling back to the client/site record.
         // Read-only additions; the row is still plant-scoped below.
-        siteName: sql `coalesce(${sites.name}, ${orders.siteName})`,
+        siteName: sql `coalesce(${orders.siteName}, ${sites.name})`,
         siteAddress: sql `coalesce(${orders.siteAddress}, ${sites.address})`,
         contactPerson: sql `coalesce(${orders.contactPerson}, ${clients.contactPerson})`,
         contactNumber: sql `coalesce(${orders.contactNumber}, ${clients.phone})`,

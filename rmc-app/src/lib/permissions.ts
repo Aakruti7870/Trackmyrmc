@@ -4,7 +4,7 @@ export type Role = 'authority' | 'plant_owner' | 'admin' | 'supervisor' | 'dispa
 // NOTE: '/kiosk' (Control Room) is intentionally NOT in the shared admin set —
 // the big-screen Control Room is Super Admin (authority) only. It is added back
 // explicitly to `authority` below.
-const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/plants', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/profile'];
+const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/plants', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/profile'];
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   // Authority (Super Admin) also owns the /command control center and the
@@ -16,18 +16,18 @@ export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   // admins, and the sidebar additionally hides it from them (Layout).
   admin:          ['/whatsapp', ...ADMIN_PATHS],
   // Supervisor oversees plant operations & dispatch (no user/plant admin).
-  supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/profile'],
-  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/attendance', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile'],
-  plant_operator: ['/', '/freshness', '/batch-report', '/attendance', '/mix-design', '/shift-report', '/reports', '/profile'],
+  supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/profile'],
+  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/profile'],
+  plant_operator: ['/', '/freshness', '/batch-report', '/batch-sheets', '/attendance', '/mix-design', '/shift-report', '/reports', '/profile'],
   // Accountant is a read-only finance role: reports/analytics + delivery
   // documents (for billing reconciliation) and their own profile. No writes.
   accountant:     ['/reports', '/challans', '/expense-review', '/profile'],
   // Quality Engineer owns concrete quality: mix designs, batch QC, freshness.
-  quality_engineer: ['/', '/batch-report', '/mix-design', '/freshness', '/reports', '/attendance', '/profile'],
+  quality_engineer: ['/', '/batch-report', '/batch-sheets', '/mix-design', '/freshness', '/reports', '/attendance', '/profile'],
   // Fleet Manager runs the transit-mixer fleet: vehicles, drivers, fuel, dispatch visibility.
   fleet_manager:  ['/', '/vehicles', '/drivers', '/dispatch', '/challans', '/fuel-log', '/expense-review', '/attendance', '/reports', '/profile'],
   // Store Manager tracks material stock via production/batch usage.
-  store_manager:  ['/', '/batch-report', '/mix-design', '/attendance', '/reports', '/profile'],
+  store_manager:  ['/', '/batch-report', '/batch-sheets', '/mix-design', '/attendance', '/reports', '/profile'],
   client:         ['/my-orders', '/nearby-plants', '/challans', '/profile'],
   driver:         ['/home', '/my-trips', '/expenses', '/sos', '/attendance', '/challans', '/profile'],
 };

@@ -52,6 +52,8 @@ const DriverExpenses = lazy(() => import('@/pages/DriverExpenses'));
 const DriverSOS      = lazy(() => import('@/pages/DriverSOS'));
 const ExpenseReview  = lazy(() => import('@/pages/ExpenseReview'));
 const Emergencies    = lazy(() => import('@/pages/Emergencies'));
+const BatchSheets    = lazy(() => import('@/pages/BatchSheets'));
+const BatchSheetPrint = lazy(() => import('@/pages/BatchSheetPrint'));
 
 const PageSpinner = (
   <div style={{
@@ -132,6 +134,8 @@ function ProtectedRoutes() {
         <Route path="/attendance"   component={() => <GuardedRoute path="/attendance"   component={Attendance}  />} />
         <Route path="/live-drivers"><Redirect to="/attendance?tab=live" /></Route>
         <Route path="/mix-design"   component={() => <GuardedRoute path="/mix-design"   component={MixDesign}   />} />
+        <Route path="/batch-sheets/:id/print" component={() => <GuardedRoute path="/batch-sheets" component={BatchSheetPrint} />} />
+        <Route path="/batch-sheets" component={() => <GuardedRoute path="/batch-sheets" component={BatchSheets} />} />
         <Route path="/reports"      component={() => <GuardedRoute path="/reports"      component={Reports}     />} />
         <Route path="/freshness"    component={() => <GuardedRoute path="/freshness"    component={FreshnessGuard}  />} />
         <Route path="/forecast"     component={() => <GuardedRoute path="/forecast"     component={DemandForecast}  />} />
