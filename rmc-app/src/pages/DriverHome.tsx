@@ -74,6 +74,9 @@ export default function DriverHome() {
           <h1 className="text-[19px] font-extrabold leading-tight" style={{ color: INK }}>
             {firstNameOf(user?.name, 'Driver')}
           </h1>
+          <p className="mt-0.5 text-[12px]" style={{ color: MUTED }}>
+            {activeTrips.length > 0 ? 'You have deliveries lined up today.' : 'Have a safe day on the road.'}
+          </p>
         </div>
         {user?.truckNo && <Chip icon={<Truck className="h-3.5 w-3.5" />} label={user.truckNo} />}
       </div>
@@ -153,7 +156,7 @@ export default function DriverHome() {
 
       {/* Quick actions */}
       <SectionHead title="Quick Actions" />
-      <QuickGrid cols={4}>
+      <QuickGrid cols={3}>
         {can('/my-trips') && <QuickAction label="My Trips" icon={<ClipboardList className="h-6 w-6" />} onClick={() => go('/my-trips')} />}
         {can('/expenses') && <QuickAction label="Expenses" icon={<Wallet className="h-6 w-6" />} onClick={() => go('/expenses')} />}
         {can('/attendance') && <QuickAction label="Attendance" icon={<CalendarCheck className="h-6 w-6" />} onClick={() => go('/attendance')} />}

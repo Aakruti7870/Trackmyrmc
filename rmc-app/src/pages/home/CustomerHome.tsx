@@ -9,11 +9,13 @@ import {
 } from 'lucide-react';
 import {
   Screen, Card, SectionHead, QuickAction, QuickGrid, InfoPrompt, StatusPill,
-  Stepper, ListRow, type StepState, TEAL, TEAL_DEEP, TEAL_HI, INK, MUTED,
-  TEAL_SOFT, GREEN,
+  StatCard, StatRow, Stepper, ListRow, type StepState, TEAL, TEAL_DEEP, TEAL_HI,
+  INK, MUTED, TEAL_SOFT, GREEN, BLUE,
 } from './deliveryKit';
-import { statusColor, statusBg, statusLabel } from './format';
+import { statusColor, statusBg, statusLabel, greeting, firstNameOf } from './format';
 import LiveFleetMap from '@/components/LiveFleetMap';
+
+const ON_ROAD = ['dispatched', 'in_transit', 'reached_site', 'unloading'];
 
 function orderSteps(status: string): { label: string; icon: React.ReactNode; state: StepState }[] {
   const done = status === 'completed';
@@ -48,38 +50,51 @@ export default function CustomerHome() {
   const activeOrders = orders.filter(o => o.status === 'pending' || o.status === 'in_progress');
   const primary = activeOrders[0] || orders[0];
   const otherRecent = orders.filter(o => o.id !== primary?.id).slice(0, 3);
-  void challans;
+  const onRoad = challans.filter(c => ON_ROAD.includes(c.status)).length;
+  const completed = orders.filter(o => o.status === 'completed').length;
 
   return (
     <Screen>
-      {/* Hero */}
+      {/* Warm, personal welcome */}
       <div
-        className="relative overflow-hidden rounded-2xl p-4"
+        className="relative overflow-hidden rounded-3xl p-5"
         style={{ background: `linear-gradient(120deg, ${TEAL_DEEP} 0%, ${TEAL} 55%, ${TEAL_HI} 100%)` }}
       >
-        <Truck className="pointer-events-none absolute -bottom-4 -right-4 h-40 w-40 text-white/10" strokeWidth={1.2} />
-        <div className="relative z-10 max-w-[80%]">
-          <h1 className="text-[20px] font-extrabold leading-[1.15] text-white">
-            Ready Mix Concrete, On Time, Every Time.
+        <Truck className="pointer-events-none absolute -bottom-5 -right-4 h-40 w-40 text-white/10" strokeWidth={1.2} />
+        <div className="relative z-10 max-w-[82%]">
+          <p className="text-[12.5px] font-medium text-white/85">{greeting()},</p>
+          <h1 className="text-[22px] font-extrabold leading-[1.1] text-white">
+            {firstNameOf(user?.name, 'there')}
           </h1>
-          <p className="mt-1.5 text-[12px] leading-snug text-white/85">
-            Order, track and manage concrete deliveries in real-time.
+          <p className="mt-1.5 text-[12.5px] leading-snug text-white/85">
+            Order, track and manage your concrete deliveries in real time.
           </p>
           {can('/nearby-plants') && (
             <button
               onClick={() => go('/nearby-plants')}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-[13px] font-bold shadow-sm"
-              style={{ color: TEAL_DEEP }}
+              className="mt-3.5 inline-flex items-center gap-1.5 rounded-2xl bg-white px-4 py-2.5 text-[13px] font-bold shadow-sm active:scale-[.98]"
+              style={{ color: TEAL_DEEP, transition: 'transform .1s ease' }}
             >
-              <Plus className="h-4 w-4" strokeWidth={2.6} /> Place Order
+              <Plus className="h-4 w-4" strokeWidth={2.8} /> Place a new order
             </button>
           )}
         </div>
       </div>
 
-      {/* Quick Actions */}
+      {/* At a glance */}
+      {can('/my-orders') && (
+        <div className="mt-4">
+          <StatRow>
+            <StatCard value={loading ? '—' : activeOrders.length} label="Active orders" color={TEAL} icon={<ClipboardList className="h-4 w-4" />} />
+            <StatCard value={loading ? '—' : onRoad} label="On the road" color={BLUE} icon={<Truck className="h-4 w-4" />} />
+            <StatCard value={loading ? '—' : completed} label="Completed" color={GREEN} icon={<Check className="h-4 w-4" strokeWidth={3} />} />
+          </StatRow>
+        </div>
+      )}
+
+      {/* Quick Actions — 2 balanced rows of 3, bigger tap targets */}
       <SectionHead title="Quick Actions" />
-      <QuickGrid cols={4}>
+      <QuickGrid cols={3}>
         {can('/nearby-plants') && (
           <QuickAction
             label="Place Order" icon={<Truck className="h-6 w-6" />} onClick={() => go('/nearby-plants')}
@@ -99,7 +114,11 @@ export default function CustomerHome() {
 
       {/* Live Fleet Google Map — the exact staff card, scoped server-side to
           this customer's own in-transit loads (GET /api/me/live-fleet-map). */}
-      {can('/my-orders') && <LiveFleetMap endpoint="/me/live-fleet-map" />}
+      {can('/my-orders') && (
+        <div className="mt-6">
+          <LiveFleetMap endpoint="/me/live-fleet-map" />
+        </div>
+      )}
 
       {/* My Orders */}
       {primary && (
