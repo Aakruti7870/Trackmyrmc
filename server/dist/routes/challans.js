@@ -144,6 +144,13 @@ router.get('/:id', requireRole(...READ_ROLES), async (req, res) => {
     const detailSelect = {
         ...challanSelectFor(req.user.role),
         customerCode: clients.customerCode,
+        // Delivery brief for the printed challan — the contact + address the
+        // customer supplied on the order, falling back to the client/site record.
+        // Read-only additions; the row is still plant-scoped below.
+        siteName: sql `coalesce(${sites.name}, ${orders.siteName})`,
+        siteAddress: sql `coalesce(${orders.siteAddress}, ${sites.address})`,
+        contactPerson: sql `coalesce(${orders.contactPerson}, ${clients.contactPerson})`,
+        contactNumber: sql `coalesce(${orders.contactNumber}, ${clients.phone})`,
         plantId: challans.plantId,
         plantCode: plants.plantCode,
         plantName: plants.name,
@@ -159,6 +166,7 @@ router.get('/:id', requireRole(...READ_ROLES), async (req, res) => {
         .leftJoin(sites, eq(challans.siteId, sites.id))
         .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
         .leftJoin(drivers, eq(challans.driverId, drivers.id))
+        .leftJoin(orders, eq(challans.orderId, orders.id))
         .leftJoin(plants, eq(challans.plantId, plants.id))
         .where(and(eq(challans.id, +req.params.id), plantScope(req.user.plantId, challans.plantId)));
     if (!row) {

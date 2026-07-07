@@ -479,3 +479,15 @@ id = "PNLfa6s7DA8RUnZ9YplUt"
 uri = "file://exports/concrete-king-cloudrun.zip"
 type = "unspecified"
 title = "concrete-king-cloudrun.zip — full Cloud Run deployment source"
+
+[[outputs]]
+id = "YNQXiyrKMb9B73u2Yv7ue"
+uri = "file://exports/sample-challan-CH-1680.pdf"
+type = "pdf"
+title = "Sample Challan CH-1680 (print PDF)"
+
+[[outputs]]
+id = "cbOdxSfs8sX2lMBmlYbmJ"
+uri = "file://exports/sample-challan-CH-1680.png"
+type = "image"
+title = "Challan page — on-screen view"

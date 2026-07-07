@@ -1,16 +1,181 @@
 import { useState, useEffect } from 'react';
 import { useRoute } from 'wouter';
-import { Printer, Share2, ArrowLeft } from 'lucide-react';
+import { Printer, Share2, ArrowLeft, QrCode, AlertTriangle } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Challan, type IdleConfig } from '@/lib/api';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
-import { plantIdentity } from '@/lib/brand';
+import { plantIdentity, type PlantIdentity, PLATFORM_NAME } from '@/lib/brand';
+
+// ————— formatting helpers —————
+function fmtDate(v?: string | null): string {
+  if (!v) return '—';
+  const d = new Date(v);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}-${mm}-${d.getFullYear()}`;
+}
+function fmtClock(v?: string | null): string {
+  if (!v) return '';
+  return new Date(v).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+// Receiver approval stamp: "hh:mm:ss / DD/MM/YY"
+function fmtApprovalStamp(v?: string | null): string {
+  if (!v) return '';
+  const d = new Date(v);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} / ${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)}`;
+}
+
+// The plant profile is "complete enough" for a professional challan when it has
+// at least a name, an address and a contact. Anything less prints half-empty
+// letterheads, so we warn the owner (screen-only) to finish their profile.
+function profileMissing(p: PlantIdentity): string[] {
+  const missing: string[] = [];
+  if (!p.legalName || p.legalName === 'Ready-Mix Concrete Plant') missing.push('company / plant name');
+  if (!p.address && !p.city) missing.push('plant address');
+  if (!p.contact) missing.push('contact number');
+  if (!p.gstNo) missing.push('GST number');
+  return missing;
+}
+
+const TERMS: string[] = [
+  'Concrete should be used within 3 hours of batching time.',
+  'Any shortage / less quantity claim must be noted on this challan at the time of delivery.',
+  'DETENTION: Unloading time is 45 min for 6 cum. Overtime is chargeable as per plant policy.',
+  'TM UNLOADING START & UNLOADING END time: please mention time on challan to avoid wrongly charged overtime.',
+  'The customer has read and agreed to the above terms by signing this challan.',
+];
+
+// ————— one printed copy (ORIGINAL / DUPLICATE) —————
+function ChallanCopy({ challan, plant, copyLabel, qrDataUrl }: {
+  challan: Challan; plant: PlantIdentity; copyLabel: 'ORIGINAL' | 'DUPLICATE'; qrDataUrl: string | null;
+}) {
+  const line1 = [plant.address, plant.city].filter(Boolean).join(', ');
+  const metaBits = [
+    plant.gstNo ? `GSTIN : ${plant.gstNo}` : null,
+    plant.contact ? `Contact : ${plant.contact}` : null,
+    plant.email ? `Mail : ${plant.email}` : null,
+  ].filter(Boolean);
+  const deliveryAddress = [challan.siteName, challan.siteAddress].filter(Boolean).join(', ') || '—';
+  const approvedBy = challan.deliveryTime ? (challan.contactPerson || challan.clientName || '') : '';
+  const approvedAt = fmtApprovalStamp(challan.deliveryTime);
+  const statusBits = [
+    challan.dispatchTime ? `Dispatched ${fmtClock(challan.dispatchTime)}` : null,
+    challan.siteArrivalTime ? `Site Arrival ${fmtClock(challan.siteArrivalTime)}` : null,
+    challan.deliveryTime ? `Delivered ${fmtClock(challan.deliveryTime)}` : null,
+    `Status: ${challan.status.toUpperCase()}${challan.hasProofPhoto || (challan.proofPhotos?.length ?? 0) > 0 ? ' · POD photo on record' : ''}`,
+  ].filter(Boolean);
+
+  const cell = (label: string, value: string, opts?: { mono?: boolean; bold?: boolean }) => (
+    <>
+      <td style={{ border: '1px solid #444', padding: '4px 8px', fontSize: 9.5, fontWeight: 700, color: '#333', textTransform: 'uppercase', letterSpacing: '.3px', width: '17%', background: '#f6f6f4' }}>{label}</td>
+      <td style={{ border: '1px solid #444', padding: '4px 8px', fontSize: 11, fontWeight: opts?.bold ? 800 : 600, fontFamily: opts?.mono ? 'monospace' : undefined, width: '33%' }}>{value || '—'}</td>
+    </>
+  );
+
+  return (
+    <div style={{ border: '1.5px solid #333', padding: '12px 14px 8px', background: '#fff' }}>
+      {/* Letterhead — issuing plant identity, never hardcoded */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', borderBottom: '2px solid #333', paddingBottom: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '.4px', textTransform: 'uppercase' }}>
+            M/S. {plant.legalName}
+          </div>
+          <div style={{ fontSize: 9.5, color: '#333', marginTop: 3, lineHeight: 1.5 }}>
+            {line1 && <div><b>Plant Add :</b> {line1}</div>}
+            {metaBits.length > 0 && <div>{metaBits.join('  |  ')}</div>}
+            {plant.code && <div><b>Plant Code :</b> {plant.code}</div>}
+          </div>
+        </div>
+        <div style={{ width: 74, textAlign: 'center', flexShrink: 0 }}>
+          {qrDataUrl ? (
+            <>
+              <img src={qrDataUrl} alt="Live tracking QR" style={{ width: 64, height: 64, display: 'block', margin: '0 auto' }} />
+              <div style={{ fontSize: 7.5, color: '#555', fontWeight: 700, marginTop: 2 }}>SCAN FOR LIVE TRACKING</div>
+            </>
+          ) : (
+            <div style={{ width: 64, height: 64, margin: '0 auto', border: '1.5px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: '#333' }}>
+              {(plant.code || plant.legalName).slice(0, 3).toUpperCase()}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Title */}
+      <div style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 900, letterSpacing: '1px', padding: '7px 0' }}>
+        — DELIVERY CHALLAN ({copyLabel}) —
+      </div>
+
+      {/* Field grid */}
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <tbody>
+          <tr>{cell('Challan No.', `${challan.challanNo}`, { mono: true, bold: true })}{cell('Loading Qty', `${challan.quantity} m³`, { bold: true })}</tr>
+          <tr>{cell('Date', fmtDate(challan.dispatchTime || challan.createdAt))}{cell('Grade', challan.grade, { bold: true })}</tr>
+          <tr>{cell('Company Name', challan.clientName || '—')}{cell('Slump', '')}</tr>
+          <tr>{cell('Delivery Address', deliveryAddress)}{cell('Batch Number', '')}</tr>
+          <tr>{cell('Contact Person', challan.contactPerson || '—')}{cell('Contact Number', challan.contactNumber || '—', { mono: true })}</tr>
+        </tbody>
+      </table>
+
+      {/* Terms */}
+      <ul style={{ margin: '6px 0 4px', paddingLeft: 14, fontSize: 8.5, color: '#222', lineHeight: 1.55 }}>
+        {TERMS.map(t => <li key={t}>{t}</li>)}
+      </ul>
+
+      {/* Unloading + transport row */}
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <tbody>
+          <tr>
+            {cell('Unloading Start', fmtClock(challan.siteArrivalTime))}
+            {cell('Unloading End', fmtClock(challan.siteReleaseTime))}
+          </tr>
+          <tr>
+            {cell('TM Number', challan.vehicleNo || '—', { mono: true, bold: true })}
+            {cell('Driver Contact', [challan.driverName, challan.driverPhone].filter(Boolean).join(' · ') || '—')}
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Status timestamps strip */}
+      <div style={{ fontSize: 8.5, color: '#333', padding: '4px 2px', borderBottom: '1px solid #999' }}>
+        {statusBits.join('   ·   ')}
+      </div>
+
+      {/* Signature blocks */}
+      <div style={{ display: 'flex', gap: 0, minHeight: 86 }}>
+        <div style={{ flex: 1, borderRight: '1px solid #999', padding: '6px 8px 4px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase' }}>Received By (Customer / Site)</div>
+          <div style={{ fontSize: 10, marginTop: 8, lineHeight: 2 }}>
+            <div>Approved By - <b>{approvedBy || '______________________'}</b></div>
+            <div>Time & Date - <b style={{ fontFamily: 'monospace' }}>{approvedAt || '____:____:____ / ____/____/____'}</b></div>
+          </div>
+          <div style={{ flex: 1 }} />
+          <div style={{ fontSize: 8, color: '#666' }}>Signature & stamp</div>
+        </div>
+        <div style={{ flex: 1, padding: '6px 8px 4px', display: 'flex', flexDirection: 'column', textAlign: 'right' }}>
+          <div style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase' }}>For, {plant.legalName}</div>
+          <div style={{ flex: 1 }} />
+          <div style={{ fontSize: 9, fontWeight: 700, borderTop: '1px solid #999', paddingTop: 4, marginLeft: 'auto', width: 150 }}>Authorised Signatory</div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ borderTop: '1px solid #999', marginTop: 2, paddingTop: 4, textAlign: 'center', fontSize: 8, color: '#444' }}>
+        {[plant.email, plant.contact ? `Ph: ${plant.contact}` : null].filter(Boolean).join('  |  ')}
+        {(plant.email || plant.contact) ? '  —  ' : ''}Download the {PLATFORM_NAME} app to place and track your orders live.
+      </div>
+    </div>
+  );
+}
 
 export default function ChallanPrint() {
   const [, params] = useRoute('/challans/:id/print');
   const [challan, setChallan] = useState<Challan | null>(null);
   const [idleConfig, setIdleConfig] = useState<IdleConfig | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrBusy, setQrBusy] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
 
   useEffect(() => {
     if (params?.id) {
@@ -30,21 +195,21 @@ export default function ChallanPrint() {
     return () => { cancelled = true; };
   }, []);
 
-  function shareWhatsApp() {
-    if (!challan) return;
-    const plant = plantIdentity(challan);
-    const msg = encodeURIComponent(
-      `🏗️ *${plant.name}*\n` +
-      `Challan No: #${challan.challanNo}\n` +
-      `Client: ${challan.clientName}\n` +
-      `Site: ${challan.siteName || '—'}\n` +
-      `Grade: ${challan.grade} | Qty: ${challan.quantity} m³\n` +
-      `Vehicle: ${challan.vehicleNo || '—'}\n` +
-      `Driver: ${challan.driverName || '—'}\n` +
-      `Dispatch: ${challan.dispatchTime ? new Date(challan.dispatchTime).toLocaleString('en-IN') : '—'}\n` +
-      `Status: ${challan.status.toUpperCase()}`
-    );
-    window.open(`https://wa.me/?text=${msg}`, '_blank');
+  // Mint a public 24h tracking link (staff-only, plant-scoped server-side) and
+  // render it as a QR on both copies. Lazy-import keeps qrcode out of the main bundle.
+  function generateTrackingQr() {
+    if (!challan || qrBusy) return;
+    setQrBusy(true);
+    setQrError(null);
+    api.post<{ token: string; url: string }>(`/challans/${challan.id}/share`, {})
+      .then(async ({ url }) => {
+        const abs = url.startsWith('http') ? url : `${window.location.origin}${url}`;
+        const QRCode = (await import('qrcode')).default;
+        const dataUrl = await QRCode.toDataURL(abs, { width: 256, margin: 0 });
+        setQrDataUrl(dataUrl);
+      })
+      .catch(() => setQrError('Could not generate tracking link (staff permission required).'))
+      .finally(() => setQrBusy(false));
   }
 
   if (loading) return (
@@ -60,19 +225,52 @@ export default function ChallanPrint() {
     </div>
   );
 
+  const plant = plantIdentity(challan);
+  const missing = profileMissing(plant);
+  const timing = computeTripTiming(challan, idleConfig);
+  const timingCells: [string, string][] = [];
+  if (timing.travelMin != null) timingCells.push(['Travel Time', formatDuration(timing.travelMin)]);
+  if (timing.siteMin != null) timingCells.push(['Time at Site', formatDuration(timing.siteMin)]);
+  if (timing.billableIdleMin != null) timingCells.push(['Billable Idle', formatDuration(timing.billableIdleMin)]);
+  if (timing.idleCharge != null) timingCells.push(['Idle Charge', `₹${timing.idleCharge.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+  const hasAnnexure = (challan.proofPhotos?.length ?? 0) > 0 || timingCells.length > 0 || !!challan.notes;
+
+  function shareWhatsApp() {
+    if (!challan) return;
+    const p = plantIdentity(challan);
+    const msg = encodeURIComponent(
+      `🏗️ *${p.name}*\n` +
+      `Challan No: #${challan.challanNo}\n` +
+      `Client: ${challan.clientName}\n` +
+      `Site: ${challan.siteName || '—'}\n` +
+      `Grade: ${challan.grade} | Qty: ${challan.quantity} m³\n` +
+      `Vehicle: ${challan.vehicleNo || '—'}\n` +
+      `Driver: ${challan.driverName || '—'}\n` +
+      `Dispatch: ${challan.dispatchTime ? new Date(challan.dispatchTime).toLocaleString('en-IN') : '—'}\n` +
+      `Status: ${challan.status.toUpperCase()}`
+    );
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+  }
+
   return (
     <>
       {/* Print controls — hidden on print */}
       <div className="no-print" style={{
         background: '#0d1930', borderBottom: '1px solid #263449', padding: '12px 20px',
-        display: 'flex', alignItems: 'center', gap: 12,
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
       }}>
         <Link href="/dispatch">
           <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: '#9fb0c7', cursor: 'pointer', fontSize: 13 }}>
             <ArrowLeft size={14} /> Back
           </button>
         </Link>
-        <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Challan #{challan.challanNo}</div>
+        <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: '#eaf6f1' }}>Challan #{challan.challanNo}</div>
+        <button onClick={generateTrackingQr} disabled={qrBusy || !!qrDataUrl} style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+          background: qrDataUrl ? 'rgba(255,255,255,.05)' : 'rgba(56,189,248,.1)',
+          border: '1px solid rgba(56,189,248,.25)',
+          borderRadius: 8, color: qrDataUrl ? '#9fb0c7' : '#38bdf8', cursor: qrDataUrl ? 'default' : 'pointer', fontSize: 13, fontWeight: 700,
+        }}><QrCode size={14} /> {qrDataUrl ? 'Tracking QR added' : qrBusy ? 'Generating…' : 'Tracking QR'}</button>
         <button onClick={shareWhatsApp} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
           background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.2)',
@@ -85,157 +283,98 @@ export default function ChallanPrint() {
         }}><Printer size={14} /> Print</button>
       </div>
 
-      {/* A4 Challan */}
+      {qrError && (
+        <div className="no-print" style={{ maxWidth: 794, margin: '10px auto 0', padding: '8px 14px', background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.3)', borderRadius: 8, color: '#fca5a5', fontSize: 12.5 }}>
+          {qrError}
+        </div>
+      )}
+
+      {missing.length > 0 && (
+        <div className="no-print" style={{ maxWidth: 794, margin: '10px auto 0', padding: '10px 14px', background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 8, color: '#fcd34d', fontSize: 12.5, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <b>Please complete plant profile before generating challan.</b>{' '}
+            Missing: {missing.join(', ')}. These details print on the challan letterhead and are fetched from the issuing plant's profile.
+          </div>
+        </div>
+      )}
+
+      {/* A4 sheet: ORIGINAL + DUPLICATE separated by a cut line — matches the sample challan */}
       <div className="challan-page" style={{
         background: '#fff', color: '#1a1a1a', fontFamily: 'Arial, sans-serif',
-        maxWidth: 794, margin: '24px auto', padding: '40px', boxShadow: '0 4px 24px rgba(0,0,0,.15)',
-        minHeight: 1123,
+        maxWidth: 794, margin: '24px auto', padding: '26px 30px', boxShadow: '0 4px 24px rgba(0,0,0,.15)',
       }}>
-        {/* Header — issuing plant's identity (never hardcoded branding) */}
-        {(() => {
-          const plant = plantIdentity(challan);
-          const location = [plant.address, plant.city].filter(Boolean).join(', ');
-          const meta = [plant.gstNo ? `GST: ${plant.gstNo}` : null, plant.contact ? `Ph: ${plant.contact}` : null]
-            .filter(Boolean).join(' | ');
-          return (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #0f6e57', paddingBottom: 16, marginBottom: 20 }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a1a' }}>{plant.legalName}</div>
-            <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>Ready Mix Concrete{plant.code ? ` · Plant ${plant.code}` : ''}</div>
-            {location && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{location}</div>}
-            {meta && <div style={{ fontSize: 11, color: '#888' }}>{meta}</div>}
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 28, fontWeight: 900, color: '#0f6e57', letterSpacing: '-1px' }}>CHALLAN</div>
-            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'monospace', color: '#1a1a1a' }}>#{challan.challanNo}</div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-              Date: {challan.dispatchTime ? new Date(challan.dispatchTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}
+        <ChallanCopy challan={challan} plant={plant} copyLabel="ORIGINAL" qrDataUrl={qrDataUrl} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0', color: '#777' }}>
+          <div style={{ flex: 1, borderTop: '1.5px dashed #999' }} />
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '2px' }}>✂ CUT HERE</div>
+          <div style={{ flex: 1, borderTop: '1.5px dashed #999' }} />
+        </div>
+
+        <ChallanCopy challan={challan} plant={plant} copyLabel="DUPLICATE" qrDataUrl={qrDataUrl} />
+
+        {/* Annexure — proof of delivery, timing & notes (second page on print) */}
+        {hasAnnexure && (
+          <div className="challan-annexure" style={{ marginTop: 24, borderTop: '2px solid #333', paddingTop: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: '.5px', marginBottom: 10 }}>
+              ANNEXURE — CHALLAN #{challan.challanNo} · DELIVERY RECORD
             </div>
-          </div>
-        </div>
-          );
-        })()}
 
-        {/* Client + Site */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-          <div style={{ padding: 14, background: '#fafafa', border: '1px solid #eee', borderRadius: 6 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>Bill To</div>
-            <div style={{ fontWeight: 800, fontSize: 15 }}>{challan.clientName}</div>
-            {challan.siteName && <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>Site: {challan.siteName}</div>}
-          </div>
-          <div style={{ padding: 14, background: '#fafafa', border: '1px solid #eee', borderRadius: 6 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>Transport Details</div>
-            <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'monospace' }}>{challan.vehicleNo || '—'}</div>
-            <div style={{ fontSize: 12, color: '#555', marginTop: 3 }}>Driver: {challan.driverName || '—'}</div>
-            {challan.driverPhone && <div style={{ fontSize: 12, color: '#555' }}>Ph: {challan.driverPhone}</div>}
-          </div>
-        </div>
-
-        {/* Material table */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20, fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: '#0f6e57', color: '#fff' }}>
-              {['Sr.', 'Description', 'Grade', 'Quantity (m³)', 'Pump Required'].map(h => (
-                <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, fontSize: 12 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{ background: '#fffbf0', borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '12px' }}>1</td>
-              <td style={{ padding: '12px', fontWeight: 600 }}>Ready Mix Concrete (RMC)</td>
-              <td style={{ padding: '12px', fontWeight: 800, color: '#0f6e57' }}>{challan.grade}</td>
-              <td style={{ padding: '12px', fontWeight: 800, fontSize: 16 }}>{challan.quantity}</td>
-              <td style={{ padding: '12px', color: challan.pumpRequired ? '#16a34a' : '#555' }}>
-                {challan.pumpRequired ? 'Yes' : 'No'}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Dispatch info */}
-        {(() => {
-          const t = (v?: string | null) => v ? new Date(v).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
-          return (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
-              {[
-                ['Dispatch Time', t(challan.dispatchTime)],
-                ['Site Arrival', t(challan.siteArrivalTime)],
-                ['Site Release', t(challan.siteReleaseTime)],
-                ['Delivery Time', t(challan.deliveryTime)],
-                ['Status', challan.status.toUpperCase()],
-              ].map(([k, v]) => (
-                <div key={k} style={{ padding: 12, background: '#fafafa', border: '1px solid #eee', borderRadius: 6, textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>{k}</div>
-                  <div style={{ fontSize: 14, fontWeight: 800 }}>{v}</div>
+            {/* Full timestamps */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 12 }}>
+              {([['Dispatch', challan.dispatchTime], ['Site Arrival', challan.siteArrivalTime], ['Site Release', challan.siteReleaseTime], ['Delivered', challan.deliveryTime]] as const).map(([k, v]) => (
+                <div key={k} style={{ padding: 8, background: '#fafafa', border: '1px solid #ddd', borderRadius: 4, textAlign: 'center' }}>
+                  <div style={{ fontSize: 8.5, color: '#888', textTransform: 'uppercase', fontWeight: 700 }}>{k}</div>
+                  <div style={{ fontSize: 11, fontWeight: 800 }}>{v ? `${fmtClock(v)} · ${fmtDate(v)}` : '—'}</div>
                 </div>
               ))}
             </div>
-          );
-        })()}
 
-        {/* Trip timing & idle charge */}
-        {(() => {
-          const timing = computeTripTiming(challan, idleConfig);
-          const cells: [string, string][] = [];
-          if (timing.travelMin != null) cells.push(['Travel Time', formatDuration(timing.travelMin)]);
-          if (timing.siteMin != null) cells.push(['Time at Site', formatDuration(timing.siteMin)]);
-          if (timing.billableIdleMin != null) cells.push(['Billable Idle', formatDuration(timing.billableIdleMin)]);
-          if (timing.idleCharge != null) cells.push(['Idle Charge', `₹${timing.idleCharge.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
-          if (!cells.length) return null;
-          return (
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cells.length},1fr)`, gap: 12, marginBottom: 28 }}>
-              {cells.map(([k, v]) => (
-                <div key={k} style={{ padding: 12, background: '#fffbf0', border: '1px solid #f0e0a0', borderRadius: 6, textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, color: '#a8801f', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>{k}</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#7a5c00' }}>{v}</div>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-
-        {challan.notes && (
-          <div style={{ padding: 12, background: '#fffbf0', border: '1px solid #f0e0a0', borderRadius: 6, marginBottom: 24, fontSize: 12 }}>
-            <span style={{ fontWeight: 700 }}>Notes: </span>{challan.notes}
-          </div>
-        )}
-
-        {challan.proofPhotos && challan.proofPhotos.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>
-              Proof of Delivery{challan.proofPhotos.length > 1 ? ` (${challan.proofPhotos.length} photos)` : ''}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              {challan.proofPhotos.map((src, i) => (
-                <img key={i} src={src} alt={`Proof of delivery ${i + 1}`}
-                  style={{ maxWidth: challan.proofPhotos!.length > 1 ? '48%' : '100%', maxHeight: 320, borderRadius: 6, border: '1px solid #eee', display: 'block' }} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Signatures */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginTop: 40 }}>
-          {['Customer Signature', 'Driver Signature', 'Plant Supervisor'].map(sig => (
-            <div key={sig} style={{ textAlign: 'center' }}>
-              <div style={{ borderTop: '1.5px solid #ccc', paddingTop: 8, marginTop: 40 }}>
-                <div style={{ fontSize: 11, color: '#666', fontWeight: 600 }}>{sig}</div>
+            {timingCells.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${timingCells.length},1fr)`, gap: 8, marginBottom: 12 }}>
+                {timingCells.map(([k, v]) => (
+                  <div key={k} style={{ padding: 8, background: '#fffbf0', border: '1px solid #f0e0a0', borderRadius: 4, textAlign: 'center' }}>
+                    <div style={{ fontSize: 8.5, color: '#a8801f', textTransform: 'uppercase', fontWeight: 700 }}>{k}</div>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#7a5c00' }}>{v}</div>
+                  </div>
+                ))}
               </div>
-            </div>
-          ))}
-        </div>
+            )}
 
-        <div style={{ marginTop: 30, borderTop: '1px solid #eee', paddingTop: 12, textAlign: 'center', fontSize: 10, color: '#aaa' }}>
-          This is a computer generated challan.{plantIdentity(challan).email ? ` For queries contact: ${plantIdentity(challan).email}` : ''} | This document is valid only with plant stamp.
-        </div>
+            {challan.notes && (
+              <div style={{ padding: 10, background: '#fffbf0', border: '1px solid #f0e0a0', borderRadius: 4, marginBottom: 12, fontSize: 11 }}>
+                <span style={{ fontWeight: 700 }}>Notes: </span>{challan.notes}
+              </div>
+            )}
+
+            {challan.proofPhotos && challan.proofPhotos.length > 0 && (
+              <div>
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>
+                  Proof of Delivery{challan.proofPhotos.length > 1 ? ` (${challan.proofPhotos.length} photos)` : ''}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {challan.proofPhotos.map((src, i) => (
+                    <img key={i} src={src} alt={`Proof of delivery ${i + 1}`}
+                      style={{ maxWidth: challan.proofPhotos!.length > 1 ? '48%' : '100%', maxHeight: 300, borderRadius: 4, border: '1px solid #ddd', display: 'block' }} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <style>{`
         @media print {
+          @page { size: A4; margin: 8mm; }
           .no-print { display: none !important; }
           body { background: #fff !important; }
-          .challan-page { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; }
+          /* Isolate the challan sheet: hide all app chrome (header, sidebar, bottom nav) */
+          body * { visibility: hidden; }
+          .challan-page, .challan-page * { visibility: visible; }
+          .challan-page { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; margin: 0 !important; max-width: 100% !important; padding: 0 !important; }
+          .challan-annexure { page-break-before: always; border-top: none !important; padding-top: 0 !important; }
         }
       `}</style>
     </>
