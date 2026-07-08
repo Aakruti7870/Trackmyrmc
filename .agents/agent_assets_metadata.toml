@@ -491,3 +491,9 @@ id = "cbOdxSfs8sX2lMBmlYbmJ"
 uri = "file://exports/sample-challan-CH-1680.png"
 type = "image"
 title = "Challan page — on-screen view"
+
+[[outputs]]
+id = "1rxZ1bRTnD_yk9S9_WZe9"
+uri = "file://exports/concreteking-android-v1.9-vc10.zip"
+type = "unspecified"
+title = "CONCRETE KING Android project (v1.9, versionCode 10)"
