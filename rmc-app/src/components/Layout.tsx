@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { useTheme } from '@/lib/theme';
+import { useTheme, THEME_MODES } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
 import { allowedPaths as roleAllowedPaths } from '@/lib/permissions';
 import { useSSE, type SSEStatus } from '@/lib/useSSE';
@@ -145,7 +145,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const { status: sseStatus, reconnect, subscribe } = useSSE();
-  const { theme, themes, setTheme } = useTheme();
+  const { mode, setMode } = useTheme();
   const { showToast } = useToast();
 
   const isClient = user?.role === 'client';
@@ -417,12 +417,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 Theme
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                {themes.map(t => {
-                  const selected = t.id === theme.id;
+                {THEME_MODES.map(m => {
+                  const selected = m.id === mode;
                   return (
                     <button
-                      key={t.id}
-                      onClick={() => setTheme(t.id)}
+                      key={m.id}
+                      onClick={() => setMode(m.id)}
+                      title={m.hint}
                       style={{
                         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                         padding: '8px 10px', borderRadius: 9, cursor: 'pointer',
@@ -433,12 +434,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                         transition: 'all .15s',
                       }}
                     >
-                      <span style={{
-                        width: 12, height: 12, borderRadius: 999, flexShrink: 0,
-                        background: t.tokens['--gold'],
-                        border: '1px solid color-mix(in srgb, var(--text) 20%, transparent)',
-                      }} />
-                      {t.name}
+                      <m.Icon size={13} style={{ flexShrink: 0 }} />
+                      {m.label}
                     </button>
                   );
                 })}

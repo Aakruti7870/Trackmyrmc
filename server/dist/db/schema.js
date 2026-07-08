@@ -1085,3 +1085,74 @@ export const emergencies = pgTable('emergencies', {
     index('emergencies_plant_idx').on(t.plantId),
     index('emergencies_status_idx').on(t.status),
 ]);
+// ============================================================================
+// KYC & Verification module (enterprise). Fully additive — separate from the
+// legacy Aadhaar/DigiLocker flow above (users.kycStatus / kycVerifications),
+// which remains the customer eKYC identity check. This module is the broader
+// document-based compliance layer: one profile per entity (user or vehicle),
+// documents in object storage with expiry tracking, and a staff approval
+// workflow. Audit history goes through the canonical audit_logs table.
+// ============================================================================
+// Which real-world entity a KYC profile describes. User-backed profiles carry
+// userId; vehicle profiles carry vehicleId. 'staff' covers every operational
+// role that is not a customer/driver/plant owner.
+export const kycEntityTypeEnum = pgEnum('kyc_entity_type', ['customer', 'driver', 'staff', 'plant_owner', 'vehicle']);
+// draft → the subject is still filling it in; submitted → waiting for review;
+// approved/rejected → reviewer decision. A rejected profile can be edited and
+// re-submitted (status flips back to submitted).
+export const kycProfileStatusEnum = pgEnum('kyc_profile_status', ['draft', 'submitted', 'approved', 'rejected']);
+export const kycDocTypeEnum = pgEnum('kyc_doc_type', ['gst', 'pan', 'aadhaar', 'driving_license', 'rc', 'insurance', 'puc', 'fitness', 'photo', 'other']);
+export const kycProfiles = pgTable('kyc_profiles', {
+    id: serial('id').primaryKey(),
+    entityType: kycEntityTypeEnum('entity_type').notNull(),
+    // Exactly one of userId/vehicleId is set (partial unique indexes below keep
+    // one live profile per subject). Cascade: deleting the subject removes its
+    // KYC profile and (via profileId cascade) its document rows.
+    userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    vehicleId: integer('vehicle_id').references(() => vehicles.id, { onDelete: 'cascade' }),
+    // Stamped from the subject (user.plantId / vehicle.plantId) at write time so
+    // review lists stay plant-private. NULL = platform-level subject.
+    plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
+    status: kycProfileStatusEnum('status').notNull().default('draft'),
+    // Identity/registration fields. All optional — which ones apply depends on
+    // the entity type (GST/PAN for businesses, DL for drivers, etc.). Aadhaar is
+    // stored MASKED ONLY (last 4), mirroring the eKYC rule — never the full number.
+    legalName: text('legal_name'),
+    gstNumber: text('gst_number'),
+    panNumber: text('pan_number'),
+    dlNumber: text('dl_number'),
+    dlExpiry: date('dl_expiry'),
+    aadhaarMasked: text('aadhaar_masked'),
+    notes: text('notes'),
+    submittedAt: timestamp('submitted_at'),
+    reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+    reviewedByName: text('reviewed_by_name'),
+    reviewedAt: timestamp('reviewed_at'),
+    rejectionReason: text('rejection_reason'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+    uniqueIndex('kyc_profiles_user_unique').on(t.userId).where(sql `${t.userId} IS NOT NULL`),
+    uniqueIndex('kyc_profiles_vehicle_unique').on(t.vehicleId).where(sql `${t.vehicleId} IS NOT NULL`),
+    index('kyc_profiles_status_idx').on(t.status),
+    index('kyc_profiles_entity_idx').on(t.entityType),
+    index('kyc_profiles_plant_idx').on(t.plantId),
+]);
+// One row per uploaded KYC document. The file itself lives in object storage
+// (same presigned-upload flow as proof photos); only the /objects/... entity
+// path is persisted here. expiryDate powers the expiry-alert tick, which stamps
+// expiryAlertedAt so each document alerts at most once per expiry.
+export const kycDocuments = pgTable('kyc_documents', {
+    id: serial('id').primaryKey(),
+    profileId: integer('profile_id').notNull().references(() => kycProfiles.id, { onDelete: 'cascade' }),
+    docType: kycDocTypeEnum('doc_type').notNull(),
+    objectPath: text('object_path').notNull(),
+    fileName: text('file_name'),
+    expiryDate: date('expiry_date'),
+    uploadedBy: integer('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+    expiryAlertedAt: timestamp('expiry_alerted_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+    index('kyc_documents_profile_idx').on(t.profileId),
+    index('kyc_documents_expiry_idx').on(t.expiryDate),
+]);

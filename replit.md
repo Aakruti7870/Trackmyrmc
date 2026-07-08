@@ -53,13 +53,14 @@ Runs on port 5000.
 
 ## Design System
 
-One universal teal-green + white corporate theme with two modes (Day / Night), selectable from the user menu. Defined in `rmc-app/src/lib/theme.tsx` as CSS variables; the whole app re-themes via these tokens.
+One universal teal + mint-white corporate theme with two modes (Day / Night) and an **Auto** mode (default) that follows sunrise/sunset by the clock. Selectable from the user menu and Account Settings. Defined in `rmc-app/src/lib/theme.tsx` as CSS variables; the whole app re-themes via these tokens.
 
-- **Day (default)**: white/light surfaces, dark teal text `#0f2e29`, teal accent ramp (`--gold` = `#178a6e`)
-- **Night**: deep teal surfaces (`--bg` `#0a221e`), light text `#eaf6f1`, brighter emerald accent (`--gold` = `#1f9e80`)
-- Accent tokens are still named `--gold*` (legacy key names) but hold the teal-green ramp
-- Green: `#22c55e` (dispatch/positive), Blue: `#38bdf8` (info), Red: `#ef4444` (danger)
-- Glass cards via `--glass-1/2/-border`; surfaces flip per mode (DAY_SURFACES / NIGHT_SURFACES)
+- **Day**: white cards on cool mint page `#f4f7f5`, ink text `#12211d`, muted `#6b7c76`, teal accent ramp (`--gold` = `#178a6e`, dark `#0f766e`)
+- **Night**: deep green-ink surfaces (`--bg` `#0c1713`, panel `#12211d`), light text `#eaf4f0`, brighter teal accent (`--gold` = `#27b58c`)
+- **Auto** (default): computes sunrise/sunset locally (NOAA approximation) from the remembered Nearby location in localStorage (fallback 06:15/18:30); re-checks every minute — no geolocation prompt, nothing leaves the device
+- Accent tokens are still named `--gold*` (legacy key names) but hold the teal ramp
+- Green: `#22c55e` (dispatch/positive), Blue: `#38bdf8` (info), Red: `#ef4444` (danger) — stable across modes
+- Flat cards via `--glass-1/2/-border` (no blur/glows); surfaces flip per mode (DAY_SURFACES / NIGHT_SURFACES)
 
 ## User Preferences
 

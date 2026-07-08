@@ -4,8 +4,8 @@ import type { ReactNode, CSSProperties } from 'react';
 // Delivery-style design kit — the approved "Delivery Style" mockup language.
 // Shared by all 8 mobile role-home screens and the mobile app chrome (header +
 // bottom tab bar). Now THEME-DRIVEN: the accent/ink/paper/tint constants read
-// live CSS variables, so it re-skins with the active theme (Simple = teal,
-// Daylight = terracotta). Semantic status colors stay stable across themes.
+// live CSS variables, so it re-skins with the active theme (Day = teal,
+// Night = dark counterpart). Semantic status colors stay stable across themes.
 // ---------------------------------------------------------------------------
 
 export const TEAL = 'var(--gold)';

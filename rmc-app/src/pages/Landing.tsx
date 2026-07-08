@@ -8,14 +8,14 @@ import SocialLinksBar from "@/components/SocialLinksBar";
    take the user straight to the real /login page (SPA nav).
 ════════════════════════════════════════════════════════ */
 
-/* One flat warm-white palette — matches the login + the rest of the app. */
+/* One flat mint-white palette — matches the login + the rest of the app. */
 const C = {
-  teal:   "#0f766e",
-  dark:   "#fdfbf7",
+  teal:   "#178a6e",
+  dark:   "#f4f7f5",
   panel:  "#ffffff",
-  border: "rgba(28,25,23,0.10)",
-  text:   "#1c1917",
-  muted:  "#78716c",
+  border: "rgba(18,33,29,0.10)",
+  text:   "#12211d",
+  muted:  "#6b7c76",
 };
 
 /* SPA-navigate to the real main-app /login page (wouter listens to popstate). */
@@ -27,7 +27,7 @@ const openLogin = () => {
 
 /* ── FLAT CARD ── */
 const Glass=({children,style={}}:{children:React.ReactNode;style?:React.CSSProperties})=>(
-  <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:20,boxShadow:"0 1px 3px rgba(28,25,23,0.06), 0 8px 24px rgba(28,25,23,0.05)",...style}}>{children}</div>
+  <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:20,boxShadow:"0 1px 3px rgba(18,33,29,0.06), 0 8px 24px rgba(18,33,29,0.05)",...style}}>{children}</div>
 );
 
 /* ── LABEL CHIP ── */

@@ -1,40 +1,65 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
-import { THEMES, ThemeContext, initialTheme, applyTheme, loadThemeFont, persistTheme, useTheme } from './theme';
+import {
+  THEMES, THEME_MODES, ThemeContext, initialMode, initialTheme,
+  applyTheme, loadThemeFont, persistMode, resolveTheme, useTheme,
+  type Theme, type ThemeMode,
+} from './theme';
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState(initialTheme);
+  const [mode, setModeState] = useState<ThemeMode>(initialMode);
+  const [theme, setThemeState] = useState<Theme>(initialTheme);
 
   useEffect(() => {
     loadThemeFont(initialTheme.fontName);
   }, []);
 
-  const setTheme = useCallback((id: string) => {
-    const next = THEMES.find(t => t.id === id) || THEMES[0];
+  const applyResolved = useCallback((nextMode: ThemeMode) => {
+    const next = resolveTheme(nextMode);
     applyTheme(next);
     loadThemeFont(next.fontName);
-    persistTheme(next);
-    setThemeState(next);
+    setThemeState(prev => (prev.id === next.id ? prev : next));
   }, []);
 
+  const setMode = useCallback((nextMode: ThemeMode) => {
+    persistMode(nextMode);
+    setModeState(nextMode);
+    applyResolved(nextMode);
+  }, [applyResolved]);
+
+  /* In Auto mode, re-check the clock every minute (and when the tab wakes up)
+     so the app flips Day <-> Night at sunrise/sunset without a reload. */
+  useEffect(() => {
+    if (mode !== 'auto') return;
+    const tick = () => applyResolved('auto');
+    const interval = window.setInterval(tick, 60_000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [mode, applyResolved]);
+
   return (
-    <ThemeContext.Provider value={{ theme, themes: THEMES, setTheme }}>
+    <ThemeContext.Provider value={{ theme, themes: THEMES, mode, setMode }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
-/* ---- Full theme picker (swatch cards), used on the Account Settings page ---- */
+/* ---- Full theme-mode picker (swatch cards), used on the Account Settings page ---- */
 export function ThemeSwitcher() {
-  const { theme, themes, setTheme } = useTheme();
+  const { theme, mode, setMode } = useTheme();
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))', gap: 12 }}>
-      {themes.map(t => {
-        const selected = t.id === theme.id;
+      {THEME_MODES.map(m => {
+        const selected = m.id === mode;
+        // Preview colors: forced modes preview themselves; Auto previews the currently active theme.
+        const t = m.id === 'auto' ? theme : (THEMES.find(x => x.id === m.id) || THEMES[0]);
         return (
           <button
-            key={t.id}
-            onClick={() => setTheme(t.id)}
+            key={m.id}
+            onClick={() => setMode(m.id)}
             style={{
               textAlign: 'left', padding: 0, borderRadius: 14, overflow: 'hidden',
               background: 'transparent', cursor: 'pointer',
@@ -43,7 +68,7 @@ export function ThemeSwitcher() {
               transition: 'transform .15s, box-shadow .2s',
             }}
           >
-            {/* live preview rendered with this theme's own colors */}
+            {/* live preview rendered with the target theme's own colors */}
             <div style={{
               position: 'relative', height: 74, padding: 12,
               background: `radial-gradient(circle at top left, ${t.tokens['--bg-top']} 0, ${t.tokens['--bg']} 55%, ${t.tokens['--bg-deep']} 100%)`,
@@ -57,24 +82,26 @@ export function ThemeSwitcher() {
                 <span style={{ width: 14, height: 14, borderRadius: 5, background: t.tokens['--blue'] }} />
               </div>
               <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
                 fontFamily: t.font, fontWeight: 800, fontSize: 18, lineHeight: 1,
                 color: t.tokens['--text'],
               }}>
+                <m.Icon size={16} style={{ color: t.tokens['--gold'] }} />
                 Aa <span style={{ color: t.tokens['--gold'] }}>Aa</span>
               </div>
               {selected && (
                 <div style={{
                   position: 'absolute', top: 8, right: 8,
                   width: 22, height: 22, borderRadius: 999, display: 'grid', placeItems: 'center',
-                  background: t.tokens['--gold'], color: '#111827',
+                  background: t.tokens['--gold'], color: '#ffffff',
                 }}>
                   <Check size={13} strokeWidth={3} />
                 </div>
               )}
             </div>
             <div style={{ padding: '9px 11px', background: 'var(--panel2)' }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{t.name}</div>
-              <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>{t.tagline} · {t.fontName}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{m.label}</div>
+              <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>{m.hint}</div>
             </div>
           </button>
         );

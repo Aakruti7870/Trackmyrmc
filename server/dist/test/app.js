@@ -31,6 +31,7 @@ import attendanceRoutes from '../routes/attendance.js';
 import trackingRoutes from '../routes/tracking.js';
 import automationRoutes from '../routes/automations.js';
 import kycRoutes from '../routes/kyc.js';
+import kycVerificationRoutes from '../routes/kycVerification.js';
 import expenseRoutes from '../routes/expenses.js';
 import emergencyRoutes from '../routes/sos.js';
 // Builds a minimal Express app wired with only the routes exercised by the
@@ -79,6 +80,7 @@ export function buildTestApp() {
     app.use('/api/track', trackingRoutes);
     app.use('/api/automations', automationRoutes);
     app.use('/api/kyc', kycRoutes);
+    app.use('/api/kyc-verification', kycVerificationRoutes);
     app.use('/api/expenses', expenseRoutes);
     app.use('/api/emergencies', emergencyRoutes);
     return app;
