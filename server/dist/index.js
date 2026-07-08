@@ -52,7 +52,15 @@ import { tickAutomations } from './lib/automationJobs.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
 const app = express();
-const PORT = process.env.PORT || process.env.API_PORT || (isProd ? 5000 : 3001);
+// Cloud Run (and most container hosts) inject $PORT and require the server to
+// listen on it, bound to 0.0.0.0. Fallbacks: API_PORT (legacy), then 8080 in
+// production (Cloud Run's default) or 3001 in development. The Replit
+// deployment pins PORT=5000 explicitly in its run command.
+const rawPort = process.env.PORT || process.env.API_PORT || (isProd ? '8080' : '3001');
+const PORT = Number(rawPort);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+    throw new Error(`Invalid PORT value: ${JSON.stringify(rawPort)} — must be an integer between 1 and 65535`);
+}
 // CORS allowlist. The web app is served same-origin (no CORS needed there), but
 // the native Capacitor build runs from a localhost WebView origin and calls this
 // API cross-origin, so we permit the native origins plus the known web domains.
@@ -294,9 +302,14 @@ async function tickDiscoveryCleanup() {
 }
 // Complete the SMTP recovery sync BEFORE accepting traffic so an early login/
 // forgot-password request can never race the stale persisted credentials.
-// A failed sync must never keep the API down — log and start anyway.
-await syncSmtpFromEnv().catch((e) => console.error('syncSmtpFromEnv failed', e));
-app.listen(PORT, () => {
+// A failed sync must never keep the API down — log and start anyway. Capped at
+// 10s: Cloud Run kills containers that don't listen on $PORT quickly, so a
+// slow/unreachable SMTP host must never delay the listen call indefinitely.
+await Promise.race([
+    syncSmtpFromEnv(),
+    new Promise((resolve) => setTimeout(resolve, 10_000)),
+]).catch((e) => console.error('syncSmtpFromEnv failed', e));
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`TrackMyRMC API running on port ${PORT}`);
     ensureMasterAccounts().catch((e) => console.error('ensureMasterAccounts failed', e));
     ensureReviewDemoAccount().catch((e) => console.error('ensureReviewDemoAccount failed', e));

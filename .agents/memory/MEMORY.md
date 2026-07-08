@@ -90,4 +90,5 @@
 - [RMC mobile role-home landing](rmc-mobile-role-home.md) — /home→RoleHome, mobile-only per-role homes (desktop unchanged); defaultPath viewport-aware, desktopDefaultPath never returns /home for non-driver, canAccess('/home')=HOME_ROLES bypasses overrides (no redirect loop).
 - [RMC delivery chrome nav gating](rmc-delivery-chrome-nav-gating.md) — bottom-nav tabs/FAB filtered by canAccess, so a tab href not in ROLE_ALLOWED_PATHS silently vanishes; gate every home click too + keep QuickAction labels honest.
 - [RMC batch sheets](rmc-batch-sheets.md) — batch reports snapshot the recipe (immutable history, row-count lock); print one-pagers = fixed-mm halves + overflow hidden; verify via headless-chromium PDF page count.
+- [Cloud Run port contract](rmc-cloud-run-port.md) — PORT env first (prod fallback 8080), 0.0.0.0 bind, Replit deploy pins PORT=5000 in run cmd; pre-listen boot work must be timeout-capped or Cloud Run kills the container.
 - [Challan print isolation](rmc-challan-print-isolation.md) — A4 print width triggers MOBILE media queries so Layout chrome prints; printable pages need the visibility-isolation @media print block.

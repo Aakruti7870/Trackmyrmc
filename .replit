@@ -109,12 +109,20 @@ localPort = 5001
 externalPort = 8080
 
 [[ports]]
+localPort = 8098
+externalPort = 3000
+
+[[ports]]
+localPort = 8099
+externalPort = 8099
+
+[[ports]]
 localPort = 23636
 externalPort = 80
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["bash", "-c", "NODE_ENV=production node server/dist/index.js"]
+run = ["bash", "-c", "NODE_ENV=production PORT=5000 node server/dist/index.js"]
 build = ["bash", "-c", "cd rmc-app && pnpm build && cd ../server && pnpm build"]
 
 [postMerge]
