@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { plantScope, clientInScope } from '../lib/tenancy.js';
 import { notifyOrderPlaced, notifyOrderDecision } from '../lib/deliveryNotify.js';
+import { clientKycVerifiedSql } from '../lib/kycBadge.js';
 // The full order projection shared by the list and detail selects. Includes the
 // customer approval snapshot fields so staff can review/auto-fill a challan. The
 // displayed site name prefers the linked site, falling back to the order's own
@@ -23,6 +24,9 @@ const orderSelect = {
     sitePhoto: orders.sitePhoto, rejectionReason: orders.rejectionReason,
     clientName: clients.name,
     siteName: sql `coalesce(${sites.name}, ${orders.siteName})`,
+    // Trust signal for the receiving plant: true when the ordering customer's
+    // account has completed KYC (Aadhaar eKYC or an approved KYC profile).
+    customerKycVerified: clientKycVerifiedSql(),
 };
 const router = Router();
 router.use(requireAuth);

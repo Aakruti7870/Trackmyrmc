@@ -12,6 +12,7 @@ import { createInviteToken } from '../lib/inviteToken.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { discoverConcretePlants, discoverSuppliers, isDiscoveryConfigured, isSupplierCategoryKey, SUPPLIER_CATEGORIES, } from '../lib/places.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
+import { getGstPanVerifiedPlantIds } from '../lib/kycBadge.js';
 import { canCreateRole, roleLimit, isPlatformStaff } from '../lib/roleHierarchy.js';
 import { extractDocumentFields, isGeminiConfigured } from '../lib/gemini.js';
 import { ObjectStorageService } from '../replit_integrations/object_storage/index.js';
@@ -98,6 +99,9 @@ router.get('/nearby', requireAuth, async (req, res) => {
     const MAX_RADIUS_KM = 250;
     const effRadius = Math.min(Number.isFinite(radius) && radius > 0 ? radius : 40, MAX_RADIUS_KM);
     const rows = await db.select().from(plants);
+    // "GST & PAN Verified" trust badge: plants whose approved KYC profile carries
+    // both registrations. Public-safe — it exposes a boolean, never the documents.
+    const gstPanVerified = await getGstPanVerifiedPlantIds();
     const nearby = rows
         // Only plants the authority has marked active AND left visible on the network
         // are shown to customers. Onboarding leads / hidden plants never appear.
@@ -118,6 +122,7 @@ router.get('/nearby', requireAuth, async (req, res) => {
             openTime: p.openTime,
             closeTime: p.closeTime,
             openNow: isOpenNow(p.openTime, p.closeTime),
+            gstPanVerified: gstPanVerified.has(p.id),
             distanceKm: Math.round(haversineKm(lat, lng, pLat, pLng) * 10) / 10,
         };
     })
@@ -132,6 +137,7 @@ router.get('/nearby', requireAuth, async (req, res) => {
 // never exposes onboarding leads or lets logged-out visitors enumerate plants.
 router.get('/map', requireAuth, async (_req, res) => {
     const rows = await db.select().from(plants);
+    const gstPanVerified = await getGstPanVerifiedPlantIds();
     const mapped = rows
         .filter(customerVisible)
         .map(p => ({
@@ -146,6 +152,7 @@ router.get('/map', requireAuth, async (_req, res) => {
         openTime: p.openTime,
         closeTime: p.closeTime,
         openNow: isOpenNow(p.openTime, p.closeTime),
+        gstPanVerified: gstPanVerified.has(p.id),
     }))
         .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
         .sort((a, b) => a.name.localeCompare(b.name));
@@ -204,7 +211,8 @@ router.get('/directory', requireAuth, requireRole('client'), async (_req, res) =
     }).from(plants)
         .where(and(eq(plants.networkStatus, 'active'), eq(plants.showOnNetwork, true)))
         .orderBy(plants.name);
-    res.json(rows);
+    const gstPanVerified = await getGstPanVerifiedPlantIds();
+    res.json(rows.map(p => ({ ...p, gstPanVerified: gstPanVerified.has(p.id) })));
 });
 // ---- Admin onboarding / management ----
 // The /nearby route above gates itself with requireAuth (customer discovery).
@@ -278,6 +286,7 @@ router.get('/directory', async (_req, res) => {
         networkStatus: plants.networkStatus,
         showOnNetwork: plants.showOnNetwork,
     }).from(plants);
+    const gstPanVerified = await getGstPanVerifiedPlantIds();
     const directory = rows
         .filter(customerVisible)
         .map(p => ({
@@ -288,6 +297,7 @@ router.get('/directory', async (_req, res) => {
         grades: p.grades,
         openTime: p.openTime,
         closeTime: p.closeTime,
+        gstPanVerified: gstPanVerified.has(p.id),
     }))
         .sort((a, b) => a.name.localeCompare(b.name));
     res.json(directory);
@@ -616,7 +626,12 @@ router.get('/', ADMIN, platformStaffOnly, async (_req, res) => {
         .where(and(isNull(users.deletedAt), sql `${users.plantId} IS NOT NULL`))
         .groupBy(users.plantId);
     const byPlant = new Map(counts.map(c => [c.plantId, c.count]));
-    res.json(rows.map(r => ({ ...r, ownerCount: byPlant.get(r.id) ?? 0 })));
+    const gstPanVerified = await getGstPanVerifiedPlantIds();
+    res.json(rows.map(r => ({
+        ...r,
+        ownerCount: byPlant.get(r.id) ?? 0,
+        gstPanVerified: gstPanVerified.has(r.id),
+    })));
 });
 // Authority MAPPING PLANT onboarding lifecycle. Stored on plants.networkStatus.
 const NETWORK_STATUSES = ['pending', 'invited', 'verified', 'active'];
