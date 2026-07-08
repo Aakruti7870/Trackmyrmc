@@ -53,6 +53,8 @@ const DriverSOS      = lazy(() => import('@/pages/DriverSOS'));
 const ExpenseReview  = lazy(() => import('@/pages/ExpenseReview'));
 const Emergencies    = lazy(() => import('@/pages/Emergencies'));
 const BatchSheets    = lazy(() => import('@/pages/BatchSheets'));
+const KycProfilePage = lazy(() => import('@/pages/KycProfile'));
+const KycAdmin       = lazy(() => import('@/pages/KycAdmin'));
 const BatchSheetPrint = lazy(() => import('@/pages/BatchSheetPrint'));
 
 const PageSpinner = (
@@ -124,6 +126,8 @@ function ProtectedRoutes() {
         <Route path="/expenses"     component={() => <GuardedRoute path="/expenses"     component={DriverExpenses} />} />
         <Route path="/sos"          component={() => <GuardedRoute path="/sos"          component={DriverSOS}   />} />
         <Route path="/expense-review" component={() => <GuardedRoute path="/expense-review" component={ExpenseReview} />} />
+        <Route path="/kyc"          component={() => <GuardedRoute path="/kyc"          component={KycProfilePage} />} />
+        <Route path="/kyc-admin"    component={() => <GuardedRoute path="/kyc-admin"    component={KycAdmin} />} />
         <Route path="/emergencies"  component={() => <GuardedRoute path="/emergencies"  component={Emergencies} />} />
         <Route path="/orders"       component={() => <GuardedRoute path="/orders"       component={Orders}      />} />
         <Route path="/dispatch"     component={() => <GuardedRoute path="/dispatch"     component={Dispatch}    />} />

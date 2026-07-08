@@ -92,3 +92,4 @@
 - [RMC batch sheets](rmc-batch-sheets.md) — batch reports snapshot the recipe (immutable history, row-count lock); print one-pagers = fixed-mm halves + overflow hidden; verify via headless-chromium PDF page count.
 - [Cloud Run port contract](rmc-cloud-run-port.md) — PORT env first (prod fallback 8080), 0.0.0.0 bind, Replit deploy pins PORT=5000 in run cmd; pre-listen boot work must be timeout-capped or Cloud Run kills the container.
 - [Challan print isolation](rmc-challan-print-isolation.md) — A4 print width triggers MOBILE media queries so Layout chrome prints; printable pages need the visibility-isolation @media print block.
+- [RMC KYC verification module](rmc-kyc-verification-module.md) — audit rows tagged [kyc#id] in audit_logs (LIKE reader), approved=immutable, Aadhaar last-4 only, /badges needs unbound-actor 403.

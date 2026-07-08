@@ -35,10 +35,12 @@ import attendanceRoutes from './routes/attendance.js';
 import trackingRoutes from './routes/tracking.js';
 import automationRoutes from './routes/automations.js';
 import kycRoutes from './routes/kyc.js';
+import kycVerificationRoutes from './routes/kycVerification.js';
 import expenseRoutes from './routes/expenses.js';
 import sosRoutes from './routes/sos.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
+import { tickKycExpiryAlerts } from './lib/kycExpiry.js';
 import { runDueWhatsAppRetries } from './lib/whatsappRetry.js';
 import { ensureWhatsAppTemplateDefaults } from './lib/whatsapp.js';
 import { tickFreshnessAlerts } from './lib/freshnessAlerts.js';
@@ -159,6 +161,7 @@ app.use('/api/config', configRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/automations', automationRoutes);
 app.use('/api/kyc', kycRoutes);
+app.use('/api/kyc-verification', kycVerificationRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/emergencies', sosRoutes);
 // PUBLIC: shareable trip tracking — no requireAuth (the router has none).
@@ -218,6 +221,8 @@ if (isProd) {
     '/home',
     '/expenses',
     '/expense-review',
+    '/kyc',
+    '/kyc-admin',
     '/sos',
     '/emergencies',
   ]);
@@ -332,6 +337,9 @@ app.listen(PORT, '0.0.0.0', () => {
   setInterval(tickWhatsAppRetries, 60 * 1000);
   tickDiscoveryCleanup();
   setInterval(tickDiscoveryCleanup, 60 * 60 * 1000);
+  // KYC document expiry alerts — once-only per document via a DB claim stamp.
+  tickKycExpiryAlerts().catch((e) => console.error('KYC expiry tick failed', e));
+  setInterval(() => tickKycExpiryAlerts().catch((e) => console.error('KYC expiry tick failed', e)), 6 * 60 * 60 * 1000);
   // Configurable automation suite (reminders, follow-ups, digests, anomaly
   // alerts, cleanup). tickAutomations self-guards against overlap and every
   // send is arbitrated by a once-only DB claim, so restarts can't double-send.

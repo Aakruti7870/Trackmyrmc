@@ -5,7 +5,7 @@ import {
   ChevronDown, PackageSearch, Route, ShieldCheck, Settings, Search, History, ClipboardCheck, Repeat,
   Timer, TrendingUp, Fuel, MapPin, Factory, CalendarClock,
   Crown, Building2, HardHat, Wallet, User, Zap, MessageCircle,
-  Home, Siren, FileSpreadsheet,
+  Home, Siren, FileSpreadsheet, BadgeCheck,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -44,6 +44,8 @@ const ALL_NAV_ITEMS = [
   { path: '/plants',      label: 'Plants',     icon: Factory },
   { path: '/users',       label: 'Users',      icon: ShieldCheck },
   { path: '/user-management', label: 'Plant Users', icon: UserCheck },
+  { path: '/kyc-admin',   label: 'KYC & Verification', icon: BadgeCheck },
+  { path: '/kyc',         label: 'My KYC',     icon: ShieldCheck },
   { path: '/activity-log', label: 'Activity & Audit', icon: History },
   { path: '/automations', label: 'Automations', icon: Zap },
   { path: '/whatsapp',    label: 'WhatsApp',   icon: MessageCircle },
@@ -59,6 +61,7 @@ const CLIENT_NAV: { path: string; label: string; icon: typeof LayoutDashboard; t
   { path: '/my-orders',     label: 'Deliveries',          icon: Truck,         tab: 'deliveries' },
   { path: '/my-orders',     label: 'Financial Statement', icon: FileText,      tab: 'billing' },
   { path: '/nearby-plants', label: 'Find Plants',         icon: MapPin },
+  { path: '/kyc',           label: 'KYC Verification',    icon: BadgeCheck },
   { path: '/profile',       label: 'Account',             icon: Settings },
 ];
 
@@ -69,6 +72,7 @@ const DRIVER_NAV: { path: string; label: string; icon: typeof LayoutDashboard }[
   { path: '/my-trips', label: 'Trips',    icon: Route },
   { path: '/expenses', label: 'Expenses', icon: Wallet },
   { path: '/sos',      label: 'SOS',      icon: Siren },
+  { path: '/kyc',      label: 'KYC',      icon: BadgeCheck },
   { path: '/profile',  label: 'Profile',  icon: User },
 ];
 

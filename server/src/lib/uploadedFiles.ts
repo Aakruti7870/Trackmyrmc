@@ -2,7 +2,7 @@ import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { uploadedFiles } from '../db/schema.js';
 
-export type UploadedFileType = 'proof_photo' | 'fuel_bill' | 'expense_receipt';
+export type UploadedFileType = 'proof_photo' | 'fuel_bill' | 'expense_receipt' | 'kyc_document';
 export type UploadedFileAccess = 'plant' | 'admin';
 
 export interface RegisterFileInput {
