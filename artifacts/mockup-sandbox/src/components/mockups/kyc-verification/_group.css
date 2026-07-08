@@ -1,0 +1,42 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
+
+/* CONCRETE KING "Simple" (default) theme tokens — copied from rmc-app/src/lib/theme.tsx */
+:root {
+  --bg-top: #fdfbf7;
+  --bg: #fdfbf7;
+  --bg-deep: #f4efe7;
+  --panel: #ffffff;
+  --panel2: #faf7f2;
+  --surface: #ffffff;
+  --line: rgba(28, 25, 23, 0.10);
+  --text: #1c1917;
+  --muted: #78716c;
+  --gold-hi: #12876f;
+  --gold-mid: #0f766e;
+  --gold: #0f766e;
+  --gold-dark: #0d6560;
+  --glow-1: rgba(15, 118, 110, 0.16);
+  --glow-2: transparent;
+  --gold-soft: #e7f2f0;
+  --gold-tint: #eef4f2;
+  --green: #22c55e;
+  --green-dark: #15803d;
+  --blue: #38bdf8;
+  --red: #ef4444;
+  --orange: #f59e0b;
+  --glass-1: #ffffff;
+  --glass-2: #ffffff;
+  --glass-border: rgba(28, 25, 23, 0.10);
+  --chip-bg: #f4efe7;
+  --overlay: rgba(28, 25, 23, 0.32);
+  --font-app: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.kyc-mock-root {
+  min-height: 100vh;
+  background: var(--bg);
+  font-family: var(--font-app);
+  color: var(--text);
+  padding: 28px 22px;
+  box-sizing: border-box;
+}

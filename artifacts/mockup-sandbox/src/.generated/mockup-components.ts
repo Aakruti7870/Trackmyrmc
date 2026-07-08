@@ -23,6 +23,8 @@ export const modules: ModuleMap = {
   "./components/mockups/daylight/PlantHub.tsx": () => import("../components/mockups/daylight/PlantHub.tsx"),
   "./components/mockups/dispatcher-home/DeliveryStyle.tsx": () => import("../components/mockups/dispatcher-home/DeliveryStyle.tsx"),
   "./components/mockups/driver-home/DeliveryStyle.tsx": () => import("../components/mockups/driver-home/DeliveryStyle.tsx"),
+  "./components/mockups/kyc-verification/Admin.tsx": () => import("../components/mockups/kyc-verification/Admin.tsx"),
+  "./components/mockups/kyc-verification/Profile.tsx": () => import("../components/mockups/kyc-verification/Profile.tsx"),
   "./components/mockups/login-screens/DarkPremium.tsx": () => import("../components/mockups/login-screens/DarkPremium.tsx"),
   "./components/mockups/login-screens/FintechClean.tsx": () => import("../components/mockups/login-screens/FintechClean.tsx"),
   "./components/mockups/login-screens/GradientVibrant.tsx": () => import("../components/mockups/login-screens/GradientVibrant.tsx"),
@@ -45,6 +47,6 @@ export const modules: ModuleMap = {
   "./components/mockups/rmc-dashboard/CommandCenter.tsx": () => import("../components/mockups/rmc-dashboard/CommandCenter.tsx"),
   "./components/mockups/rmc-dashboard/ExceptionFirst.tsx": () => import("../components/mockups/rmc-dashboard/ExceptionFirst.tsx"),
   "./components/mockups/rmc-dashboard/ShiftHandover.tsx": () => import("../components/mockups/rmc-dashboard/ShiftHandover.tsx"),
-  "./components/mockups/supervisor-home/DeliveryStyle.tsx": () => import("../components/mockups/supervisor-home/DeliveryStyle.tsx"),
-  "./components/mockups/superadmin/PlatformControlCenter.tsx": () => import("../components/mockups/superadmin/PlatformControlCenter.tsx")
+  "./components/mockups/superadmin/PlatformControlCenter.tsx": () => import("../components/mockups/superadmin/PlatformControlCenter.tsx"),
+  "./components/mockups/supervisor-home/DeliveryStyle.tsx": () => import("../components/mockups/supervisor-home/DeliveryStyle.tsx")
 };
