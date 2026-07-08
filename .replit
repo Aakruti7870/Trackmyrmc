@@ -109,10 +109,6 @@ localPort = 5001
 externalPort = 8080
 
 [[ports]]
-localPort = 8098
-externalPort = 3000
-
-[[ports]]
 localPort = 8099
 externalPort = 8099
 

@@ -2,7 +2,12 @@
 # deploy to Cloud Run. Run with:
 #
 #   gcloud builds submit --config cloudbuild.yaml \
-#     --substitutions=_REGION=asia-south1,_REPO=concreteking,_SERVICE=concreteking,_CLOUDSQL_INSTANCE=trackmyrmc-production:asia-south1:trackmyrmc-prod-db
+#     --substitutions=_REGION=asia-south1,_REPO=cloud-run-source-deploy,_IMAGE=trackmyrmc/rackmyrmc,_SERVICE=rackmyrmc,_CLOUDSQL_INSTANCE=trackmyrmc-production:asia-south1:trackmyrmc-prod-db
+#
+# The image path (repo + image name + tag) is identical across the build, push,
+# and deploy steps:
+#   ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:${COMMIT_SHA}
+# e.g. asia-south1-docker.pkg.dev/trackmyrmc-production/cloud-run-source-deploy/trackmyrmc/rackmyrmc:<commit-sha>
 #
 # Secrets are injected from Secret Manager at runtime via --set-secrets (see the
 # deploy step below and deploy/GCLOUD_DEPLOY.md) so they are never baked into the
@@ -24,12 +29,13 @@
 
 substitutions:
   _REGION: "asia-south1"
-  _REPO: "concreteking"
-  _SERVICE: "concreteking"
+  _REPO: "cloud-run-source-deploy"
+  _IMAGE: "trackmyrmc/rackmyrmc"
+  _SERVICE: "rackmyrmc"
   _CLOUDSQL_INSTANCE: "trackmyrmc-production:asia-south1:trackmyrmc-prod-db"
 
 images:
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:${COMMIT_SHA}"
 
 steps:
   # 1) Build the image
@@ -37,14 +43,14 @@ steps:
     args:
       - "build"
       - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:${COMMIT_SHA}"
       - "."
 
   # 2) Push to Artifact Registry
   - name: "gcr.io/cloud-builders/docker"
     args:
       - "push"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:${COMMIT_SHA}"
 
   # 3) Deploy to Cloud Run
   #    - min-instances=1 keeps the in-process recurring scheduler alive
@@ -59,7 +65,7 @@ steps:
       - "run"
       - "deploy"
       - "${_SERVICE}"
-      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:${COMMIT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
       - "--allow-unauthenticated"
