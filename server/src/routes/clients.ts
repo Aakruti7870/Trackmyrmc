@@ -5,6 +5,7 @@ import { clients, sites, ledgerEntries, users } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { plantScope } from '../lib/tenancy.js';
 import { isPlatformStaff } from '../lib/roleHierarchy.js';
+import { clientKycVerifiedSql } from '../lib/kycBadge.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -39,9 +40,13 @@ async function scopedClient(req: { user?: { plantId?: number | null } }, id: num
 
 router.get('/', async (req, res) => {
   const scope = plantScope(req.user!.plantId, clients.plantId);
-  const rows = await db.select().from(clients)
+  const rows = await db.select({
+    client: clients,
+    kycVerified: clientKycVerifiedSql(),
+  }).from(clients)
     .where(scope ?? sql`true`)
-    .orderBy(desc(clients.createdAt));
+    .orderBy(desc(clients.createdAt))
+    .then(rs => rs.map(r => ({ ...r.client, kycVerified: r.kycVerified })));
   const linked = await db.select({ id: users.id, name: users.name, email: users.email, linkedClientId: users.linkedClientId })
     .from(users)
     .where(and(isNotNull(users.linkedClientId), isNull(users.deletedAt)));
@@ -57,7 +62,9 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const client = await scopedClient(req, +req.params.id);
   if (!client) { res.status(404).json({ error: 'Not found' }); return; }
-  res.json(client);
+  const [flag] = await db.select({ kycVerified: clientKycVerifiedSql() })
+    .from(clients).where(eq(clients.id, client.id));
+  res.json({ ...client, kycVerified: flag?.kycVerified ?? false });
 });
 
 router.post('/', async (req, res) => {

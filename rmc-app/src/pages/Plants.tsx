@@ -7,6 +7,7 @@ import { useSSE } from '@/lib/useSSE';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 import BulkImportPanel from '@/components/BulkImportPanel';
 import SupplierDiscoveryMap from '@/components/SupplierDiscoveryMap';
+import { GstPanBadge } from '@/components/EkycBadge';
 
 type PlantStatus = 'pending' | 'approved' | 'rejected';
 type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';
@@ -45,6 +46,8 @@ interface Plant {
   closeTime: string | null;
   commissionPct: string | null;
   ownerCount: number;
+  // True when an approved KYC profile for this plant carries both GST and PAN.
+  gstPanVerified?: boolean;
 }
 
 // Per-plant ₹/m³ rate per concrete grade.
@@ -718,6 +721,7 @@ export default function Plants() {
                       ? <span style={badge('var(--gold)')}><Sprout size={11} /> LEAD</span>
                       : <span style={badge('var(--green)')}><BadgeCheck size={11} /> VERIFIED</span>}
                     {live && <span style={badge('var(--blue)')}>LIVE</span>}
+                    {p.gstPanVerified && <GstPanBadge size={11} />}
                   </div>
                   <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
                     {[p.address, p.city].filter(Boolean).join(', ') || '—'} · {p.contactNumber || 'no contact'}

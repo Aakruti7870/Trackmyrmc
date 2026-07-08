@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Search, Edit2, Trash2, X, ChevronRight, MapPin, Phone, Link2 } from 'lucide-react';
 import { api, type Client, type Site, type LedgerEntry } from '@/lib/api';
 import { useToast } from '@/lib/toast';
+import EkycBadge from '@/components/EkycBadge';
 
 type Tab = 'overview' | 'sites' | 'ledger';
 
@@ -118,7 +119,10 @@ export default function Clients() {
           <div key={c.id} className="glass-card" style={{ padding: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 14 }}>{c.name}</div>
+                <div style={{ fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {c.name}
+                  {c.kycVerified && <EkycBadge size={16} />}
+                </div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{c.contactPerson}</div>
                 {!!c.linkedUsers?.length && (
                   <span
@@ -204,7 +208,10 @@ export default function Clients() {
           <div style={{ width: '100%', maxWidth: 480, background: 'var(--bg)', borderLeft: '1px solid var(--line)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>{drawer.name}</h3>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 7 }}>
+                  {drawer.name}
+                  {drawer.kycVerified && <EkycBadge size={18} withLabel />}
+                </h3>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{drawer.contactPerson} · {drawer.phone}</div>
               </div>
               <button onClick={() => setDrawer(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>

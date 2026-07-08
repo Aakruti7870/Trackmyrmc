@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { plantScope, clientInScope } from '../lib/tenancy.js';
 import { notifyOrderPlaced, notifyOrderDecision } from '../lib/deliveryNotify.js';
+import { clientKycVerifiedSql } from '../lib/kycBadge.js';
 
 // Every order status the enum currently allows — used to validate the ?status
 // filter now that the customer approval workflow adds new states.
@@ -28,6 +29,9 @@ const orderSelect = {
   sitePhoto: orders.sitePhoto, rejectionReason: orders.rejectionReason,
   clientName: clients.name,
   siteName: sql<string | null>`coalesce(${sites.name}, ${orders.siteName})`,
+  // Trust signal for the receiving plant: true when the ordering customer's
+  // account has completed KYC (Aadhaar eKYC or an approved KYC profile).
+  customerKycVerified: clientKycVerifiedSql(),
 };
 
 const router = Router();

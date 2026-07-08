@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Search, Edit2, Trash2, X, Truck, Check } from 'lucide-react';
 import { Link } from 'wouter';
 import { api, type Order, type Client, type Site } from '@/lib/api';
+import EkycBadge from '@/components/EkycBadge';
 
 const GRADES = ['M10','M15','M20','M25','M30','M35','M40','M45','M50','M55','M60'];
 const STATUSES = ['pending_approval','approved','rejected','pending','in_progress','completed','cancelled'];
@@ -126,7 +127,12 @@ export default function Orders() {
               {filtered.map(o => (
                 <tr key={o.id} style={{ borderBottom: '1px solid var(--line)' }}>
                   <td style={{ padding: '11px 14px', color: 'var(--gold)', fontWeight: 700, fontFamily: 'monospace' }}>{o.orderNo}</td>
-                  <td style={{ padding: '11px 14px', fontWeight: 600 }}>{o.clientName}</td>
+                  <td style={{ padding: '11px 14px', fontWeight: 600 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {o.clientName}
+                      {o.customerKycVerified && <EkycBadge size={16} />}
+                    </span>
+                  </td>
                   <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || '—'}</td>
                   <td style={{ padding: '11px 14px' }}><span style={{ padding: '2px 8px', background: 'rgba(56,189,248,.12)', color: 'var(--blue)', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>{o.grade}</span></td>
                   <td style={{ padding: '11px 14px', fontWeight: 700 }}>{o.quantity}</td>

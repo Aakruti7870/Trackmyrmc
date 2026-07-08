@@ -131,6 +131,9 @@ export interface Client {
   email?: string; gstNo?: string; address?: string; city?: string;
   creditLimit: string; outstandingAmount: string; createdAt: string;
   linkedUsers?: LinkedUser[];
+  // True when a linked login account has completed KYC (Aadhaar eKYC or an
+  // approved KYC profile) — drives the E-KYC trust badge.
+  kycVerified?: boolean;
 }
 
 export interface Site {
@@ -145,6 +148,9 @@ export interface Order {
   deliveryDate?: string; deliveryTime?: string; notes?: string;
   status: string; createdAt: string;
   clientName?: string; siteName?: string;
+  // True when the ordering customer's account is KYC-verified — shown to the
+  // plant as an anti-fraud trust signal.
+  customerKycVerified?: boolean;
   // Customer-supplied delivery details captured at order placement.
   contactPerson?: string | null; contactNumber?: string | null;
   siteAddress?: string | null;

@@ -6,6 +6,7 @@ import { MapPin, List, Map as MapIcon, Phone, Clock, Navigation, PackagePlus, Lo
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
+import { GstPanBadge } from '@/components/EkycBadge';
 
 export interface NearbyPlant {
   id: number;
@@ -20,6 +21,7 @@ export interface NearbyPlant {
   openTime: string | null;
   closeTime: string | null;
   openNow: boolean;
+  gstPanVerified?: boolean;
   distanceKm: number;
 }
 
@@ -533,7 +535,10 @@ function PlantCard({ p, onOrder, onMap }: { p: NearbyPlant; onOrder: () => void;
     <div style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={verifiedTag}><ShieldCheck size={12} /> Verified partner</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <span style={verifiedTag}><ShieldCheck size={12} /> Verified partner</span>
+            {p.gstPanVerified && <GstPanBadge />}
+          </div>
           <div style={{ fontWeight: 800, fontSize: 16.5, color: 'var(--text)', lineHeight: 1.25 }}>{p.name}</div>
         </div>
         <span style={distanceBadge}>{p.distanceKm} km</span>
