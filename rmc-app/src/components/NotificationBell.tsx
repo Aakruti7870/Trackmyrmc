@@ -55,7 +55,7 @@ export default function NotificationBell() {
           <span style={{
             position: 'absolute', top: -5, right: -5, minWidth: 16, height: 16, padding: '0 4px',
             borderRadius: 999, background: 'var(--red)', color: '#fff', fontSize: 9.5, fontWeight: 800,
-            display: 'grid', placeItems: 'center', boxShadow: '0 0 0 2px var(--bg, #08111f)',
+            display: 'grid', placeItems: 'center', boxShadow: '0 0 0 2px var(--bg)',
           }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>

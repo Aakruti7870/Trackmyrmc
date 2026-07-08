@@ -13,24 +13,23 @@ import { defaultPath } from '@/lib/permissions';
 import { BrandCredits } from '@/components/BrandLogo';
 import { SUPPORT_WHATSAPP_URL } from '@/lib/brand';
 
-// Warm, flat palette for the auth screen — self-contained so the login always
-// reads the same regardless of the app's runtime theme (like PhonePe / Rapido,
-// whose sign-in screens keep a fixed light look).
+// Theme-driven palette — reads the app-wide Day/Night tokens so the auth
+// screen re-themes together with the rest of the app.
 const C = {
-  cream: '#f4f7f5',
-  ink: '#12211d',
-  muted: '#6b7c76',
-  faint: '#9aa8a2',
-  teal: '#178a6e',
-  tealDark: '#0f766e',
-  tealTint: '#f0f9f6',
-  tealBorder: '#d7ece4',
+  cream: 'var(--bg)',
+  ink: 'var(--text)',
+  muted: 'var(--muted)',
+  faint: 'var(--muted)',
+  teal: 'var(--gold)',
+  tealDark: 'var(--gold-dark)',
+  tealTint: 'var(--gold-tint)',
+  tealBorder: 'var(--prompt-icon-bg)',
   emerald: '#10b981',
-  amberTint: '#fffbeb',
-  inputBg: '#fafaf9',
-  inputBorder: '#f5f5f4',
-  white: '#ffffff',
-  red: '#dc2626',
+  amberTint: 'var(--gold-soft)',
+  inputBg: 'var(--panel2)',
+  inputBorder: 'var(--line)',
+  white: 'var(--panel)',
+  red: 'var(--red)',
 };
 
 // Dev-only banner revealing the generated code when no real delivery channel is
@@ -52,7 +51,7 @@ function ErrorNote({ message }: { message: string }) {
   return (
     <div style={{
       marginBottom: 16, padding: '10px 14px', borderRadius: 12,
-      background: '#fef2f2', border: '1px solid #fecaca',
+      background: 'rgba(239,68,68,.10)', border: '1px solid rgba(239,68,68,.35)',
       fontSize: 13, color: C.red, fontWeight: 500,
     }}>
       {message}
@@ -322,7 +321,7 @@ export default function Login() {
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             <Truck size={26} style={{ color: C.teal }} />
             <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.5px' }}>
-              <span style={{ color: '#1e293b' }}>TrackMy</span>
+              <span style={{ color: 'var(--text)' }}>TrackMy</span>
               <span style={{ color: C.teal }}>RMC</span>
             </span>
           </div>

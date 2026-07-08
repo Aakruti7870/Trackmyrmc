@@ -71,7 +71,7 @@ export default function SsoCallback() {
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', gap: 14,
-      background: 'var(--bg, #08111f)', color: 'var(--text, #e5e7eb)', padding: 24, textAlign: 'center',
+      background: 'var(--bg)', color: 'var(--text)', padding: 24, textAlign: 'center',
     }}>
       {error ? (
         <>
@@ -82,7 +82,7 @@ export default function SsoCallback() {
         <>
           <div style={{
             width: 32, height: 32, borderRadius: '50%',
-            border: '3px solid rgba(255,255,255,.15)', borderTopColor: 'var(--gold, #178a6e)',
+            border: '3px solid var(--line)', borderTopColor: 'var(--gold, #178a6e)',
             animation: 'spin 0.8s linear infinite',
           }} />
           <p style={{ fontSize: 14, color: 'var(--muted, #94a3b8)', margin: 0 }}>Completing sign-in…</p>

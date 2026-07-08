@@ -61,6 +61,7 @@ One universal teal + mint-white corporate theme with two modes (Day / Night) and
 - Accent tokens are still named `--gold*` (legacy key names) but hold the teal ramp
 - Green: `#22c55e` (dispatch/positive), Blue: `#38bdf8` (info), Red: `#ef4444` (danger) — stable across modes
 - Flat cards via `--glass-1/2/-border` (no blur/glows); surfaces flip per mode (DAY_SURFACES / NIGHT_SURFACES)
+- The theme applies to **every** screen, including the public pages (Landing, Login, Privacy, Terms, Delete Account) — they read the same `var(--…)` tokens and flip Day/Night with the rest of the app (ChallanPrint's printable document stays white on purpose)
 
 ## User Preferences
 

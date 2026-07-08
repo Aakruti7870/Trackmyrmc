@@ -73,12 +73,12 @@ export default function InstallAppBanner() {
         position: 'fixed', left: 12, right: 12, bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
         zIndex: 60, margin: '0 auto', maxWidth: 560,
         display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 16,
-        background: 'rgba(16,21,31,.96)', backdropFilter: 'blur(12px)',
-        border: '1px solid var(--line)', boxShadow: '0 18px 44px -18px rgba(0,0,0,.6)',
+        background: 'var(--menu-bg)',
+        border: '1px solid var(--line)', boxShadow: '0 18px 44px -18px rgba(var(--shadow-rgb),.45)',
       }}>
         <span style={{
           width: 42, height: 42, flexShrink: 0, borderRadius: 12, display: 'grid', placeItems: 'center', overflow: 'hidden',
-          background: 'linear-gradient(160deg, #11151f, #07090e)', border: '1px solid var(--glass-border, rgba(212,175,55,.2))',
+          background: 'var(--chip-bg)', border: '1px solid var(--line)',
         }}>
           <img src={logoKing} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </span>
@@ -91,7 +91,7 @@ export default function InstallAppBanner() {
         <button type="button" onClick={install} style={{
           display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 11,
           fontWeight: 800, fontSize: 13.5, cursor: 'pointer', border: 'none', flexShrink: 0,
-          background: 'linear-gradient(160deg, var(--gold-hi, #f3d87a), var(--gold-dark, #a9821a))', color: '#0a0d14', fontFamily: 'inherit',
+          background: 'var(--gold)', color: '#ffffff', fontFamily: 'inherit',
         }}>
           <Download size={15} /> Install
         </button>

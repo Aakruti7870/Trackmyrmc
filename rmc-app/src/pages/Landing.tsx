@@ -8,14 +8,15 @@ import SocialLinksBar from "@/components/SocialLinksBar";
    take the user straight to the real /login page (SPA nav).
 ════════════════════════════════════════════════════════ */
 
-/* One flat mint-white palette — matches the login + the rest of the app. */
+/* Theme-driven palette — reads the app-wide Day/Night tokens so the landing
+   page re-themes together with the rest of the app. */
 const C = {
-  teal:   "#178a6e",
-  dark:   "#f4f7f5",
-  panel:  "#ffffff",
-  border: "rgba(18,33,29,0.10)",
-  text:   "#12211d",
-  muted:  "#6b7c76",
+  teal:   "var(--gold)",
+  dark:   "var(--bg)",
+  panel:  "var(--panel)",
+  border: "var(--line)",
+  text:   "var(--text)",
+  muted:  "var(--muted)",
 };
 
 /* SPA-navigate to the real main-app /login page (wouter listens to popstate). */
@@ -27,7 +28,7 @@ const openLogin = () => {
 
 /* ── FLAT CARD ── */
 const Glass=({children,style={}}:{children:React.ReactNode;style?:React.CSSProperties})=>(
-  <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:20,boxShadow:"0 1px 3px rgba(18,33,29,0.06), 0 8px 24px rgba(18,33,29,0.05)",...style}}>{children}</div>
+  <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:20,boxShadow:"0 1px 3px rgba(var(--shadow-rgb),0.06), 0 8px 24px rgba(var(--shadow-rgb),0.05)",...style}}>{children}</div>
 );
 
 /* ── LABEL CHIP ── */
@@ -92,7 +93,7 @@ function Home(){
 /* ════════════ NAVBAR ════════════ */
 function NavBar(){
   return(
-    <div style={{position:"absolute",top:0,left:0,right:0,zIndex:100,height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 32px",background:"rgba(255,255,255,0.92)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderBottom:`1px solid ${C.border}`}}>
+    <div style={{position:"absolute",top:0,left:0,right:0,zIndex:100,height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 32px",background:"var(--header-bg)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderBottom:`1px solid ${C.border}`}}>
       <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
         <div style={{width:32,height:32,borderRadius:9,background:C.teal,display:"flex",alignItems:"center",justifyContent:"center"}}><Crown size={18} color="#ffffff"/></div>
         <div>
@@ -112,7 +113,7 @@ export default function Landing(){
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap');
         @keyframes ckFadeIn{from{opacity:0;transform:scale(0.983)}to{opacity:1;transform:scale(1)}}
-        input::placeholder{color:#a8a29e}
+        input::placeholder{color:var(--muted)}
         .ck-deck button:hover{opacity:0.92}
         @media (max-width:920px){
           .ck-hero-grid{grid-template-columns:1fr !important;gap:28px !important;align-content:center;padding-top:24px !important;padding-bottom:24px !important;overflow-y:auto;max-height:100%}

@@ -154,10 +154,10 @@ export default function NotificationsCard() {
           borderRadius: 10,
           background: subscribed
             ? 'transparent'
-            : 'linear-gradient(135deg,var(--gold),#eab308)',
+            : 'var(--gold)',
           border: subscribed ? '1px solid var(--line)' : 'none',
           cursor: busy || !supported || status === 'denied' ? 'not-allowed' : 'pointer',
-          color: subscribed ? 'var(--text)' : '#08111f',
+          color: subscribed ? 'var(--text)' : '#ffffff',
           fontWeight: 800,
           fontSize: 14,
           opacity: !supported || status === 'denied' ? 0.5 : 1,

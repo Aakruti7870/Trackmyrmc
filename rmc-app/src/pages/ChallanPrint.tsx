@@ -217,13 +217,13 @@ export default function ChallanPrint() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#08111f', color: '#9fb0c7' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)' }}>
       Loading challan…
     </div>
   );
 
   if (!challan) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#08111f', color: '#ef4444', flexDirection: 'column', gap: 12 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--red)', flexDirection: 'column', gap: 12 }}>
       <div>Challan not found</div>
       <Link href="/dispatch"><span style={{ color: '#38bdf8', fontSize: 13 }}>← Back to Dispatch</span></Link>
     </div>
@@ -260,20 +260,20 @@ export default function ChallanPrint() {
     <>
       {/* Print controls — hidden on print */}
       <div className="no-print" style={{
-        background: '#0d1930', borderBottom: '1px solid #263449', padding: '12px 20px',
+        background: 'var(--panel)', borderBottom: '1px solid var(--line)', padding: '12px 20px',
         display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
       }}>
         <Link href="/dispatch">
-          <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, color: '#9fb0c7', cursor: 'pointer', fontSize: 13 }}>
+          <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--chip-bg)', border: '1px solid var(--line)', borderRadius: 8, color: 'var(--muted)', cursor: 'pointer', fontSize: 13 }}>
             <ArrowLeft size={14} /> Back
           </button>
         </Link>
-        <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: '#eaf6f1' }}>Challan #{challan.challanNo}</div>
+        <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Challan #{challan.challanNo}</div>
         <button onClick={generateTrackingQr} disabled={qrBusy || !!qrDataUrl} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-          background: qrDataUrl ? 'rgba(255,255,255,.05)' : 'rgba(56,189,248,.1)',
+          background: qrDataUrl ? 'var(--chip-bg)' : 'rgba(56,189,248,.1)',
           border: '1px solid rgba(56,189,248,.25)',
-          borderRadius: 8, color: qrDataUrl ? '#9fb0c7' : '#38bdf8', cursor: qrDataUrl ? 'default' : 'pointer', fontSize: 13, fontWeight: 700,
+          borderRadius: 8, color: qrDataUrl ? 'var(--muted)' : '#38bdf8', cursor: qrDataUrl ? 'default' : 'pointer', fontSize: 13, fontWeight: 700,
         }}><QrCode size={14} /> {qrDataUrl ? 'Tracking QR added' : qrBusy ? 'Generating…' : 'Tracking QR'}</button>
         <button onClick={shareWhatsApp} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',

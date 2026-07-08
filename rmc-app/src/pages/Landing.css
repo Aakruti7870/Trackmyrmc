@@ -1,16 +1,6 @@
+/* Inherits the app-wide theme tokens (Day / Night) from :root — no local
+   palette override, so the landing page flips with the rest of the app. */
 .ck {
-  --bg: #090d14;
-  --bg2: #05080d;
-  --panel: #10151f;
-  --panel2: #141b27;
-  --line: rgba(212, 175, 55, 0.16);
-  --gold: #d4af37;
-  --gold-soft: #f3d87a;
-  --green: #22c55e;
-  --blue: #38bdf8;
-  --red: #ef4444;
-  --text: #f4efe2;
-  --muted: #94a0b0;
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -25,9 +15,9 @@
 }
 @keyframes ck-drum-spin { to { transform: rotate(360deg); } }
 @keyframes ck-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(212,175,55,0.5); }
-  70%  { box-shadow: 0 0 0 14px rgba(212,175,55,0); }
-  100% { box-shadow: 0 0 0 0 rgba(212,175,55,0); }
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--gold) 50%, transparent); }
+  70%  { box-shadow: 0 0 0 14px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 @keyframes ck-pulse-red {
   0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
@@ -51,7 +41,7 @@
 @keyframes ck-rise { to { opacity: 1; transform: translateY(0); } }
 
 .ck-card-hover { transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
-.ck-card-hover:hover { transform: translateY(-4px); border-color: rgba(212,175,55,.45) !important; box-shadow: 0 18px 40px -20px rgba(0,0,0,.45); }
+.ck-card-hover:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--gold) 45%, transparent) !important; box-shadow: 0 18px 40px -20px rgba(var(--shadow-rgb), .35); }
 
 .ck-feed-img { transition: transform .6s ease; }
 .ck-feed:hover .ck-feed-img { transform: scale(1.08); }

@@ -17,9 +17,9 @@ Themes are defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied inli
 - `src/lib/theme.tsx` — token source of truth.
 - `src/index.css :root { ... }` — pre-hydration fallback baseline (kept = Day values).
 - `src/main.tsx` — Clerk `appearance.variables` are hardcoded hex (now light/teal `#178a6e`).
-- `src/pages/Landing.tsx` local `C` + `src/pages/Login.tsx` local `C` — self-contained fixed-light auth/landing palettes (intentionally ignore runtime theme), retinted to the Day palette.
+- `src/pages/Landing.tsx` local `C` + `src/pages/Login.tsx` local `C` — now `var(--…)` references (theme-driven, flip with Night); `Landing.css .ck` no longer defines local palette vars (it inherits the global tokens — do NOT reintroduce a local `--gold/--bg` block there).
 - `rmc-app/index.html` `#ck-static-shell` — static pre-React shell still uses the OLD dark `#00C9A7` scheme (hardcoded inline hex); replaced instantly on React mount, retint by hand if it ever matters.
 
-**Theme reach:** deliveryKit + 8 role-home screens read `var(--...)` tokens (never raw hex) so they flip with Night. `GREEN/BLUE/RED` semantic hex stay stable across modes on purpose; per-role badge colors in Layout are semantic identities — do NOT recolor. Map-pin SVGs (raw HTML marker strings) are still hardcoded teal — known minor gap. `ChallanPrint.tsx` white is an intentional paper print view. NO background photos anywhere (flat design; login illustration is the one allowed image).
+**Theme reach:** ALL screens are token-driven now, including the public pages (Landing, Login, Privacy/Terms/DeleteAccount, SsoCallback, partner) and chrome (InstallAppBanner, notifications) — old dark-gradient leftovers were tokenized. deliveryKit + 8 role-home screens read `var(--...)` tokens (never raw hex) so they flip with Night. `GREEN/BLUE/RED` semantic hex stay stable across modes on purpose; per-role badge colors in Layout are semantic identities — do NOT recolor. Map-pin SVGs (raw HTML marker strings) are still hardcoded teal — known minor gap. `ChallanPrint.tsx` white is an intentional paper print view. NO background photos anywhere (flat design; login illustration is the one allowed image).
 
 **How to apply:** after any palette change, `rg` `rmc-app/src` for stray old hexes (`#fdfbf7`, `#1c1917`, `#78716c`, `#0f766e`-as-primary) and run the `lint` + `build` + `test` workflows.

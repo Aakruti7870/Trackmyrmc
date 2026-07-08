@@ -174,7 +174,7 @@ function LiveTimeline({ status, hasLive }: { status: string; hasLive: boolean })
                 border: `1px solid ${done ? color : 'var(--line)'}`,
                 boxShadow: done && i === step ? `0 0 0 4px color-mix(in srgb, ${color} 22%, transparent)` : 'none',
               }}>
-                {done ? <CheckCircle2 size={11} color="#08111f" /> : <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted)' }} />}
+                {done ? <CheckCircle2 size={11} color="#ffffff" /> : <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted)' }} />}
               </div>
               <span style={{ fontSize: 9.5, fontWeight: 700, color: done ? 'var(--text)' : 'var(--muted)', whiteSpace: 'nowrap' }}>{label}</span>
             </div>

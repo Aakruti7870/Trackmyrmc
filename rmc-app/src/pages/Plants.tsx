@@ -1513,5 +1513,5 @@ const unreadDot: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   fontSize: 10.5, fontWeight: 900, lineHeight: 1, color: '#08111f',
   background: 'var(--blue)', borderRadius: 20,
-  boxShadow: '0 0 0 2px var(--bg, #08111f), 0 2px 8px color-mix(in srgb, var(--blue) 55%, transparent)',
+  boxShadow: '0 0 0 2px var(--bg), 0 2px 8px color-mix(in srgb, var(--blue) 55%, transparent)',
 };

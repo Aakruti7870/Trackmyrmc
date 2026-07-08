@@ -36,7 +36,7 @@ export default function DeleteAccount() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center', overflow: 'hidden',
-              background: 'linear-gradient(160deg, #11151f, #07090e)',
+              background: 'var(--chip-bg)',
               border: '1px solid var(--glass-border, rgba(212,175,55,.2))',
               boxShadow: '0 0 24px -8px var(--glow-1, rgba(212,175,55,.5))',
             }}>
@@ -68,7 +68,7 @@ export default function DeleteAccount() {
         {/* title card */}
         <div style={{
           marginTop: 14, padding: '30px 30px', borderRadius: 20,
-          background: 'linear-gradient(160deg, rgba(22,29,42,.9), rgba(16,21,31,.8))', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+          background: 'var(--panel)',
           border: '1px solid var(--line)',
           boxShadow: '0 30px 70px -40px rgba(0,0,0,.6)',
         }}>
