@@ -503,3 +503,9 @@ id = "NpvD5iJd562erHubJq_mX"
 uri = "file://exports/concreteking-android-v1.10-vc11.zip"
 type = "unspecified"
 title = "CONCRETE KING Android project (v1.10, versionCode 11)"
+
+[[outputs]]
+id = "pKLPxwbsLAbe-kEFWvnqr"
+uri = "file://exports/playstore-images-v1.10.zip"
+type = "unspecified"
+title = "Play Store images — 6 screenshots + feature graphic (current teal theme)"
