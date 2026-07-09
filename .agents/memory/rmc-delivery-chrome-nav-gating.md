@@ -25,3 +25,9 @@ gate EVERY actionable click, not just section headers. Pass
 informative row without route access shows but does nothing. QuickAction labels
 must be honest — don't label a nav shortcut "Download" if it only routes to a
 tab (renamed to "Invoices").
+
+The `NewWidgetMenu` arc obeys the SAME gate: any widget that routes into a real
+app route (`kind:'nav'` + `navTo`, e.g. driver Expenses→`/expenses`) is filtered
+through `canAccess(role, navTo)` in `widgetsFor()`, so a route hidden by a role
+override never surfaces as an arc button that would navigate into a denied path.
+WhatsApp `form`/`info`/`calculator` widgets are NOT routes and are not filtered.

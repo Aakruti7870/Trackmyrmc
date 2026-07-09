@@ -3,12 +3,10 @@ import { useLocation } from 'wouter';
 import { api, type Order, type Challan } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
-import { useToast } from '@/lib/toast';
 import {
   Plus, Truck, ClipboardList, MapPin, BadgeIndianRupee, RotateCcw, Headphones,
   Wallet, Receipt, FileText, Download, Check, Navigation, PackageSearch,
-  Calculator, X, Sparkles, Compass, HardHat, Users, Layers, Boxes,
-  Factory, Wind, Mountain, FlaskConical, ChevronRight,
+  Calculator, X,
 } from 'lucide-react';
 import {
   Screen, Card, SectionHead, QuickAction, QuickGrid, InfoPrompt, StatusPill,
@@ -17,6 +15,7 @@ import {
 } from './deliveryKit';
 import { statusColor, statusBg, statusLabel, greeting, firstNameOf } from './format';
 import LiveFleetMap from '@/components/LiveFleetMap';
+import VolumeCalc from '@/components/VolumeCalc';
 
 const ON_ROAD = ['dispatched', 'in_transit', 'reached_site', 'unloading'];
 
@@ -31,8 +30,6 @@ const DGREEN_DEEP = '#06281d';
 const DGREEN_HI = '#14563f';
 const GOLD = '#D6A936';
 const GOLD_LIGHT = '#F4D27A';
-// Darker gold for LETTERS on white/cream — plain #D6A936 text is too faint.
-const GOLD_TEXT = '#8a6a14';
 const CARD_BG = '#FFFFFF';
 const TXT = '#102820';
 const TXT_MUTED = '#5c6f66';
@@ -58,22 +55,7 @@ const PREMIUM_VARS: CSSProperties = {
   ['--shadow-rgb' as string]: '11,61,46',
 };
 
-type SheetKey = 'services' | 'calculator' | 'owner' | null;
-
-const UPCOMING_ITEMS: { label: string; icon: ReactNode }[] = [
-  { label: 'Hire Surveyor', icon: <Compass className="h-4.5 w-4.5" /> },
-  { label: 'Hire RCC Contractor', icon: <HardHat className="h-4.5 w-4.5" /> },
-  { label: 'Hire Labour Contractor', icon: <Users className="h-4.5 w-4.5" /> },
-  { label: 'Core Shuttering & Staging Equipment', icon: <Layers className="h-4.5 w-4.5" /> },
-  { label: 'Reinforcement & Framework Materials', icon: <Boxes className="h-4.5 w-4.5" /> },
-];
-
-const OWNER_ITEMS: { label: string; icon: ReactNode }[] = [
-  { label: 'Cement Owner', icon: <Factory className="h-4.5 w-4.5" /> },
-  { label: 'Flyash Vendor', icon: <Wind className="h-4.5 w-4.5" /> },
-  { label: 'Aggregate Vendor', icon: <Mountain className="h-4.5 w-4.5" /> },
-  { label: 'Admixture Vendor', icon: <FlaskConical className="h-4.5 w-4.5" /> },
-];
+type SheetKey = 'calculator' | null;
 
 function orderSteps(status: string): { label: string; icon: ReactNode; state: StepState }[] {
   const done = status === 'completed';
@@ -87,23 +69,6 @@ function orderSteps(status: string): { label: string; icon: ReactNode; state: St
 }
 
 // --- Bottom sheet -----------------------------------------------------------
-
-function OptionRow({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <div
-      className="flex items-center gap-3 rounded-xl border px-3 py-2.5"
-      style={{ borderColor: LINE_CREAM, background: '#fbf8ef' }}
-    >
-      <span
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-        style={{ background: 'rgba(214,169,54,0.16)', color: DGREEN }}
-      >
-        {icon}
-      </span>
-      <span className="text-[13px] font-semibold" style={{ color: DGREEN }}>{label}</span>
-    </div>
-  );
-}
 
 function GoldButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -166,58 +131,11 @@ function BottomSheet({
   );
 }
 
-// Simple slab-volume calculator shown inside the Calculator bottom sheet.
-function VolumeCalc() {
-  const [len, setLen] = useState('');
-  const [wid, setWid] = useState('');
-  const [thk, setThk] = useState('');
-  const l = parseFloat(len), w = parseFloat(wid), t = parseFloat(thk);
-  const ok = l > 0 && w > 0 && t > 0;
-  const vol = ok ? l * w * (t / 1000) : 0;
-  const withWastage = vol * 1.05;
-  const field = (label: string, value: string, set: (v: string) => void, unit: string) => (
-    <label className="flex-1">
-      <span className="text-[11px] font-semibold" style={{ color: TXT_MUTED }}>{label} ({unit})</span>
-      <input
-        type="number" inputMode="decimal" min="0" value={value}
-        onChange={e => set(e.target.value)}
-        placeholder="0"
-        className="mt-1 w-full rounded-xl border px-3 py-2.5 text-[14px] font-bold outline-none"
-        style={{ borderColor: LINE_CREAM, background: '#fbf8ef', color: DGREEN }}
-      />
-    </label>
-  );
-  return (
-    <div className="mt-4">
-      <div className="flex gap-2.5">
-        {field('Length', len, setLen, 'm')}
-        {field('Width', wid, setWid, 'm')}
-        {field('Thickness', thk, setThk, 'mm')}
-      </div>
-      <div
-        className="mt-3 rounded-2xl border p-3.5 text-center"
-        style={{ borderColor: LINE_CREAM, background: CREAM }}
-      >
-        <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: TXT_MUTED }}>
-          Concrete needed
-        </p>
-        <p className="mt-0.5 text-[26px] font-extrabold leading-none" style={{ color: DGREEN }}>
-          {ok ? withWastage.toFixed(2) : '—'} m³
-        </p>
-        <p className="mt-1 text-[11px]" style={{ color: TXT_MUTED }}>
-          {ok ? `${vol.toFixed(2)} m³ + 5% wastage allowance` : 'Enter slab length, width and thickness'}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 // --- Page --------------------------------------------------------------------
 
 export default function CustomerHome() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
-  const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [challans, setChallans] = useState<Challan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -245,24 +163,6 @@ export default function CustomerHome() {
     <div style={PREMIUM_VARS}>
     <Screen bg={CREAM}>
       <style>{`
-        .upcoming-widget {
-          border: 1px solid rgba(214, 169, 54, 0.55);
-          animation: goldBlink 1.8s infinite ease-in-out;
-        }
-        @keyframes goldBlink {
-          0% {
-            box-shadow: 0 0 0 rgba(214, 169, 54, 0.15);
-            background: #ffffff;
-          }
-          50% {
-            box-shadow: 0 0 24px rgba(214, 169, 54, 0.45);
-            background: #fff8df;
-          }
-          100% {
-            box-shadow: 0 0 0 rgba(214, 169, 54, 0.15);
-            background: #ffffff;
-          }
-        }
         @keyframes ckSheetUp {
           from { transform: translate(-50%, 100%); }
           to { transform: translate(-50%, 0); }
@@ -332,48 +232,10 @@ export default function CustomerHome() {
       {/* ---- Premium services & tools ---------------------------------- */}
       <SectionHead title="Services & Tools" />
 
-      {/* WIDGET 1 — Upcoming Services (faint blinking golden glow) */}
-      <button
-        onClick={() => setSheet('services')}
-        className="upcoming-widget block w-full rounded-3xl p-4 text-left active:scale-[.99]"
-        style={{ transition: 'transform .1s ease' }}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: 'rgba(214,169,54,0.16)', color: GOLD }}>
-              <Sparkles className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-[14.5px] font-extrabold leading-tight" style={{ color: DGREEN }}>Upcoming Services</p>
-              <p className="text-[11px] font-medium" style={{ color: TXT_MUTED }}>Planning Date: 15 Aug 2026</p>
-            </div>
-          </div>
-          <span
-            className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold tracking-wide"
-            style={{ background: `linear-gradient(135deg, ${GOLD}, ${GOLD_LIGHT})`, color: DGREEN }}
-          >
-            V.1.13
-          </span>
-        </div>
-        <ul className="mt-3 space-y-1.5">
-          {UPCOMING_ITEMS.map(it => (
-            <li key={it.label} className="flex items-center gap-2 text-[12.5px] font-semibold" style={{ color: DGREEN }}>
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" style={{ color: GOLD }}>
-                {it.icon}
-              </span>
-              {it.label}
-            </li>
-          ))}
-        </ul>
-        <div className="mt-3 flex items-center gap-1 text-[12px] font-bold" style={{ color: GOLD_TEXT }}>
-          See details <ChevronRight className="h-3.5 w-3.5" strokeWidth={3} />
-        </div>
-      </button>
-
-      {/* WIDGET 2 — Free Concrete Calculator (center main widget, bigger) */}
+      {/* Free Concrete Calculator (center main widget, bigger) */}
       <button
         onClick={() => setSheet('calculator')}
-        className="mt-4 block w-full rounded-3xl p-6 text-center active:scale-[.99]"
+        className="block w-full rounded-3xl p-6 text-center active:scale-[.99]"
         style={{
           background: `linear-gradient(150deg, ${DGREEN_DEEP} 0%, ${DGREEN} 60%, ${DGREEN_HI} 100%)`,
           border: `1.5px solid ${GOLD}`,
@@ -397,38 +259,6 @@ export default function CustomerHome() {
         >
           <Calculator className="h-4.5 w-4.5" strokeWidth={2.5} /> Open Calculator
         </span>
-      </button>
-
-      {/* WIDGET 3 — For Owner */}
-      <button
-        onClick={() => setSheet('owner')}
-        className="mt-4 block w-full rounded-3xl border p-4 text-left active:scale-[.99]"
-        style={{ background: CARD_BG, borderColor: LINE_CREAM, transition: 'transform .1s ease', boxShadow: '0 4px 16px rgba(11,61,46,0.06)' }}
-      >
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: 'rgba(11,61,46,0.08)', color: DGREEN }}>
-            <Factory className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-[14.5px] font-extrabold leading-tight" style={{ color: DGREEN }}>For Owner</p>
-            <p className="text-[11px] font-medium" style={{ color: TXT_MUTED }}>Raw-material vendors for plant owners</p>
-          </div>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {OWNER_ITEMS.map(it => (
-            <span
-              key={it.label}
-              className="flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-[11.5px] font-semibold"
-              style={{ borderColor: LINE_CREAM, background: '#fbf8ef', color: DGREEN }}
-            >
-              <span style={{ color: GOLD }}>{it.icon}</span>
-              {it.label}
-            </span>
-          ))}
-        </div>
-        <div className="mt-3 flex items-center gap-1 text-[12px] font-bold" style={{ color: GOLD_TEXT }}>
-          See details <ChevronRight className="h-3.5 w-3.5" strokeWidth={3} />
-        </div>
       </button>
 
       {/* Live Fleet Google Map — the exact staff card, scoped server-side to
@@ -512,24 +342,6 @@ export default function CustomerHome() {
 
       {/* ---- Bottom sheets ---------------------------------------------- */}
       <BottomSheet
-        open={sheet === 'services'}
-        onClose={() => setSheet(null)}
-        title="Upcoming Services — V.1.13"
-        description="New services planned for release. Planning Date: 15 Aug 2026. Everything you need to take a project from survey to slab, in one app."
-      >
-        <div className="mt-4 space-y-2">
-          {UPCOMING_ITEMS.map(it => <OptionRow key={it.label} icon={it.icon} label={it.label} />)}
-        </div>
-        <GoldButton
-          label="Notify Me When Live"
-          onClick={() => {
-            setSheet(null);
-            showToast('Great! Watch this space — we\u2019ll announce these services in the app.', 'success');
-          }}
-        />
-      </BottomSheet>
-
-      <BottomSheet
         open={sheet === 'calculator'}
         onClose={() => setSheet(null)}
         title="Free Concrete Calculator"
@@ -542,21 +354,6 @@ export default function CustomerHome() {
             onClick={() => { setSheet(null); go('/nearby-plants'); }}
           />
         )}
-      </BottomSheet>
-
-      <BottomSheet
-        open={sheet === 'owner'}
-        onClose={() => setSheet(null)}
-        title="For Owner"
-        description="Are you a plant owner? Source trusted raw-material vendors for your RMC plant — cement, flyash, aggregate and admixture suppliers."
-      >
-        <div className="mt-4 space-y-2">
-          {OWNER_ITEMS.map(it => <OptionRow key={it.label} icon={it.icon} label={it.label} />)}
-        </div>
-        <GoldButton
-          label="Talk to Support"
-          onClick={() => { setSheet(null); go(can('/profile') ? '/profile' : '/home'); }}
-        />
       </BottomSheet>
     </Screen>
     </div>

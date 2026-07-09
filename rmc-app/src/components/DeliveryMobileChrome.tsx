@@ -8,6 +8,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
 import NotificationBell from '@/components/NotificationBell';
+import NewWidgetMenu from '@/components/NewWidgetMenu';
 import { RED } from '@/pages/home/deliveryKit';
 
 // The mobile chrome bars are ALWAYS white, so their letters/icons must use
@@ -169,12 +170,19 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
   const allow = (p: string) => canAccess(user.role, p);
   const { tabs, fab } = navFor(user.role, allow);
 
-  const left = fab ? tabs.slice(0, 2) : tabs;
-  const right = fab ? tabs.slice(2) : [];
+  // Every role — including the driver — gets the glowing "NEW" services menu in
+  // the center slot. The driver's Emergency SOS + Start/End Shift stay
+  // permanently visible on their Home screen instead of the nav FAB.
+  const showNew = true;
+  const centerFab = showNew ? undefined : fab;
+  const hasCenter = showNew || !!centerFab;
 
-  const fabColor = fab?.color === 'red' ? RED : TEAL;
-  const fabShadow = fab?.color === 'red' ? '0 8px 20px rgba(239,68,68,0.4)' : '0 8px 20px rgba(15,118,110,0.35)';
-  const FabIcon = fab?.icon;
+  const left = hasCenter ? tabs.slice(0, 2) : tabs;
+  const right = hasCenter ? tabs.slice(2) : [];
+
+  const fabColor = centerFab?.color === 'red' ? RED : TEAL;
+  const fabShadow = centerFab?.color === 'red' ? '0 8px 20px rgba(239,68,68,0.4)' : '0 8px 20px rgba(15,118,110,0.35)';
+  const FabIcon = centerFab?.icon;
 
   return (
     <nav
@@ -189,18 +197,19 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
       }}
     >
       {left.map((t, i) => <Slot key={`l${i}`} tab={t} location={location} onMore={onMore} onNavigate={() => onNavigate?.()} />)}
-      {fab && FabIcon && (
+      {showNew && <NewWidgetMenu role={user.role} onNavigate={() => onNavigate?.()} />}
+      {centerFab && FabIcon && (
         <div className="flex flex-col items-center" style={{ transform: 'translateY(-10px)' }}>
           <button
-            onClick={() => { onNavigate?.(); navigate(fab.href); }}
+            onClick={() => { onNavigate?.(); navigate(centerFab.href); }}
             className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg"
             style={{ background: fabColor, boxShadow: fabShadow }}
-            aria-label={fab.label}
+            aria-label={centerFab.label}
           >
             <FabIcon className="h-7 w-7" strokeWidth={2.5} />
           </button>
-          <span className="mt-1 text-[10px] font-medium" style={{ color: fab.color === 'red' ? RED : MUTED }}>
-            {fab.label}
+          <span className="mt-1 text-[10px] font-medium" style={{ color: centerFab.color === 'red' ? RED : MUTED }}>
+            {centerFab.label}
           </span>
         </div>
       )}

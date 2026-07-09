@@ -295,22 +295,25 @@ export default function Login() {
     setError('');
   }
 
-  const heading = { fontSize: 26, fontWeight: 700, color: C.ink, lineHeight: 1.2, margin: 0 } as React.CSSProperties;
-  const subheading = { margin: '8px 0 0', color: C.muted, fontSize: 15, fontWeight: 500 } as React.CSSProperties;
+  const heading = { fontSize: 23, fontWeight: 700, color: C.ink, lineHeight: 1.2, margin: 0 } as React.CSSProperties;
+  const subheading = { margin: '6px 0 0', color: C.muted, fontSize: 14, fontWeight: 500 } as React.CSSProperties;
 
   return (
     <div style={{
-      minHeight: '100vh', background: C.cream, color: C.ink,
+      minHeight: '100dvh', maxHeight: '100dvh', background: C.cream, color: C.ink,
       fontFamily: "'Outfit', var(--font-app, system-ui), sans-serif",
       display: 'flex', flexDirection: 'column', alignItems: 'center',
+      overflowY: 'auto',
       paddingTop: 'env(safe-area-inset-top, 0px)',
+      paddingLeft: 'env(safe-area-inset-left, 0px)',
+      paddingRight: 'env(safe-area-inset-right, 0px)',
     }}>
       <div style={{
         width: '100%', maxWidth: 430, flex: 1,
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Brand + back to home */}
-        <div style={{ padding: '20px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '14px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button onClick={() => setLoc('/')} style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             background: 'none', border: 'none', cursor: 'pointer', padding: 0,
@@ -328,12 +331,13 @@ export default function Login() {
           <span style={{ width: 52 }} aria-hidden />
         </div>
 
-        {/* Friendly illustration */}
+        {/* Friendly illustration — shrinks & is height-capped so the sign-in
+            card and footer always stay on-screen without scrolling. */}
         <div style={{
-          flex: '1 1 auto', minHeight: 120, display: 'flex',
-          alignItems: 'center', justifyContent: 'center', padding: '12px 24px',
+          flex: '1 1 auto', minHeight: 0, maxHeight: '26vh', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '8px 24px',
         }}>
-          <div style={{ position: 'relative', width: '100%', maxWidth: 330, aspectRatio: '1200 / 1039' }}>
+          <div style={{ position: 'relative', height: '100%', maxHeight: '100%', maxWidth: 330, aspectRatio: '1200 / 1039' }}>
             <div style={{ position: 'absolute', inset: 0, background: C.tealTint, borderRadius: 40, transform: 'rotate(-3deg) scale(0.95)', opacity: 0.7 }} />
             <div style={{ position: 'absolute', inset: 0, background: C.amberTint, borderRadius: 40, transform: 'rotate(3deg) scale(0.95)', opacity: 0.7 }} />
             {/* Fixed light card behind the render so it stays crisp at Night
@@ -355,7 +359,7 @@ export default function Login() {
         {/* Card */}
         <div style={{
           background: C.white, borderTopLeftRadius: 32, borderTopRightRadius: 32,
-          padding: '28px 24px calc(24px + env(safe-area-inset-bottom, 0px))',
+          padding: '20px 24px calc(18px + env(safe-area-inset-bottom, 0px))',
           boxShadow: '0 -8px 30px rgba(15,118,110,0.05)',
           display: 'flex', flexDirection: 'column',
         }}>

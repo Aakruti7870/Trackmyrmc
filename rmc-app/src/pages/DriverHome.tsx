@@ -4,12 +4,12 @@ import { api, type Challan } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
 import {
-  Truck, ClipboardList, Wallet, TriangleAlert, CalendarCheck, FileText, Check,
+  Truck, ClipboardList, Wallet, TriangleAlert, FileText, Check,
   Navigation, Phone, MessageCircle, Clock, MapPin, User, PackageSearch,
 } from 'lucide-react';
 import {
   Screen, Card, SectionHead, StatCard, StatRow, QuickAction, QuickGrid, InfoPrompt,
-  GradientBanner, Stepper, ListRow, StatusPill, Chip, EmptyNote, type StepState,
+  Stepper, ListRow, StatusPill, Chip, EmptyNote, type StepState,
   TEAL, INK, MUTED, LINE, GREEN, BLUE, RED,
 } from './home/deliveryKit';
 import { greeting, firstNameOf } from './home/format';
@@ -81,15 +81,33 @@ export default function DriverHome() {
         {user?.truckNo && <Chip icon={<Truck className="h-3.5 w-3.5" />} label={user.truckNo} />}
       </div>
 
-      {/* Attendance */}
-      {can('/attendance') && (
-        <GradientBanner
-          icon={<Clock className="h-5 w-5" />}
-          eyebrow="Attendance"
-          title="Clock in / out"
-          actionLabel="Open"
-          onAction={() => go('/attendance')}
-        />
+      {/* Always-on driver essentials — Start/End Shift + Emergency SOS stay
+          permanently visible; the on-road help set lives in the NEW menu. */}
+      {(can('/attendance') || can('/sos')) && (
+        <div className="mt-1 grid grid-cols-2 gap-3">
+          {can('/attendance') && (
+            <button
+              onClick={() => go('/attendance')}
+              className="flex flex-col items-start gap-2 rounded-2xl p-4 text-left active:scale-[.98]"
+              style={{ background: TEAL, color: '#fff', boxShadow: '0 8px 20px rgba(15,118,110,0.30)', transition: 'transform .1s ease' }}
+            >
+              <Clock className="h-6 w-6" />
+              <span className="text-[14px] font-extrabold leading-tight">Start / End Shift</span>
+              <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.85)' }}>Clock in &amp; out</span>
+            </button>
+          )}
+          {can('/sos') && (
+            <button
+              onClick={() => go('/sos')}
+              className="flex flex-col items-start gap-2 rounded-2xl p-4 text-left active:scale-[.98]"
+              style={{ background: RED, color: '#fff', boxShadow: '0 8px 20px rgba(239,68,68,0.30)', transition: 'transform .1s ease' }}
+            >
+              <TriangleAlert className="h-6 w-6" />
+              <span className="text-[14px] font-extrabold leading-tight">Emergency SOS</span>
+              <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.85)' }}>Raise an alert now</span>
+            </button>
+          )}
+        </div>
       )}
 
       {/* Today stats */}
@@ -159,9 +177,7 @@ export default function DriverHome() {
       <QuickGrid cols={3}>
         {can('/my-trips') && <QuickAction label="My Trips" icon={<ClipboardList className="h-6 w-6" />} onClick={() => go('/my-trips')} />}
         {can('/expenses') && <QuickAction label="Expenses" icon={<Wallet className="h-6 w-6" />} onClick={() => go('/expenses')} />}
-        {can('/attendance') && <QuickAction label="Attendance" icon={<CalendarCheck className="h-6 w-6" />} onClick={() => go('/attendance')} />}
         {can('/challans') && <QuickAction label="Challans" icon={<FileText className="h-6 w-6" />} onClick={() => go('/challans')} />}
-        {can('/sos') && <QuickAction label="SOS" tint={RED} bg="#fef2f2" icon={<TriangleAlert className="h-6 w-6" />} onClick={() => go('/sos')} />}
         {can('/profile') && <QuickAction label="Profile" icon={<User className="h-6 w-6" />} onClick={() => go('/profile')} />}
       </QuickGrid>
 
