@@ -94,3 +94,4 @@
 - [Challan print isolation](rmc-challan-print-isolation.md) — A4 print width triggers MOBILE media queries so Layout chrome prints; printable pages need the visibility-isolation @media print block.
 - [RMC KYC verification module](rmc-kyc-verification-module.md) — audit rows tagged [kyc#id] in audit_logs (LIKE reader), approved=immutable, Aadhaar last-4 only, /badges needs unbound-actor 403.
 - [Drizzle subquery column qualification](drizzle-subquery-column-qualification.md) — interpolated drizzle columns render UNQUALIFIED in raw sql`` fragments; correlated EXISTS silently binds the inner table — hand-write "table"."col".
+- [Customer Home premium theme](rmc-customer-home-premium.md) — client /home is re-skinned via page-local CSS-var overrides (incl. --surface/--chip-bg) + home-full-bleed padding rule; new shared vars must be added to the override map.

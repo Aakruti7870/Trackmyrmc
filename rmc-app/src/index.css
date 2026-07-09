@@ -429,6 +429,9 @@ html, body {
 /* ===== App shell — reduce horizontal padding on phones ===== */
 @media (max-width: 600px) {
   #app-main { padding: 14px 12px !important; }
+  /* Role-home screens run edge-to-edge under the fixed chrome (their Screen
+     wrapper carries its own inner padding + bottom-nav clearance). */
+  #app-main.home-full-bleed { padding: 0 !important; }
 }
 
 /* ===== Filter / search rows — wraps search+filter selects onto a second line

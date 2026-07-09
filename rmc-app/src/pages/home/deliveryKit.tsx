@@ -26,9 +26,9 @@ export const PROMPT_BORDER = 'var(--prompt-border)';
 // Full-bleed beige page wrapper. Sits inside Layout <main> (padding stripped on
 // the /home route) so the delivery surface runs edge-to-edge under the fixed
 // chrome. pb clears the bottom tab bar.
-export function Screen({ children }: { children: ReactNode }) {
+export function Screen({ children, bg }: { children: ReactNode; bg?: string }) {
   return (
-    <div style={{ background: BG, minHeight: '100%' }}>
+    <div style={{ background: bg || BG, minHeight: '100%' }}>
       <div
         className="mx-auto w-full max-w-[420px] px-4 pt-4 pb-28"
         style={{ color: INK }}

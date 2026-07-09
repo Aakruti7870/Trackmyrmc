@@ -516,7 +516,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {SidebarContent({ mobile: true })}
         </div>
 
-        <main id="app-main" className={isDriver ? 'has-bottom-nav' : 'has-bottom-nav-mobile'} style={{ flex: 1, padding: isHome ? 0 : '22px', minWidth: 0, overflowX: 'hidden' }}>
+        <main id="app-main" className={`${isDriver ? 'has-bottom-nav' : 'has-bottom-nav-mobile'}${isHome ? ' home-full-bleed' : ''}`} style={{ flex: 1, padding: isHome ? 0 : '22px', minWidth: 0, overflowX: 'hidden' }}>
           {children}
         </main>
       </div>
@@ -530,10 +530,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         #app-main.has-bottom-nav { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
         /* Drivers use the delivery chrome at every width (no desktop sidebar). */
         .role-driver #delivery-mobile-header { display: flex !important; }
+        .role-driver #delivery-mobile-header-spacer { display: block !important; }
         .role-driver #delivery-bottom-nav { display: flex !important; }
         @media (max-width: 900px) {
           #desktop-sidebar { display: none !important; }
           #delivery-mobile-header { display: flex !important; }
+          #delivery-mobile-header-spacer { display: block !important; }
           #delivery-bottom-nav { display: flex !important; }
           /* Non-driver main clears the mobile bottom tab bar on phones only. */
           #app-main.has-bottom-nav-mobile { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }

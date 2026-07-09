@@ -80,13 +80,21 @@ function isActive(location: string, href: string): boolean {
 
 export function DeliveryHeader({ onProfile }: { onProfile: () => void }) {
   return (
+    <>
+    {/* Spacer keeps page content below the fixed header (same display rules). */}
+    <div
+      id="delivery-mobile-header-spacer"
+      style={{ display: 'none', height: 'calc(60px + env(safe-area-inset-top, 0px))', flexShrink: 0 }}
+    />
     <div
       id="delivery-mobile-header"
       style={{
         display: 'none', background: '#fff', borderBottom: `1px solid ${LINE}`,
         padding: '12px 16px', paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
         alignItems: 'center', justifyContent: 'space-between',
-        position: 'sticky', top: 0, zIndex: 50,
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
+        height: 'calc(60px + env(safe-area-inset-top, 0px))',
+        boxShadow: '0 2px 12px rgba(11,61,46,0.08)',
       }}
     >
       <div className="flex items-center gap-2">
@@ -114,6 +122,7 @@ export function DeliveryHeader({ onProfile }: { onProfile: () => void }) {
         </button>
       </div>
     </div>
+    </>
   );
 }
 
