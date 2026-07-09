@@ -520,7 +520,7 @@ title = "TrackMyRMC Android Studio project (v1.11 / versionCode 12, self-contain
 id = "mmpMX3aekHYZ2bwGMeQP6"
 uri = "file://exports/playstore-tablet7-screenshots.zip"
 type = "unspecified"
-title = "7-inch tablet screenshots (2 pages, 1200×1920)"
+title = "7-inch tablet screenshots — full set of 6 (1200×1920)"
 
 [[outputs]]
 id = "wcYWjBtUojLaJ9bhJFii8"
@@ -533,3 +533,27 @@ id = "RQYBRNfZE_Vfk4H54nvxw"
 uri = "file://exports/tablet7-02-login.png"
 type = "image"
 title = "Tablet screenshot 2 — Login"
+
+[[outputs]]
+id = "1sq2l-C-IboqZLgTTyEOT"
+uri = "file://exports/tablet7-03-dashboard.png"
+type = "image"
+title = "Tablet screenshot 3 — Command Center"
+
+[[outputs]]
+id = "gz8UvNc2IsfalviPKXmUF"
+uri = "file://exports/tablet7-04-orders.png"
+type = "image"
+title = "Tablet screenshot 4 — Orders"
+
+[[outputs]]
+id = "XAWsqg0TlXMFdXNrBNPRM"
+uri = "file://exports/tablet7-05-dispatch.png"
+type = "image"
+title = "Tablet screenshot 5 — Dispatch"
+
+[[outputs]]
+id = "H47JDjAOq3k7az618oivh"
+uri = "file://exports/tablet7-06-reports.png"
+type = "image"
+title = "Tablet screenshot 6 — Reports"
