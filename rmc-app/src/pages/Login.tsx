@@ -6,7 +6,7 @@ import {
   Truck, ArrowRight, ArrowLeft, Mail, Lock, Eye, EyeOff,
   KeyRound, ShieldCheck, MessageCircle,
 } from 'lucide-react';
-import warmIllustration from '@/assets/warm-concrete-illustration.png';
+import loginHero from '@/assets/login-hero-plant.webp';
 import InstallAppButton from '@/components/InstallAppButton';
 import OtpInput from '@/components/OtpInput';
 import { defaultPath } from '@/lib/permissions';
@@ -333,13 +333,22 @@ export default function Login() {
           flex: '1 1 auto', minHeight: 120, display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: '12px 24px',
         }}>
-          <div style={{ position: 'relative', width: '100%', maxWidth: 300, aspectRatio: '1 / 1' }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: 330, aspectRatio: '1200 / 1039' }}>
             <div style={{ position: 'absolute', inset: 0, background: C.tealTint, borderRadius: 40, transform: 'rotate(-3deg) scale(0.95)', opacity: 0.7 }} />
             <div style={{ position: 'absolute', inset: 0, background: C.amberTint, borderRadius: 40, transform: 'rotate(3deg) scale(0.95)', opacity: 0.7 }} />
-            <img
-              src={warmIllustration} alt="Friendly concrete delivery"
-              style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }}
-            />
+            {/* Fixed light card behind the render so it stays crisp at Night
+                too (a multiply-blend against the dark page would wash it out). */}
+            <div style={{
+              position: 'relative', zIndex: 1, width: '100%', height: '100%',
+              background: '#f3f1ec', borderRadius: 32, overflow: 'hidden',
+              padding: 10, boxSizing: 'border-box',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.10)',
+            }}>
+              <img
+                src={loginHero} alt="RMC batching plant — empowering everyone"
+                style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }}
+              />
+            </div>
           </div>
         </div>
 

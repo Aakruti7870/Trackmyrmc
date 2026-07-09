@@ -598,4 +598,16 @@ title = "Preview: Widgets — readable gold text"
 id = "aob-4Nvn8t6LuPiOX6DpW"
 uri = "file://exports/trackmyrmc-androidstudio-v1.13-vc14.zip"
 type = "unspecified"
-title = "Android Studio project — v1.13 (vc14) with More-menu fix"
+title = "Final Android Studio project — v1.13 (vc14) with all changes"
+
+[[outputs]]
+id = "iL2LMR769_EKDpIU8Kqzn"
+uri = "file://.local/tmp-shots/login-day-final.png"
+type = "image"
+title = "Login — new image (Day mode)"
+
+[[outputs]]
+id = "BliqcqLP0eABz_yZdFhmm"
+uri = "file://.local/tmp-shots/login-night-final.png"
+type = "image"
+title = "Login — new image (Night mode)"
