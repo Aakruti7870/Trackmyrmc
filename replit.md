@@ -53,7 +53,7 @@ Runs on port 5000.
 
 ## Design System
 
-One universal teal + mint-white corporate theme with two modes (Day / Night) and an **Auto** mode (default) that follows sunrise/sunset by the clock. Selectable from the user menu and Account Settings. Defined in `rmc-app/src/lib/theme.tsx` as CSS variables; the whole app re-themes via these tokens.
+One universal teal + mint-white corporate theme with two modes (Day / Night) that switch **automatically** by sunrise/sunset (no user-facing theme picker anywhere — the mode always follows the clock). Defined in `rmc-app/src/lib/theme.tsx` as CSS variables; the whole app re-themes via these tokens.
 
 - **Day**: white cards on cool mint page `#f4f7f5`, ink text `#12211d`, muted `#6b7c76`, teal accent ramp (`--gold` = `#178a6e`, dark `#0f766e`)
 - **Night**: deep green-ink surfaces (`--bg` `#0c1713`, panel `#12211d`), light text `#eaf4f0`, brighter teal accent (`--gold` = `#27b58c`)

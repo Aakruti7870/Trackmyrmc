@@ -7,9 +7,7 @@ description: How CONCRETE KING is themed — one universal teal Day/Night pair w
 
 Themes are defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied inline to `documentElement` (inline wins over `index.css :root` fallbacks). ONE universal design, two modes: id `day` (cool mint page `#f4f7f5`, ink `#12211d`, muted `#6b7c76`, teal accent `#178a6e`, Inter) and id `night` (dark counterpart: bg `#0c1713`, panel `#12211d`, text `#eaf4f0`, brighter teal `#27b58c`). The old terracotta "Daylight" theme was REMOVED.
 
-**Mode, not theme, is what's stored:** `ThemeMode = 'auto'|'day'|'night'` in localStorage key `rmc-theme-mode-v1` (default `auto`; legacy `rmc-theme-v2` is deleted on migration). `resolveTheme(mode)` picks the effective theme; `initialTheme` is applied synchronously at module load (no flash). Auto = `isNightNow()`: NOAA sunrise/sunset from coords in `rmc_nearby_location` localStorage (set by the Nearby screen), fallback 06:15/18:30 local. **Never prompt geolocation for theming** — privacy requirement; everything computes locally. ThemeProvider re-resolves every 60s + on visibilitychange while in auto.
-
-**`THEME_MODES` (Auto/Day/Night picker options) lives in `theme.tsx`, NOT theme-providers.tsx** — exporting a const from the component file trips `react-refresh/only-export-components` (lint = ERROR).
+**No user-facing theme picker (July 2026):** the app is PERMANENTLY auto — THEME_MODES/ThemeSwitcher/persistMode/readStoredMode were removed; ThemeCtx is just `{theme, themes}`; module load deletes old localStorage mode keys and applies `resolveTheme('auto')` synchronously (no flash). Do not re-add a picker unless the user asks. Auto = `isNightNow()`: NOAA sunrise/sunset from coords in `rmc_nearby_location` localStorage (set by the Nearby screen), fallback 06:15/18:30 local. **Never prompt geolocation for theming** — privacy requirement; everything computes locally. ThemeProvider re-resolves every 60s + on visibilitychange while in auto.
 
 **Accent tokens keep legacy `--gold*` names** (`--gold`, `--gold-hi/mid/dark`, soft tints `--gold-soft/-tint`, `--prompt-bg/-border/-icon-bg`) referenced all over. Don't rename — huge churn.
 

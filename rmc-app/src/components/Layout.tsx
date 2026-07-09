@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { useTheme, THEME_MODES } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
 import { allowedPaths as roleAllowedPaths } from '@/lib/permissions';
 import { useSSE, type SSEStatus } from '@/lib/useSSE';
@@ -145,7 +144,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const { status: sseStatus, reconnect, subscribe } = useSSE();
-  const { mode, setMode } = useTheme();
   const { showToast } = useToast();
 
   const isClient = user?.role === 'client';
@@ -409,38 +407,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 Account Settings
               </Link>
             )}
-            <div style={{ padding: '10px 14px', borderTop: '1px solid var(--surface)' }}>
-              <div style={{
-                fontSize: 10, fontWeight: 700, color: 'var(--muted)',
-                textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8,
-              }}>
-                Theme
-              </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {THEME_MODES.map(m => {
-                  const selected = m.id === mode;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => setMode(m.id)}
-                      title={m.hint}
-                      style={{
-                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        padding: '8px 10px', borderRadius: 9, cursor: 'pointer',
-                        fontSize: 12.5, fontWeight: 700,
-                        background: selected ? 'color-mix(in srgb, var(--gold) 16%, transparent)' : 'var(--chip-bg)',
-                        border: selected ? '1px solid color-mix(in srgb, var(--gold) 55%, transparent)' : '1px solid var(--line)',
-                        color: selected ? 'var(--gold)' : 'var(--muted)',
-                        transition: 'all .15s',
-                      }}
-                    >
-                      <m.Icon size={13} style={{ flexShrink: 0 }} />
-                      {m.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
             <button
               onClick={() => { logout(); setUserMenuOpen(false); }}
               style={{

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, Palette, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2, ShieldCheck } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2, ShieldCheck } from 'lucide-react';
 import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult, type PlantDirectoryEntry, type SocialLinks } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
-import { ThemeSwitcher } from '@/lib/theme-providers';
 import NotificationsCard from '@/components/NotificationsCard';
 import { ROLE_ALLOWED_PATHS, setPermissionOverrides } from '@/lib/permissions';
 import type { User } from '@/lib/api';
@@ -1665,23 +1664,7 @@ export default function ProfileSettings() {
         </dl>
       </div>
 
-      {/* Appearance / theme card */}
-      <div style={{ ...card, marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 10,
-            background: 'color-mix(in srgb, var(--gold) 13%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 27%, transparent)',
-            display: 'grid', placeItems: 'center',
-          }}>
-            <Palette size={15} style={{ color: 'var(--gold)' }} />
-          </div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Appearance</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>Choose a colour theme — applies instantly across the app</div>
-          </div>
-        </div>
-        <ThemeSwitcher />
-      </div>
+      {/* Appearance: the theme follows sunrise/sunset automatically — no picker. */}
 
       {/* Push notifications card */}
       <NotificationsCard />

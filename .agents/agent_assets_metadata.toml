@@ -557,3 +557,27 @@ id = "H47JDjAOq3k7az618oivh"
 uri = "file://exports/tablet7-06-reports.png"
 type = "image"
 title = "Tablet screenshot 6 — Reports"
+
+[[outputs]]
+id = "a4IQUixlCg9dvRXd_37D2"
+uri = "file://exports/trackmyrmc-androidstudio-v1.12-vc13.zip"
+type = "unspecified"
+title = "Android Studio project — v1.12 (versionCode 13)"
+
+[[outputs]]
+id = "gIk2VoaBo140089ZkqMQL"
+uri = "file://.local/tmp-shots/p1-home.png"
+type = "image"
+title = "Preview: Customer Home (auto Night theme)"
+
+[[outputs]]
+id = "pKVy2mQopkePm9xrYULli"
+uri = "file://.local/tmp-shots/p2-usermenu.png"
+type = "image"
+title = "Preview: User menu — no Theme option"
+
+[[outputs]]
+id = "IkCv6VsLfK0VdDz0WOWEv"
+uri = "file://.local/tmp-shots/p3-profile.png"
+type = "image"
+title = "Preview: Account Settings — Appearance card removed"

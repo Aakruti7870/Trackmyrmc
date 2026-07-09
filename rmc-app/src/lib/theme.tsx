@@ -1,5 +1,4 @@
 import { createContext, useContext } from 'react';
-import { Sun, Moon, Clock } from 'lucide-react';
 
 export interface Theme {
   id: string;
@@ -10,15 +9,9 @@ export interface Theme {
   tokens: Record<string, string>;
 }
 
-/** Theme mode: 'auto' follows the clock (sunrise/sunset), otherwise forced. */
+/** Theme mode: the app ALWAYS follows the clock (sunrise/sunset). There is no
+    user-facing picker — 'day'/'night' remain only as resolve targets. */
 export type ThemeMode = 'auto' | 'day' | 'night';
-
-/** The three mode options rendered by both theme pickers (user menu + Account Settings). */
-export const THEME_MODES: { id: ThemeMode; label: string; hint: string; Icon: typeof Sun }[] = [
-  { id: 'auto', label: 'Auto', hint: 'Follows sunrise & sunset', Icon: Clock },
-  { id: 'day', label: 'Day', hint: 'Always light', Icon: Sun },
-  { id: 'night', label: 'Night', hint: 'Always dark', Icon: Moon },
-];
 
 /* Semantic colors stay stable across both modes so status meaning never shifts. */
 const SEMANTIC = {
@@ -222,37 +215,25 @@ export function resolveTheme(mode: ThemeMode, now: Date = new Date()): Theme {
   return THEMES.find(t => t.id === id) || THEMES[0];
 }
 
-export function readStoredMode(): ThemeMode {
-  try {
-    const stored = localStorage.getItem(MODE_STORAGE_KEY);
-    if (stored === 'auto' || stored === 'day' || stored === 'night') return stored;
-    // One-time migration from the old theme picker: 'day'/'daylight' → auto.
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
-  } catch { /* ignore */ }
-  return 'auto';
-}
-
-export function persistMode(mode: ThemeMode) {
-  try { localStorage.setItem(MODE_STORAGE_KEY, mode); } catch { /* ignore */ }
-}
+/* The theme mode is permanently 'auto' — clean up any previously stored
+   manual choice from the era when a picker existed. */
+try {
+  localStorage.removeItem(MODE_STORAGE_KEY);
+  localStorage.removeItem(LEGACY_STORAGE_KEY);
+} catch { /* ignore */ }
 
 /* Apply synchronously at module load so there is no theme flash before React mounts. */
-export const initialMode = readStoredMode();
-export const initialTheme = resolveTheme(initialMode);
+export const initialTheme = resolveTheme('auto');
 applyTheme(initialTheme);
 
 export interface ThemeCtx {
   theme: Theme;          // the effective (currently applied) theme
   themes: Theme[];
-  mode: ThemeMode;       // 'auto' | 'day' | 'night'
-  setMode: (mode: ThemeMode) => void;
 }
 
 export const ThemeContext = createContext<ThemeCtx>({
   theme: THEMES[0],
   themes: THEMES,
-  mode: 'auto',
-  setMode: () => {},
 });
 
 export function useTheme() {
