@@ -31,6 +31,8 @@ const DGREEN_DEEP = '#06281d';
 const DGREEN_HI = '#14563f';
 const GOLD = '#D6A936';
 const GOLD_LIGHT = '#F4D27A';
+// Darker gold for LETTERS on white/cream — plain #D6A936 text is too faint.
+const GOLD_TEXT = '#8a6a14';
 const CARD_BG = '#FFFFFF';
 const TXT = '#102820';
 const TXT_MUTED = '#5c6f66';
@@ -363,7 +365,7 @@ export default function CustomerHome() {
             </li>
           ))}
         </ul>
-        <div className="mt-3 flex items-center gap-1 text-[12px] font-bold" style={{ color: GOLD }}>
+        <div className="mt-3 flex items-center gap-1 text-[12px] font-bold" style={{ color: GOLD_TEXT }}>
           See details <ChevronRight className="h-3.5 w-3.5" strokeWidth={3} />
         </div>
       </button>
@@ -424,7 +426,7 @@ export default function CustomerHome() {
             </span>
           ))}
         </div>
-        <div className="mt-3 flex items-center gap-1 text-[12px] font-bold" style={{ color: GOLD }}>
+        <div className="mt-3 flex items-center gap-1 text-[12px] font-bold" style={{ color: GOLD_TEXT }}>
           See details <ChevronRight className="h-3.5 w-3.5" strokeWidth={3} />
         </div>
       </button>

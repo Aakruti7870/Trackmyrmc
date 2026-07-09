@@ -562,7 +562,7 @@ title = "Tablet screenshot 6 — Reports"
 id = "a4IQUixlCg9dvRXd_37D2"
 uri = "file://exports/trackmyrmc-androidstudio-v1.12-vc13.zip"
 type = "unspecified"
-title = "Android Studio project — v1.12 (versionCode 13)"
+title = "Updated Android Studio project — v1.12 (vc13) with visibility fix"
 
 [[outputs]]
 id = "gIk2VoaBo140089ZkqMQL"
@@ -581,3 +581,15 @@ id = "IkCv6VsLfK0VdDz0WOWEv"
 uri = "file://.local/tmp-shots/p3-profile.png"
 type = "image"
 title = "Preview: Account Settings — Appearance card removed"
+
+[[outputs]]
+id = "81TAMR--khLdXxsxvrbn5"
+uri = "file://.local/tmp-shots/fix1-home-top.png"
+type = "image"
+title = "Preview: Header letters now crisp (dark on white)"
+
+[[outputs]]
+id = "m2jH_VDpywBhoea7JZRIM"
+uri = "file://.local/tmp-shots/fix2-widgets.png"
+type = "image"
+title = "Preview: Widgets — readable gold text"

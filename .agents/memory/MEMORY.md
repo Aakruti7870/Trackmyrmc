@@ -95,3 +95,4 @@
 - [RMC KYC verification module](rmc-kyc-verification-module.md) — audit rows tagged [kyc#id] in audit_logs (LIKE reader), approved=immutable, Aadhaar last-4 only, /badges needs unbound-actor 403.
 - [Drizzle subquery column qualification](drizzle-subquery-column-qualification.md) — interpolated drizzle columns render UNQUALIFIED in raw sql`` fragments; correlated EXISTS silently binds the inner table — hand-write "table"."col".
 - [Customer Home premium theme](rmc-customer-home-premium.md) — client /home is re-skinned via page-local CSS-var overrides (incl. --surface/--chip-bg) + home-full-bleed padding rule; new shared vars must be added to the override map.
+- [White chrome bars need fixed ink](rmc-white-chrome-fixed-ink.md) — any hardcoded-white surface (mobile header/bottom nav) must use fixed dark letter colors, never theme vars (they flip light at Night and wash out).

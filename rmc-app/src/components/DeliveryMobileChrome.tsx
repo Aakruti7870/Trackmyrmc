@@ -8,7 +8,16 @@ import {
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
 import NotificationBell from '@/components/NotificationBell';
-import { TEAL, TEAL_SOFT, INK, MUTED, LINE, RED } from '@/pages/home/deliveryKit';
+import { RED } from '@/pages/home/deliveryKit';
+
+// The mobile chrome bars are ALWAYS white, so their letters/icons must use
+// fixed dark colors — never theme vars, which flip light at Night and would
+// wash out on the white background.
+const INK = '#12211d';
+const MUTED = '#5c6f66';
+const TEAL = '#0f766e';
+const TEAL_SOFT = 'rgba(15,118,110,0.12)';
+const LINE = '#e5eae7';
 
 type Tab = { icon: ElementType; label: string; href: string; more?: boolean };
 type Fab = { icon: ElementType; label: string; href: string; color: 'teal' | 'red' };
