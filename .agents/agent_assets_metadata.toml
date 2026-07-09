@@ -515,3 +515,21 @@ id = "aKGqWm1tt_o6ougvxBy1H"
 uri = "file://exports/trackmyrmc-androidstudio-v1.11-standalone.zip"
 type = "unspecified"
 title = "TrackMyRMC Android Studio project (v1.11 / versionCode 12, self-contained)"
+
+[[outputs]]
+id = "mmpMX3aekHYZ2bwGMeQP6"
+uri = "file://exports/playstore-tablet7-screenshots.zip"
+type = "unspecified"
+title = "7-inch tablet screenshots (2 pages, 1200×1920)"
+
+[[outputs]]
+id = "wcYWjBtUojLaJ9bhJFii8"
+uri = "file://exports/tablet7-01-landing.png"
+type = "image"
+title = "Tablet screenshot 1 — Landing"
+
+[[outputs]]
+id = "RQYBRNfZE_Vfk4H54nvxw"
+uri = "file://exports/tablet7-02-login.png"
+type = "image"
+title = "Tablet screenshot 2 — Login"
