@@ -593,3 +593,9 @@ id = "m2jH_VDpywBhoea7JZRIM"
 uri = "file://.local/tmp-shots/fix2-widgets.png"
 type = "image"
 title = "Preview: Widgets — readable gold text"
+
+[[outputs]]
+id = "aob-4Nvn8t6LuPiOX6DpW"
+uri = "file://exports/trackmyrmc-androidstudio-v1.13-vc14.zip"
+type = "unspecified"
+title = "Android Studio project — v1.13 (vc14) with More-menu fix"

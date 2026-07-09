@@ -7,7 +7,7 @@ import {
   Crown, Building2, HardHat, Wallet, User, Zap, MessageCircle,
   Home, Siren, FileSpreadsheet, BadgeCheck,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { allowedPaths as roleAllowedPaths } from '@/lib/permissions';
@@ -148,6 +148,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const isClient = user?.role === 'client';
   const isDriver = user?.role === 'driver';
+
+  // Android/phone back button closes the open "More" sheet instead of leaving
+  // the page (PhonePe/Paytm behaviour). While the sheet is open we push one
+  // history entry; pressing Back pops it and only closes the sheet. If the
+  // sheet closes any other way (backdrop tap, tab click) and our entry is
+  // still on top, we pop it silently so Back keeps working normally.
+  const moreClosedByBack = useRef(false);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    moreClosedByBack.current = false;
+    window.history.pushState({ moreMenu: true }, '');
+    const onPop = () => { moreClosedByBack.current = true; setMobileOpen(false); };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      if (!moreClosedByBack.current && window.history.state?.moreMenu) window.history.back();
+    };
+  }, [mobileOpen]);
 
   useEffect(() => {
     const toastFor = (event: 'challan.created' | 'challan.updated' | 'order.updated') => (data: unknown) => {
@@ -459,10 +477,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Mobile overlay + "More" slide-up sheet — available to every role
             (the sheet holds account settings, theme and sign-out on phones). */}
-        {mobileOpen && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--overlay)' }}
-            onClick={() => setMobileOpen(false)} />
-        )}
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 40, background: 'var(--overlay)',
+            opacity: mobileOpen ? 1 : 0, pointerEvents: mobileOpen ? 'auto' : 'none',
+            transition: 'opacity .25s ease',
+          }}
+          onClick={() => setMobileOpen(false)}
+        />
         <div id="mobile-sidebar" style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, maxHeight: '86vh', zIndex: 45,
           background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
@@ -489,7 +511,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Unified delivery-style bottom tab bar with role-aware center FAB.
           Shown on phones for every role; at all widths for drivers. */}
-      <DeliveryBottomNav onMore={() => setMobileOpen(o => !o)} />
+      <DeliveryBottomNav onMore={() => setMobileOpen(o => !o)} onNavigate={() => setMobileOpen(false)} />
 
       <style>{`
         /* Driver main always clears the fixed bottom tab bar (all widths). */

@@ -135,7 +135,7 @@ export function DeliveryHeader({ onProfile }: { onProfile: () => void }) {
   );
 }
 
-function Slot({ tab, location, onMore }: { tab: Tab; location: string; onMore: () => void }) {
+function Slot({ tab, location, onMore, onNavigate }: { tab: Tab; location: string; onMore: () => void; onNavigate: () => void }) {
   const active = !tab.more && isActive(location, tab.href);
   const Icon = tab.icon;
   const color = active ? TEAL : MUTED;
@@ -151,13 +151,18 @@ function Slot({ tab, location, onMore }: { tab: Tab; location: string; onMore: (
     );
   }
   return (
-    <Link href={tab.href} className="flex flex-1 flex-col items-center gap-1" style={{ textDecoration: 'none' }}>
+    <Link
+      href={tab.href}
+      onClick={onNavigate}
+      className="flex flex-1 flex-col items-center gap-1"
+      style={{ textDecoration: 'none' }}
+    >
       {inner}
     </Link>
   );
 }
 
-export function DeliveryBottomNav({ onMore }: { onMore: () => void }) {
+export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; onNavigate?: () => void }) {
   const [location, navigate] = useLocation();
   const { user } = useAuth();
   if (!user) return null;
@@ -183,11 +188,11 @@ export function DeliveryBottomNav({ onMore }: { onMore: () => void }) {
         alignItems: 'flex-end', justifyContent: 'space-between',
       }}
     >
-      {left.map((t, i) => <Slot key={`l${i}`} tab={t} location={location} onMore={onMore} />)}
+      {left.map((t, i) => <Slot key={`l${i}`} tab={t} location={location} onMore={onMore} onNavigate={() => onNavigate?.()} />)}
       {fab && FabIcon && (
         <div className="flex flex-col items-center" style={{ transform: 'translateY(-10px)' }}>
           <button
-            onClick={() => navigate(fab.href)}
+            onClick={() => { onNavigate?.(); navigate(fab.href); }}
             className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg"
             style={{ background: fabColor, boxShadow: fabShadow }}
             aria-label={fab.label}
@@ -199,7 +204,7 @@ export function DeliveryBottomNav({ onMore }: { onMore: () => void }) {
           </span>
         </div>
       )}
-      {right.map((t, i) => <Slot key={`r${i}`} tab={t} location={location} onMore={onMore} />)}
+      {right.map((t, i) => <Slot key={`r${i}`} tab={t} location={location} onMore={onMore} onNavigate={() => onNavigate?.()} />)}
     </nav>
   );
 }
