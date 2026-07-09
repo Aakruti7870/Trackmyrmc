@@ -7,7 +7,7 @@ import type { Express, Response } from 'express';
 
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { users, clients, drivers, challans } from '../db/schema.js';
+import { users, clients, drivers, challans, plants, vehicleAlerts } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
 import {
   addSSEClient,
@@ -40,18 +40,42 @@ async function createClient(name: string) {
 }
 
 let challanSeq = 0;
-async function createChallan(opts: { driverId: number; clientId: number }) {
+async function createChallan(opts: { driverId: number; clientId: number; plantId?: number | null }) {
   challanSeq += 1;
   const [row] = await db.insert(challans).values({
     challanNo: `CH-P${String(challanSeq).padStart(4, '0')}`,
     clientId: opts.clientId,
     driverId: opts.driverId,
+    plantId: opts.plantId ?? null,
     grade: 'M25',
     quantity: '6.00',
     status: 'dispatched',
     dispatchTime: new Date(),
   }).returning();
   return row;
+}
+
+let plantSeq = 0;
+const runSuffix = `${process.pid}${Date.now() % 100000}`;
+async function createPlant(name: string) {
+  plantSeq += 1;
+  // plants.name is globally unique and this suite may run against a shared
+  // dev database, so both the name and code carry a per-run suffix.
+  const [row] = await db.insert(plants).values({
+    name: `${name} ${runSuffix}-${plantSeq}`,
+    plantCode: `POSTP-${runSuffix}-${plantSeq}`,
+    latitude: '19.0000000',
+    longitude: '72.8000000',
+  }).returning();
+  return row;
+}
+
+async function createStaffUser(name: string, email: string, role: 'admin' | 'dispatcher', plantId: number | null) {
+  const passwordHash = await hashPassword(PASSWORD);
+  const [user] = await db.insert(users).values({
+    name, email, passwordHash, role, isActive: true, plantId,
+  }).returning();
+  return user;
 }
 
 function tokenFor(u: { id: number; email: string; role: string; name: string }) {
@@ -167,6 +191,110 @@ test('a driver GPS fix reaches only the owning client, the assigned driver, and 
       `${name} must receive every truck position for the live map`,
     );
   }
+});
+
+test('plant-bound staff only see their own plant on the live map (REST + SSE); platform staff see all', async () => {
+  const plantA = await createPlant('Plant A');
+  const plantB = await createPlant('Plant B');
+  const client = await createClient('Acme Co');
+  const { user: driverAUser, driver: driverA } = await createDriverUser('Dave A', 'dave.a@test.com');
+  const { user: driverBUser, driver: driverB } = await createDriverUser('Bob B', 'bob.b@test.com');
+  const challanA = await createChallan({ driverId: driverA.id, clientId: client.id, plantId: plantA.id });
+  const challanB = await createChallan({ driverId: driverB.id, clientId: client.id, plantId: plantB.id });
+
+  const plantAAdmin = await createStaffUser('A Admin', 'a.admin@test.com', 'admin', plantA.id);
+  const platformAdmin = await createStaffUser('P Admin', 'p.admin@test.com', 'admin', null);
+
+  // SSE listeners: a plant-A-bound admin and a platform (null-plant) admin.
+  const plantAAdminSse = captureSSE({ role: 'admin', plantId: plantA.id });
+  const platformAdminSse = captureSSE({ role: 'admin', plantId: null });
+  openStreams.push(plantAAdminSse, platformAdminSse);
+
+  // Both drivers report a fix through the real route.
+  for (const [u, ch] of [[driverAUser, challanA], [driverBUser, challanB]] as const) {
+    const res = await request(app)
+      .post('/api/positions')
+      .set('Authorization', `Bearer ${tokenFor(u)}`)
+      .send({ challanId: ch.id, lat: 19.07, lng: 72.87, accuracy: 10 });
+    assert.equal(res.status, 200);
+  }
+
+  // SSE: the plant-A admin got exactly one position (their own plant's truck),
+  // the platform admin got both.
+  assert.equal(
+    plantAAdminSse.events().filter(e => e === 'vehicle.position').length, 1,
+    "a plant-bound admin must only receive their own plant's truck positions",
+  );
+  assert.equal(
+    platformAdminSse.events().filter(e => e === 'vehicle.position').length, 2,
+    'a platform admin must receive every truck position',
+  );
+
+  // REST: GET /api/positions applies the same tenant scoping.
+  const scoped = await request(app)
+    .get('/api/positions')
+    .set('Authorization', `Bearer ${tokenFor(plantAAdmin)}`);
+  assert.equal(scoped.status, 200);
+  assert.deepEqual(
+    scoped.body.map((p: { challanId: number }) => p.challanId), [challanA.id],
+    "the live-map list for a plant-bound admin must only contain their own plant's trucks",
+  );
+
+  const global = await request(app)
+    .get('/api/positions')
+    .set('Authorization', `Bearer ${tokenFor(platformAdmin)}`);
+  assert.equal(global.status, 200);
+  assert.equal(global.body.length, 2, 'a platform admin sees the whole network on the live map');
+
+  // Theft/deviation alerts: the feed, the ack action and the freshness board
+  // must all carry the same plant boundary.
+  const [alertA] = await db.insert(vehicleAlerts).values({
+    challanId: challanA.id, driverId: driverA.id, type: 'unscheduled_stop', detail: 'A stop',
+  }).returning();
+  const [alertB] = await db.insert(vehicleAlerts).values({
+    challanId: challanB.id, driverId: driverB.id, type: 'route_deviation', detail: 'B deviation',
+  }).returning();
+
+  const alertsScoped = await request(app)
+    .get('/api/positions/alerts')
+    .set('Authorization', `Bearer ${tokenFor(plantAAdmin)}`);
+  assert.equal(alertsScoped.status, 200);
+  assert.deepEqual(
+    alertsScoped.body.map((a: { id: number }) => a.id), [alertA.id],
+    "the alert feed for a plant-bound admin must only contain their own plant's alerts",
+  );
+
+  const alertsGlobal = await request(app)
+    .get('/api/positions/alerts')
+    .set('Authorization', `Bearer ${tokenFor(platformAdmin)}`);
+  assert.equal(alertsGlobal.status, 200);
+  assert.equal(alertsGlobal.body.length, 2, 'a platform admin sees every plant\'s alerts');
+
+  // Acknowledging another plant's alert must look like a missing row (404),
+  // and must leave the alert untouched.
+  const crossAck = await request(app)
+    .post(`/api/positions/alerts/${alertB.id}/ack`)
+    .set('Authorization', `Bearer ${tokenFor(plantAAdmin)}`);
+  assert.equal(crossAck.status, 404, "a plant-bound admin cannot acknowledge another plant's alert");
+  const ownAck = await request(app)
+    .post(`/api/positions/alerts/${alertA.id}/ack`)
+    .set('Authorization', `Bearer ${tokenFor(plantAAdmin)}`);
+  assert.equal(ownAck.status, 200, 'a plant-bound admin can acknowledge their own plant\'s alert');
+
+  // Freshness board: same boundary.
+  const freshScoped = await request(app)
+    .get('/api/positions/freshness')
+    .set('Authorization', `Bearer ${tokenFor(plantAAdmin)}`);
+  assert.equal(freshScoped.status, 200);
+  assert.deepEqual(
+    freshScoped.body.loads.map((l: { challanId: number }) => l.challanId), [challanA.id],
+    "the freshness board for a plant-bound admin must only list their own plant's loads",
+  );
+  const freshGlobal = await request(app)
+    .get('/api/positions/freshness')
+    .set('Authorization', `Bearer ${tokenFor(platformAdmin)}`);
+  assert.equal(freshGlobal.status, 200);
+  assert.equal(freshGlobal.body.loads.length, 2, 'a platform admin sees every plant\'s loads');
 });
 
 test('a driver reporting a challan not assigned to them is rejected and emits nothing', async () => {

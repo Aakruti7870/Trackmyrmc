@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { eq, desc, isNull } from 'drizzle-orm';
+import { eq, desc, isNull, and } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { challans, sites, vehicles, drivers, clients, vehicleAlerts } from '../db/schema.js';
+import { plantScope } from '../lib/tenancy.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { notifyChallanStatus } from '../lib/deliveryNotify.js';
@@ -28,6 +29,9 @@ const RELEASE_RADIUS_M = 300;
 export type LivePosition = {
   challanId: number;
   challanNo: string | null;
+  // Owning plant of the underlying challan; used to tenant-scope the staff
+  // live map (a plant-bound staffer must only see their own plant's trucks).
+  plantId: number | null;
   clientId: number | null;
   driverId: number | null;
   driverName: string | null;
@@ -135,6 +139,7 @@ function pointToSegmentM(
 // reaches staff connections only — clients and drivers never receive it.
 async function persistVehicleAlert(a: {
   challanId: number;
+  plantId: number | null;
   vehicleId: number | null;
   driverId: number | null;
   type: 'unscheduled_stop' | 'route_deviation';
@@ -153,7 +158,7 @@ async function persistVehicleAlert(a: {
     distanceM: a.distanceM,
     detail: a.detail,
   }).returning();
-  emitSSEEvent('vehicle.alert', alert, {});
+  emitSSEEvent('vehicle.alert', alert, { plantId: a.plantId ?? undefined });
 }
 
 // Driver streams a live GPS fix for one of their assigned challans.
@@ -179,6 +184,7 @@ router.post('/', requireRole('driver'), async (req, res) => {
       challanNo: challans.challanNo,
       status: challans.status,
       notes: challans.notes,
+      plantId: challans.plantId,
       clientId: challans.clientId,
       driverId: challans.driverId,
       siteId: challans.siteId,
@@ -316,6 +322,7 @@ router.post('/', requireRole('driver'), async (req, res) => {
         stopAlerted = true;
         await persistVehicleAlert({
           challanId: cid,
+          plantId: row.plantId,
           vehicleId: row.vehicleId,
           driverId: row.driverId,
           type: 'unscheduled_stop',
@@ -340,6 +347,7 @@ router.post('/', requireRole('driver'), async (req, res) => {
           deviationAlerted = true;
           await persistVehicleAlert({
             challanId: cid,
+            plantId: row.plantId,
             vehicleId: row.vehicleId,
             driverId: row.driverId,
             type: 'route_deviation',
@@ -358,6 +366,7 @@ router.post('/', requireRole('driver'), async (req, res) => {
   const live: LivePosition = {
     challanId: cid,
     challanNo: row.challanNo,
+    plantId: row.plantId,
     clientId: row.clientId,
     driverId: row.driverId,
     driverName: row.driverName,
@@ -388,8 +397,9 @@ router.post('/', requireRole('driver'), async (req, res) => {
   // staff live view can render the last-known position from the DB. Best-effort.
   void updateTripLocation(cid, latitude, longitude);
   // Scope the live GPS stream so a client only sees positions for their own
-  // deliveries and a driver only sees their own trips; staff still get all.
-  emitSSEEvent('vehicle.position', live, { clientId: row.clientId, driverId: row.driverId });
+  // deliveries, a driver only sees their own trips, and plant-bound staff only
+  // see their own plant's trucks (platform staff still get all).
+  emitSSEEvent('vehicle.position', live, { clientId: row.clientId, driverId: row.driverId, plantId: row.plantId ?? undefined });
 
   // Keep the live position alive after delivery so we can still detect the truck
   // leaving site; only once site release is captured is there nothing left to
@@ -410,8 +420,12 @@ router.post('/', requireRole('driver'), async (req, res) => {
 });
 
 // Dispatch / control-room view of the latest fix per active challan.
-router.get('/', requireRole('admin', 'dispatcher', 'authority'), (_req, res) => {
-  res.json(Array.from(livePositions.values()));
+router.get('/', requireRole('admin', 'dispatcher', 'authority'), (req, res) => {
+  const actorPlantId = req.user!.plantId ?? null;
+  const all = Array.from(livePositions.values());
+  // Plant-bound staff only see their own plant's trucks; platform staff
+  // (plantId null) see the whole network.
+  res.json(actorPlantId == null ? all : all.filter(p => p.plantId === actorPlantId));
 });
 
 // A customer's view of live positions for their own in-flight deliveries only.
@@ -451,7 +465,10 @@ router.get('/alerts', requireRole('admin', 'dispatcher', 'authority'), async (re
     .leftJoin(challans, eq(vehicleAlerts.challanId, challans.id))
     .leftJoin(vehicles, eq(vehicleAlerts.vehicleId, vehicles.id))
     .leftJoin(drivers, eq(vehicleAlerts.driverId, drivers.id))
-    .where(onlyOpen ? isNull(vehicleAlerts.acknowledgedAt) : undefined)
+    .where(and(
+      onlyOpen ? isNull(vehicleAlerts.acknowledgedAt) : undefined,
+      plantScope(req.user!.plantId, challans.plantId),
+    ))
     .orderBy(desc(vehicleAlerts.createdAt))
     .limit(limit);
   res.json(rows);
@@ -461,6 +478,14 @@ router.get('/alerts', requireRole('admin', 'dispatcher', 'authority'), async (re
 router.post('/alerts/:id/ack', requireRole('admin', 'dispatcher', 'authority'), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'Invalid alert id' }); return; }
+  // Tenant guard: a plant-bound staffer may only acknowledge alerts belonging
+  // to their own plant's challans (same 404 as a missing row — no existence leak).
+  const [visible] = await db
+    .select({ id: vehicleAlerts.id })
+    .from(vehicleAlerts)
+    .leftJoin(challans, eq(vehicleAlerts.challanId, challans.id))
+    .where(and(eq(vehicleAlerts.id, id), plantScope(req.user!.plantId, challans.plantId)));
+  if (!visible) { res.status(404).json({ error: 'Not found' }); return; }
   const [row] = await db
     .update(vehicleAlerts)
     .set({ acknowledgedAt: new Date() })
@@ -500,7 +525,7 @@ export interface FreshnessResponse {
 // Shared by the freshness endpoint and the background alert ticker: pull every
 // currently-dispatched (in-transit) challan, fold in its latest live GPS fix if
 // one exists, and classify each load's pour urgency. Sorted most-urgent-first.
-export async function getFreshnessLoads(now = new Date()): Promise<FreshnessResponse> {
+export async function getFreshnessLoads(now = new Date(), actorPlantId: number | null = null): Promise<FreshnessResponse> {
   const config = await getFreshnessConfig();
   const rows = await db
     .select({
@@ -521,7 +546,7 @@ export async function getFreshnessLoads(now = new Date()): Promise<FreshnessResp
     .leftJoin(sites, eq(challans.siteId, sites.id))
     .leftJoin(vehicles, eq(challans.vehicleId, vehicles.id))
     .leftJoin(drivers, eq(challans.driverId, drivers.id))
-    .where(eq(challans.status, 'dispatched'));
+    .where(and(eq(challans.status, 'dispatched'), plantScope(actorPlantId, challans.plantId)));
 
   const loads: FreshnessLoad[] = rows.map(row => {
     const pos = livePositions.get(row.id);
@@ -566,8 +591,8 @@ export async function getFreshnessLoads(now = new Date()): Promise<FreshnessResp
 }
 
 // Dispatch / plant view of concrete freshness for in-transit loads.
-router.get('/freshness', requireRole('admin', 'dispatcher', 'authority', 'plant_operator'), async (_req, res) => {
-  res.json(await getFreshnessLoads());
+router.get('/freshness', requireRole('admin', 'dispatcher', 'authority', 'plant_operator'), async (req, res) => {
+  res.json(await getFreshnessLoads(new Date(), req.user!.plantId ?? null));
 });
 
 // Lightweight freshness config for clients and drivers, who only need the

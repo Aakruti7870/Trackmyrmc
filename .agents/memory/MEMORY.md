@@ -96,3 +96,4 @@
 - [Drizzle subquery column qualification](drizzle-subquery-column-qualification.md) — interpolated drizzle columns render UNQUALIFIED in raw sql`` fragments; correlated EXISTS silently binds the inner table — hand-write "table"."col".
 - [Customer Home premium theme](rmc-customer-home-premium.md) — client /home is re-skinned via page-local CSS-var overrides (incl. --surface/--chip-bg) + home-full-bleed padding rule; new shared vars must be added to the override map.
 - [White chrome bars need fixed ink](rmc-white-chrome-fixed-ink.md) — any hardcoded-white surface (mobile header/bottom nav) must use fixed dark letter colors, never theme vars (they flip light at Night and wash out).
+- [Server test runner isolation](rmc-server-test-runner-isolation.md) — NEVER `tsx --test` server suites with ambient env (TRUNCATEs the dev DB); use pnpm test or a scratch DB; plants.name is globally unique in fixtures.
