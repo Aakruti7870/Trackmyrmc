@@ -97,3 +97,4 @@
 - [Customer Home premium theme](rmc-customer-home-premium.md) — client /home is re-skinned via page-local CSS-var overrides (incl. --surface/--chip-bg) + home-full-bleed padding rule; new shared vars must be added to the override map.
 - [White chrome bars need fixed ink](rmc-white-chrome-fixed-ink.md) — any hardcoded-white surface (mobile header/bottom nav) must use fixed dark letter colors, never theme vars (they flip light at Night and wash out).
 - [Server test runner isolation](rmc-server-test-runner-isolation.md) — NEVER `tsx --test` server suites with ambient env (TRUNCATEs the dev DB); use pnpm test or a scratch DB; plants.name is globally unique in fixtures.
+- [Puppeteer captures vs SSE](puppeteer-sse-connection-starvation.md) — leaving earlier app pages open starves Chrome's 6-per-host HTTP/1.1 pool (SSE holds sockets), so Vite module fetches hang and lazy routes stick on Loading; close pages between shots.

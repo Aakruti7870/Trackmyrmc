@@ -611,3 +611,9 @@ id = "BliqcqLP0eABz_yZdFhmm"
 uri = "file://.local/tmp-shots/login-night-final.png"
 type = "image"
 title = "Login — new image (Night mode)"
+
+[[outputs]]
+id = "f3H_gi57JcWyxE8h-ObwB"
+uri = "file://exports/playstore-screenshots.zip"
+type = "unspecified"
+title = "Play Store Screenshots (20 screens, 1080x1920)"
