@@ -509,3 +509,9 @@ id = "pKLPxwbsLAbe-kEFWvnqr"
 uri = "file://exports/playstore-images-v1.10.zip"
 type = "unspecified"
 title = "Play Store images — 6 screenshots + feature graphic (current teal theme)"
+
+[[outputs]]
+id = "aKGqWm1tt_o6ougvxBy1H"
+uri = "file://exports/trackmyrmc-androidstudio-v1.11-standalone.zip"
+type = "unspecified"
+title = "TrackMyRMC Android Studio project (v1.11, self-contained)"

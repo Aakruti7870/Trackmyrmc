@@ -45,3 +45,10 @@ The React web app (`rmc-app/`) is wrapped with Capacitor into `rmc-app/android/`
   native origins + goldetech + REPLIT_DEV_DOMAIN + `*.replit.app/.dev/.repl.co` +
   `CORS_ALLOWED_ORIGINS` env), allows no-Origin, and returns `cb(null,false)` (not a
   500) for disallowed origins. Add new prod/staging domains via `CORS_ALLOWED_ORIGINS`.
+
+## Exporting the android/ folder for Android Studio
+Zipping only `android/` fails in Android Studio with missing variants for :capacitor-android/:capacitor-splash-screen/:capacitor-status-bar — capacitor.settings.gradle points into `../node_modules/.pnpm/...` which isn't in the zip.
+
+**Why:** July 2026 user build failure with exactly those three missing modules.
+
+**How to apply:** stage a copy, `cp -rL` the three plugin android module dirs into `android/capacitor-modules/`, rewrite capacitor.settings.gradle to the local paths, verify `grep -rn node_modules` finds nothing, and warn the user NOT to run `cap sync` on the extracted copy (it regenerates the node_modules paths).
