@@ -243,9 +243,23 @@ export default function CustomerHome() {
     <div style={PREMIUM_VARS}>
     <Screen bg={CREAM}>
       <style>{`
-        @keyframes ckGoldPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(214,169,54,0.0), 0 4px 16px rgba(11,61,46,0.06); border-color: ${LINE_CREAM}; }
-          50% { box-shadow: 0 0 0 4px rgba(214,169,54,0.18), 0 4px 22px rgba(214,169,54,0.30); border-color: ${GOLD}; }
+        .upcoming-widget {
+          border: 1px solid rgba(214, 169, 54, 0.55);
+          animation: goldBlink 1.8s infinite ease-in-out;
+        }
+        @keyframes goldBlink {
+          0% {
+            box-shadow: 0 0 0 rgba(214, 169, 54, 0.15);
+            background: #ffffff;
+          }
+          50% {
+            box-shadow: 0 0 24px rgba(214, 169, 54, 0.45);
+            background: #fff8df;
+          }
+          100% {
+            box-shadow: 0 0 0 rgba(214, 169, 54, 0.15);
+            background: #ffffff;
+          }
         }
         @keyframes ckSheetUp {
           from { transform: translate(-50%, 100%); }
@@ -319,12 +333,8 @@ export default function CustomerHome() {
       {/* WIDGET 1 — Upcoming Services (faint blinking golden glow) */}
       <button
         onClick={() => setSheet('services')}
-        className="block w-full rounded-3xl border p-4 text-left active:scale-[.99]"
-        style={{
-          background: CARD_BG, borderColor: LINE_CREAM,
-          animation: 'ckGoldPulse 2.6s ease-in-out infinite',
-          transition: 'transform .1s ease',
-        }}
+        className="upcoming-widget block w-full rounded-3xl p-4 text-left active:scale-[.99]"
+        style={{ transition: 'transform .1s ease' }}
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
