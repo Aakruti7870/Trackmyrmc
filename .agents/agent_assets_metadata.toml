@@ -659,3 +659,9 @@ id = "6VBh-I640XmRfRKhiC8mz"
 uri = "file://exports/TrackMyRMC_v1.14_vc15_FILELIST.txt"
 type = "text"
 title = "Complete File List (599 files)"
+
+[[outputs]]
+id = "Fbt-_MQ6q2jCW1oJhtKEF"
+uri = "file://exports/TrackMyRMC_Source.zip"
+type = "unspecified"
+title = "TrackMyRMC_Source.zip — clean source-only Android Studio project"
