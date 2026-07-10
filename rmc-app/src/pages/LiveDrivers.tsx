@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Radio, Phone, Truck, MapPin, Clock, RefreshCw, Navigation } from 'lucide-react';
+import { Radio, Phone, Truck, MapPin, Clock, Navigation } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useSSE } from '@/lib/useSSE';
 
@@ -122,16 +122,6 @@ export default function LiveDrivers() {
             <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Everyone currently on shift, with their truck, status and last location.</div>
           </div>
         </div>
-        <button
-          onClick={() => load()}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 9,
-            background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--muted)',
-            fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          }}
-        >
-          <RefreshCw size={13} /> Refresh
-        </button>
       </div>
 
       {error && (

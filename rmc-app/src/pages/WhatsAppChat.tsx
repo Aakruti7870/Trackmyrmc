@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageCircle, Send, RefreshCw, Clock, CheckCheck, AlertTriangle, User as UserIcon, ChevronLeft } from 'lucide-react';
+import { MessageCircle, Send, Clock, CheckCheck, AlertTriangle, User as UserIcon, ChevronLeft } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 
 interface ChatSummary {
@@ -170,10 +170,6 @@ export default function WhatsAppChat() {
     }}>
       <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text)' }}>Conversations</span>
-        <button type="button" onClick={() => { setChatsLoading(true); loadChats(); }} title="Refresh"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'inline-flex', padding: 4 }}>
-          <RefreshCw size={15} />
-        </button>
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {chatsLoading ? (
