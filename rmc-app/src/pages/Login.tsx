@@ -337,7 +337,7 @@ export default function Login() {
           flex: '1 1 auto', minHeight: 0, maxHeight: '26vh', display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: '8px 24px',
         }}>
-          <div style={{ position: 'relative', height: '100%', maxHeight: '100%', maxWidth: 330, aspectRatio: '1200 / 1039' }}>
+          <div style={{ position: 'relative', height: '100%', maxHeight: '100%', maxWidth: 330, aspectRatio: '1078 / 1027' }}>
             <div style={{ position: 'absolute', inset: 0, background: C.tealTint, borderRadius: 40, transform: 'rotate(-3deg) scale(0.95)', opacity: 0.7 }} />
             <div style={{ position: 'absolute', inset: 0, background: C.amberTint, borderRadius: 40, transform: 'rotate(3deg) scale(0.95)', opacity: 0.7 }} />
             {/* Fixed light card behind the render so it stays crisp at Night
