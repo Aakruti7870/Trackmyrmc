@@ -641,3 +641,21 @@ id = "tm7ygo4uH30T6V1jNw6kW"
 uri = "file://TrackMyRMC_v1.14_vc15_app-release-aab.zip"
 type = "unspecified"
 title = "app-release.aab v1.14 (vc15) — UNSIGNED, sign before Play upload"
+
+[[outputs]]
+id = "tvuQmy-5Tu9hgl501IG7u"
+uri = "file://exports/TrackMyRMC_v1.14_vc15_AndroidStudio_Latest_Source.zip"
+type = "unspecified"
+title = "Android Studio Source Project (v1.14 / vc15)"
+
+[[outputs]]
+id = "SVNEmzOGoWbw6Dh99bAdh"
+uri = "file://exports/TrackMyRMC_v1.14_vc15_app-release-aab.zip"
+type = "unspecified"
+title = "Unsigned Release AAB (proof build)"
+
+[[outputs]]
+id = "6VBh-I640XmRfRKhiC8mz"
+uri = "file://exports/TrackMyRMC_v1.14_vc15_FILELIST.txt"
+type = "text"
+title = "Complete File List (599 files)"

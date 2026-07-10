@@ -15,6 +15,7 @@ This repo's Android AABs were historically built in standalone Android Studio (s
 ## Toolchain setup
 - Install JDK via package-management `installSystemDependencies(["jdk21"])` (Nix). **Capacitor 7 REQUIRES JDK 21**, not 17: every `@capacitor/*` android module and the generated `capacitor.build.gradle` hard-set `sourceCompatibility/targetCompatibility = JavaVersion.VERSION_21`; JDK-17 `javac` cannot target 21 and the build fails. (jdk17 was installed first then found insufficient.)
 - Android SDK: download Google `commandlinetools-linux` zip into `$HOME/android-sdk/cmdline-tools/latest` (OUTSIDE the repo so it never lands in a checkpoint/ZIP). `yes | sdkmanager --sdk_root=$HOME/android-sdk --licenses`, then install `platform-tools`, `platforms;android-35`, `build-tools;35.0.0` (matches compileSdk/targetSdk 35).
+- **`$HOME/android-sdk` does NOT survive a container reboot** (home is a non-persistent overlay; only `/home/runner/workspace` persists). Any package install/uninstall (e.g. changing the JDK) reboots the container and WIPES the SDK — you must reinstall it before the next build. The nix-store JDK path can also change after such a reboot; re-derive `JAVA_HOME` from `$(readlink -f $(command -v javac))`, don't hardcode the old store hash.
 - Web bundle: use the project's native pipeline `pnpm build:native` (vite `--mode capacitor`, keeps `VITE_API_BASE_URL` + PWA off) then `npx cap sync android`. Use **pnpm**, not npm (repo has `pnpm-lock.yaml`). Write `android/local.properties` with `sdk.dir=$HOME/android-sdk`.
 
 ## Running the long Gradle build
