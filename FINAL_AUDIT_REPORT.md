@@ -96,12 +96,13 @@ Reported honestly — only what was actually executed:
 | Dependency vulnerabilities | dependency audit | **PASS** — 0 vulnerabilities |
 | Privacy/dataflow scan | HoundDog | 1 **low** finding, no critical/high |
 | Static analysis (SAST) | SAST scanner | **Unavailable** — transient infra error (`CANCEL`) on two attempts; not a code finding |
-| Backend automated tests | `pnpm test` (server, node:test + supertest) | Sampled run passing (parallel suites 17/17, 17/17, …); full suite run by the project validation gate |
+| Backend automated tests | `pnpm test` (server, node:test + supertest) | **PASS** in the authoritative validation run (suite completed, run then advanced to the frontend suite) |
+| Frontend component tests | `vitest` (rmc-app) | **68 of 69 files pass**; 1 pre-existing stale file fails — see note below |
 | Public pages render | app screenshots | Landing `/` and Login `/login` render correctly |
 
 **Not performed (explicitly not claimed):** I did **not** manually exercise every end-to-end functional flow listed in the request (e.g. full order→approval→dispatch→delivery, live GPS tracking on a device, Challan PDF + WhatsApp share round-trip, KYC, Google Sign-In, Android back-button, real slow-network/offline behaviour). These depend on external services/devices and were out of scope for a controlled-correction pass. The automated backend suite and the frontend component tests (run by the validation gate) cover a large portion of this logic.
 
-**Standing baseline test failures** (pre-existing, unrelated to this change): `plants.directory`, `multitenant.isolation`, `me.sites`. These fail on the untouched baseline and are not caused by this correction (which is frontend-only and touches no tested logic).
+**Validation-gate result (authoritative run):** **lint PASS, production build PASS, server tests PASS, frontend tests 68/69 files PASS.** The single failing file is `rmc-app/src/pages/Login.plant-id.test.tsx` (4 tests). It fails **deterministically on the untouched baseline** — confirmed by running it in isolation — because the test still looks for an old `Staff login with email` button, whereas the current Login uses a **Customer / Staff / Partner pill toggle**. This is a **stale, pre-existing test**, not a regression: this change does not touch `Login.tsx` or that test. Recommended follow-up: update `Login.plant-id.test.tsx` to the current staff-door flow.
 
 ## 10. Build result
 
@@ -114,6 +115,7 @@ Production build succeeds end to end:
 
 - **SAST scanner** was infrastructure-unavailable this session (transient `CANCEL`); dependency + privacy scans ran successfully.
 - **Web `package.json` versions are stale** (`server` 1.0.0, `rmc-app` 0.0.0). The authoritative product version is the Android build (`1.14` / code `15`). Not changed to avoid unrequested edits; recommend aligning them in a future release bump.
+- **One stale frontend test file** — `rmc-app/src/pages/Login.plant-id.test.tsx` (4 tests) targets a removed "Staff login with email" button and fails on the untouched baseline (the Login now uses a Customer/Staff/Partner pill toggle). Unrelated to this change; should be updated to the current staff-door flow in a follow-up.
 - Full device-level functional QA (offline/slow-network, Android back-button, PDF/WhatsApp round-trips, KYC, Google Sign-In) was not executed here — see §9.
 
 ## 12. Exact application version and build identifier

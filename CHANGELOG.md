@@ -23,4 +23,4 @@ Controlled-correction pass for the final production package. No working features
 - Responsive layout / safe-area handling, Landing & Login viewport fit, background auto-refresh, security posture (auth, tenant isolation, CORS, rate limiting, parameterised queries), dependency audit (0 vulnerabilities).
 
 ### Validation
-- Lint: pass. Type check + production build: pass. Dependency audit: 0 vulnerabilities. Privacy scan: 1 low. SAST: scanner unavailable (transient infra error). Backend automated tests: sampled run passing; full suite via the project validation gate.
+- Lint: pass. Type check + production build: pass. Server tests: pass. Frontend tests: 68/69 files pass — 1 pre-existing stale file (`Login.plant-id.test.tsx`, 4 tests) fails on the untouched baseline (targets a removed "Staff login with email" button; current Login uses a Customer/Staff/Partner pill toggle), unrelated to this change. Dependency audit: 0 vulnerabilities. Privacy scan: 1 low. SAST: scanner unavailable (transient infra error).
