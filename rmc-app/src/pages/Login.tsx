@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
 import {
   Truck, ArrowRight, ArrowLeft, Mail, Lock, Eye, EyeOff,
-  KeyRound, ShieldCheck, MessageCircle,
+  KeyRound, ShieldCheck, MessageCircle, Star, TrendingUp,
 } from 'lucide-react';
 import loginHero from '@/assets/login-hero-plant.webp';
 import InstallAppButton from '@/components/InstallAppButton';
@@ -99,6 +99,20 @@ const textLink: React.CSSProperties = {
   background: 'none', border: 'none', padding: 0, cursor: 'pointer',
   color: C.teal, fontWeight: 600, fontSize: 13, fontFamily: 'inherit',
   textDecoration: 'underline', textUnderlineOffset: 3,
+};
+
+// Circular icon button used in the header (matches the Workforce card language).
+const circleBtn: React.CSSProperties = {
+  width: 42, height: 42, borderRadius: '50%', background: C.white,
+  border: `1px solid ${C.inputBorder}`, color: C.ink,
+  display: 'grid', placeItems: 'center', cursor: 'pointer',
+  boxShadow: '0 2px 6px rgba(15,33,29,0.06)', fontFamily: 'inherit',
+};
+
+// Rounded surface card (hero / metrics / auth) — one consistent card language.
+const surfaceCard: React.CSSProperties = {
+  background: C.white, border: `1px solid ${C.inputBorder}`,
+  boxShadow: '0 12px 30px rgba(15,33,29,0.06)',
 };
 
 export default function Login() {
@@ -295,74 +309,155 @@ export default function Login() {
     setError('');
   }
 
-  const heading = { fontSize: 23, fontWeight: 700, color: C.ink, lineHeight: 1.2, margin: 0 } as React.CSSProperties;
+  // ---- Segmented door tabs (Customer / Staff / Partner) ---------------------
+  // These replace the old inline toggle links: same actions, clearer surface.
+  function selectCustomer() { setMode('phone'); resetStaff(); setError(''); }
+  function selectStaff() { setMode('email'); resetOtp(); setError(''); }
+
+  const activeTab: 'customer' | 'staff' = mode === 'phone' ? 'customer' : 'staff';
+  // Only the first step of each flow shows the marketing metric cards, keeping
+  // the focused verification steps tight so everything stays on-screen.
+  const isEntryStep =
+    (mode === 'phone' && otpStep === 'phone') ||
+    (mode === 'email' && staffStep === 'email');
+
+  const heading = { fontSize: 22, fontWeight: 800, color: C.ink, lineHeight: 1.2, margin: 0, letterSpacing: '-0.3px' } as React.CSSProperties;
   const subheading = { margin: '6px 0 0', color: C.muted, fontSize: 14, fontWeight: 500 } as React.CSSProperties;
+
+  const tabStyle = (active: boolean): React.CSSProperties => ({
+    flex: 1, textAlign: 'center', padding: '9px 0', borderRadius: 999,
+    fontSize: 13, fontWeight: 700, fontFamily: 'inherit', border: 'none', cursor: 'pointer',
+    background: active ? C.teal : 'transparent',
+    color: active ? '#fff' : C.muted,
+    boxShadow: active ? '0 6px 14px rgba(23,138,110,0.28)' : 'none',
+    transition: 'all .15s',
+  });
 
   return (
     <div style={{
       minHeight: '100dvh', maxHeight: '100dvh', background: C.cream, color: C.ink,
       fontFamily: "'Outfit', var(--font-app, system-ui), sans-serif",
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      overflowY: 'auto',
+      overflowY: 'auto', position: 'relative',
       paddingTop: 'env(safe-area-inset-top, 0px)',
       paddingLeft: 'env(safe-area-inset-left, 0px)',
       paddingRight: 'env(safe-area-inset-right, 0px)',
     }}>
+      {/* Soft ambient glow, echoing the Workforce card's airy backdrop */}
+      <div aria-hidden style={{
+        position: 'absolute', top: -120, right: -80, width: 300, height: 300,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, var(--gold-tint), transparent 70%)',
+        opacity: 0.7, pointerEvents: 'none',
+      }} />
+
       <div style={{
-        width: '100%', maxWidth: 430, flex: 1,
+        width: '100%', maxWidth: 430, flex: 1, position: 'relative', zIndex: 1,
         display: 'flex', flexDirection: 'column',
+        padding: '0 0 calc(8px + env(safe-area-inset-bottom, 0px))',
       }}>
-        {/* Brand + back to home */}
-        <div style={{ padding: '14px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button onClick={() => setLoc('/')} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-            color: C.muted, fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
-          }}>
-            <ArrowLeft size={16} /> Home
+        {/* Header: back-to-home + brand */}
+        <div style={{ padding: '16px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button onClick={() => setLoc('/')} aria-label="Back to home" style={circleBtn}>
+            <ArrowLeft size={18} />
           </button>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <Truck size={26} style={{ color: C.teal }} />
-            <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.5px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 12, background: C.teal,
+              display: 'grid', placeItems: 'center',
+              boxShadow: '0 8px 18px rgba(23,138,110,0.32)',
+            }}>
+              <Truck size={21} color="#fff" strokeWidth={2.2} />
+            </div>
+            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>
               <span style={{ color: 'var(--text)' }}>TrackMy</span>
               <span style={{ color: C.teal }}>RMC</span>
             </span>
           </div>
-          <span style={{ width: 52 }} aria-hidden />
+          <span style={{ width: 42 }} aria-hidden />
         </div>
 
-        {/* Friendly illustration — shrinks & is height-capped so the sign-in
-            card and footer always stay on-screen without scrolling. */}
+        {/* Segmented door tabs */}
         <div style={{
-          flex: '1 1 auto', minHeight: 0, maxHeight: '26vh', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', padding: '8px 24px',
+          margin: '16px 18px 0', display: 'flex', gap: 4, padding: 4,
+          background: C.white, borderRadius: 999, border: `1px solid ${C.inputBorder}`,
+          boxShadow: '0 1px 2px rgba(15,33,29,0.04)',
         }}>
-          <div style={{ position: 'relative', height: '100%', maxHeight: '100%', maxWidth: 330, aspectRatio: '1078 / 1027' }}>
-            <div style={{ position: 'absolute', inset: 0, background: C.tealTint, borderRadius: 40, transform: 'rotate(-3deg) scale(0.95)', opacity: 0.7 }} />
-            <div style={{ position: 'absolute', inset: 0, background: C.amberTint, borderRadius: 40, transform: 'rotate(3deg) scale(0.95)', opacity: 0.7 }} />
-            {/* Fixed light card behind the render so it stays crisp at Night
-                too (a multiply-blend against the dark page would wash it out). */}
+          <button type="button" onClick={selectCustomer} style={tabStyle(activeTab === 'customer')}>Customer</button>
+          <button type="button" onClick={selectStaff} style={tabStyle(activeTab === 'staff')}>Staff</button>
+          <button type="button" onClick={() => setLoc('/partner')} style={tabStyle(false)}>Partner</button>
+        </div>
+
+        {/* Hero card with the plant illustration + floating chips */}
+        <div style={{ margin: '16px 18px 0', padding: 12, borderRadius: 26, ...surfaceCard }}>
+          <div style={{
+            position: 'relative', borderRadius: 20, overflow: 'hidden',
+            background: `linear-gradient(160deg, ${C.amberTint}, ${C.tealTint})`,
+          }}>
+            {/* Live status chip */}
             <div style={{
-              position: 'relative', zIndex: 1, width: '100%', height: '100%',
-              background: '#f3f1ec', borderRadius: 32, overflow: 'hidden',
-              padding: 10, boxSizing: 'border-box',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.10)',
+              position: 'absolute', top: 10, left: 10, zIndex: 2,
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(4px)',
+              padding: '5px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+              color: C.tealDark, boxShadow: '0 4px 10px rgba(15,33,29,0.08)',
             }}>
-              <img
-                src={loginHero} alt="RMC batching plant — empowering everyone"
-                style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }}
-              />
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.teal, boxShadow: '0 0 0 3px rgba(23,138,110,0.18)' }} />
+              Live marketplace
+            </div>
+            {/* Reach chip */}
+            <div style={{
+              position: 'absolute', top: 10, right: 10, zIndex: 2,
+              display: 'flex', alignItems: 'center', gap: 5,
+              background: 'var(--text)', padding: '5px 10px', borderRadius: 999,
+              fontSize: 11, fontWeight: 700, color: 'var(--bg)',
+            }}>
+              <TrendingUp size={12} color={C.teal} strokeWidth={2.6} /> 500+ plants
+            </div>
+            {/* Fixed light card behind the render so it stays crisp at Night too
+                (a multiply-blend against a dark page would wash it out). */}
+            <div style={{ padding: 10 }}>
+              <div style={{
+                background: '#f3f1ec', borderRadius: 14, overflow: 'hidden', padding: 6,
+              }}>
+                <img
+                  src={loginHero} alt="RMC batching plant — empowering everyone"
+                  style={{ width: '100%', height: '20vh', maxHeight: 180, minHeight: 120, objectFit: 'contain', display: 'block', mixBlendMode: 'multiply' }}
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Card */}
-        <div style={{
-          background: C.white, borderTopLeftRadius: 32, borderTopRightRadius: 32,
-          padding: '20px 24px calc(18px + env(safe-area-inset-bottom, 0px))',
-          boxShadow: '0 -8px 30px rgba(15,118,110,0.05)',
-          display: 'flex', flexDirection: 'column',
-        }}>
+        {/* Trust metric cards (only on the first step to protect vertical space) */}
+        {isEntryStep && (
+          <div style={{ margin: '12px 18px 0', display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1, padding: '14px 14px 12px', borderRadius: 18, ...surfaceCard }}>
+              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', color: C.ink }}>98%</div>
+              <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600, marginTop: 2 }}>On-time delivery</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 30, marginTop: 10 }}>
+                {[10, 16, 12, 22, 18, 26, 24].map((h, i) => (
+                  <span key={i} style={{ flex: 1, height: h, borderRadius: 3, background: i === 5 ? C.teal : C.tealTint }} />
+                ))}
+              </div>
+            </div>
+            <div style={{ flex: 1, padding: '14px 14px 12px', borderRadius: 18, ...surfaceCard }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px', color: C.ink }}>
+                4.8 <Star size={16} color={C.teal} fill={C.teal} />
+              </div>
+              <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600, marginTop: 2 }}>Customer rating</div>
+              <div style={{ width: 54, height: 30, marginTop: 10 }}>
+                <svg width="54" height="30" viewBox="0 0 54 30">
+                  <path d="M4 28 A23 23 0 0 1 50 28" fill="none" stroke={C.tealTint} strokeWidth="6" strokeLinecap="round" />
+                  <path d="M4 28 A23 23 0 0 1 44 11" fill="none" stroke={C.teal} strokeWidth="6" strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Auth card — the actual sign-in forms (all actions preserved) */}
+        <div style={{ margin: '12px 18px 0', padding: '20px 20px', borderRadius: 24, ...surfaceCard }}>
           {mode === 'phone' ? (
             otpStep === 'phone' ? (
               <>
@@ -372,8 +467,8 @@ export default function Login() {
                 </h1>
                 <p style={subheading}>Enter your mobile number to get started.</p>
 
-                <form onSubmit={handleSendOtp} style={{ marginTop: 24 }}>
-                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                <form onSubmit={handleSendOtp} style={{ marginTop: 20 }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginBottom: 14 }}>
                     <div style={{
                       position: 'absolute', left: 6, display: 'flex', alignItems: 'center',
                       background: C.tealTint, border: `1px solid ${C.tealBorder}`,
@@ -396,13 +491,15 @@ export default function Login() {
                   <PrimaryButton loading={loading} label={loading ? 'Sending code…' : 'Get OTP'} icon={<ArrowRight size={18} />} />
                 </form>
 
-                <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                  <button type="button" onClick={() => { setMode('email'); setError(''); }} style={linkBtn}>
-                    Staff login with email
-                  </button>
-                  <div style={{ width: '100%', maxWidth: 320 }}>
-                    <InstallAppButton />
-                  </div>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  marginTop: 14, fontSize: 11.5, color: C.muted, fontWeight: 500,
+                }}>
+                  <ShieldCheck size={13} style={{ color: C.teal }} /> Secure OTP login · No password needed
+                </div>
+
+                <div style={{ marginTop: 16 }}>
+                  <InstallAppButton />
                 </div>
               </>
             ) : (
@@ -442,8 +539,8 @@ export default function Login() {
                   <h1 style={heading}>Staff sign in</h1>
                   <p style={subheading}>Enter your work email to continue.</p>
 
-                  <form onSubmit={handleStaffEmailContinue} style={{ marginTop: 24 }}>
-                    <div style={{ position: 'relative', marginBottom: 16 }}>
+                  <form onSubmit={handleStaffEmailContinue} style={{ marginTop: 20 }}>
+                    <div style={{ position: 'relative', marginBottom: 14 }}>
                       <Mail size={17} style={{ color: C.faint, position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }} />
                       <input
                         type="email" value={email} onChange={e => setEmail(e.target.value)}
@@ -536,36 +633,29 @@ export default function Login() {
                   </form>
                 </>
               )}
-
-              <div style={{ marginTop: 22, textAlign: 'center', fontSize: 14, color: C.muted }}>
-                Customer?{' '}
-                <button type="button" onClick={() => { setMode('phone'); resetStaff(); }} style={{ ...linkBtn, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-                  Sign in with your phone
-                </button>
-              </div>
             </>
           )}
+        </div>
 
-          {/* Legal + support */}
-          <div style={{ marginTop: 22, textAlign: 'center' }}>
-            <p style={{ margin: 0, fontSize: 12.5, color: C.faint, lineHeight: 1.6 }}>
-              By continuing you agree to our{' '}
-              <button type="button" onClick={() => setLoc('/terms')} style={{ ...textLink, fontSize: 12.5 }}>Terms</button>
-              {' '}&amp;{' '}
-              <button type="button" onClick={() => setLoc('/privacy')} style={{ ...textLink, fontSize: 12.5 }}>Privacy Policy</button>
-            </p>
-            <a
-              href={SUPPORT_WHATSAPP_URL} target="_blank" rel="noopener noreferrer"
-              style={{
-                marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 5,
-                color: C.muted, fontSize: 12.5, fontWeight: 600, textDecoration: 'none',
-              }}
-            >
-              <MessageCircle size={13} /> Need help? Chat with support
-            </a>
-            <div style={{ marginTop: 14 }}>
-              <BrandCredits oneRow />
-            </div>
+        {/* Legal + support */}
+        <div style={{ margin: '18px 18px 0', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: 12.5, color: C.faint, lineHeight: 1.6 }}>
+            By continuing you agree to our{' '}
+            <button type="button" onClick={() => setLoc('/terms')} style={{ ...textLink, fontSize: 12.5 }}>Terms</button>
+            {' '}&amp;{' '}
+            <button type="button" onClick={() => setLoc('/privacy')} style={{ ...textLink, fontSize: 12.5 }}>Privacy Policy</button>
+          </p>
+          <a
+            href={SUPPORT_WHATSAPP_URL} target="_blank" rel="noopener noreferrer"
+            style={{
+              marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 5,
+              color: C.muted, fontSize: 12.5, fontWeight: 600, textDecoration: 'none',
+            }}
+          >
+            <MessageCircle size={13} /> Need help? Chat with support
+          </a>
+          <div style={{ marginTop: 14 }}>
+            <BrandCredits oneRow />
           </div>
         </div>
       </div>

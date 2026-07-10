@@ -617,3 +617,9 @@ id = "f3H_gi57JcWyxE8h-ObwB"
 uri = "file://exports/playstore-screenshots.zip"
 type = "unspecified"
 title = "Play Store Screenshots (20 screens, 1080x1920)"
+
+[[outputs]]
+id = "AenL_AYZ62JxTpAPNaRD-"
+uri = "file://.local/icon-preview.png"
+type = "image"
+title = "New TrackMyRMC app icon — rendered under Android mask shapes"
