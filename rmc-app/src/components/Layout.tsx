@@ -492,7 +492,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           borderTop: '1px solid var(--line)',
           borderTopLeftRadius: 20, borderTopRightRadius: 20,
           padding: '10px 14px',
-          paddingBottom: 'calc(76px + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
           display: 'flex', flexDirection: 'column',
           overflowY: 'auto', WebkitOverflowScrolling: 'touch',
           transform: mobileOpen ? 'translateY(0)' : 'translateY(110%)',
@@ -515,7 +515,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       <style>{`
         /* Driver main always clears the fixed bottom tab bar (all widths). */
-        #app-main.has-bottom-nav { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+        #app-main.has-bottom-nav { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
         /* Drivers use the delivery chrome at every width (no desktop sidebar). */
         .role-driver #delivery-mobile-header { display: flex !important; }
         .role-driver #delivery-mobile-header-spacer { display: block !important; }
@@ -526,7 +526,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           #delivery-mobile-header-spacer { display: block !important; }
           #delivery-bottom-nav { display: flex !important; }
           /* Non-driver main clears the mobile bottom tab bar on phones only. */
-          #app-main.has-bottom-nav-mobile { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+          #app-main.has-bottom-nav-mobile { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
         }
         @keyframes ssePulse {
           0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); }

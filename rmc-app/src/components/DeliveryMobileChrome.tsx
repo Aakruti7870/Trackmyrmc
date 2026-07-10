@@ -94,16 +94,16 @@ export function DeliveryHeader({ onProfile }: { onProfile: () => void }) {
     {/* Spacer keeps page content below the fixed header (same display rules). */}
     <div
       id="delivery-mobile-header-spacer"
-      style={{ display: 'none', height: 'calc(60px + env(safe-area-inset-top, 0px))', flexShrink: 0 }}
+      style={{ display: 'none', height: 'calc(52px + env(safe-area-inset-top, 0px))', flexShrink: 0 }}
     />
     <div
       id="delivery-mobile-header"
       style={{
         display: 'none', background: '#fff', borderBottom: `1px solid ${LINE}`,
-        padding: '12px 16px', paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
+        padding: '8px 16px', paddingTop: 'calc(8px + env(safe-area-inset-top, 0px))',
         alignItems: 'center', justifyContent: 'space-between',
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
-        height: 'calc(60px + env(safe-area-inset-top, 0px))',
+        height: 'calc(52px + env(safe-area-inset-top, 0px))',
         boxShadow: '0 2px 12px rgba(11,61,46,0.08)',
       }}
     >
@@ -192,8 +192,9 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
         display: 'none', position: 'fixed', left: '50%', transform: 'translateX(-50%)',
         bottom: 0, zIndex: 55, width: '100%', maxWidth: 420,
         background: '#fff', borderTop: `1px solid ${LINE}`,
-        padding: '8px 24px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
-        alignItems: 'flex-end', justifyContent: 'space-between',
+        height: 'calc(74px + env(safe-area-inset-bottom, 0px))', boxSizing: 'border-box',
+        padding: '0 6px', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        alignItems: 'center', justifyContent: 'space-between',
       }}
     >
       {left.map((t, i) => <Slot key={`l${i}`} tab={t} location={location} onMore={onMore} onNavigate={() => onNavigate?.()} />)}

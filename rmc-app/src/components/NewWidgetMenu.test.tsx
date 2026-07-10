@@ -24,6 +24,9 @@ describe('NewWidgetMenu', () => {
   it('renders a glowing NEW trigger and no overlay until opened', () => {
     render(<NewWidgetMenu role="client" />);
     expect(screen.getByRole('button', { name: /open new services menu/i })).toBeInTheDocument();
+    // The "NEW" label lives ONLY inside the circular trigger — the old
+    // duplicate caption below the button is gone.
+    expect(screen.getAllByText('NEW')).toHaveLength(1);
     // Arc widgets are not mounted while closed.
     expect(screen.queryByRole('button', { name: 'Concrete Calculator' })).toBeNull();
   });

@@ -620,18 +620,24 @@ export default function NewWidgetMenu({ role, onNavigate }: { role: string; onNa
         @keyframes nwmPop { from { opacity: 0; transform: translate(-50%, 12px) scale(.5); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
       `}</style>
 
-      {/* Center NEW button that slots into the bottom nav */}
-      <div className="flex flex-col items-center" style={{ transform: 'translateY(-10px)' }}>
-        <button
-          onClick={() => setOpen(o => !o)}
-          className="nwm-new-btn flex h-14 w-14 items-center justify-center rounded-full text-[13px] font-extrabold tracking-wide text-white"
-          style={{ background: `linear-gradient(135deg, ${DGREEN_DEEP} 0%, ${DGREEN} 55%, ${DGREEN_HI} 100%)`, border: `2px solid ${GOLD}` }}
-          aria-label="Open new services menu"
-        >
-          NEW
-        </button>
-        <span className="mt-1 text-[10px] font-bold" style={{ color: GOLD_TEXT }}>NEW</span>
-      </div>
+      {/* Center NEW button. A flex-1 spacer reserves the middle column so the
+          four tabs stay evenly spaced, while the circle itself is lifted out of
+          flow (absolute) to overlap the nav's top edge — ~30% above, ~70%
+          inside. The label lives INSIDE the circle only (no duplicate below). */}
+      <div className="flex-1" aria-hidden="true" />
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="nwm-new-btn absolute left-1/2 flex h-16 w-16 items-center justify-center rounded-full text-[13px] font-extrabold tracking-wide text-white"
+        style={{
+          top: -20,
+          transform: 'translateX(-50%)',
+          background: `linear-gradient(135deg, ${DGREEN_DEEP} 0%, ${DGREEN} 55%, ${DGREEN_HI} 100%)`,
+          border: `2px solid ${GOLD}`,
+        }}
+        aria-label="Open new services menu"
+      >
+        NEW
+      </button>
 
       {/* Arc overlay */}
       {open && (
@@ -645,7 +651,7 @@ export default function NewWidgetMenu({ role, onNavigate }: { role: string; onNa
             className="fixed left-1/2 -translate-x-1/2"
             style={{
               zIndex: 82,
-              bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+              bottom: 'calc(62px + env(safe-area-inset-bottom, 0px))',
               width: 'min(100vw, 420px)',
               height: RADIUS + CIRCLE + 30,
               pointerEvents: 'none',
@@ -692,11 +698,11 @@ export default function NewWidgetMenu({ role, onNavigate }: { role: string; onNa
           {/* NEW button echo at the pivot doubles as a close affordance */}
           <div
             className="fixed left-1/2 -translate-x-1/2 flex flex-col items-center"
-            style={{ zIndex: 82, bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))' }}
+            style={{ zIndex: 82, bottom: 'calc(30px + env(safe-area-inset-bottom, 0px))' }}
           >
             <button
               onClick={() => setOpen(false)}
-              className="flex h-14 w-14 items-center justify-center rounded-full text-[13px] font-extrabold text-white active:scale-95"
+              className="flex h-16 w-16 items-center justify-center rounded-full text-[13px] font-extrabold text-white active:scale-95"
               style={{ background: `linear-gradient(135deg, ${DGREEN_DEEP} 0%, ${DGREEN} 55%, ${DGREEN_HI} 100%)`, border: `2px solid ${GOLD}`, boxShadow: '0 8px 24px rgba(6,40,29,0.5)' }}
               aria-label="Close menu"
             >
