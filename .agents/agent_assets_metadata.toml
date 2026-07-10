@@ -629,3 +629,15 @@ id = "usQHYR2TY8AlMzF5iAkeX"
 uri = "file://TrackMyRMC_Final_Production_v1.14.zip"
 type = "unspecified"
 title = "TrackMyRMC Final Production v1.14 — clean source ZIP (corrected report)"
+
+[[outputs]]
+id = "MTAE5qQl885qyfBJmMG_Y"
+uri = "file://TrackMyRMC_v1.14_vc15_android-build.zip"
+type = "unspecified"
+title = "TrackMyRMC v1.14 — Clean Project (buildable, SHA-256 1c3a4850…988f09)"
+
+[[outputs]]
+id = "tm7ygo4uH30T6V1jNw6kW"
+uri = "file://TrackMyRMC_v1.14_vc15_app-release-aab.zip"
+type = "unspecified"
+title = "app-release.aab v1.14 (vc15) — UNSIGNED, sign before Play upload"
