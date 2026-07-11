@@ -665,3 +665,9 @@ id = "Fbt-_MQ6q2jCW1oJhtKEF"
 uri = "file://exports/TrackMyRMC_Source.zip"
 type = "unspecified"
 title = "TrackMyRMC_Source.zip — standalone Android Studio project (Gradle-sync verified)"
+
+[[outputs]]
+id = "pNy6rEIcIE45qBonMWvXT"
+uri = "file://dist/TrackMyRMC-android-v1.15-vc16.zip"
+type = "unspecified"
+title = "TrackMyRMC Android project (v1.15, versionCode 16) — ready for Android Studio → AAB"
