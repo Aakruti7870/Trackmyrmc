@@ -26,6 +26,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          cache-dependency-path: rmc-app/pnpm-lock.yaml
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -34,13 +35,15 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Install dependencies
+      - name: Install Android app dependencies
+        working-directory: rmc-app
         run: pnpm install --frozen-lockfile
 
       - name: Build web assets and sync Capacitor
         working-directory: rmc-app
         env:
           VITE_API_BASE_URL: https://trackmyrmc.com
+          VITE_DISABLE_PWA: '1'
         run: |
           pnpm build:native
           pnpm exec cap sync android
