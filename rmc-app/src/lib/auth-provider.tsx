@@ -2,6 +2,8 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { api, type User } from './api';
 import { AuthContext } from './auth';
 import { clerkSignOutIfEnabled } from './clerk';
+import NativeRuntimeSync from '@/components/NativeRuntimeSync';
+import { stopCheckedInTracking } from './liveWidget';
 
 // Auto-logout after 30 minutes with no user interaction.
 const IDLE_LOGOUT_MS = 30 * 60 * 1000;
@@ -68,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         setUser(null);
+        void stopCheckedInTracking();
       }
     }
 
@@ -89,6 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    // Stop the foreground GPS service before deleting its auth token.
+    void stopCheckedInTracking();
     localStorage.removeItem('rmc_token');
     localStorage.removeItem('rmc_user');
     setUser(null);
@@ -143,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
+      <NativeRuntimeSync />
       {children}
     </AuthContext.Provider>
   );
