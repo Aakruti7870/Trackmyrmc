@@ -11,6 +11,7 @@ import {
 } from '@/lib/liveWidget';
 
 type AttendanceStatus = { checkedIn: boolean };
+type NativeRole = 'driver' | 'customer' | 'staff' | 'admin' | 'plant_owner' | 'authority';
 
 const DRIVER_ROLES = new Set(['driver']);
 const CUSTOMER_ROLES = new Set(['client', 'customer', 'user']);
@@ -25,6 +26,15 @@ function num(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function nativeRole(role: string): NativeRole {
+  if (role === 'driver') return 'driver';
+  if (CUSTOMER_ROLES.has(role)) return 'customer';
+  if (role === 'authority') return 'authority';
+  if (role === 'plant_owner') return 'plant_owner';
+  if (role === 'admin') return 'admin';
+  return 'staff';
+}
+
 function activeChallan(rows: Challan[]): Challan | undefined {
   return rows.find(c => !CLOSED.has(c.status)) ?? rows[0];
 }
@@ -34,9 +44,8 @@ function activeOrder(rows: Order[]): Order | undefined {
 }
 
 /**
- * Native-only runtime bridge. It is intentionally mounted once for every signed-in
- * session so widget/GPS state stays correct even when the user changes pages or
- * locks the phone.
+ * Native-only runtime bridge. It is mounted once for every signed-in session so
+ * widget and foreground-GPS state stay correct across page changes and lock/unlock.
  */
 export default function NativeRuntimeSync() {
   const { user } = useAuth();
@@ -56,8 +65,8 @@ export default function NativeRuntimeSync() {
           await startCheckedInTracking({
             endpoint: `${API_ORIGIN}/api/attendance/location`,
             authToken: token,
-            actorId: user.id,
-            role: user.role,
+            actorId: String(user.id),
+            role: nativeRole(user.role),
           });
           gpsStarted.current = true;
         } else if (!status.checkedIn && gpsStarted.current) {
@@ -65,7 +74,7 @@ export default function NativeRuntimeSync() {
           gpsStarted.current = false;
         }
       } catch {
-        // Some customer-only roles cannot use attendance. Widget sync still works.
+        // Customer-only roles may not use attendance. Widget sync still proceeds.
       }
     }
 
@@ -75,21 +84,21 @@ export default function NativeRuntimeSync() {
       const trip = activeChallan(rows);
       if (!trip) {
         await updateLiveWidget({
-          role: 'driver', title: 'Driver Duty', status: 'No active trip',
-          primary: 'Checked in and ready', secondary: 'Waiting for dispatch',
-          actionLabel: 'Open Trips', actionPath: '/my-trips', gpsActive: gpsStarted.current,
+          role: 'driver',
+          title: 'Driver Duty',
+          line1: 'Checked in and ready',
+          line2: 'No active trip assigned',
+          line3: gpsStarted.current ? 'GPS tracking is active' : 'Open Attendance to check in',
+          deepLink: '/my-trips',
         });
         return;
       }
       await driverOrderWidget({
-        orderId: trip.orderId ?? trip.id,
-        customerName: trip.clientName || trip.contactPerson || 'Customer',
+        orderNo: trip.challanNo || String(trip.orderId ?? trip.id),
+        customer: trip.clientName || trip.contactPerson || 'Customer',
         grade: trip.grade,
         quantity: trip.quantity,
         destination: trip.siteAddress || trip.siteName || 'Delivery site',
-        status: trip.tripStatus || trip.status,
-        latitude: trip.siteLat == null ? undefined : Number(trip.siteLat),
-        longitude: trip.siteLng == null ? undefined : Number(trip.siteLng),
       });
     }
 
@@ -99,9 +108,12 @@ export default function NativeRuntimeSync() {
       const order = activeOrder(orders);
       if (!order) {
         await updateLiveWidget({
-          role: 'customer', title: 'My Concrete Order', status: 'No active order',
-          primary: 'Place an order from TrackMyRMC', secondary: 'Updates will appear here',
-          actionLabel: 'Open Orders', actionPath: '/my-orders', gpsActive: false,
+          role: 'customer',
+          title: 'My Concrete Order',
+          line1: 'No active order',
+          line2: 'Place an order from TrackMyRMC',
+          line3: 'Loading, dispatch and challan updates appear here',
+          deepLink: '/my-orders',
         });
         return;
       }
@@ -111,16 +123,15 @@ export default function NativeRuntimeSync() {
         const challans = await api.get<Challan[]>('/me/challans');
         challan = challans.find(c => c.orderId === order.id) ?? activeChallan(challans);
       } catch {
-        // Challan may not exist until dispatch.
+        // A challan may not exist until dispatch, or the route may be unavailable.
       }
 
       await customerOrderWidget({
-        orderId: order.id,
+        orderNo: order.orderNo || String(order.id),
         grade: order.grade,
         quantity: order.quantity,
         status: challan?.tripStatus || challan?.status || order.status,
-        challanNumber: challan?.challanNo,
-        truckNumber: challan?.vehicleNo,
+        challanNo: challan?.challanNo,
       });
     }
 
@@ -133,7 +144,7 @@ export default function NativeRuntimeSync() {
       const onRoute = challans.filter(c => c.status === 'dispatched').length;
       await plantSummaryWidget({
         plantName: user?.plantId ? `Plant ${user.plantId}` : 'TrackMyRMC Plant',
-        todayProduction: num(kpis.todayProduction),
+        productionM3: num(kpis.todayProduction),
         tmOnRoute: onRoute,
         activeOrders: num(kpis.activeOrders),
       });
@@ -147,7 +158,7 @@ export default function NativeRuntimeSync() {
         else if (CUSTOMER_ROLES.has(user.role)) await syncCustomer();
         else if (STAFF_ROLES.has(user.role)) await syncStaff();
       } catch {
-        // Native widget is an enhancement; an API/network problem must never block app use.
+        // The native widget is an enhancement; network problems must not block app use.
       }
     }
 
