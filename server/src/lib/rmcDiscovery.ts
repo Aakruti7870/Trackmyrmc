@@ -19,7 +19,7 @@ const BUSINESS_SUFFIXES = /\b(?:private limited|pvt\.?\s*ltd\.?|limited|ltd\.?|l
 export function normalizeRmcName(value: string): string {
   return value
     .toLowerCase()
-    .replace(/ready\s*-?\s*mixed?\s+concrete/g, ' rmc ')
+    .replace(/ready\s*-?\s*mix(?:ed)?\s+concrete/g, ' rmc ')
     .replace(/\br\.?m\.?c\.?\b/g, ' rmc ')
     .replace(BUSINESS_SUFFIXES, ' ')
     .replace(/[^a-z0-9]+/g, ' ')
