@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, CheckCircle2, ChevronRight, Clock3, ExternalLink, Factory,
-  Loader2, MapPin, Play, RefreshCw, Search, ShieldCheck, StopCircle, XCircle,
+  AlertTriangle, CheckCircle2, ChevronRight, ExternalLink,
+  Loader2, MapPin, Play, RefreshCw, Search, StopCircle, XCircle,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/lib/toast';
