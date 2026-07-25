@@ -7,6 +7,8 @@ on:
       - 'rmc-app/**'
       - '.env.example'
       - 'docs/RMC_PLANT_DISCOVERY.md'
+      - 'docs/RMC_PLANT_DISCOVERY_PREVIEW.md'
+      - 'docs/RMC_PLANT_DISCOVERY_STAGING.md'
       - '.github/workflows/rmc-discovery-validation.yml'
   workflow_dispatch:
 
@@ -51,16 +53,32 @@ jobs:
         run: pnpm db:push
       - name: Build server
         working-directory: server
-        run: pnpm build
+        shell: bash
+        run: set -o pipefail; pnpm build 2>&1 | tee server-build.log
       - name: Run server tests
         working-directory: server
-        run: pnpm test
+        shell: bash
+        run: set -o pipefail; pnpm test 2>&1 | tee server-test.log
       - name: Install web dependencies
         working-directory: rmc-app
         run: pnpm install --frozen-lockfile
       - name: Typecheck and production web build
         working-directory: rmc-app
-        run: pnpm build
+        shell: bash
+        run: set -o pipefail; pnpm build 2>&1 | tee web-build.log
       - name: Run frontend tests
         working-directory: rmc-app
-        run: pnpm test
+        shell: bash
+        run: set -o pipefail; pnpm test 2>&1 | tee web-test.log
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rmc-discovery-validation-logs
+          path: |
+            server/server-build.log
+            server/server-test.log
+            rmc-app/web-build.log
+            rmc-app/web-test.log
+          if-no-files-found: ignore
+          retention-days: 7
