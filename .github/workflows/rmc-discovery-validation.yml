@@ -1,0 +1,66 @@
+name: RMC Discovery Validation
+
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'rmc-app/**'
+      - '.env.example'
+      - 'docs/RMC_PLANT_DISCOVERY.md'
+      - '.github/workflows/rmc-discovery-validation.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: trackmyrmc_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/trackmyrmc_ci
+      JWT_SECRET: ci-only-not-a-production-secret
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            server/pnpm-lock.yaml
+            rmc-app/pnpm-lock.yaml
+      - name: Install server dependencies
+        working-directory: server
+        run: pnpm install --frozen-lockfile
+      - name: Push test schema
+        working-directory: server
+        run: pnpm db:push
+      - name: Build server
+        working-directory: server
+        run: pnpm build
+      - name: Run server tests
+        working-directory: server
+        run: pnpm test
+      - name: Install web dependencies
+        working-directory: rmc-app
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck and production web build
+        working-directory: rmc-app
+        run: pnpm build
+      - name: Run frontend tests
+        working-directory: rmc-app
+        run: pnpm test
