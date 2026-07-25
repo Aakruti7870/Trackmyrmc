@@ -8,17 +8,18 @@ import {
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
 import NotificationBell from '@/components/NotificationBell';
+import { AiHeaderButton } from '@/components/ai/AIHelpAgent';
 import NewWidgetMenu from '@/components/NewWidgetMenu';
 import { RED } from '@/pages/home/deliveryKit';
 
-// The mobile chrome bars are ALWAYS white, so their letters/icons must use
-// fixed dark colors — never theme vars, which flip light at Night and would
-// wash out on the white background.
 const INK = '#12211d';
 const MUTED = '#5c6f66';
 const TEAL = '#0f766e';
 const TEAL_SOFT = 'rgba(15,118,110,0.12)';
 const LINE = '#e5eae7';
+
+export const MOBILE_HEADER_HEIGHT = 52;
+export const BOTTOM_NAV_HEIGHT = 68;
 
 type Tab = { icon: ElementType; label: string; href: string; more?: boolean };
 type Fab = { icon: ElementType; label: string; href: string; color: 'teal' | 'red' };
@@ -27,8 +28,6 @@ type RoleNav = { tabs: Tab[]; fab?: Fab };
 const MORE: Tab = { icon: Menu, label: 'More', href: '__more', more: true };
 const HOME: Tab = { icon: Home, label: 'Home', href: '/home' };
 
-// Per-role bottom navigation, mirroring the approved delivery-style mockups.
-// The center FAB is the role's primary create/act action; account has no FAB.
 const NAV: Record<string, RoleNav> = {
   client: {
     tabs: [HOME, { icon: ClipboardList, label: 'Orders', href: '/my-orders' }, { icon: MapPin, label: 'Plants', href: '/nearby-plants' }, MORE],
@@ -91,47 +90,47 @@ function isActive(location: string, href: string): boolean {
 export function DeliveryHeader({ onProfile }: { onProfile: () => void }) {
   return (
     <>
-    {/* Spacer keeps page content below the fixed header (same display rules). */}
-    <div
-      id="delivery-mobile-header-spacer"
-      style={{ display: 'none', height: 'calc(52px + env(safe-area-inset-top, 0px))', flexShrink: 0 }}
-    />
-    <div
-      id="delivery-mobile-header"
-      style={{
-        display: 'none', background: '#fff', borderBottom: `1px solid ${LINE}`,
-        padding: '8px 16px', paddingTop: 'calc(8px + env(safe-area-inset-top, 0px))',
-        alignItems: 'center', justifyContent: 'space-between',
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
-        height: 'calc(52px + env(safe-area-inset-top, 0px))',
-        boxShadow: '0 2px 12px rgba(11,61,46,0.08)',
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: TEAL }}>
-          <Truck className="h-5 w-5 text-white" strokeWidth={2.2} />
+      <div
+        id="delivery-mobile-header-spacer"
+        style={{ display: 'none', height: `calc(${MOBILE_HEADER_HEIGHT}px + env(safe-area-inset-top, 0px))`, flexShrink: 0 }}
+      />
+      <div
+        id="delivery-mobile-header"
+        style={{
+          display: 'none', background: '#fff', borderBottom: `1px solid ${LINE}`,
+          padding: '8px 12px', paddingTop: 'calc(8px + env(safe-area-inset-top, 0px))',
+          alignItems: 'center', justifyContent: 'space-between', gap: 8,
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
+          height: `calc(${MOBILE_HEADER_HEIGHT}px + env(safe-area-inset-top, 0px))`,
+          boxSizing: 'border-box',
+          boxShadow: '0 2px 12px rgba(11,61,46,0.08)',
+        }}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: TEAL }}>
+            <Truck className="h-5 w-5 text-white" strokeWidth={2.2} />
+          </div>
+          <span className="truncate text-[19px] font-extrabold tracking-tight" style={{ color: INK }}>
+            Track<span style={{ color: TEAL }}>My</span>RMC
+          </span>
         </div>
-        <span className="text-[19px] font-extrabold tracking-tight" style={{ color: INK }}>
-          Track<span style={{ color: TEAL }}>My</span>RMC
-        </span>
-      </div>
-      <div className="flex items-center gap-2.5">
-        <div
-          className="relative flex h-9 w-9 items-center justify-center rounded-full border"
-          style={{ borderColor: LINE, background: '#fff' }}
-        >
-          <NotificationBell />
+        <div className="flex shrink-0 items-center gap-2">
+          <div aria-label="Open Assistance" title="Assistance" className="flex h-10 w-10 items-center justify-center rounded-full border" style={{ borderColor: LINE, background: '#fff' }}>
+            <AiHeaderButton />
+          </div>
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-full border" style={{ borderColor: LINE, background: '#fff' }}>
+            <NotificationBell />
+          </div>
+          <button
+            onClick={onProfile}
+            className="flex h-10 w-10 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ background: TEAL_SOFT, border: `1.5px solid ${TEAL}` }}
+            aria-label="Open profile menu"
+          >
+            <User className="h-[18px] w-[18px]" style={{ color: TEAL }} />
+          </button>
         </div>
-        <button
-          onClick={onProfile}
-          className="flex h-9 w-9 items-center justify-center rounded-full"
-          style={{ background: TEAL_SOFT, border: `1.5px solid ${TEAL}` }}
-          aria-label="Menu"
-        >
-          <User className="h-[18px] w-[18px]" style={{ color: TEAL }} />
-        </button>
       </div>
-    </div>
     </>
   );
 }
@@ -147,17 +146,10 @@ function Slot({ tab, location, onMore, onNavigate }: { tab: Tab; location: strin
     </>
   );
   if (tab.more) {
-    return (
-      <button onClick={onMore} className="flex flex-1 flex-col items-center gap-1">{inner}</button>
-    );
+    return <button onClick={onMore} className="flex min-h-12 flex-1 flex-col items-center justify-center gap-1" aria-label="Open more menu">{inner}</button>;
   }
   return (
-    <Link
-      href={tab.href}
-      onClick={onNavigate}
-      className="flex flex-1 flex-col items-center gap-1"
-      style={{ textDecoration: 'none' }}
-    >
+    <Link href={tab.href} onClick={onNavigate} className="flex min-h-12 flex-1 flex-col items-center justify-center gap-1" style={{ textDecoration: 'none' }}>
       {inner}
     </Link>
   );
@@ -170,16 +162,11 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
   const allow = (p: string) => canAccess(user.role, p);
   const { tabs, fab } = navFor(user.role, allow);
 
-  // Every role — including the driver — gets the glowing "NEW" services menu in
-  // the center slot. The driver's Emergency SOS + Start/End Shift stay
-  // permanently visible on their Home screen instead of the nav FAB.
   const showNew = true;
   const centerFab = showNew ? undefined : fab;
   const hasCenter = showNew || !!centerFab;
-
   const left = hasCenter ? tabs.slice(0, 2) : tabs;
   const right = hasCenter ? tabs.slice(2) : [];
-
   const fabColor = centerFab?.color === 'red' ? RED : TEAL;
   const fabShadow = centerFab?.color === 'red' ? '0 8px 20px rgba(239,68,68,0.4)' : '0 8px 20px rgba(15,118,110,0.35)';
   const FabIcon = centerFab?.icon;
@@ -192,15 +179,15 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
         display: 'none', position: 'fixed', left: '50%', transform: 'translateX(-50%)',
         bottom: 0, zIndex: 55, width: '100%', maxWidth: 420,
         background: '#fff', borderTop: `1px solid ${LINE}`,
-        height: 'calc(74px + env(safe-area-inset-bottom, 0px))', boxSizing: 'border-box',
+        height: `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px))`, boxSizing: 'border-box',
         padding: '0 6px', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         alignItems: 'center', justifyContent: 'space-between',
       }}
     >
       {left.map((t, i) => <Slot key={`l${i}`} tab={t} location={location} onMore={onMore} onNavigate={() => onNavigate?.()} />)}
-      {showNew && <NewWidgetMenu role={user.role} onNavigate={() => onNavigate?.()} />}
+      {showNew && <div style={{ transform: 'translateY(-4px)' }}><NewWidgetMenu role={user.role} onNavigate={() => onNavigate?.()} /></div>}
       {centerFab && FabIcon && (
-        <div className="flex flex-col items-center" style={{ transform: 'translateY(-10px)' }}>
+        <div className="flex flex-col items-center" style={{ transform: 'translateY(-4px)' }}>
           <button
             onClick={() => { onNavigate?.(); navigate(centerFab.href); }}
             className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg"
@@ -209,9 +196,7 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
           >
             <FabIcon className="h-7 w-7" strokeWidth={2.5} />
           </button>
-          <span className="mt-1 text-[10px] font-medium" style={{ color: centerFab.color === 'red' ? RED : MUTED }}>
-            {centerFab.label}
-          </span>
+          <span className="mt-1 text-[10px] font-medium" style={{ color: centerFab.color === 'red' ? RED : MUTED }}>{centerFab.label}</span>
         </div>
       )}
       {right.map((t, i) => <Slot key={`r${i}`} tab={t} location={location} onMore={onMore} onNavigate={() => onNavigate?.()} />)}
