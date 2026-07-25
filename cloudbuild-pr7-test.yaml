@@ -1,0 +1,77 @@
+# Manual zero-traffic test deployment for PR #7.
+#
+# This file is intentionally separate from cloudbuild.yaml.
+# It builds the PR branch, pushes the image, and deploys a tagged Cloud Run
+# revision with 0% normal traffic. Production traffic remains unchanged.
+#
+# Run from the PR #7 branch with:
+#   gcloud builds submit \
+#     --project=trackmyrmc-production \
+#     --config=cloudbuild-pr7-test.yaml \
+#     --substitutions=COMMIT_SHA=$(git rev-parse HEAD)
+
+substitutions:
+  _REGION: "asia-south1"
+  _REPO: "cloud-run-source-deploy"
+  _IMAGE: "trackmyrmc/rackmyrmc"
+  _SERVICE: "trackmyrmc"
+  _REVISION_TAG: "pr7-test"
+  _CLOUDSQL_INSTANCE: "trackmyrmc-production:asia-south1:trackmyrmc-prod-db"
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:pr7-${COMMIT_SHA}"
+
+steps:
+  - id: build-pr7-image
+    name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:pr7-${COMMIT_SHA}"
+      - "."
+
+  - id: push-pr7-image
+    name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:pr7-${COMMIT_SHA}"
+
+  - id: deploy-zero-traffic-revision
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE}"
+      - "--project=${PROJECT_ID}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:pr7-${COMMIT_SHA}"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--allow-unauthenticated"
+      - "--no-traffic"
+      - "--tag=${_REVISION_TAG}"
+      - "--revision-suffix=pr7-${SHORT_SHA}"
+      - "--min-instances=1"
+      - "--timeout=3600"
+      - "--cpu=1"
+      - "--memory=1Gi"
+      - "--add-cloudsql-instances=${_CLOUDSQL_INSTANCE}"
+      - "--set-env-vars=^|^NODE_ENV=production|APP_URL=https://trackmyrmc.com|PUBLIC_URL=https://trackmyrmc.com|CORS_ALLOWED_ORIGINS=https://trackmyrmc.com,https://www.trackmyrmc.com|RMC_IMPORT_MAX_CONCURRENCY=1|RMC_IMPORT_RETRY_LIMIT=2|RMC_IMPORT_MARKET_COOLDOWN_HOURS=168|RMC_IMPORT_MIN_CONFIDENCE_SCORE=45|RMC_DUPLICATE_RADIUS_METERS=200|RMC_IMPORT_MAX_QUERIES_PER_RUN=8|RMC_IMPORT_ENABLE_BULK_SCOPE=false"
+      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest,SESSION_SECRET=SESSION_SECRET:latest,CLERK_SECRET_KEY=CLERK_SECRET_KEY:latest,GOOGLE_MAPS_API_KEY=GOOGLE_MAPS_API_KEY:latest,GOOGLE_PLACES_API_KEY=GOOGLE_PLACES_API_KEY:latest,AI_INTEGRATIONS_GEMINI_API_KEY=AI_INTEGRATIONS_GEMINI_API_KEY:latest,AI_INTEGRATIONS_GEMINI_BASE_URL=AI_INTEGRATIONS_GEMINI_BASE_URL:latest,DEFAULT_OBJECT_STORAGE_BUCKET_ID=DEFAULT_OBJECT_STORAGE_BUCKET_ID:latest,PRIVATE_OBJECT_DIR=PRIVATE_OBJECT_DIR:latest,PUBLIC_OBJECT_SEARCH_PATHS=PUBLIC_OBJECT_SEARCH_PATHS:latest,SMTP_FROM=SMTP_FROM:latest,SMTP_HOST=SMTP_HOST:latest,SMTP_PORT=SMTP_PORT:latest,SMTP_USER=SMTP_USER:latest,SMTP_PASS=SMTP_PASS:latest,SMTP_SYNC_FROM_ENV=SMTP_SYNC_FROM_ENV:latest,TWILIO_ACCOUNT_SID=TWILIO_ACCOUNT_SID:latest,TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest,TWILIO_VERIFY_SERVICE_SID=TWILIO_VERIFY_SERVICE_SID:latest,TWILIO_WHATSAPP_FROM=TWILIO_WHATSAPP_FROM:latest,WHATSAPP_META_ACCESS_TOKEN=WHATSAPP_META_ACCESS_TOKEN:latest,WHATSAPP_META_REGISTER_PIN=WHATSAPP_META_REGISTER_PIN:latest,WHATSAPP_META_VERIFY_TOKEN=WHATSAPP_META_VERIFY_TOKEN:latest,WHATSAPP_META_PHONE_NUMBER_ID=WHATSAPP_META_PHONE_NUMBER_ID:latest,WHATSAPP_META_OTP_TEMPLATE=WHATSAPP_META_OTP_TEMPLATE:latest,WHATSAPP_META_APP_SECRET=WHATSAPP_META_APP_SECRET:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest,VAPID_PUBLIC_KEY=VAPID_PUBLIC_KEY:latest,MANUS_API_KEY=MANUS_API_KEY:latest,SLACK_TEST_API_KEY=SLACK_TEST_API_KEY:latest,AUTHORITY_BOOTSTRAP_PASSWORD=AUTHORITY_BOOTSTRAP_PASSWORD:latest,AUTHORITY_EMAILS=AUTHORITY_EMAILS:latest,REVIEW_DEMO_EMAIL=REVIEW_DEMO_EMAIL:latest,REVIEW_DEMO_OTP=REVIEW_DEMO_OTP:latest"
+
+  - id: show-test-url
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: bash
+    args:
+      - "-ceu"
+      - |
+        SERVICE_URL=$(gcloud run services describe "${_SERVICE}" \
+          --project="${PROJECT_ID}" \
+          --region="${_REGION}" \
+          --format='value(status.url)')
+        HOST=${SERVICE_URL#https://}
+        echo "PR #7 test URL: https://${_REVISION_TAG}---${HOST}"
+        echo "Normal production traffic remains unchanged because --no-traffic was used."
+
+options:
+  logging: CLOUD_LOGGING_ONLY
