@@ -65,12 +65,12 @@ steps:
     args:
       - "-ceu"
       - |
-        SERVICE_URL=$(gcloud run services describe "${_SERVICE}" \
+        SERVICE_URL=$$(gcloud run services describe "${_SERVICE}" \
           --project="${PROJECT_ID}" \
           --region="${_REGION}" \
           --format='value(status.url)')
-        HOST=${SERVICE_URL#https://}
-        echo "PR #7 test URL: https://${_REVISION_TAG}---${HOST}"
+        HOST=$${SERVICE_URL#https://}
+        echo "PR #7 test URL: https://${_REVISION_TAG}---$${HOST}"
         echo "Normal production traffic remains unchanged because --no-traffic was used."
 
 options:
