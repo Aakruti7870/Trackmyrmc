@@ -43,8 +43,11 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: |
+            pnpm-lock.yaml
             server/pnpm-lock.yaml
             rmc-app/pnpm-lock.yaml
+      - name: Install root integration dependencies
+        run: pnpm install --frozen-lockfile
       - name: Install server dependencies
         working-directory: server
         run: pnpm install --frozen-lockfile
