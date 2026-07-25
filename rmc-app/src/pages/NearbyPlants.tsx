@@ -56,6 +56,16 @@ const SAVED_LOCATION_KEY = 'rmc_nearby_location';
 
 interface SavedLocation { coords: LatLng; radius: number }
 
+interface NearbyPlantsResponse {
+  plants: NearbyPlant[];
+  count: number;
+}
+
+function isValidCoords(value: LatLng): boolean {
+  return Number.isFinite(value.lat) && Number.isFinite(value.lng) &&
+    value.lat >= -90 && value.lat <= 90 && value.lng >= -180 && value.lng <= 180;
+}
+
 function readSavedLocation(): SavedLocation | null {
   try {
     const raw = localStorage.getItem(SAVED_LOCATION_KEY);
@@ -63,7 +73,7 @@ function readSavedLocation(): SavedLocation | null {
     const parsed = JSON.parse(raw) as { lat?: unknown; lng?: unknown; radius?: unknown };
     const lat = Number(parsed.lat);
     const lng = Number(parsed.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (!isValidCoords({ lat, lng })) return null;
     const r = Number(parsed.radius);
     // Only honour a radius we still offer; otherwise fall back to the default
     // so a stale/legacy value can't leave the dropdown out of sync.
@@ -142,17 +152,31 @@ export default function NearbyPlants() {
   }, []);
 
   const loadPlants = useCallback(async (c: LatLng, radius: number) => {
-    // Remember this confirmed location + radius so the next visit loads it
-    // instantly. The coords are user-confirmed (GPS fix or manual pick) so we
-    // persist even if the fetch below fails — that's a transient network issue,
-    // not a bad location.
+    if (!isValidCoords(c)) {
+      setFetchError('Your location coordinates are invalid. Please choose the site location again.');
+      setPlants([]);
+      setDiscovered([]);
+      setPhase('geoerror');
+      return;
+    }
+
+    // Remember only validated coordinates. This prevents undefined, null, NaN,
+    // empty or out-of-range values from ever reaching the API query string.
     saveLocation(c, radius);
     setPhase('loading');
     setFetchError('');
     setDiscovered([]);
+    const query = new URLSearchParams({
+      lat: String(c.lat),
+      lng: String(c.lng),
+      radius: String(radius),
+    });
     try {
-      const data = await api.get<NearbyPlant[]>(`/plants/nearby?lat=${c.lat}&lng=${c.lng}&radius=${radius}`);
-      setPlants(data);
+      const data = await api.get<NearbyPlantsResponse | NearbyPlant[]>(`/plants/nearby?${query.toString()}`);
+      // Accept the legacy array during rolling deployments, but prefer the
+      // documented { plants, count } response from the hardened backend.
+      const result = Array.isArray(data) ? data : data.plants;
+      setPlants(Array.isArray(result) ? result : []);
       setPhase('ready');
     } catch (e) {
       setFetchError((e as Error).message || 'Could not load nearby plants.');
