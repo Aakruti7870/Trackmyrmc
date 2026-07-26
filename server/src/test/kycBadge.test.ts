@@ -163,7 +163,9 @@ test('plant listings flag gstPanVerified only when the approved profile has BOTH
     .get('/api/plants/nearby?lat=19.0&lng=72.0&radiusKm=250')
     .set('Authorization', `Bearer ${token}`);
   assert.equal(nearby.status, 200);
-  const nearbyById = new Map(nearby.body.map((p: { id: number; gstPanVerified: boolean }) => [p.id, p.gstPanVerified]));
+  assert.ok(Array.isArray(nearby.body.plants));
+  assert.equal(nearby.body.count, nearby.body.plants.length);
+  const nearbyById = new Map(nearby.body.plants.map((p: { id: number; gstPanVerified: boolean }) => [p.id, p.gstPanVerified]));
   assert.equal(nearbyById.get(fullPlant.id), true);
   assert.equal(nearbyById.get(gstOnlyPlant.id), false);
   assert.equal(nearbyById.get(draftPlant.id), false);

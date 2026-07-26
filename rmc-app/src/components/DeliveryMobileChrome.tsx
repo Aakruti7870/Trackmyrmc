@@ -11,14 +11,14 @@ import NotificationBell from '@/components/NotificationBell';
 import NewWidgetMenu from '@/components/NewWidgetMenu';
 import { RED } from '@/pages/home/deliveryKit';
 
-// The mobile chrome bars are ALWAYS white, so their letters/icons must use
-// fixed dark colors — never theme vars, which flip light at Night and would
-// wash out on the white background.
 const INK = '#12211d';
 const MUTED = '#5c6f66';
 const TEAL = '#0f766e';
 const TEAL_SOFT = 'rgba(15,118,110,0.12)';
 const LINE = '#e5eae7';
+
+export const MOBILE_HEADER_HEIGHT = 52;
+export const BOTTOM_NAV_HEIGHT = 68;
 
 type Tab = { icon: ElementType; label: string; href: string; more?: boolean };
 type Fab = { icon: ElementType; label: string; href: string; color: 'teal' | 'red' };
@@ -182,10 +182,8 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
   const showNew = true;
   const centerFab = showNew ? undefined : fab;
   const hasCenter = showNew || !!centerFab;
-
   const left = hasCenter ? tabs.slice(0, 2) : tabs;
   const right = hasCenter ? tabs.slice(2) : [];
-
   const fabColor = centerFab?.color === 'red' ? RED : TEAL;
   const fabShadow = centerFab?.color === 'red' ? '0 8px 20px rgba(239,68,68,0.4)' : '0 8px 20px rgba(15,118,110,0.35)';
   const FabIcon = centerFab?.icon;
@@ -207,9 +205,9 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
       }}
     >
       {left.map((t, i) => <Slot key={`l${i}`} tab={t} location={location} onMore={onMore} onNavigate={() => onNavigate?.()} />)}
-      {showNew && <NewWidgetMenu role={user.role} onNavigate={() => onNavigate?.()} />}
+      {showNew && <div style={{ transform: 'translateY(-4px)' }}><NewWidgetMenu role={user.role} onNavigate={() => onNavigate?.()} /></div>}
       {centerFab && FabIcon && (
-        <div className="flex flex-col items-center" style={{ transform: 'translateY(-10px)' }}>
+        <div className="flex flex-col items-center" style={{ transform: 'translateY(-4px)' }}>
           <button
             type="button"
             onClick={() => { onNavigate?.(); navigate(centerFab.href); }}
@@ -219,9 +217,7 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
           >
             <FabIcon className="h-7 w-7" strokeWidth={2.5} />
           </button>
-          <span className="mt-1 text-[10px] font-medium" style={{ color: centerFab.color === 'red' ? RED : MUTED }}>
-            {centerFab.label}
-          </span>
+          <span className="mt-1 text-[10px] font-medium" style={{ color: centerFab.color === 'red' ? RED : MUTED }}>{centerFab.label}</span>
         </div>
       )}
       {right.map((t, i) => <Slot key={`r${i}`} tab={t} location={location} onMore={onMore} onNavigate={() => onNavigate?.()} />)}
