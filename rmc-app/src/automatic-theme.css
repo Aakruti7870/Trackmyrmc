@@ -1,0 +1,145 @@
+/* Automatic visual modes. No user-facing theme selector is intentionally provided. */
+:root,
+:root[data-theme='concrete-gold'] {
+  --bg-top: #fffaf0;
+  --bg: #f7f5ef;
+  --bg-deep: #eee8d9;
+  --panel: #ffffff;
+  --panel2: #fbf8f0;
+  --surface: #ffffff;
+  --line: rgba(31, 41, 51, 0.12);
+  --text: #17202a;
+  --muted: #5b6573;
+  --gold-hi: #f0c95a;
+  --gold-mid: #d6a52a;
+  --gold: #d6a52a;
+  --gold-dark: #b8860b;
+  --green: #16835d;
+  --green-dark: #0f6849;
+  --blue: #2a83d6;
+  --red: #c43d3d;
+  --orange: #c98300;
+  --glow-1: rgba(214, 165, 42, 0.2);
+  --glow-2: rgba(240, 201, 90, 0.12);
+  --gold-soft: #f8efd7;
+  --gold-tint: #fffaf0;
+  --prompt-bg: #fff8e8;
+  --prompt-border: rgba(214, 165, 42, 0.28);
+  --prompt-icon-bg: #f7e8bd;
+  --shadow-rgb: 31, 41, 51;
+  --glass-1: #ffffff;
+  --glass-2: #fffdf8;
+  --glass-border: rgba(31, 41, 51, 0.1);
+  --glass-hi: rgba(255, 255, 255, 0.8);
+  --sidebar-1: #ffffff;
+  --sidebar-2: #fbf8f0;
+  --header-bg: rgba(255, 255, 255, 0.94);
+  --menu-bg: #ffffff;
+  --menu-hover: rgba(214, 165, 42, 0.1);
+  --overlay: rgba(17, 24, 39, 0.34);
+  --chip-bg: #fbf6e8;
+  --sheen: rgba(255, 255, 255, 0.35);
+}
+
+:root[data-theme='infra-green'] {
+  --bg-top: #0c2f24;
+  --bg: #0a251d;
+  --bg-deep: #071b15;
+  --panel: #11372b;
+  --panel2: #0e3025;
+  --surface: #123d2f;
+  --line: rgba(231, 244, 237, 0.15);
+  --text: #f5fbf7;
+  --muted: #b8c9c0;
+  --gold-hi: #f1c85a;
+  --gold-mid: #e0a928;
+  --gold: #e0a928;
+  --gold-dark: #b98310;
+  --green: #38b879;
+  --green-dark: #188657;
+  --blue: #62b8ff;
+  --red: #ff747a;
+  --orange: #f2ad3d;
+  --glow-1: rgba(224, 169, 40, 0.22);
+  --glow-2: rgba(56, 184, 121, 0.18);
+  --gold-soft: #263d2c;
+  --gold-tint: #183628;
+  --prompt-bg: #163d2e;
+  --prompt-border: rgba(224, 169, 40, 0.32);
+  --prompt-icon-bg: #234d39;
+  --shadow-rgb: 0, 0, 0;
+  --glass-1: #123d2f;
+  --glass-2: #0e3025;
+  --glass-border: rgba(231, 244, 237, 0.14);
+  --glass-hi: rgba(255, 255, 255, 0.08);
+  --sidebar-1: #10372a;
+  --sidebar-2: #0b291f;
+  --header-bg: rgba(10, 37, 29, 0.94);
+  --menu-bg: #123d2f;
+  --menu-hover: rgba(224, 169, 40, 0.12);
+  --overlay: rgba(0, 0, 0, 0.58);
+  --chip-bg: #173c2e;
+  --sheen: rgba(255, 255, 255, 0.05);
+}
+
+/* Global readability and overlap protection for both automatic modes. */
+html {
+  background: var(--bg);
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  color: var(--text);
+}
+
+button,
+a,
+label,
+p,
+span,
+h1,
+h2,
+h3,
+h4 {
+  overflow-wrap: anywhere;
+}
+
+button,
+[role='button'] {
+  min-height: 44px;
+}
+
+img,
+video,
+svg {
+  max-width: 100%;
+}
+
+@media (max-width: 420px) {
+  .ck-login-grid,
+  .ck-login-brand,
+  .glass-card {
+    min-width: 0;
+  }
+
+  .ck-login-grid button,
+  .ck-login-grid input,
+  .ck-login-grid select {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
