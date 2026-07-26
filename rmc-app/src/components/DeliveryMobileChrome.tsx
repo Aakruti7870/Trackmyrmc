@@ -8,7 +8,6 @@ import {
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
 import NotificationBell from '@/components/NotificationBell';
-import { AiHeaderButton } from '@/components/ai/AIHelpAgent';
 import NewWidgetMenu from '@/components/NewWidgetMenu';
 import { RED } from '@/pages/home/deliveryKit';
 
