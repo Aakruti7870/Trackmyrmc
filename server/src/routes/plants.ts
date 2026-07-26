@@ -111,11 +111,14 @@ const platformStaffOnly: RequestHandler = (req, res, next) => {
 // signed-in user (customers reach it via the post-login GPS discovery screen) may
 // query nearby plants; logged-out visitors cannot enumerate the directory.
 router.get('/nearby', requireAuth, async (req, res) => {
-  const lat = parseFloat(String(req.query.lat));
-  const lng = parseFloat(String(req.query.lng));
-  const radius = req.query.radius != null ? parseFloat(String(req.query.radius)) : 40;
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    res.status(400).json({ error: 'lat and lng are required' });
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  const radius = req.query.radius != null ? Number(req.query.radius) : 40;
+  if (
+    !Number.isFinite(lat) || !Number.isFinite(lng) ||
+    lat < -90 || lat > 90 || lng < -180 || lng > 180
+  ) {
+    res.status(400).json({ error: 'Valid lat (-90 to 90) and lng (-180 to 180) are required' });
     return;
   }
   // Clamp to a sane ceiling: an unbounded radius would let a caller enumerate the
@@ -123,18 +126,21 @@ router.get('/nearby', requireAuth, async (req, res) => {
   const MAX_RADIUS_KM = 250;
   const effRadius = Math.min(Number.isFinite(radius) && radius > 0 ? radius : 40, MAX_RADIUS_KM);
 
-  const rows = await db.select().from(plants);
-  // "GST & PAN Verified" trust badge: plants whose approved KYC profile carries
-  // both registrations. Public-safe — it exposes a boolean, never the documents.
-  const gstPanVerified = await getGstPanVerifiedPlantIds();
-  const nearby = rows
-    // Only plants the authority has marked active AND left visible on the network
-    // are shown to customers. Onboarding leads / hidden plants never appear.
-    .filter(customerVisible)
-    .map(p => {
-      const pLat = parseFloat(p.latitude);
-      const pLng = parseFloat(p.longitude);
-      return {
+  try {
+    const rows = await db.select().from(plants);
+    // "GST & PAN Verified" trust badge: plants whose approved KYC profile carries
+    // both registrations. Public-safe — it exposes a boolean, never the documents.
+    const gstPanVerified = await getGstPanVerifiedPlantIds();
+    const nearby = rows
+      // Only authority-approved, active, verified, customer-visible partners
+      // with valid coordinates may reach the customer response.
+      .filter(customerVisible)
+      .map(p => ({ p, pLat: Number(p.latitude), pLng: Number(p.longitude) }))
+      .filter(({ pLat, pLng }) =>
+        Number.isFinite(pLat) && Number.isFinite(pLng) &&
+        pLat >= -90 && pLat <= 90 && pLng >= -180 && pLng <= 180,
+      )
+      .map(({ p, pLat, pLng }) => ({
         id: p.id,
         name: p.name,
         address: p.address,
@@ -149,12 +155,15 @@ router.get('/nearby', requireAuth, async (req, res) => {
         openNow: isOpenNow(p.openTime, p.closeTime),
         gstPanVerified: gstPanVerified.has(p.id),
         distanceKm: Math.round(haversineKm(lat, lng, pLat, pLng) * 10) / 10,
-      };
-    })
-    .filter(p => p.distanceKm <= effRadius)
-    .sort((a, b) => a.distanceKm - b.distanceKm);
+      }))
+      .filter(p => Number.isFinite(p.distanceKm) && p.distanceKm <= effRadius)
+      .sort((a, b) => a.distanceKm - b.distanceKm);
 
-  res.json(nearby);
+    res.status(200).json({ plants: nearby, count: nearby.length });
+  } catch (error) {
+    console.error('[plants] nearby lookup failed:', error);
+    res.status(500).json({ error: 'Could not load nearby plants.' });
+  }
 });
 
 // Dashboard network map: every verified partner plant with the fields the map
