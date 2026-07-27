@@ -180,7 +180,8 @@ test('Paid Ad plant is first and glowing only within 15 km of its own location',
   assert.equal(inside.body.plants[0].id, paid.id);
   assert.equal(inside.body.plants[0].showGlowingEffect, true);
   assert.equal(inside.body.plants[0].capabilities.numberOfTransitMixers, 21);
-  assert.equal(JSON.stringify(inside.body).toLowerCase().includes('sponsored'), false);
+  assert.equal(Object.hasOwn(inside.body.plants[0], 'bannerTitle'), false);
+  assert.equal(Object.hasOwn(inside.body.plants[0], 'paymentStatus'), false);
 
   const outside = await request(app).get('/api/plants/nearby?lat=19&lng=71.9&radius=100').set('Authorization', `Bearer ${tokenFor(customer)}`);
   assert.equal(outside.status, 200);
