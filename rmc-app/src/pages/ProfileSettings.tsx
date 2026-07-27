@@ -53,6 +53,8 @@ interface KycStatus {
   verifiedAt: string | null;
   maskedAadhaar: string | null;
   fullName: string | null;
+  // Optional, backend-supplied — only rendered when present.
+  rejectionReason?: string | null;
 }
 
 // Platform-staff KYC aggregator config (GET/POST /admin/kyc-settings). Secrets
@@ -373,6 +375,11 @@ export default function ProfileSettings() {
   const [kycError, setKycError] = useState<string | null>(null);
   const [kycPolling, setKycPolling] = useState(false);
 
+  // Driver identity verification (shared /kyc-verification/me profile used by
+  // the KYC & Verification page) — read here only to know whether the
+  // driver's legal name is approved and must render read-only.
+  const [driverKyc, setDriverKyc] = useState<{ status: string; legalName: string | null } | null>(null);
+
   // Platform-staff KYC aggregator settings.
   const [kycForm, setKycForm] = useState<KycSettingsForm>({
     enabled: true, provider: 'sandbox', baseUrl: '', apiVersion: '', apiKey: '', apiSecret: '',
@@ -414,7 +421,18 @@ export default function ProfileSettings() {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'authority';
   const isClient = user?.role === 'client';
+  const isDriver = user?.role === 'driver';
   const isPlatformStaff = isAdmin && (user?.plantId == null);
+  // Customer and driver accounts never show or edit the raw role field, and
+  // their verified legal name can only change through re-verification — staff
+  // and admin roles keep the existing read-only role display.
+  const hasIdentityRestrictions = isClient || isDriver;
+  const verifiedLegalName = isClient
+    ? (kyc?.status === 'verified' ? kyc?.fullName : null)
+    : isDriver
+      ? (driverKyc?.status === 'approved' ? driverKyc?.legalName : null)
+      : null;
+  const hasVerifiedLegalName = !!verifiedLegalName;
 
   // Populate the editable profile fields when the signed-in user loads/changes.
   // Done during render (React's documented adjust-on-change pattern) so it does
@@ -494,6 +512,18 @@ export default function ProfileSettings() {
     loadKyc();
     return () => { cancelled = true; };
   }, [isClient, user?.id]);
+
+  // Drivers only: read the shared identity-verification profile (same data as
+  // the KYC & Verification page) so an approved legal name renders read-only
+  // here too. Best-effort — the field just stays editable if this fails.
+  useEffect(() => {
+    if (!isDriver) return;
+    let cancelled = false;
+    api.get<{ profile: { status: string; legalName: string | null } | null }>('/kyc-verification/me')
+      .then(({ profile }) => { if (!cancelled) setDriverKyc(profile); })
+      .catch(() => { /* best-effort */ });
+    return () => { cancelled = true; };
+  }, [isDriver, user?.id]);
 
   // Customers only: while a DigiLocker verification is in progress (the consent
   // flow opened in another tab), poll the status until it settles or we give up.
@@ -996,11 +1026,14 @@ export default function ProfileSettings() {
   const roleColor = user ? (ROLE_COLOR[user.role] || 'var(--muted)') : 'var(--muted)';
   const roleLabel = user?.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
 
-  const profileDirty = profileName !== (user?.name || '') || profileEmail !== (user?.email || '');
+  // Once identity is verified, the legal name field is read-only, so only the
+  // email counts toward "dirty" and only email is ever sent — the protected
+  // name is never resubmitted, verified or not.
+  const profileDirty = (!hasVerifiedLegalName && profileName !== (user?.name || '')) || profileEmail !== (user?.email || '');
 
   async function handleProfileSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!profileName.trim()) {
+    if (!hasVerifiedLegalName && !profileName.trim()) {
       showToast('Name cannot be empty.', 'error');
       return;
     }
@@ -1011,13 +1044,17 @@ export default function ProfileSettings() {
     setProfileSaving(true);
     try {
       const { token, user: updated } = await api.put<{ token: string; user: User }>('/auth/me', {
-        name: profileName.trim(),
+        // The verified legal name is protected server-side too; omitting it
+        // here avoids sending a field the customer/driver can no longer edit.
+        ...(hasVerifiedLegalName ? {} : { name: profileName.trim() }),
         email: profileEmail.trim(),
       });
       updateUser(updated, token);
       showToast('Profile updated successfully.', 'success');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update profile';
+      const msg = err instanceof Error
+        ? err.message
+        : 'Failed to update profile';
       showToast(msg, 'error');
     } finally {
       setProfileSaving(false);
@@ -1617,14 +1654,29 @@ export default function ProfileSettings() {
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{user?.name}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{user?.email}</div>
-            <div style={{
-              display: 'inline-block', marginTop: 5,
-              fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px',
-              color: roleColor, background: `color-mix(in srgb, ${roleColor} 10%, transparent)`,
-              border: `1px solid color-mix(in srgb, ${roleColor} 20%, transparent)`, borderRadius: 999, padding: '2px 8px',
-            }}>
-              {roleLabel}
-            </div>
+            {/* Customer and driver accounts don't surface the raw role badge —
+                a verified badge (when applicable) replaces it instead. */}
+            {hasIdentityRestrictions ? (
+              hasVerifiedLegalName && (
+                <div style={{
+                  display: 'inline-block', marginTop: 5,
+                  fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px',
+                  color: 'var(--green)', background: 'rgba(34,197,94,.1)',
+                  border: '1px solid rgba(34,197,94,.25)', borderRadius: 999, padding: '2px 8px',
+                }}>
+                  Verified
+                </div>
+              )
+            ) : (
+              <div style={{
+                display: 'inline-block', marginTop: 5,
+                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px',
+                color: roleColor, background: `color-mix(in srgb, ${roleColor} 10%, transparent)`,
+                border: `1px solid color-mix(in srgb, ${roleColor} 20%, transparent)`, borderRadius: 999, padding: '2px 8px',
+              }}>
+                {roleLabel}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1648,7 +1700,8 @@ export default function ProfileSettings() {
         <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'minmax(120px,auto) 1fr', gap: '9px 14px', fontSize: 13 }}>
           {([
             ['Name', user?.name || '—'],
-            ['Role', roleLabel],
+            // Customer and driver accounts never surface the raw role field.
+            ...(hasIdentityRestrictions ? [] : [['Role', roleLabel] as [string, string]]),
             ['Mobile / Email', user?.phone || user?.email || '—'],
             ['User ID', user?.id != null ? String(user.id) : '—'],
             ...(user?.role === 'driver' && user?.linkedDriverId != null ? [['Driver ID', String(user.linkedDriverId)] as [string, string]] : []),
@@ -1687,15 +1740,22 @@ export default function ProfileSettings() {
 
         <form onSubmit={handleProfileSave} style={{ display: 'grid', gap: 16 }}>
           <div>
-            <label style={label}>Display Name</label>
+            <label style={label}>{hasVerifiedLegalName ? 'Verified Legal Name' : 'Display Name'}</label>
             <input
               type="text"
-              value={profileName}
+              value={hasVerifiedLegalName ? (verifiedLegalName ?? '') : profileName}
               onChange={e => setProfileName(e.target.value)}
               placeholder="Your full name"
-              style={{ ...inputStyle, padding: '10px 12px' }}
+              style={{ ...inputStyle, padding: '10px 12px', ...(hasVerifiedLegalName ? { opacity: 0.75, cursor: 'not-allowed' } : {}) }}
               autoComplete="name"
+              readOnly={hasVerifiedLegalName}
+              disabled={hasVerifiedLegalName}
             />
+            {hasVerifiedLegalName && (
+              <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 6, lineHeight: 1.4 }}>
+                Verified identity details can only be changed through identity re-verification.
+              </div>
+            )}
           </div>
           <div>
             <label style={label}>Email Address</label>
@@ -1816,18 +1876,32 @@ export default function ProfileSettings() {
                 const pending = status === 'pending' || kycPolling;
                 const failed = status === 'failed';
                 const chipColor = verified ? '#22c55e' : failed ? '#ef4444' : pending ? '#eab308' : 'var(--muted)';
-                const chipLabel = verified ? 'KYC Verified' : failed ? 'Verification failed' : pending ? 'Verification in progress' : 'Not verified';
+                // Backend statuses: unverified/pending/verified/failed — presented
+                // here as the not-started/pending/verified/rejected states.
+                const chipLabel = verified ? 'Verified' : failed ? 'Rejected' : pending ? 'Pending' : 'Not Started';
                 return (
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 16,
-                    padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-                    background: `color-mix(in srgb, ${chipColor} 14%, transparent)`,
-                    border: `1px solid color-mix(in srgb, ${chipColor} 35%, transparent)`,
-                    color: chipColor,
-                  }}>
-                    {verified ? <CheckCircle size={13} /> : failed ? <XCircle size={13} /> : pending ? <RefreshCw size={13} /> : <ShieldCheck size={13} />}
-                    {chipLabel}
-                  </div>
+                  <>
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 16,
+                      padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                      background: `color-mix(in srgb, ${chipColor} 14%, transparent)`,
+                      border: `1px solid color-mix(in srgb, ${chipColor} 35%, transparent)`,
+                      color: chipColor,
+                    }}>
+                      {verified ? <CheckCircle size={13} /> : failed ? <XCircle size={13} /> : pending ? <RefreshCw size={13} /> : <ShieldCheck size={13} />}
+                      KYC Status: {chipLabel}
+                    </div>
+                    {failed && kyc?.rejectionReason && (
+                      <div style={{
+                        fontSize: 12, color: 'var(--red)', marginBottom: 14, marginTop: -4,
+                        padding: '9px 12px', borderRadius: 10,
+                        background: 'color-mix(in srgb, var(--red) 10%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--red) 28%, transparent)',
+                      }}>
+                        Reason: {kyc.rejectionReason}
+                      </div>
+                    )}
+                  </>
                 );
               })()}
 
