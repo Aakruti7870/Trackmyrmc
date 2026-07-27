@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
-import { useSearch } from 'wouter';
-import { api, type Order, type Challan, type LedgerEntry, type LivePosition, type RecurringOrder, type FreshnessConfig, type IdleConfig, type PlantDirectoryEntry } from '@/lib/api';
+import { useSearch, Link } from 'wouter';
+import { api, ApiError, type Order, type Challan, type LedgerEntry, type LivePosition, type RecurringOrder, type FreshnessConfig, type IdleConfig, type PlantDirectoryEntry } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { useSSE } from '@/lib/useSSE';
 import { computeTripTiming, formatDuration } from '@/lib/tripTiming';
 import FreshnessCountdown from '@/components/FreshnessCountdown';
-import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle, Info, Star, Search } from 'lucide-react';
+import { ClipboardList, Truck, Package, AlertCircle, TrendingUp, TrendingDown, Receipt, Plus, X, Navigation, MapPin, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Ban, FileText, Repeat, Pause, Play, Pencil, Trash2, CalendarClock, Clock, AlertTriangle, Info, Star, Search, ShieldAlert } from 'lucide-react';
 import { downloadDeliveryReceipt } from '@/pages/deliveryReceipt';
 import { downloadAccountStatement } from '@/pages/accountStatement';
 import DeliveryLocationPicker from '@/components/DeliveryLocationPicker';
 import LiveDeliveryMap, { type DeliveryMarker } from '@/components/LiveDeliveryMap';
+import { saveOrderDraft, readOrderDraft, clearOrderDraft } from '@/lib/orderDraft';
 
 const GRADES = ['M10', 'M15', 'M20', 'M25', 'M30', 'M35', 'M40', 'M45', 'M50', 'M55', 'M60'];
 
@@ -242,6 +244,11 @@ function isCancelLocked(o: Pick<Order, 'deliveryDate' | 'deliveryTime'>): boolea
 
 export default function MyOrders() {
   const search = useSearch();
+  const { user } = useAuth();
+  // KYC order gate: the backend remains authoritative. This just reflects its
+  // response — the form is never blocked from opening, only from submitting.
+  const [kycRequiredCard, setKycRequiredCard] = useState(false);
+  const [draftRestoredNotice, setDraftRestoredNotice] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [challans, setChallans] = useState<Challan[]>([]);
   const [ledger, setLedger] = useState<LedgerData>({ entries: [], outstanding: 0, creditLimit: 0 });
@@ -618,11 +625,38 @@ export default function MyOrders() {
   const autoPlantAppliedRef = useRef(false);
 
   function openModal() {
+    autoPlantAppliedRef.current = false;
+    setEditingOrderId(null);
+    setKycRequiredCard(false);
+    setFormError('');
+    setFieldErrors({});
+    setPinError('');
+
+    // A draft saved when a KYC-required response interrupted a previous
+    // attempt takes priority over the usual auto-selected plant — restore it
+    // once, then clear it so it isn't reapplied on a later, unrelated order.
+    const draft = readOrderDraft();
+    if (draft) {
+      clearOrderDraft();
+      setForm({
+        grade: draft.grade, quantity: draft.quantity, deliveryDate: draft.deliveryDate,
+        deliveryTime: draft.deliveryTime, pumpRequired: draft.pumpRequired, pumpLineLength: draft.pumpLineLength,
+        notes: draft.notes, siteId: draft.siteId, contactPerson: draft.contactPerson, contactNumber: draft.contactNumber,
+        siteName: draft.siteName, siteAddress: draft.siteAddress, latitude: draft.latitude, longitude: draft.longitude,
+        placeId: draft.placeId, paymentType: draft.paymentType, poNumber: draft.poNumber, sitePhoto: '',
+      });
+      setSelectedPlantId(draft.selectedPlantId);
+      setSelectedPlant(draft.selectedPlant);
+      autoPlantAppliedRef.current = draft.selectedPlantId != null;
+      setDraftRestoredNotice(true);
+      setModalOpen(true);
+      return;
+    }
+
+    setDraftRestoredNotice(false);
     // Pre-select the remembered/only plant so re-ordering from the same plant is
     // one tap. Falls back to blank; the effect below fills in if the directory
     // (or orders) finish loading after the modal is already open.
-    autoPlantAppliedRef.current = false;
-    setEditingOrderId(null);
     const def = defaultPlant();
     if (def) {
       setSelectedPlantId(def.id);
@@ -633,9 +667,6 @@ export default function MyOrders() {
       setSelectedPlantId(null);
     }
     setForm(EMPTY_FORM);
-    setFormError('');
-    setFieldErrors({});
-    setPinError('');
     setModalOpen(true);
   }
 
@@ -704,6 +735,22 @@ export default function MyOrders() {
     if (form.pumpRequired && !form.pumpLineLength.trim()) fe.pumpLineLength = 'Please enter the required pump line length.';
     setFieldErrors(fe);
     if (Object.keys(fe).length > 0) return;
+
+    // Backend-authoritative KYC gate: never invented client-side, only
+    // reflected. Explicit `false` (not merely absent) blocks submission of a
+    // *new* order — editing an already-placed order is left untouched.
+    if (editingOrderId == null && user?.canPlaceOrder === false) {
+      saveOrderDraft({
+        grade: form.grade, quantity: form.quantity, deliveryDate: form.deliveryDate, deliveryTime: form.deliveryTime,
+        pumpRequired: form.pumpRequired, pumpLineLength: form.pumpLineLength, notes: form.notes, siteId: form.siteId,
+        contactPerson: form.contactPerson, contactNumber: form.contactNumber, siteName: form.siteName, siteAddress: form.siteAddress,
+        latitude: form.latitude, longitude: form.longitude, placeId: form.placeId, paymentType: form.paymentType, poNumber: form.poNumber,
+        selectedPlantId, selectedPlant,
+      });
+      setKycRequiredCard(true);
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -743,7 +790,18 @@ export default function MyOrders() {
       setModalOpen(false);
       setTab('today');
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Could not place the order.');
+      if (err instanceof ApiError && err.data?.code === 'CUSTOMER_KYC_REQUIRED') {
+        saveOrderDraft({
+          grade: form.grade, quantity: form.quantity, deliveryDate: form.deliveryDate, deliveryTime: form.deliveryTime,
+          pumpRequired: form.pumpRequired, pumpLineLength: form.pumpLineLength, notes: form.notes, siteId: form.siteId,
+          contactPerson: form.contactPerson, contactNumber: form.contactNumber, siteName: form.siteName, siteAddress: form.siteAddress,
+          latitude: form.latitude, longitude: form.longitude, placeId: form.placeId, paymentType: form.paymentType, poNumber: form.poNumber,
+          selectedPlantId, selectedPlant,
+        });
+        setKycRequiredCard(true);
+      } else {
+        setFormError(err instanceof Error ? err.message : 'Could not place the order.');
+      }
     } finally {
       setSaving(false);
     }
@@ -946,7 +1004,7 @@ export default function MyOrders() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Order No', 'Plant', 'Grade', 'Qty (m³)', 'Delivery Date', 'Site', 'Status', 'Actions'].map(h => (
+                  {['Order No', 'Plant', 'Grade', 'Qty (m³)', 'Delivery Date', 'Site Name', 'Status', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: h === 'Actions' ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
                   ))}
                 </tr>
@@ -964,7 +1022,7 @@ export default function MyOrders() {
                     </td>
                     <td style={{ padding: '12px 14px', color: 'var(--text)', fontWeight: 700 }}>{parseFloat(o.quantity).toFixed(1)}</td>
                     <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.deliveryDate || '—'}</td>
-                    <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || '—'}</td>
+                    <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || 'Not provided'}</td>
                     <td style={{ padding: '12px 14px' }}>
                       <StatusBadge status={o.status} />
                       {o.status === 'rejected' && o.rejectionReason && (
@@ -1041,7 +1099,7 @@ export default function MyOrders() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Order No', 'Plant', 'Grade', 'Qty (m³)', 'Delivery Date', 'Site', 'Status', 'Actions'].map(h => (
+                  {['Order No', 'Plant', 'Grade', 'Qty (m³)', 'Delivery Date', 'Site Name', 'Status', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: h === 'Actions' ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
                   ))}
                 </tr>
@@ -1059,7 +1117,7 @@ export default function MyOrders() {
                     </td>
                     <td style={{ padding: '12px 14px', color: 'var(--text)', fontWeight: 700 }}>{parseFloat(o.quantity).toFixed(1)}</td>
                     <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.deliveryDate || '—'}</td>
-                    <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || '—'}</td>
+                    <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || 'Not provided'}</td>
                     <td style={{ padding: '12px 14px' }}><StatusBadge status={o.status} /></td>
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -1471,7 +1529,7 @@ export default function MyOrders() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
-                      {['Challan No', 'Qty (m³)', 'Date', 'Receiver / Site'].map(h => (
+                      {['Challan No', 'Qty (m³)', 'Date', 'Site Name'].map(h => (
                         <th key={h} style={{ padding: '10px 14px', textAlign: h === 'Qty (m³)' ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid var(--line)' }}>{h}</th>
                       ))}
                     </tr>
@@ -1484,7 +1542,7 @@ export default function MyOrders() {
                         <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>
                           {new Date(c.dispatchTime || c.createdAt).toLocaleDateString('en-IN')}
                         </td>
-                        <td style={{ padding: '11px 14px', color: 'var(--text)', fontSize: 12.5 }}>{c.siteName || c.clientName || '—'}</td>
+                        <td style={{ padding: '11px 14px', color: 'var(--text)', fontSize: 12.5 }}>{c.siteName || 'Not provided'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1600,6 +1658,51 @@ export default function MyOrders() {
                 <X size={18} />
               </button>
             </div>
+
+            {kycRequiredCard && (
+              <div style={{
+                display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 12,
+                background: 'color-mix(in srgb, var(--gold) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 32%, transparent)',
+                marginBottom: 16,
+              }}>
+                <ShieldAlert size={18} style={{ color: 'var(--gold)', flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>Identity verification required</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3, lineHeight: 1.5 }}>
+                    Your order details are saved. Complete KYC verification to place this order — you won&rsquo;t need to fill this form again.
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+                    <Link href="/kyc" style={{
+                      display: 'inline-flex', alignItems: 'center', padding: '7px 14px', borderRadius: 9,
+                      background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
+                      color: '#111827', fontWeight: 800, fontSize: 12.5, textDecoration: 'none',
+                    }}>
+                      Continue KYC
+                    </Link>
+                    <button type="button" onClick={() => setKycRequiredCard(false)} style={{
+                      padding: '7px 14px', borderRadius: 9, background: 'transparent', border: '1px solid var(--line)',
+                      color: 'var(--muted)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer',
+                    }}>
+                      Keep Editing
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!kycRequiredCard && draftRestoredNotice && (
+              <div style={{
+                display: 'flex', gap: 8, alignItems: 'center', padding: '9px 12px', borderRadius: 10,
+                background: 'color-mix(in srgb, var(--blue) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--blue) 25%, transparent)',
+                marginBottom: 14, fontSize: 12, color: 'var(--text)',
+              }}>
+                <Info size={14} style={{ color: 'var(--blue)', flexShrink: 0 }} />
+                Draft restored from before verification.
+                <button type="button" onClick={() => setDraftRestoredNotice(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2 }}>
+                  <X size={13} />
+                </button>
+              </div>
+            )}
 
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>Plant</label>
