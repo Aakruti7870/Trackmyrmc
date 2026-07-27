@@ -24,6 +24,8 @@ export async function customerOrderEligibility(userId: number): Promise<{ eligib
   if (!user?.active) return { eligible: false, reason: 'Your account is not active.' };
   if (user.legacyStatus === 'verified') return { eligible: true };
   const [profile] = await db.select({ status: kycProfiles.status }).from(kycProfiles).where(eq(kycProfiles.userId, userId));
-  if (profile?.status === 'verified') return { eligible: true };
+  // Keep in lockstep with isUserKycVerified/clientKycVerifiedSql: an 'approved'
+  // enterprise KYC profile authorizes ordering the same as 'verified'.
+  if (profile?.status === 'verified' || profile?.status === 'approved') return { eligible: true };
   return { eligible: false, reason: 'Verified KYC is required before placing an order.' };
 }

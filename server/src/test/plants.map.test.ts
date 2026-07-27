@@ -46,6 +46,7 @@ async function createPlant(opts: {
     isActive: opts.isActive ?? true,
     locationVerified: opts.locationVerified ?? true,
     verified: opts.verified ?? true,
+    networkStatus: 'active',
     deliveryRadiusKm: 40,
     grades: ['M20', 'M25'],
     openTime: '00:00',

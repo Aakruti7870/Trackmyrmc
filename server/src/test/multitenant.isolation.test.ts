@@ -28,6 +28,8 @@ async function createPlant(overrides: Partial<typeof plants.$inferInsert> = {}) 
     plantStatus: 'approved',
     isActive: true,
     locationVerified: true,
+    verified: true,
+    networkStatus: 'active',
     grades: ['M25', 'M30'],
     ...overrides,
   }).returning();

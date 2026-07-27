@@ -6,7 +6,7 @@ import type { Express } from 'express';
 
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { rateLimitHits, responseCache } from '../db/schema.js';
+import { plants, rateLimitHits, responseCache } from '../db/schema.js';
 
 // These tests pin the behaviour that makes /plants/discover safe under
 // horizontal scaling: both the rate-limit counter and the Places response cache
@@ -43,6 +43,9 @@ before(async () => {
 beforeEach(async () => {
   await db.execute(sql`TRUNCATE TABLE rate_limit_hits`);
   await db.execute(sql`TRUNCATE TABLE response_cache`);
+  // Prevent an onboarded plant left behind by an earlier suite (running in the
+  // same shared DB) from being treated as a near-duplicate of a discovered lead.
+  await db.execute(sql`TRUNCATE TABLE ${plants} RESTART IDENTITY CASCADE`);
   mock.reset();
 });
 
