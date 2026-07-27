@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { resolvedClientNameSql } from '../lib/customerIdentity.js';
 import { sql, gte, lte, and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { challans, clients, batchRecords, orders, recurringOrders, vehicles, fuelLogs } from '../db/schema.js';
@@ -48,7 +49,7 @@ router.get('/client-wise', async (req, res) => {
   const filters = dateRange(req as never);
   const rows = await db.select({
     clientId: challans.clientId,
-    clientName: clients.name,
+    clientName: resolvedClientNameSql(),
     totalQty: sql<number>`coalesce(sum(${challans.quantity}::numeric), 0)`,
     deliveredQty: deliveredQtySql,
     plannedForDelivered: plannedForDeliveredSql,
@@ -286,7 +287,7 @@ router.get('/export', async (req, res) => {
   if (report === 'dispatch') {
     const rows = await db.select({
       challanNo: challans.challanNo,
-      clientName: clients.name,
+      clientName: resolvedClientNameSql(),
       grade: challans.grade,
       quantity: challans.quantity,
       deliveredQuantity: challans.deliveredQuantity,

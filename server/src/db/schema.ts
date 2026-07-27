@@ -159,6 +159,10 @@ export const kycVerifications = pgTable('kyc_verifications', {
   gender: text('gender'),
   // Populated on a failed/errored attempt for staff diagnostics.
   error: text('error'),
+  // Callback validity and one-at-a-time claim. A claimed callback is settled
+  // idempotently; stale pending attempts cannot be replayed indefinitely.
+  expiresAt: timestamp('expires_at').notNull().default(sql`now() + interval '15 minutes'`),
+  callbackClaimedAt: timestamp('callback_claimed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),
 }, (t) => [
@@ -1172,7 +1176,7 @@ export const kycEntityTypeEnum = pgEnum('kyc_entity_type', ['customer', 'driver'
 // draft → the subject is still filling it in; submitted → waiting for review;
 // approved/rejected → reviewer decision. A rejected profile can be edited and
 // re-submitted (status flips back to submitted).
-export const kycProfileStatusEnum = pgEnum('kyc_profile_status', ['draft', 'submitted', 'approved', 'rejected']);
+export const kycProfileStatusEnum = pgEnum('kyc_profile_status', ['pending', 'submitted', 'under_review', 'verified', 'rejected', 'suspended', 'expired', 'revoked']);
 export const kycDocTypeEnum = pgEnum('kyc_doc_type', ['gst', 'pan', 'aadhaar', 'driving_license', 'rc', 'insurance', 'puc', 'fitness', 'photo', 'other']);
 
 export const kycProfiles = pgTable('kyc_profiles', {
@@ -1186,7 +1190,7 @@ export const kycProfiles = pgTable('kyc_profiles', {
   // Stamped from the subject (user.plantId / vehicle.plantId) at write time so
   // review lists stay plant-private. NULL = platform-level subject.
   plantId: integer('plant_id').references(() => plants.id, { onDelete: 'set null' }),
-  status: kycProfileStatusEnum('status').notNull().default('draft'),
+  status: kycProfileStatusEnum('status').notNull().default('pending'),
   // Identity/registration fields. All optional — which ones apply depends on
   // the entity type (GST/PAN for businesses, DL for drivers, etc.). Aadhaar is
   // stored MASKED ONLY (last 4), mirroring the eKYC rule — never the full number.

@@ -129,7 +129,7 @@ test('submit flow: draft -> submitted; resubmission blocked; edit drops back to 
 
 test('an approved profile can no longer be edited by its subject', async () => {
   const { user } = await createClientUser('kyc-client5@test.com');
-  await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status: 'approved', legalName: 'Locked' });
+  await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status: 'verified', legalName: 'Locked' });
   const res = await request(app)
     .put('/api/kyc-verification/me')
     .set('Authorization', `Bearer ${tokenFor(user)}`)
@@ -293,7 +293,7 @@ test('vehicle KYC is plant-scoped for plant-bound managers', async () => {
 test('expiring endpoint lists documents inside the window only', async () => {
   const admin = await createUser('admin', 'kyc-admin4@test.com');
   const { user } = await createClientUser('kyc-client9@test.com');
-  const [profile] = await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status: 'approved' }).returning();
+  const [profile] = await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status: 'verified' }).returning();
   const soon = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
   const far = new Date(Date.now() + 200 * 86400000).toISOString().slice(0, 10);
   await db.insert(kycDocuments).values([
@@ -315,7 +315,7 @@ test('badges endpoint returns a status map for requested vehicle ids', async () 
   const admin = await createUser('admin', 'kyc-admin5@test.com');
   const [v1] = await db.insert(vehicles).values({ vehicleNo: 'MH03-KYC-3', capacity: '8.00', plantId: plant.id }).returning();
   const [v2] = await db.insert(vehicles).values({ vehicleNo: 'MH03-KYC-4', capacity: '8.00', plantId: plant.id }).returning();
-  await db.insert(kycProfiles).values({ entityType: 'vehicle', vehicleId: v1.id, plantId: plant.id, status: 'approved' });
+  await db.insert(kycProfiles).values({ entityType: 'vehicle', vehicleId: v1.id, plantId: plant.id, status: 'verified' });
 
   const res = await request(app)
     .get(`/api/kyc-verification/badges?entity=vehicle&ids=${v1.id},${v2.id}`)
@@ -328,7 +328,7 @@ test('badges endpoint returns a status map for requested vehicle ids', async () 
 test('badges endpoint refuses plant-unbound sub-admin roles', async () => {
   const plant = await createPlant();
   const [v1] = await db.insert(vehicles).values({ vehicleNo: 'MH04-KYC-5', capacity: '8.00', plantId: plant.id }).returning();
-  await db.insert(kycProfiles).values({ entityType: 'vehicle', vehicleId: v1.id, plantId: plant.id, status: 'approved' });
+  await db.insert(kycProfiles).values({ entityType: 'vehicle', vehicleId: v1.id, plantId: plant.id, status: 'verified' });
 
   for (const role of ['supervisor', 'fleet_manager', 'dispatcher'] as const) {
     const unbound = await createUser(role, `kyc-unbound-${role}@test.com`, null);
