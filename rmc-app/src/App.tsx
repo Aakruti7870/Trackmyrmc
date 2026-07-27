@@ -1,4 +1,4 @@
-import { Route, Switch, Redirect } from 'wouter';
+import { Route, Switch, Redirect, Link } from 'wouter';
 import { lazy, Suspense, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { AuthProvider } from '@/lib/auth-provider';
@@ -68,11 +68,19 @@ function GuardedRoute({ path, component: Component }: { path:string; component:R
   useEffect(()=>{ if(user&&!allowed) showToast('You are not authorized to view that page.','error'); },[user,allowed,showToast]);
   if(!user) return null; if(!allowed) return <Redirect to={defaultPath(user.role)}/>; return <Component/>;
 }
+function PlantDashboard() {
+  const { user } = useAuth();
+  const canManageProfile = user?.role === 'plant_owner' || (user?.role === 'admin' && user.plantId != null);
+  return <>
+    {canManageProfile && <div style={{ display:'flex',justifyContent:'flex-end',marginBottom:12 }}><Link href="/plant/profile-management" style={{ minHeight:44,display:'inline-flex',alignItems:'center',padding:'9px 14px',borderRadius:12,background:'var(--gold)',color:'#1a1a1a',fontWeight:800,textDecoration:'none' }}>About Plant Profile</Link></div>}
+    <Dashboard/>
+  </>;
+}
 function ProtectedRoutes(){
   const {user,loading}=useAuth(); if(loading) return PageSpinner;
   if(!user) return <Switch><Route path="/" component={Landing}/><Route><Redirect to="/login"/></Route></Switch>;
   return <Switch key={user.id}><Route path="/kiosk" component={()=> <GuardedRoute path="/kiosk" component={Kiosk}/>}/><Route><Layout><Suspense fallback={PageSpinner}><Switch>
-    <Route path="/" component={()=> <GuardedRoute path="/" component={Dashboard}/>}/>
+    <Route path="/" component={()=> <GuardedRoute path="/" component={PlantDashboard}/>}/>
     <Route path="/command" component={()=> <GuardedRoute path="/command" component={CommandCenter}/>}/>
     <Route path="/rmc-plant-network" component={()=> <GuardedRoute path="/rmc-plant-network" component={RmcPlantNetwork}/>}/>
     <Route path="/my-orders" component={()=> <GuardedRoute path="/my-orders" component={MyOrders}/>}/>
