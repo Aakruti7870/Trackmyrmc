@@ -19,6 +19,9 @@ export async function requireVerifiedCustomerKyc(
   try {
     const verified = await isUserKycVerified(req.user.id);
     if (!verified) {
+      // This response reflects live identity state and must not be reused after
+      // the customer completes verification in another tab or session.
+      res.set('Cache-Control', 'no-store');
       res.status(403).json({
         code: 'CUSTOMER_KYC_REQUIRED',
         error: 'Complete KYC verification before placing or resubmitting an order.',
@@ -32,6 +35,7 @@ export async function requireVerifiedCustomerKyc(
   } catch (error) {
     // Fail closed: a KYC lookup outage must never silently allow an order.
     console.error('Customer KYC authorization check failed', error);
+    res.set('Cache-Control', 'no-store');
     res.status(500).json({
       code: 'KYC_CHECK_FAILED',
       error: 'We could not verify your KYC status. Please try again shortly.',
