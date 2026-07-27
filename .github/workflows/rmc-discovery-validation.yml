@@ -81,7 +81,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          pnpm exec tsx --test \
+          node scripts/run-focused-tests.mjs \
             src/test/batchSheets.test.ts \
             src/test/customerIdentity.test.ts \
             src/test/kycBadge.test.ts \
