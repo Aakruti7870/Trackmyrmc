@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { MapPin, MousePointerClick, ShieldCheck, BadgeCheck, Crown, ArrowRight, LogIn } from "lucide-react";
 import SocialLinksBar from "@/components/SocialLinksBar";
+import FeatureCarousel from "@/components/FeatureCarousel";
+import { hasCompletedOnboarding, markOnboardingComplete } from "@/lib/onboarding";
 
 /* ════════════════════════════════════════════════════════
    CONCRETE KING – RMC OPERATIONS OS
@@ -108,6 +110,10 @@ function NavBar(){
 
 /* ════════════ ROOT ════════════ */
 export default function Landing(){
+  const [showOnboarding, setShowOnboarding] = useState(() => !hasCompletedOnboarding());
+  if (showOnboarding) {
+    return <FeatureCarousel onDone={() => { markOnboardingComplete(); setShowOnboarding(false); }} />;
+  }
   return(
     <div className="ck-root" style={{width:"100%",overflow:"hidden",background:C.dark,fontFamily:"Inter,sans-serif",position:"relative"}}>
       <style>{`

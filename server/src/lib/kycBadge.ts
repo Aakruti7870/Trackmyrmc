@@ -28,6 +28,34 @@ export function clientKycVerifiedSql(): SQL<boolean> {
   )`;
 }
 
+// Backend-authoritative check for a signed-in customer. This deliberately reads
+// the live database state by authenticated user id; request-body fields such as
+// `kycVerified: true` are never trusted. Keep this predicate in lockstep with
+// clientKycVerifiedSql so badges and order authorization cannot disagree.
+export async function isUserKycVerified(userId: number): Promise<boolean> {
+  const result = await db.execute(sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM users u
+      WHERE u.id = ${userId}
+        AND u.deleted_at IS NULL
+        AND u.is_active = true
+        AND (
+          u.kyc_status = 'verified'
+          OR EXISTS (
+            SELECT 1
+            FROM kyc_profiles kp
+            WHERE kp.user_id = u.id
+              AND kp.status = 'approved'
+          )
+        )
+    ) AS verified
+  `);
+
+  const row = result.rows[0] as { verified?: boolean } | undefined;
+  return row?.verified === true;
+}
+
 // A PLANT earns the "GST & PAN Verified" badge when an APPROVED KYC profile is
 // scoped to it and that profile carries BOTH a GST and a PAN — either as a
 // recorded number or an uploaded document. Returns the set of qualifying plant

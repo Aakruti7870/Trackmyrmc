@@ -13,22 +13,25 @@ describe('permissions — AUTHORITY super-role', () => {
     for (const path of probes) {
       expect(canAccess('authority', path)).toBe(canAccess('admin', path));
     }
-    // Authority owns everything admin can reach, with Command Center, Control
-    // Room, and the statewide RMC Plant Network added on top.
     expect(ROLE_ALLOWED_PATHS.authority).toEqual([
       '/command',
       '/whatsapp',
       '/kiosk',
       '/rmc-plant-network',
+      '/admin/plant-profiles',
+      '/admin/plant-promotions',
       ...ROLE_ALLOWED_PATHS.admin.filter((p) => p !== '/whatsapp'),
     ]);
-    // These control surfaces are authority-only — admin and lesser roles cannot reach them.
     expect(canAccess('authority', '/command')).toBe(true);
     expect(canAccess('admin', '/command')).toBe(false);
     expect(canAccess('authority', '/kiosk')).toBe(true);
     expect(canAccess('admin', '/kiosk')).toBe(false);
     expect(canAccess('authority', '/rmc-plant-network')).toBe(true);
     expect(canAccess('admin', '/rmc-plant-network')).toBe(false);
+    expect(canAccess('authority', '/admin/plant-profiles')).toBe(true);
+    expect(canAccess('admin', '/admin/plant-profiles')).toBe(false);
+    expect(canAccess('authority', '/admin/plant-promotions')).toBe(true);
+    expect(canAccess('admin', '/admin/plant-promotions')).toBe(false);
   });
 
   it('authority lands on the Command Center by default', () => {
@@ -61,7 +64,6 @@ describe('permissions — DB-backed overrides', () => {
     setPermissionOverrides({ dispatcher: ['/orders'] });
     expect(canAccess('dispatcher', '/orders')).toBe(true);
     expect(canAccess('dispatcher', '/reports')).toBe(false);
-    // Other roles are untouched.
     expect(canAccess('admin', '/reports')).toBe(true);
   });
 
@@ -81,13 +83,22 @@ describe('permissions — DB-backed overrides', () => {
     expect(canAccess('authority', '/command')).toBe(true);
     expect(canAccess('authority', '/profile')).toBe(true);
     expect(canAccess('authority', '/rmc-plant-network')).toBe(true);
+    expect(canAccess('authority', '/admin/plant-profiles')).toBe(true);
+    expect(canAccess('authority', '/admin/plant-promotions')).toBe(true);
     expect(canAccess('authority', '/orders')).toBe(true);
     expect(canAccess('authority', '/users')).toBe(false);
   });
 
-  it('an override removing a module hides it from allowedPaths (menu source)', () => {
+  it('an override removing a normal module keeps only mandatory authority controls plus selected paths', () => {
     setPermissionOverrides({ authority: ['/command', '/profile', '/orders'] });
-    expect(allowedPaths('authority')).toEqual(['/rmc-plant-network', '/command', '/profile', '/orders']);
+    expect(allowedPaths('authority')).toEqual([
+      '/admin/plant-promotions',
+      '/admin/plant-profiles',
+      '/rmc-plant-network',
+      '/command',
+      '/profile',
+      '/orders',
+    ]);
     expect(canAccess('authority', '/users')).toBe(false);
   });
 });

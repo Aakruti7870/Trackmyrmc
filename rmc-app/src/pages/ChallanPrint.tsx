@@ -60,7 +60,8 @@ function ChallanCopy({ challan, plant, copyLabel, qrDataUrl }: {
     plant.contact ? `Contact : ${plant.contact}` : null,
     plant.email ? `Mail : ${plant.email}` : null,
   ].filter(Boolean);
-  const deliveryAddress = [challan.siteName, challan.siteAddress].filter(Boolean).join(', ') || '—';
+  const deliveryAddress = challan.siteAddress || '—';
+  const siteName = challan.siteName || 'Not provided';
   const approvedBy = challan.deliveryTime ? (challan.contactPerson || challan.clientName || '') : '';
   const approvedAt = fmtApprovalStamp(challan.deliveryTime);
   const statusBits = [
@@ -115,7 +116,7 @@ function ChallanCopy({ challan, plant, copyLabel, qrDataUrl }: {
         <tbody>
           <tr>{cell('Challan No.', `${challan.challanNo}`, { mono: true, bold: true })}{cell('Loading Qty', `${challan.quantity} m³`, { bold: true })}</tr>
           <tr>{cell('Date', fmtDate(challan.dispatchTime || challan.createdAt))}{cell('Grade', challan.grade, { bold: true })}</tr>
-          <tr>{cell('Company Name', challan.clientName || '—')}{cell('Slump', '')}</tr>
+          <tr>{cell('Company Name', challan.clientName || '—')}{cell('Site Name', siteName)}</tr>
           <tr>{cell('Delivery Address', deliveryAddress)}{cell('Batch Number', '')}</tr>
           <tr>{cell('Contact Person', challan.contactPerson || '—')}{cell('Contact Number', challan.contactNumber || '—', { mono: true })}</tr>
         </tbody>
@@ -246,7 +247,7 @@ export default function ChallanPrint() {
       `🏗️ *${p.name}*\n` +
       `Challan No: #${challan.challanNo}\n` +
       `Client: ${challan.clientName}\n` +
-      `Site: ${challan.siteName || '—'}\n` +
+      `Site Name: ${challan.siteName || 'Not provided'}\n` +
       `Grade: ${challan.grade} | Qty: ${challan.quantity} m³\n` +
       `Vehicle: ${challan.vehicleNo || '—'}\n` +
       `Driver: ${challan.driverName || '—'}\n` +

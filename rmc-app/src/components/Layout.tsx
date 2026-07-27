@@ -311,8 +311,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <SSEDot status={sseStatus} onReconnect={reconnect} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <NotificationBell />
             <AiHeaderButton />
+            <NotificationBell />
           </div>
         </div>
       </div>

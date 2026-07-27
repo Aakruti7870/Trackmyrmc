@@ -219,7 +219,8 @@ export default function Dispatch() {
               }} onClick={() => openModal(o)}>
                 <div style={{ fontWeight: 700, color: 'var(--gold)', fontFamily: 'monospace', fontSize: 12 }}>{o.orderNo}</div>
                 <div style={{ fontSize: 12, fontWeight: 600, margin: '3px 0' }}>{o.clientName}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{o.grade} · {o.quantity} m³ {o.pumpRequired ? '· Pump' : ''}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', overflowWrap: 'anywhere' }}>Site Name: {o.siteName || 'Not provided'}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{o.grade} · {o.quantity} m³ {o.pumpRequired ? '· Pump' : ''}</div>
                 <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 4, fontWeight: 700 }}>→ Create Challan</div>
               </div>
             ))}
@@ -267,7 +268,10 @@ export default function Dispatch() {
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: '11px 14px', fontWeight: 600 }}>{ch.clientName}</td>
+                  <td style={{ padding: '11px 14px', fontWeight: 600 }}>
+                    {ch.clientName}
+                    <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>Site Name: {ch.siteName || 'Not provided'}</div>
+                  </td>
                   <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontSize: 11, color: 'var(--muted)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <Truck size={11} style={{ color: 'var(--blue)' }} />
@@ -375,6 +379,9 @@ export default function Dispatch() {
               {form.orderId && (
                 <div style={{ gridColumn: '1/-1', padding: '8px 12px', background: 'color-mix(in srgb, var(--gold) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 15%, transparent)', borderRadius: 8, fontSize: 12, color: 'var(--gold)' }}>
                   Creating challan for Order #{orders.find(o => String(o.id) === form.orderId)?.orderNo}
+                  <div style={{ color: 'var(--muted)', marginTop: 3, overflowWrap: 'anywhere' }}>
+                    Site Name: {orders.find(o => String(o.id) === form.orderId)?.siteName || 'Not provided'}
+                  </div>
                 </div>
               )}
               <div style={{ gridColumn: '1/-1' }}>

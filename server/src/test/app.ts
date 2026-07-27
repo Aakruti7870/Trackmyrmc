@@ -21,6 +21,8 @@ import fuelRoutes from '../routes/fuel.js';
 import fileRoutes from '../routes/files.js';
 import vehicleRoutes from '../routes/vehicles.js';
 import plantRoutes from '../routes/plants.js';
+import paidAdNearbyRoutes from '../routes/paidAdNearby.js';
+import plantProfileRoutes from '../routes/plantProfiles.js';
 import mapsRoutes from '../routes/maps.js';
 import whatsappRoutes from '../routes/whatsapp.js';
 import webhookRoutes from '../routes/webhooks.js';
@@ -34,23 +36,20 @@ import kycRoutes from '../routes/kyc.js';
 import kycVerificationRoutes from '../routes/kycVerification.js';
 import expenseRoutes from '../routes/expenses.js';
 import emergencyRoutes from '../routes/sos.js';
+import { requireAuth } from '../middleware/auth.js';
+import { allowRecurringPauseOrRequireVerifiedKyc, requireVerifiedCustomerKyc } from '../middleware/customerOrderKycGate.js';
 
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
 // app.listen and registers background intervals).
 export function buildTestApp(): Express {
   const app = express();
-  // Mirror the production limit (see src/index.ts) so proof-of-delivery photo
-  // size validation is exercised by validateProofPhoto, not the body parser.
-  // Capture the raw body too so the Meta webhook signature check is exercised.
-  app.use(
-    express.json({
-      limit: '12mb',
-      verify: (req, _res, buf) => {
-        (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
-      },
-    }),
-  );
+  app.use(express.json({
+    limit: '12mb',
+    verify: (req, _res, buf) => {
+      (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+    },
+  }));
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/user-management', userManagementRoutes);
@@ -63,6 +62,10 @@ export function buildTestApp(): Express {
   app.use('/api/clients', clientRoutes);
   app.use('/api/drivers', driverRoutes);
   app.use('/api/events', eventsRoutes);
+  app.post('/api/me/orders', requireAuth, requireVerifiedCustomerKyc);
+  app.put('/api/me/orders/:id', requireAuth, requireVerifiedCustomerKyc);
+  app.post('/api/me/recurring', requireAuth, requireVerifiedCustomerKyc);
+  app.patch('/api/me/recurring/:id', requireAuth, allowRecurringPauseOrRequireVerifiedKyc);
   app.use('/api/me', meRoutes);
   app.use('/api/orders', orderRoutes);
   app.use('/api/positions', positionRoutes);
@@ -72,7 +75,9 @@ export function buildTestApp(): Express {
   app.use('/api/fuel', fuelRoutes);
   app.use('/api/files', fileRoutes);
   app.use('/api/vehicles', vehicleRoutes);
+  app.use('/api/plants', paidAdNearbyRoutes);
   app.use('/api/plants', plantRoutes);
+  app.use('/api', plantProfileRoutes);
   app.use('/api', mapsRoutes);
   app.use('/api/whatsapp', whatsappRoutes);
   app.use('/api/webhooks', webhookRoutes);
