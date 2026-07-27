@@ -24,6 +24,7 @@ import recurringRoutes from './routes/recurring.js';
 import fuelRoutes from './routes/fuel.js';
 import fileRoutes from './routes/files.js';
 import plantRoutes from './routes/plants.js';
+import plantProfileRoutes from './routes/plantProfiles.js';
 import mapsRoutes from './routes/maps.js';
 import eventsRoutes from './routes/events.js';
 import whatsappRoutes from './routes/whatsapp.js';
@@ -115,6 +116,7 @@ app.use('/api/recurring', recurringRoutes);
 app.use('/api/fuel', fuelRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/plants', plantRoutes);
+app.use('/api', plantProfileRoutes);
 app.use('/api', mapsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/webhooks', webhookRoutes);
@@ -141,13 +143,13 @@ if (isProd) {
   const SPA_ROUTES = new Set([
     '/', '/command', '/login', '/register', '/partner', '/privacy', '/terms', '/delete-account',
     '/set-password', '/forgot-password', '/sso-callback', '/kiosk', '/my-orders', '/nearby-plants',
-    '/plants', '/rmc-plant-network', '/my-trips', '/orders', '/dispatch', '/clients', '/vehicles',
+    '/plants', '/plant/profile-management', '/admin/plant-promotions', '/rmc-plant-network', '/my-trips', '/orders', '/dispatch', '/clients', '/vehicles',
     '/drivers', '/batch-report', '/batch-sheets', '/mix-design', '/reports', '/freshness', '/forecast',
     '/shift-report', '/recurring', '/fuel-log', '/users', '/user-management', '/activity-log', '/audit-log',
     '/automations', '/whatsapp', '/profile', '/live-drivers', '/home', '/expenses', '/expense-review',
     '/kyc', '/kyc-admin', '/sos', '/emergencies',
   ]);
-  const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/, /^\/track\/[^/]+$/, /^\/batch-sheets\/[^/]+\/print$/];
+  const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/, /^\/track\/[^/]+$/, /^\/batch-sheets\/[^/]+\/print$/, /^\/plants\/[^/]+\/about$/];
   app.get('*', (req, res) => {
     const isSpaRoute = SPA_ROUTES.has(req.path) || SPA_PATTERNS.some(pattern => pattern.test(req.path));
     res.status(isSpaRoute ? 200 : 404).sendFile(path.join(staticDir, 'index.html'));
