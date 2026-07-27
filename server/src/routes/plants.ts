@@ -162,9 +162,7 @@ router.get('/nearby', requireAuth, async (req, res) => {
     res.status(200).json({ plants: nearby, count: nearby.length });
   } catch (error) {
     console.error('[plants] nearby lookup failed:', error);
-    // Discovery is optional to the ordering shell. Degrade to a stable empty
-    // collection so a transient directory failure never crashes the screen.
-    res.status(200).json({ plants: [], count: 0, unavailable: true });
+    res.status(500).json({ error: 'Could not load nearby plants.' });
   }
 });
 

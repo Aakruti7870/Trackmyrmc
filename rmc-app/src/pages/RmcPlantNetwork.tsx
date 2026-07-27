@@ -152,12 +152,7 @@ export default function RmcPlantNetwork() {
     } finally { setLoading(false); }
   }, [showToast]);
 
-  useEffect(() => {
-    // Defer the initial request past the effect body so its loading-state update
-    // cannot cause a synchronous cascading render under React 19.
-    const timer = window.setTimeout(() => { void load(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     const active = runs.find(r => r.status === 'QUEUED' || r.status === 'RUNNING');
     if (!active) return;

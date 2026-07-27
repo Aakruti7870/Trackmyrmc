@@ -118,7 +118,7 @@ export default function Orders() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--line)' }}>
-                {['Order No', 'Client', 'Site', 'Grade', 'Qty (m³)', 'Pump', 'Delivery', 'Status', 'Actions'].map(h => (
+                {['Order No', 'Client', 'Site Name', 'Grade', 'Qty (m³)', 'Pump', 'Delivery', 'Status', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '12px 14px', color: 'var(--muted)', fontWeight: 600, textAlign: 'left', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -133,7 +133,7 @@ export default function Orders() {
                       {o.customerKycVerified && <EkycBadge size={16} />}
                     </span>
                   </td>
-                  <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || '—'}</td>
+                  <td style={{ padding: '11px 14px', color: 'var(--muted)', fontSize: 12 }}>{o.siteName || 'Not provided'}</td>
                   <td style={{ padding: '11px 14px' }}><span style={{ padding: '2px 8px', background: 'rgba(56,189,248,.12)', color: 'var(--blue)', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>{o.grade}</span></td>
                   <td style={{ padding: '11px 14px', fontWeight: 700 }}>{o.quantity}</td>
                   <td style={{ padding: '11px 14px', color: o.pumpRequired ? 'var(--green)' : 'var(--muted)', fontSize: 12 }}>{o.pumpRequired ? 'Yes' : 'No'}</td>

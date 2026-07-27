@@ -44,6 +44,7 @@ async function createUser(
     isActive: true,
     plantId: opts.plantId ?? null,
     linkedClientId: opts.linkedClientId ?? null,
+    kycStatus: role === 'client' ? 'verified' : undefined,
   }).returning();
   return user;
 }

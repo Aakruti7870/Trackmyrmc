@@ -93,17 +93,17 @@ export function AiHeaderButton() {
   return (
     <button
       onClick={() => window.dispatchEvent(new Event(AI_OPEN_EVENT))}
-      aria-label="Open AI assistant"
-      title="AI Assistant"
+      aria-label="Assistance"
+      title="Assistance"
       style={{
-        width: 34, height: 34, borderRadius: '50%', padding: 0, flexShrink: 0,
+        width: 44, height: 44, borderRadius: '50%', padding: 0, flexShrink: 0,
         display: 'grid', placeItems: 'center', cursor: 'pointer',
         background: 'transparent', border: '1px solid color-mix(in srgb, var(--gold) 40%, transparent)',
         boxShadow: '0 4px 14px color-mix(in srgb, var(--gold) 22%, transparent)',
         overflow: 'hidden',
       }}
     >
-      <AvatarPortrait size={30} />
+      <AvatarPortrait size={38} />
     </button>
   );
 }

@@ -8,14 +8,21 @@ import {
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
 import NotificationBell from '@/components/NotificationBell';
+import { AiHeaderButton } from '@/components/ai/AIHelpAgent';
 import NewWidgetMenu from '@/components/NewWidgetMenu';
-import { RED } from '@/pages/home/deliveryKit';
 
-const INK = '#12211d';
-const MUTED = '#5c6f66';
-const TEAL = '#0f766e';
-const TEAL_SOFT = 'rgba(15,118,110,0.12)';
-const LINE = '#e5eae7';
+// Theme tokens (Concrete Gold by day, Infra Green by night — see automatic-theme.css).
+// No hard-coded brand colours here so this chrome follows the automatic theme.
+const INK = 'var(--text)';
+const MUTED = 'var(--muted)';
+const TEAL = 'var(--gold)';
+const TEAL_SOFT = 'color-mix(in srgb, var(--gold) 12%, transparent)';
+const LINE = 'var(--line)';
+const RED = 'var(--red)';
+const SURFACE = 'var(--surface)';
+
+export const MOBILE_HEADER_HEIGHT = 52;
+export const BOTTOM_NAV_HEIGHT = 68;
 
 export const MOBILE_HEADER_HEIGHT = 52;
 export const BOTTOM_NAV_HEIGHT = 68;
@@ -100,26 +107,27 @@ export function DeliveryHeader({ onProfile }: { onProfile: () => void }) {
       <div
         id="delivery-mobile-header"
         style={{
-          display: 'none', background: '#fff', borderBottom: `1px solid ${LINE}`,
+          display: 'none', background: SURFACE, borderBottom: `1px solid ${LINE}`,
           padding: '8px 16px', paddingTop: 'calc(8px + env(safe-area-inset-top, 0px))',
           alignItems: 'center', justifyContent: 'space-between',
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
           height: 'calc(52px + env(safe-area-inset-top, 0px))',
-          boxShadow: '0 2px 12px rgba(11,61,46,0.08)',
+          boxShadow: '0 2px 12px rgba(var(--shadow-rgb),.14)',
         }}
       >
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: TEAL }}>
+        <div className="flex items-center gap-2" style={{ minWidth: 0, overflow: 'hidden' }}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: TEAL, flexShrink: 0 }}>
             <Truck className="h-5 w-5 text-white" strokeWidth={2.2} />
           </div>
-          <span className="text-[19px] font-extrabold tracking-tight" style={{ color: INK }}>
+          <span className="text-[19px] font-extrabold tracking-tight" style={{ color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             Track<span style={{ color: TEAL }}>My</span>RMC
           </span>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5" style={{ flexShrink: 0 }}>
+          <AiHeaderButton />
           <div
             className="relative flex h-9 w-9 items-center justify-center rounded-full border"
-            style={{ borderColor: LINE, background: '#fff' }}
+            style={{ borderColor: LINE, background: SURFACE }}
           >
             <NotificationBell />
           </div>
@@ -145,8 +153,11 @@ function Slot({ tab, location, onMore, onNavigate }: { tab: Tab; location: strin
   const slotClass = 'flex flex-1 min-w-0 min-h-12 flex-col items-center justify-center gap-1';
   const inner = (
     <>
-      <Icon className="h-5 w-5" style={{ color }} aria-hidden="true" />
-      <span className="text-[10px] font-semibold" style={{ color }}>{tab.label}</span>
+      <Icon className="h-5 w-5" style={{ color, flexShrink: 0 }} aria-hidden="true" />
+      <span
+        className="text-[10px] font-semibold"
+        style={{ color, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+      >{tab.label}</span>
     </>
   );
   if (tab.more) {
@@ -185,7 +196,9 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
   const left = hasCenter ? tabs.slice(0, 2) : tabs;
   const right = hasCenter ? tabs.slice(2) : [];
   const fabColor = centerFab?.color === 'red' ? RED : TEAL;
-  const fabShadow = centerFab?.color === 'red' ? '0 8px 20px rgba(239,68,68,0.4)' : '0 8px 20px rgba(15,118,110,0.35)';
+  const fabShadow = centerFab?.color === 'red'
+    ? '0 8px 20px color-mix(in srgb, var(--red) 40%, transparent)'
+    : '0 8px 20px color-mix(in srgb, var(--gold) 35%, transparent)';
   const FabIcon = centerFab?.icon;
 
   return (
@@ -196,12 +209,12 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
       style={{
         display: 'none', position: 'fixed', left: 0, right: 0,
         bottom: 0, zIndex: 55, width: '100%',
-        background: '#fff', borderTop: `1px solid ${LINE}`,
+        background: SURFACE, borderTop: `1px solid ${LINE}`,
         height: 'calc(74px + env(safe-area-inset-bottom, 0px))', boxSizing: 'border-box',
         padding: '2px max(6px, env(safe-area-inset-left, 0px)) 0 max(6px, env(safe-area-inset-right, 0px))',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         alignItems: 'center', justifyContent: 'space-between',
-        boxShadow: '0 -4px 18px rgba(11,61,46,0.08)',
+        boxShadow: '0 -4px 18px rgba(var(--shadow-rgb),.14)',
       }}
     >
       {left.map((t, i) => <Slot key={`l${i}`} tab={t} location={location} onMore={onMore} onNavigate={() => onNavigate?.()} />)}

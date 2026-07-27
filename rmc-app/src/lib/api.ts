@@ -120,6 +120,15 @@ export type User = {
   // Present right after a driver signs in; not re-fetched by /auth/me.
   truckId?: number | null;
   truckNo?: string | null;
+  // Customer order-gating fields. Optional/backend-driven — the backend
+  // remains authoritative; the frontend only reads and reflects these, it
+  // never derives KYC/order-eligibility itself. Absent on roles the gate
+  // doesn't apply to (staff, plant, driver, etc).
+  canPlaceOrder?: boolean;
+  isKycVerified?: boolean;
+  kycStatus?: string;
+  displayName?: string | null;
+  verifiedName?: string | null;
 };
 
 export interface LinkedUser {

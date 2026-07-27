@@ -2,9 +2,20 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ClerkProvider } from '@clerk/clerk-react'
 import './index.css'
+import './automatic-theme.css'
 import './layout-fixes.css'
 import App from './App.tsx'
 import { CLERK_PUBLISHABLE_KEY, clerkEnabled } from './lib/clerk'
+import { startAutomaticTheme } from './lib/autoTheme'
+
+startAutomaticTheme()
+
+const computed = getComputedStyle(document.documentElement)
+const clerkPrimary = computed.getPropertyValue('--gold').trim() || '#d6a52a'
+const clerkBackground = computed.getPropertyValue('--surface').trim() || '#ffffff'
+const clerkText = computed.getPropertyValue('--text').trim() || '#17202a'
+const clerkMuted = computed.getPropertyValue('--muted').trim() || '#5b6573'
+const clerkInputBackground = computed.getPropertyValue('--panel2').trim() || '#fbf8f0'
 
 const tree = clerkEnabled ? (
   <ClerkProvider
@@ -12,12 +23,12 @@ const tree = clerkEnabled ? (
     afterSignOutUrl="/login"
     appearance={{
       variables: {
-        colorPrimary: '#178a6e',
-        colorBackground: '#ffffff',
-        colorText: '#12211d',
-        colorTextSecondary: '#6b7c76',
-        colorInputBackground: '#f7faf8',
-        colorInputText: '#12211d',
+        colorPrimary: clerkPrimary,
+        colorBackground: clerkBackground,
+        colorText: clerkText,
+        colorTextSecondary: clerkMuted,
+        colorInputBackground: clerkInputBackground,
+        colorInputText: clerkText,
       },
     }}
   >

@@ -12,17 +12,9 @@ on:
       - '.github/workflows/rmc-discovery-validation.yml'
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  # Keep the job id as "build" so the existing required status check remains
-  # stable. This gate validates the complete server suite, including the
-  # discovery/KYC/customer identity/order eligibility surface.
   build:
-    name: Server build and full validation
     runs-on: ubuntu-latest
-    timeout-minutes: 25
     services:
       postgres:
         image: postgres:18
@@ -42,101 +34,54 @@ jobs:
       JWT_SECRET: ci-only-not-a-production-secret
       APP_URL: https://trackmyrmc.test
       NODE_ENV: test
-      # Keep the database-backed gate serial as a second line of defence. The
-      # harness provisions a fresh database and async route work is drained in
-      # test mode before fixture cleanup, so suites start from deterministic
-      # state without weakening the full validation gate.
-      TEST_WORKERS: 1
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: |
             pnpm-lock.yaml
             server/pnpm-lock.yaml
-
+            rmc-app/pnpm-lock.yaml
       - name: Install root integration dependencies
         run: pnpm install --frozen-lockfile
-
       - name: Install server dependencies
         working-directory: server
         run: pnpm install --frozen-lockfile
-
       - name: Push test schema
         working-directory: server
         run: pnpm db:push
-
       - name: Build server
         working-directory: server
         shell: bash
         run: set -o pipefail; pnpm build 2>&1 | tee server-build.log
-
-      - name: Run full server test suite
+      - name: Run server tests
         working-directory: server
         shell: bash
         run: set -o pipefail; pnpm test 2>&1 | tee server-test.log
-
-      - name: Upload server validation logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rmc-discovery-server-validation-logs
-          path: |
-            server/server-build.log
-            server/server-test.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-  web:
-    name: Web build and frontend tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: rmc-app/pnpm-lock.yaml
-
       - name: Install web dependencies
         working-directory: rmc-app
         run: pnpm install --frozen-lockfile
-
       - name: Typecheck and production web build
         working-directory: rmc-app
         shell: bash
         run: set -o pipefail; pnpm build 2>&1 | tee web-build.log
-
       - name: Run frontend tests
         working-directory: rmc-app
         shell: bash
         run: set -o pipefail; pnpm test 2>&1 | tee web-test.log
-
-      - name: Upload web validation logs
+      - name: Upload validation logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rmc-discovery-web-validation-logs
+          name: rmc-discovery-validation-logs
           path: |
+            server/server-build.log
+            server/server-test.log
             rmc-app/web-build.log
             rmc-app/web-test.log
           if-no-files-found: ignore
