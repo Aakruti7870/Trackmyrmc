@@ -102,7 +102,7 @@ test('an approved KYC profile also verifies the client; deleted users never coun
   const approvedClient = await createClientRow(plant.id);
   const approvedUser = await createUser('client', 'kb-cust3@test.com', null, { linkedClientId: approvedClient.id });
   await db.insert(kycProfiles).values({
-    entityType: 'customer', userId: approvedUser.id, status: 'verified',
+    entityType: 'customer', userId: approvedUser.id, status: 'approved',
   });
 
   const ghostClient = await createClientRow(plant.id);

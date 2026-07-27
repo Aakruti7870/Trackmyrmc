@@ -1175,7 +1175,10 @@ export const emergencies = pgTable('emergencies', {
 export const kycEntityTypeEnum = pgEnum('kyc_entity_type', ['customer', 'driver', 'staff', 'plant_owner', 'vehicle']);
 // pending → the subject is filling it in; submitted/under_review → review;
 // verified/rejected → reviewer decision; suspended/expired/revoked → lifecycle.
-export const kycProfileStatusEnum = pgEnum('kyc_profile_status', ['pending', 'submitted', 'under_review', 'verified', 'rejected', 'suspended', 'expired', 'revoked']);
+// `approved` is retained as a legacy read value while new lifecycle writes use
+// `verified`. Removing it from the PostgreSQL enum makes old rows and rolling
+// deployments fail before the compatibility checks in kycBadge can run.
+export const kycProfileStatusEnum = pgEnum('kyc_profile_status', ['pending', 'submitted', 'under_review', 'verified', 'rejected', 'suspended', 'expired', 'revoked', 'approved']);
 export const kycDocTypeEnum = pgEnum('kyc_doc_type', ['gst', 'pan', 'aadhaar', 'driving_license', 'rc', 'insurance', 'puc', 'fitness', 'photo', 'other']);
 
 export const kycProfiles = pgTable('kyc_profiles', {
