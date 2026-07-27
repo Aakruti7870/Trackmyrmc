@@ -58,7 +58,7 @@ router.get('/client-wise', async (req, res) => {
   }).from(challans)
     .leftJoin(clients, sql`${challans.clientId} = ${clients.id}`)
     .where(filters.length ? and(...filters) : undefined)
-    .groupBy(challans.clientId, clients.name)
+    .groupBy(challans.clientId, clients.id, clients.name)
     .orderBy(desc(sql`sum(${challans.quantity}::numeric)`));
   res.json(rows);
 });

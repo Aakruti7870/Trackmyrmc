@@ -160,6 +160,22 @@ test('mix designs are plant-scoped; customers are rejected', async () => {
   assert.equal(denied.status, 403);
 });
 
+test('mix design mutation rejects non-integer ids before querying PostgreSQL', async () => {
+  const admin = await createUser('admin');
+  const token = tokenFor(admin);
+  const body = { grade: 'M35', recipeName: 'Invalid id', materials: MATERIALS };
+
+  const update = await request(app).put('/api/mix-designs/not-a-number')
+    .set('Authorization', `Bearer ${token}`).send(body);
+  assert.equal(update.status, 400);
+  assert.match(update.body.error, /invalid mix design id/i);
+
+  const remove = await request(app).delete('/api/mix-designs/not-a-number')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(remove.status, 400);
+  assert.match(remove.body.error, /invalid mix design id/i);
+});
+
 // ——— settings ———
 
 test('batch settings round-trip per plant and validate inputs', async () => {
