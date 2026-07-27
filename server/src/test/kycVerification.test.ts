@@ -153,14 +153,14 @@ test('reviewer approves a submitted profile; audit history is recorded', async (
     .set('Authorization', `Bearer ${tokenFor(admin)}`)
     .send({});
   assert.equal(res.status, 200);
-  assert.equal(res.body.status, 'approved');
+  assert.equal(res.body.status, 'verified');
   assert.equal(res.body.reviewedByName, admin.name);
 
   const detail = await request(app)
     .get(`/api/kyc-verification/profiles/${profile.id}`)
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(detail.status, 200);
-  assert.ok(detail.body.history.some((h: { action: string }) => h.action === 'kyc.approved'));
+  assert.ok(detail.body.history.some((h: { action: string }) => h.action === 'kyc.verified'));
 });
 
 test('rejection requires a reason; only submitted profiles can be reviewed', async () => {

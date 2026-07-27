@@ -22,7 +22,7 @@ export function clientKycVerifiedSql(): SQL<boolean> {
         u.kyc_status = 'verified'
         OR EXISTS (
           SELECT 1 FROM kyc_profiles kp
-          WHERE kp.user_id = u.id AND kp.status IN ('verified', 'approved')
+          WHERE kp.user_id = u.id AND kp.status = 'verified'
         )
       )
   )`;
@@ -36,7 +36,7 @@ export async function getGstPanVerifiedPlantIds(): Promise<Set<number>> {
   const rows = await db.execute(sql`
     SELECT DISTINCT kp.plant_id AS plant_id
     FROM kyc_profiles kp
-    WHERE kp.status IN ('verified', 'approved')
+    WHERE kp.status = 'verified'
       AND kp.plant_id IS NOT NULL
       AND (
         (kp.gst_number IS NOT NULL AND kp.gst_number <> '')

@@ -1173,9 +1173,8 @@ export const emergencies = pgTable('emergencies', {
 // userId; vehicle profiles carry vehicleId. 'staff' covers every operational
 // role that is not a customer/driver/plant owner.
 export const kycEntityTypeEnum = pgEnum('kyc_entity_type', ['customer', 'driver', 'staff', 'plant_owner', 'vehicle']);
-// draft → the subject is still filling it in; submitted → waiting for review;
-// approved/rejected → reviewer decision. A rejected profile can be edited and
-// re-submitted (status flips back to submitted).
+// pending → the subject is filling it in; submitted/under_review → review;
+// verified/rejected → reviewer decision; suspended/expired/revoked → lifecycle.
 export const kycProfileStatusEnum = pgEnum('kyc_profile_status', ['pending', 'submitted', 'under_review', 'verified', 'rejected', 'suspended', 'expired', 'revoked']);
 export const kycDocTypeEnum = pgEnum('kyc_doc_type', ['gst', 'pan', 'aadhaar', 'driving_license', 'rc', 'insurance', 'puc', 'fitness', 'photo', 'other']);
 
