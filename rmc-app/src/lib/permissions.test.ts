@@ -14,12 +14,13 @@ describe('permissions — AUTHORITY super-role', () => {
       expect(canAccess('authority', path)).toBe(canAccess('admin', path));
     }
     // Authority owns everything admin can reach, with Command Center, Control
-    // Room, and the statewide RMC Plant Network added on top.
+    // Room, the statewide RMC Plant Network, and Paid Plant Ads added on top.
     expect(ROLE_ALLOWED_PATHS.authority).toEqual([
       '/command',
       '/whatsapp',
       '/kiosk',
       '/rmc-plant-network',
+      '/admin/plant-promotions',
       ...ROLE_ALLOWED_PATHS.admin.filter((p) => p !== '/whatsapp'),
     ]);
     // These control surfaces are authority-only — admin and lesser roles cannot reach them.
@@ -29,6 +30,8 @@ describe('permissions — AUTHORITY super-role', () => {
     expect(canAccess('admin', '/kiosk')).toBe(false);
     expect(canAccess('authority', '/rmc-plant-network')).toBe(true);
     expect(canAccess('admin', '/rmc-plant-network')).toBe(false);
+    expect(canAccess('authority', '/admin/plant-promotions')).toBe(true);
+    expect(canAccess('admin', '/admin/plant-promotions')).toBe(false);
   });
 
   it('authority lands on the Command Center by default', () => {
