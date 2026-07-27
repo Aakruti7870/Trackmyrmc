@@ -42,3 +42,20 @@ export async function requireVerifiedCustomerKyc(
     });
   }
 }
+
+// An unverified customer must still be able to pause an existing schedule so no
+// future order can fire. Creating, editing or resuming a schedule requires the
+// same live KYC authorization as a one-time order.
+export async function allowRecurringPauseOrRequireVerifiedKyc(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const keys = Object.keys(body);
+  if (keys.length === 1 && keys[0] === 'active' && body.active === false) {
+    next();
+    return;
+  }
+  await requireVerifiedCustomerKyc(req, res, next);
+}
