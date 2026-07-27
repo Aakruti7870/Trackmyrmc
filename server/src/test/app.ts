@@ -36,6 +36,8 @@ import kycRoutes from '../routes/kyc.js';
 import kycVerificationRoutes from '../routes/kycVerification.js';
 import expenseRoutes from '../routes/expenses.js';
 import emergencyRoutes from '../routes/sos.js';
+import { requireAuth } from '../middleware/auth.js';
+import { requireVerifiedCustomerKyc } from '../middleware/customerOrderKycGate.js';
 
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
@@ -60,6 +62,8 @@ export function buildTestApp(): Express {
   app.use('/api/clients', clientRoutes);
   app.use('/api/drivers', driverRoutes);
   app.use('/api/events', eventsRoutes);
+  app.post('/api/me/orders', requireAuth, requireVerifiedCustomerKyc);
+  app.put('/api/me/orders/:id', requireAuth, requireVerifiedCustomerKyc);
   app.use('/api/me', meRoutes);
   app.use('/api/orders', orderRoutes);
   app.use('/api/positions', positionRoutes);
