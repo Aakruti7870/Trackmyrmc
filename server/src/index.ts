@@ -41,6 +41,8 @@ import kycVerificationRoutes from './routes/kycVerification.js';
 import expenseRoutes from './routes/expenses.js';
 import sosRoutes from './routes/sos.js';
 import { rmcDiscoveryAdminRoutes, rmcDiscoveryPublicRoutes } from './routes/rmcDiscovery.js';
+import { requireAuth } from './middleware/auth.js';
+import { requireVerifiedCustomerKyc } from './middleware/customerOrderKycGate.js';
 import { rmcBulkImportGuard } from './middleware/rmcBulkImportGuard.js';
 import { cleanupOldAttempts } from './lib/loginAttempts.js';
 import { runDueRecurringOrders } from './lib/recurring.js';
@@ -82,6 +84,10 @@ app.use('/api/mix-designs', mixDesignRoutes);
 app.use('/api/batch-reports', batchReportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
+// Authenticate and authorize KYC before the existing customer order handlers.
+// The me router still performs its own authentication/role checks afterwards.
+app.post('/api/me/orders', requireAuth, requireVerifiedCustomerKyc);
+app.put('/api/me/orders/:id', requireAuth, requireVerifiedCustomerKyc);
 app.use('/api/me', meRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/user-management', userManagementRoutes);
