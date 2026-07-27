@@ -42,11 +42,11 @@ jobs:
       JWT_SECRET: ci-only-not-a-production-secret
       APP_URL: https://trackmyrmc.test
       NODE_ENV: test
-      # The test harness creates one schema-pushed template and clones a
-      # separate database for every worker. This prevents concurrent suites
-      # from racing on TRUNCATE/seed data (which previously surfaced as false
-      # tracking-token FK and unique linked-account failures).
-      TEST_WORKERS: 6
+      # Keep this validation gate serial until every database-backed suite has
+      # independent fixtures. This prevents shared hard-coded fixture IDs and
+      # cleanup hooks from racing and leaving FK/unique-constraint errors that
+      # make the harness exit non-zero even after test assertions pass.
+      TEST_WORKERS: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
