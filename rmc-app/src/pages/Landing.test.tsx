@@ -1,9 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Router } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import Landing from '@/pages/Landing';
+import { markOnboardingComplete } from '@/lib/onboarding';
 
 function renderAt(path = '/') {
   const { hook } = memoryLocation({ path, record: true });
@@ -15,8 +16,16 @@ function renderAt(path = '/') {
 }
 
 describe('Landing home page', () => {
+  // These tests exercise the returning-visitor view (the one-time feature
+  // carousel already completed) — the carousel itself is covered separately
+  // in FeatureCarousel.test.tsx.
+  beforeEach(() => {
+    markOnboardingComplete();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
   });
 
   it('renders the brand and the four feature cards', () => {
