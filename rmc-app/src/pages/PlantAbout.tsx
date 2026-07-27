@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRoute } from 'wouter';
 import { api } from '@/lib/api';
-import { BadgeCheck, Building2, CheckCircle2, Clock3, FileCheck2, FlaskConical, Gauge, MapPin, ShieldCheck, Truck, WalletCards, Wrench } from 'lucide-react';
+import { BadgeCheck, Building2, CheckCircle2, FileCheck2, FlaskConical, Gauge, MapPin, ShieldCheck, Truck, WalletCards, Wrench } from 'lucide-react';
 
 type Certificate = { id: number; certificateName: string; certificateStatus: string; certificateNumber?: string | null; issuingAuthority?: string | null; issueDate?: string | null; expiryDate?: string | null; verificationStatus: string; documentUrl?: string | null };
 type Profile = Record<string, any>;
