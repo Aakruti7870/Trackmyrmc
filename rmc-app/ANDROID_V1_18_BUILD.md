@@ -1,4 +1,4 @@
-# TrackMyRMC Android v1.17 (versionCode 18)
+# TrackMyRMC Android v1.18 (versionCode 19)
 
 ## Included
 
@@ -59,8 +59,8 @@ Release identity:
 
 ```text
 applicationId: com.trackmyrmc.concreteking
-versionName: 1.17
-versionCode: 18
+versionName: 1.18
+versionCode: 19
 ```
 
 ## First-device permission test
