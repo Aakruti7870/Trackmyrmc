@@ -102,7 +102,7 @@ test('an approved KYC profile also verifies the client; deleted users never coun
   const approvedClient = await createClientRow(plant.id);
   const approvedUser = await createUser('client', 'kb-cust3@test.com', null, { linkedClientId: approvedClient.id });
   await db.insert(kycProfiles).values({
-    entityType: 'customer', userId: approvedUser.id, status: 'approved',
+    entityType: 'customer', userId: approvedUser.id, status: 'verified',
   });
 
   const ghostClient = await createClientRow(plant.id);
@@ -151,9 +151,9 @@ test('plant listings flag gstPanVerified only when the approved profile has BOTH
   const owner3 = await createUser('plant_owner', 'kb-own3@test.com', draftPlant.id);
 
   await db.insert(kycProfiles).values([
-    { entityType: 'plant_owner', userId: owner1.id, plantId: fullPlant.id, status: 'approved', gstNumber: '27AAACK0001B1Z5', panNumber: 'AAAPL1234C' },
-    { entityType: 'plant_owner', userId: owner2.id, plantId: gstOnlyPlant.id, status: 'approved', gstNumber: '27AAACK0002B1Z5' },
-    { entityType: 'plant_owner', userId: owner3.id, plantId: draftPlant.id, status: 'draft', gstNumber: '27AAACK0003B1Z5', panNumber: 'AAAPL5678C' },
+    { entityType: 'plant_owner', userId: owner1.id, plantId: fullPlant.id, status: 'verified', gstNumber: '27AAACK0001B1Z5', panNumber: 'AAAPL1234C' },
+    { entityType: 'plant_owner', userId: owner2.id, plantId: gstOnlyPlant.id, status: 'verified', gstNumber: '27AAACK0002B1Z5' },
+    { entityType: 'plant_owner', userId: owner3.id, plantId: draftPlant.id, status: 'pending', gstNumber: '27AAACK0003B1Z5', panNumber: 'AAAPL5678C' },
   ]);
 
   const customer = await createUser('client', 'kb-cust6@test.com');
@@ -163,7 +163,9 @@ test('plant listings flag gstPanVerified only when the approved profile has BOTH
     .get('/api/plants/nearby?lat=19.0&lng=72.0&radiusKm=250')
     .set('Authorization', `Bearer ${token}`);
   assert.equal(nearby.status, 200);
-  const nearbyById = new Map(nearby.body.map((p: { id: number; gstPanVerified: boolean }) => [p.id, p.gstPanVerified]));
+  assert.ok(Array.isArray(nearby.body.plants));
+  assert.equal(nearby.body.count, nearby.body.plants.length);
+  const nearbyById = new Map(nearby.body.plants.map((p: { id: number; gstPanVerified: boolean }) => [p.id, p.gstPanVerified]));
   assert.equal(nearbyById.get(fullPlant.id), true);
   assert.equal(nearbyById.get(gstOnlyPlant.id), false);
   assert.equal(nearbyById.get(draftPlant.id), false);
@@ -180,7 +182,7 @@ test('an uploaded PAN document satisfies the PAN half of the badge', async () =>
   const owner = await createUser('plant_owner', 'kb-own4@test.com', plant.id);
   const [profile] = await db.insert(kycProfiles).values({
     entityType: 'plant_owner', userId: owner.id, plantId: plant.id,
-    status: 'approved', gstNumber: '27AAACK0009B1Z5',
+    status: 'verified', gstNumber: '27AAACK0009B1Z5',
   }).returning();
   await db.insert(kycDocuments).values({
     profileId: profile.id, docType: 'pan', objectPath: '/objects/kyc/pan.pdf',

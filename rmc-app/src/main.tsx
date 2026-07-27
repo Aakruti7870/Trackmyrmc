@@ -2,11 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ClerkProvider } from '@clerk/clerk-react'
 import './index.css'
+import './layout-fixes.css'
 import App from './App.tsx'
 import { CLERK_PUBLISHABLE_KEY, clerkEnabled } from './lib/clerk'
 
-// Mount ClerkProvider only when a publishable key is present. Without it the app
-// renders normally and only the legacy email/password login is available.
 const tree = clerkEnabled ? (
   <ClerkProvider
     publishableKey={CLERK_PUBLISHABLE_KEY!}

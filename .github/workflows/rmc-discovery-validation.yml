@@ -1,0 +1,152 @@
+name: RMC Discovery Validation
+
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'rmc-app/**'
+      - '.env.example'
+      - 'docs/RMC_PLANT_DISCOVERY.md'
+      - 'docs/RMC_PLANT_DISCOVERY_PREVIEW.md'
+      - 'docs/RMC_PLANT_DISCOVERY_STAGING.md'
+      - '.github/workflows/rmc-discovery-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Keep the job id as "build" so the existing required status check remains
+  # stable. This gate validates the server build plus the discovery/KYC/order
+  # eligibility surface changed by this pull request.
+  build:
+    name: Server build and focused validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: trackmyrmc_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/trackmyrmc_ci
+      JWT_SECRET: ci-only-not-a-production-secret
+      APP_URL: https://trackmyrmc.test
+      NODE_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            server/pnpm-lock.yaml
+
+      - name: Install root integration dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install server dependencies
+        working-directory: server
+        run: pnpm install --frozen-lockfile
+
+      - name: Push test schema
+        working-directory: server
+        run: pnpm db:push
+
+      - name: Build server
+        working-directory: server
+        shell: bash
+        run: set -o pipefail; pnpm build 2>&1 | tee server-build.log
+
+      - name: Run RMC discovery and eligibility tests
+        working-directory: server
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/run-focused-tests.mjs \
+            src/test/batchSheets.test.ts \
+            src/test/customerIdentity.test.ts \
+            src/test/kycBadge.test.ts \
+            src/test/kycStateMachine.test.ts \
+            src/test/orderEligibility.test.ts \
+            src/test/plants.directory.test.ts \
+            src/test/rmcActivationWorkflow.test.ts \
+            src/test/rmcAuthorization.test.ts \
+            src/test/rmcDiscovery.test.ts \
+            src/test/rmcDiscovery.unit.test.ts \
+            src/test/rmcPublicVisibility.test.ts \
+            2>&1 | tee server-test.log
+
+      - name: Upload server validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rmc-discovery-server-validation-logs
+          path: |
+            server/server-build.log
+            server/server-test.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  web:
+    name: Web build and frontend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: rmc-app/pnpm-lock.yaml
+
+      - name: Install web dependencies
+        working-directory: rmc-app
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck and production web build
+        working-directory: rmc-app
+        shell: bash
+        run: set -o pipefail; pnpm build 2>&1 | tee web-build.log
+
+      - name: Run frontend tests
+        working-directory: rmc-app
+        shell: bash
+        run: set -o pipefail; pnpm test 2>&1 | tee web-test.log
+
+      - name: Upload web validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rmc-discovery-web-validation-logs
+          path: |
+            rmc-app/web-build.log
+            rmc-app/web-test.log
+          if-no-files-found: ignore
+          retention-days: 7

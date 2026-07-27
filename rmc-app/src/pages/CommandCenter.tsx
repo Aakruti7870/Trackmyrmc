@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { Link } from 'wouter';
 import {
-  Activity, MapPinned, Building2, Truck, Sparkles, BarChart3, ShieldCheck, Bell, Zap, UserPlus, Crown,
+  Activity, MapPinned, Building2, Truck, Sparkles, BarChart3, ShieldCheck, Bell, Zap, UserPlus, Crown, Factory,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { CommandStyles, GlassPanel, PrimaryButton, Badge, SocialLinks } from './command/ui';
@@ -42,7 +43,6 @@ export default function CommandCenter() {
       <CommandStyles />
 
       <div style={{ position: 'relative', zIndex: 1, padding: 'clamp(12px, 3vw, 22px)', maxWidth: 1240, margin: '0 auto' }}>
-        {/* Hero header */}
         <GlassPanel accent={AUTHORITY_ACCENT} style={{ marginBottom: 16, padding: 'clamp(16px, 3vw, 24px)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
@@ -65,8 +65,13 @@ export default function CommandCenter() {
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <SocialLinks compact />
+              <Link href="/rmc-plant-network" style={{ textDecoration: 'none' }}>
+                <PrimaryButton accent="#0f766e">
+                  <Factory size={16} /> RMC Plant Network
+                </PrimaryButton>
+              </Link>
               <PrimaryButton accent={AUTHORITY_ACCENT} onClick={() => setInviteOpen(true)}>
                 <UserPlus size={16} /> Invite
               </PrimaryButton>
@@ -74,7 +79,6 @@ export default function CommandCenter() {
           </div>
         </GlassPanel>
 
-        {/* Tab nav */}
         <div style={{
           display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 18,
           scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
@@ -102,7 +106,6 @@ export default function CommandCenter() {
           })}
         </div>
 
-        {/* Active section */}
         <div key={tab}>
           {tab === 'overview' && <Overview accent={accent} />}
           {tab === 'map' && <MappingPlant accent={accent} />}

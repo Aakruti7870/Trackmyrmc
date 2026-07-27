@@ -8,19 +8,27 @@ describe('permissions — AUTHORITY super-role', () => {
     }
   });
 
-  it('authority reach matches admin reach, plus the exclusive /command center', () => {
+  it('authority reach matches admin reach, plus authority-only control surfaces', () => {
     const probes = ['/', '/users', '/audit-log', '/clients', '/vehicles', '/batch-report', '/my-orders', '/my-trips', '/nope'];
     for (const path of probes) {
       expect(canAccess('authority', path)).toBe(canAccess('admin', path));
     }
-    // Authority owns everything admin can reach, with the exclusive /command
-    // Command Center and /kiosk Control Room added on top.
-    expect(ROLE_ALLOWED_PATHS.authority).toEqual(['/command', '/whatsapp', '/kiosk', ...ROLE_ALLOWED_PATHS.admin.filter((p) => p !== '/whatsapp')]);
-    // The Command Center + Control Room are authority-only — admin (and lesser roles) cannot reach them.
+    // Authority owns everything admin can reach, with Command Center, Control
+    // Room, and the statewide RMC Plant Network added on top.
+    expect(ROLE_ALLOWED_PATHS.authority).toEqual([
+      '/command',
+      '/whatsapp',
+      '/kiosk',
+      '/rmc-plant-network',
+      ...ROLE_ALLOWED_PATHS.admin.filter((p) => p !== '/whatsapp'),
+    ]);
+    // These control surfaces are authority-only — admin and lesser roles cannot reach them.
     expect(canAccess('authority', '/command')).toBe(true);
     expect(canAccess('admin', '/command')).toBe(false);
     expect(canAccess('authority', '/kiosk')).toBe(true);
     expect(canAccess('admin', '/kiosk')).toBe(false);
+    expect(canAccess('authority', '/rmc-plant-network')).toBe(true);
+    expect(canAccess('admin', '/rmc-plant-network')).toBe(false);
   });
 
   it('authority lands on the Command Center by default', () => {
@@ -68,17 +76,18 @@ describe('permissions — DB-backed overrides', () => {
     expect(allowedPaths('dispatcher')).toEqual(['/orders']);
   });
 
-  it('authority can never lose /command or /profile via an override', () => {
+  it('authority can never lose required control surfaces via an override', () => {
     setPermissionOverrides({ authority: ['/orders'] });
     expect(canAccess('authority', '/command')).toBe(true);
     expect(canAccess('authority', '/profile')).toBe(true);
+    expect(canAccess('authority', '/rmc-plant-network')).toBe(true);
     expect(canAccess('authority', '/orders')).toBe(true);
     expect(canAccess('authority', '/users')).toBe(false);
   });
 
   it('an override removing a module hides it from allowedPaths (menu source)', () => {
     setPermissionOverrides({ authority: ['/command', '/profile', '/orders'] });
-    expect(allowedPaths('authority')).not.toContain('/dispatch');
-    expect(allowedPaths('authority')).toContain('/orders');
+    expect(allowedPaths('authority')).toEqual(['/rmc-plant-network', '/command', '/profile', '/orders']);
+    expect(canAccess('authority', '/users')).toBe(false);
   });
 });

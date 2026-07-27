@@ -4,12 +4,22 @@ import { AuthContext } from './auth';
 import { clerkSignOutIfEnabled } from './clerk';
 import NativeRuntimeSync from '@/components/NativeRuntimeSync';
 import { stopCheckedInTracking } from './liveWidget';
+import { resolveCustomerDisplayName, type CustomerIdentityLike } from './customerIdentity';
 
-// Auto-logout after 30 minutes with no user interaction.
 const IDLE_LOGOUT_MS = 30 * 60 * 1000;
-// Renew the token on activity at most this often (keeps the sliding window fresh
-// without hammering /auth/refresh on every mouse move).
 const REFRESH_THROTTLE_MS = 5 * 60 * 1000;
+
+type IdentityAwareUser = User & CustomerIdentityLike;
+
+function normalizeAuthenticatedUser(raw: User): User {
+  const user = raw as IdentityAwareUser;
+  if (user.role !== 'client') return raw;
+  return { ...raw, name: resolveCustomerDisplayName(user) };
+}
+
+function readCachedUser(value: string): User {
+  return normalizeAuthenticatedUser(JSON.parse(value) as User);
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -25,12 +35,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return;
       }
-      // Show the cached user optimistically, but keep loading until the token
-      // is verified so a stale session never flashes the authenticated UI.
       try {
-        setUser(JSON.parse(stored));
+        setUser(readCachedUser(stored));
       } catch {
-        // Corrupt cache — drop it and treat as logged out.
         localStorage.removeItem('rmc_user');
         localStorage.removeItem('rmc_token');
         if (!cancelled) {
@@ -40,14 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        const me = await api.get<User>('/auth/me');
+        const response = await api.get<User>('/auth/me');
         if (cancelled) return;
+        const me = normalizeAuthenticatedUser(response);
         setUser(me);
         localStorage.setItem('rmc_user', JSON.stringify(me));
       } catch {
-        // A 401 is handled by the api layer (session cleared + redirect to
-        // /login). For any failure, drop the in-memory user so the protected
-        // UI is never shown with an invalid session.
         if (!cancelled) setUser(null);
       } finally {
         if (!cancelled) setLoading(false);
@@ -57,14 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     verify();
 
     function handleStorage(e: StorageEvent) {
-      // React to auth-key changes (login/logout/account switch) in other tabs.
-      // e.key is null when storage is cleared entirely.
       if (e.key !== null && e.key !== 'rmc_user' && e.key !== 'rmc_token') return;
       const nextStored = localStorage.getItem('rmc_user');
       const nextToken = localStorage.getItem('rmc_token');
       if (nextStored && nextToken) {
         try {
-          setUser(JSON.parse(nextStored));
+          setUser(readCachedUser(nextStored));
         } catch {
           setUser(null);
         }
@@ -85,29 +88,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await api.post<{ token: string; user: User }>('/auth/login', {
       email, password, ...(plantCode ? { plantCode } : {}),
     });
+    const normalizedUser = normalizeAuthenticatedUser(data.user);
     localStorage.setItem('rmc_token', data.token);
-    localStorage.setItem('rmc_user', JSON.stringify(data.user));
-    setUser(data.user);
-    return data.user;
+    localStorage.setItem('rmc_user', JSON.stringify(normalizedUser));
+    setUser(normalizedUser);
+    return normalizedUser;
   }
 
   function logout() {
-    // Stop the foreground GPS service before deleting its auth token.
     void stopCheckedInTracking();
     localStorage.removeItem('rmc_token');
     localStorage.removeItem('rmc_user');
+    sessionStorage.removeItem('rmc_ai_session');
     setUser(null);
-    // Also end the Clerk session (no-op when Clerk isn't configured) so a staff
-    // member who used SSO isn't silently re-authenticated on the next visit.
     void clerkSignOutIfEnabled();
   }
 
-  // Idle auto-logout + sliding session renewal. While someone is signed in we
-  // arm a 30-minute inactivity timer that logs them out, and on real activity
-  // (throttled) we mint a fresh short-lived token via /auth/refresh so an active
-  // user is never kicked mid-task. Backend short TTL + this renewal together
-  // enforce the 30-min idle window; staff tokens are single-session, so a 401
-  // from a superseded session is handled by the api layer (clear + redirect).
   useEffect(() => {
     if (!user) return;
     let idleTimer: ReturnType<typeof setTimeout>;
@@ -125,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastRefresh = now;
         api.post<{ token: string }>('/auth/refresh', {})
           .then(r => { if (r?.token) localStorage.setItem('rmc_token', r.token); })
-          .catch(() => { /* 401 → cleared+redirected by the api layer */ });
+          .catch(() => { /* 401 is handled by the API layer. */ });
       }
     };
 
@@ -139,11 +135,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   function updateUser(updated: User, token?: string) {
-    setUser(updated);
-    localStorage.setItem('rmc_user', JSON.stringify(updated));
-    if (token) {
-      localStorage.setItem('rmc_token', token);
-    }
+    const normalizedUser = normalizeAuthenticatedUser(updated);
+    setUser(normalizedUser);
+    localStorage.setItem('rmc_user', JSON.stringify(normalizedUser));
+    if (token) localStorage.setItem('rmc_token', token);
   }
 
   return (

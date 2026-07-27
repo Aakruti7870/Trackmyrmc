@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { eq, and, isNull, type SQL } from 'drizzle-orm';
+import { eq, and, sql, type SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 import * as schema from './schema.js';
@@ -149,25 +149,33 @@ async function seed() {
   const [clientAccount] = await db.select({ id: schema.users.id, linkedClientId: schema.users.linkedClientId })
     .from(schema.users).where(eq(schema.users.email, 'client@concreteking.example'));
   if (clientAccount && clientAccount.linkedClientId !== clientRows[0].id) {
-    const conflict = await db.select({ id: schema.users.id }).from(schema.users)
-      .where(and(eq(schema.users.linkedClientId, clientRows[0].id), isNull(schema.users.deletedAt)));
-    if (conflict.length === 0) {
-      await db.update(schema.users)
-        .set({ linkedClientId: clientRows[0].id })
-        .where(eq(schema.users.id, clientAccount.id));
-    }
+    await db.update(schema.users)
+      .set({ linkedClientId: clientRows[0].id })
+      .where(and(
+        eq(schema.users.id, clientAccount.id),
+        sql`NOT EXISTS (
+          SELECT 1 FROM users link_owner
+          WHERE link_owner.linked_client_id = ${clientRows[0].id}
+            AND link_owner.deleted_at IS NULL
+            AND link_owner.id <> ${clientAccount.id}
+        )`,
+      ));
   }
 
   const [driverAccount] = await db.select({ id: schema.users.id, linkedDriverId: schema.users.linkedDriverId })
     .from(schema.users).where(eq(schema.users.email, 'driver@concreteking.example'));
   if (driverAccount && driverAccount.linkedDriverId !== driverRows[0].id) {
-    const conflict = await db.select({ id: schema.users.id }).from(schema.users)
-      .where(and(eq(schema.users.linkedDriverId, driverRows[0].id), isNull(schema.users.deletedAt)));
-    if (conflict.length === 0) {
-      await db.update(schema.users)
-        .set({ linkedDriverId: driverRows[0].id })
-        .where(eq(schema.users.id, driverAccount.id));
-    }
+    await db.update(schema.users)
+      .set({ linkedDriverId: driverRows[0].id })
+      .where(and(
+        eq(schema.users.id, driverAccount.id),
+        sql`NOT EXISTS (
+          SELECT 1 FROM users link_owner
+          WHERE link_owner.linked_driver_id = ${driverRows[0].id}
+            AND link_owner.deleted_at IS NULL
+            AND link_owner.id <> ${driverAccount.id}
+        )`,
+      ));
   }
 
   // Map the demo customer to their per-plant client at the home plant so the
@@ -188,7 +196,19 @@ async function seed() {
   console.log('  Operator: operator@concreteking.example / operator123');
   console.log('  Client:   client@concreteking.example / client123');
   console.log('  Driver:   driver@concreteking.example / driver123');
-  await pool.end();
 }
 
-seed().catch(e => { console.error(e); process.exit(1); });
+async function runSeedLocked() {
+  // CI, boot jobs, and operators can invoke the seed concurrently. Serialize
+  // the complete natural-key upsert pass so two processes cannot race between
+  // resolving a row and linking its demo user.
+  await db.execute(sql`SELECT pg_advisory_lock(hashtext('trackmyrmc-demo-seed'))`);
+  try {
+    await seed();
+  } finally {
+    await db.execute(sql`SELECT pg_advisory_unlock(hashtext('trackmyrmc-demo-seed'))`).catch(() => {});
+    await pool.end();
+  }
+}
+
+runSeedLocked().catch(e => { console.error(e); process.exit(1); });

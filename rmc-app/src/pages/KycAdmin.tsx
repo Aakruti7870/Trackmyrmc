@@ -11,7 +11,7 @@ import {
 interface ProfileRow {
   id: number;
   entityType: 'customer' | 'driver' | 'staff' | 'plant_owner' | 'vehicle';
-  status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  status: 'pending' | 'submitted' | 'under_review' | 'verified' | 'rejected' | 'suspended' | 'expired' | 'revoked';
   legalName: string | null;
   subjectName: string | null;
   subjectEmail: string | null;
@@ -143,7 +143,7 @@ export default function KycAdmin() {
     setActing(true);
     try {
       await api.post(`/kyc-verification/profiles/${detail.profile.id}/${decision}`, decision === 'reject' ? { reason: rejectReason.trim() } : {});
-      showToast(decision === 'approve' ? 'KYC approved' : 'KYC rejected', 'success');
+      showToast(decision === 'approve' ? 'KYC verified' : 'KYC rejected', 'success');
       setDetail(null);
       await load();
     } catch (e) {
@@ -151,6 +151,18 @@ export default function KycAdmin() {
     } finally {
       setActing(false);
     }
+  };
+
+  const transition = async (status: 'suspended' | 'verified' | 'revoked') => {
+    if (!detail) return;
+    if (!rejectReason.trim()) { showToast('Enter an administrative reason first', 'error'); return; }
+    setActing(true);
+    try {
+      await api.post(`/kyc-verification/profiles/${detail.profile.id}/transition`, { status, reason: rejectReason.trim() });
+      showToast(`KYC status changed to ${status.replace('_', ' ')}`, 'success');
+      setDetail(null); await load();
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Action failed', 'error'); }
+    finally { setActing(false); }
   };
 
   return (
@@ -285,6 +297,7 @@ export default function KycAdmin() {
           rejectReason={rejectReason}
           setRejectReason={setRejectReason}
           onDecide={decide}
+          onTransition={transition}
           onClose={() => setDetail(null)}
         />
       )}
@@ -318,13 +331,14 @@ function DrawerShell({ onClose, children }: { onClose: () => void; children: Rea
   );
 }
 
-function DetailDrawer({ detail, loading, acting, rejectReason, setRejectReason, onDecide, onClose }: {
+function DetailDrawer({ detail, loading, acting, rejectReason, setRejectReason, onDecide, onTransition, onClose }: {
   detail: ProfileDetail | null;
   loading: boolean;
   acting: boolean;
   rejectReason: string;
   setRejectReason: (v: string) => void;
   onDecide: (d: 'approve' | 'reject') => void;
+  onTransition: (s: 'suspended' | 'verified' | 'revoked') => void;
   onClose: () => void;
 }) {
   return (
@@ -409,6 +423,22 @@ function DetailDrawer({ detail, loading, acting, rejectReason, setRejectReason, 
               </div>
             </div>
           )}
+          {(detail.profile.status === 'verified' || detail.profile.status === 'suspended') && (
+            <div style={{ marginTop: 16 }}>
+              <label style={labelStyle}>Administrative reason (required)</label>
+              <input style={inputStyle} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Record the reason for this decision" />
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                {detail.profile.status === 'verified' ? (
+                  <button disabled={acting} onClick={() => onTransition('suspended')} style={{ ...inputStyle, cursor: 'pointer', color: 'var(--danger)' }}>Suspend</button>
+                ) : (
+                  <>
+                    <button disabled={acting} onClick={() => onTransition('verified')} style={{ ...inputStyle, cursor: 'pointer', color: 'var(--success)' }}>Reactivate</button>
+                    <button disabled={acting} onClick={() => onTransition('revoked')} style={{ ...inputStyle, cursor: 'pointer', color: 'var(--danger)' }}>Revoke</button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           {detail.history.length > 0 && (
             <>
@@ -455,7 +485,7 @@ function VehicleKycDrawer({ vehicle, onClose }: { vehicle: VehicleRow; onClose: 
 
   useEffect(() => { load(); }, [load]);
 
-  const locked = status === 'approved';
+  const locked = status === 'verified';
 
   const save = async () => {
     setBusy(true);
