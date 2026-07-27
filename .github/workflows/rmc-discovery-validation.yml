@@ -17,10 +17,10 @@ permissions:
 
 jobs:
   # Keep the job id as "build" so the existing required status check remains
-  # stable. This gate validates the server build plus the discovery/KYC/order
-  # eligibility surface changed by this pull request.
+  # stable. This gate validates the complete server suite, including the
+  # discovery/KYC/customer identity/order eligibility surface.
   build:
-    name: Server build and focused validation
+    name: Server build and full validation
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:
@@ -42,6 +42,11 @@ jobs:
       JWT_SECRET: ci-only-not-a-production-secret
       APP_URL: https://trackmyrmc.test
       NODE_ENV: test
+      # Keep the database-backed gate serial as a second line of defence. The
+      # harness provisions a fresh database and async route work is drained in
+      # test mode before fixture cleanup, so suites start from deterministic
+      # state without weakening the full validation gate.
+      TEST_WORKERS: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,24 +81,10 @@ jobs:
         shell: bash
         run: set -o pipefail; pnpm build 2>&1 | tee server-build.log
 
-      - name: Run RMC discovery and eligibility tests
+      - name: Run full server test suite
         working-directory: server
         shell: bash
-        run: |
-          set -o pipefail
-          node scripts/run-focused-tests.mjs \
-            src/test/batchSheets.test.ts \
-            src/test/customerIdentity.test.ts \
-            src/test/kycBadge.test.ts \
-            src/test/kycStateMachine.test.ts \
-            src/test/orderEligibility.test.ts \
-            src/test/plants.directory.test.ts \
-            src/test/rmcActivationWorkflow.test.ts \
-            src/test/rmcAuthorization.test.ts \
-            src/test/rmcDiscovery.test.ts \
-            src/test/rmcDiscovery.unit.test.ts \
-            src/test/rmcPublicVisibility.test.ts \
-            2>&1 | tee server-test.log
+        run: set -o pipefail; pnpm test 2>&1 | tee server-test.log
 
       - name: Upload server validation logs
         if: always()
