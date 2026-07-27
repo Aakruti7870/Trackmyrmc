@@ -62,6 +62,11 @@ jobs:
       - name: Run server tests
         working-directory: server
         shell: bash
+        # The suites reset shared tables and several fixtures intentionally reuse
+        # linked entity IDs. Run them serially in CI to prevent cross-suite data
+        # collisions and the cascading invalid IDs observed in the parallel job.
+        env:
+          TEST_WORKERS: '1'
         run: set -o pipefail; pnpm test 2>&1 | tee server-test.log
       - name: Install web dependencies
         working-directory: rmc-app
