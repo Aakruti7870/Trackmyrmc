@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'wouter';
 import {
-  Activity, MapPinned, Building2, Truck, Sparkles, BarChart3, ShieldCheck, Bell, Zap, UserPlus, Crown, Factory,
+  Activity, MapPinned, Building2, Truck, Sparkles, BarChart3, ShieldCheck, Bell, Zap, UserPlus, Crown, Factory, FileCheck2,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { CommandStyles, GlassPanel, PrimaryButton, Badge, SocialLinks } from './command/ui';
@@ -67,10 +67,14 @@ export default function CommandCenter() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <SocialLinks compact />
+              <Link href="/admin/plant-profiles" style={{ textDecoration: 'none' }}>
+                <PrimaryButton accent="#2563eb"><FileCheck2 size={16} /> Plant Profile Reviews</PrimaryButton>
+              </Link>
+              <Link href="/admin/plant-promotions" style={{ textDecoration: 'none' }}>
+                <PrimaryButton accent="#d97706"><Sparkles size={16} /> Activate Paid Ad</PrimaryButton>
+              </Link>
               <Link href="/rmc-plant-network" style={{ textDecoration: 'none' }}>
-                <PrimaryButton accent="#0f766e">
-                  <Factory size={16} /> RMC Plant Network
-                </PrimaryButton>
+                <PrimaryButton accent="#0f766e"><Factory size={16} /> RMC Plant Network</PrimaryButton>
               </Link>
               <PrimaryButton accent={AUTHORITY_ACCENT} onClick={() => setInviteOpen(true)}>
                 <UserPlus size={16} /> Invite

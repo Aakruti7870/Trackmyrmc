@@ -21,6 +21,8 @@ import fuelRoutes from '../routes/fuel.js';
 import fileRoutes from '../routes/files.js';
 import vehicleRoutes from '../routes/vehicles.js';
 import plantRoutes from '../routes/plants.js';
+import paidAdNearbyRoutes from '../routes/paidAdNearby.js';
+import plantProfileRoutes from '../routes/plantProfiles.js';
 import mapsRoutes from '../routes/maps.js';
 import whatsappRoutes from '../routes/whatsapp.js';
 import webhookRoutes from '../routes/webhooks.js';
@@ -40,17 +42,12 @@ import emergencyRoutes from '../routes/sos.js';
 // app.listen and registers background intervals).
 export function buildTestApp(): Express {
   const app = express();
-  // Mirror the production limit (see src/index.ts) so proof-of-delivery photo
-  // size validation is exercised by validateProofPhoto, not the body parser.
-  // Capture the raw body too so the Meta webhook signature check is exercised.
-  app.use(
-    express.json({
-      limit: '12mb',
-      verify: (req, _res, buf) => {
-        (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
-      },
-    }),
-  );
+  app.use(express.json({
+    limit: '12mb',
+    verify: (req, _res, buf) => {
+      (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+    },
+  }));
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/user-management', userManagementRoutes);
@@ -72,7 +69,9 @@ export function buildTestApp(): Express {
   app.use('/api/fuel', fuelRoutes);
   app.use('/api/files', fileRoutes);
   app.use('/api/vehicles', vehicleRoutes);
+  app.use('/api/plants', paidAdNearbyRoutes);
   app.use('/api/plants', plantRoutes);
+  app.use('/api', plantProfileRoutes);
   app.use('/api', mapsRoutes);
   app.use('/api/whatsapp', whatsappRoutes);
   app.use('/api/webhooks', webhookRoutes);
