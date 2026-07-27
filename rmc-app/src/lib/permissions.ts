@@ -1,9 +1,10 @@
 export type Role = 'authority' | 'plant_owner' | 'admin' | 'supervisor' | 'dispatcher' | 'plant_operator' | 'accountant' | 'quality_engineer' | 'fleet_manager' | 'store_manager' | 'client' | 'driver';
 
 const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/plants', '/plant/profile-management', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/kyc', '/kyc-admin', '/profile'];
+const AUTHORITY_REQUIRED_PATHS = ['/profile', '/command', '/rmc-plant-network', '/admin/plant-profiles', '/admin/plant-promotions'];
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
-  authority:      ['/command', '/whatsapp', '/kiosk', '/rmc-plant-network', '/admin/plant-promotions', ...ADMIN_PATHS],
+  authority:      ['/command', '/whatsapp', '/kiosk', '/rmc-plant-network', '/admin/plant-profiles', '/admin/plant-promotions', ...ADMIN_PATHS],
   plant_owner:    ADMIN_PATHS,
   admin:          ['/whatsapp', ...ADMIN_PATHS],
   supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/kyc', '/profile'],
@@ -27,7 +28,7 @@ let permissionOverrides: Partial<Record<Role, string[]>> = {};
 export function setPermissionOverrides(overrides: Partial<Record<string, string[]>> | null | undefined): void {
   const next: Partial<Record<Role, string[]>> = {};
   if (overrides) for (const role of Object.keys(ROLE_ALLOWED_PATHS) as Role[]) { const paths = overrides[role]; if (Array.isArray(paths)) next[role] = paths.filter(p => typeof p === 'string'); }
-  if (next.authority) for (const required of ['/profile', '/command', '/rmc-plant-network']) if (!next.authority.includes(required)) next.authority = [required, ...next.authority];
+  if (next.authority) for (const required of AUTHORITY_REQUIRED_PATHS) if (!next.authority.includes(required)) next.authority = [required, ...next.authority];
   permissionOverrides = next;
 }
 export function allowedPaths(role: string): string[] { return permissionOverrides[role as Role] ?? ROLE_ALLOWED_PATHS[role as Role] ?? []; }
