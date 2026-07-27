@@ -34,6 +34,9 @@ export async function recordWhatsAppAttempt(input: WhatsAppMessageAttempt): Prom
     WHERE (${orderId}::integer IS NULL OR EXISTS (SELECT 1 FROM order_parent))
       AND (${challanId}::integer IS NULL OR EXISTS (SELECT 1 FROM challan_parent))
       AND (${plantId}::integer IS NULL OR EXISTS (SELECT 1 FROM plant_parent))
-    ON CONFLICT (message_sid) DO NOTHING
+    -- PostgreSQL only infers the existing partial unique index when the
+    -- conflict target repeats its predicate. NULL SIDs intentionally remain
+    -- non-unique because dev/error attempts do not have a provider message ID.
+    ON CONFLICT (message_sid) WHERE message_sid IS NOT NULL DO NOTHING
   `);
 }
