@@ -36,6 +36,7 @@ const NearbyPlants = lazy(() => import('@/pages/NearbyPlants'));
 const Plants = lazy(() => import('@/pages/Plants'));
 const PlantAbout = lazy(() => import('@/pages/PlantAbout'));
 const PlantProfileManagement = lazy(() => import('@/pages/PlantProfileManagement'));
+const PlantProfileReview = lazy(() => import('@/pages/PlantProfileReview'));
 const PlantPromotions = lazy(() => import('@/pages/PlantPromotions'));
 const RmcPlantNetwork = lazy(() => import('@/pages/RmcPlantNetwork'));
 const RecurringAdmin = lazy(() => import('@/pages/RecurringAdmin'));
@@ -78,6 +79,7 @@ function ProtectedRoutes(){
     <Route path="/nearby-plants" component={()=> <GuardedRoute path="/nearby-plants" component={NearbyPlants}/>}/>
     <Route path="/plants/:plantId/about" component={()=> <GuardedRoute path="/plants" component={PlantAbout}/>}/>
     <Route path="/plant/profile-management" component={()=> <GuardedRoute path="/plant/profile-management" component={PlantProfileManagement}/>}/>
+    <Route path="/admin/plant-profiles" component={()=> <GuardedRoute path="/admin/plant-profiles" component={PlantProfileReview}/>}/>
     <Route path="/admin/plant-promotions" component={()=> <GuardedRoute path="/admin/plant-promotions" component={PlantPromotions}/>}/>
     <Route path="/plants" component={()=> <GuardedRoute path="/plants" component={Plants}/>}/>
     <Route path="/my-trips" component={()=> <GuardedRoute path="/my-trips" component={MyTrips}/>}/>
