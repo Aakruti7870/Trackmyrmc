@@ -288,8 +288,12 @@ router.post('/', requireRole(...WRITE_ROLES), async (req, res) => {
   // their concrete is on the way. Fire-and-forget: never block the response.
   void notifyChallanStatus(row.id, 'dispatched');
   // Optional automation: auto-send the customer a live-tracking share link.
-  // No-op unless the tripShare automation is enabled; once-only per challan.
-  void maybeSendTripShare(row.id);
+  // Production keeps this best-effort work off the response path. Tests await
+  // it so their next fixture reset cannot delete the challan while the pending
+  // task is minting its FK-bound tracking token.
+  const tripShareTask = maybeSendTripShare(row.id);
+  if (process.env.NODE_ENV === 'test') await tripShareTask;
+  else void tripShareTask;
   // Tell the dispatching staff when the automation is on but this customer is
   // unreachable (no email/WhatsApp/push), so the skip is never silent.
   const tripShareWarning = await tripShareDeliveryWarning(row.clientId, row.plantId);

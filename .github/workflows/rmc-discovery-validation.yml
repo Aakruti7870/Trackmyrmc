@@ -42,10 +42,10 @@ jobs:
       JWT_SECRET: ci-only-not-a-production-secret
       APP_URL: https://trackmyrmc.test
       NODE_ENV: test
-      # Keep this validation gate serial until every database-backed suite has
-      # independent fixtures. This prevents shared hard-coded fixture IDs and
-      # cleanup hooks from racing and leaving FK/unique-constraint errors that
-      # make the harness exit non-zero even after test assertions pass.
+      # Keep the database-backed gate serial as a second line of defence. The
+      # harness provisions a fresh database and async route work is drained in
+      # test mode before fixture cleanup, so suites start from deterministic
+      # state without weakening the full validation gate.
       TEST_WORKERS: 1
     steps:
       - name: Checkout
