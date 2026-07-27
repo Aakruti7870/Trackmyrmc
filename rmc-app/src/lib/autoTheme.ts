@@ -97,8 +97,7 @@ export function applyAutomaticTheme(now = new Date(), coords?: Coordinates | nul
   return theme;
 }
 
-function requestLocationForTheme(): void {
-  if (!('geolocation' in navigator)) return;
+function refreshFromCurrentPosition(): void {
   navigator.geolocation.getCurrentPosition(
     ({ coords }) => {
       const value = { latitude: coords.latitude, longitude: coords.longitude };
@@ -110,13 +109,35 @@ function requestLocationForTheme(): void {
   );
 }
 
+/**
+ * Refines the theme with a device fix, but only when location access was
+ * already granted for some other feature (trip tracking, plant search,
+ * delivery pin, etc). The automatic theme must never itself trigger a
+ * location permission prompt — a cached fix or the hour-based fallback is
+ * used instead until the app already holds permission for another reason.
+ */
+function requestLocationForTheme(): void {
+  if (!('geolocation' in navigator)) return;
+  if ('permissions' in navigator && navigator.permissions?.query) {
+    navigator.permissions.query({ name: 'geolocation' as PermissionName })
+      .then(status => { if (status.state === 'granted') refreshFromCurrentPosition(); })
+      .catch(() => undefined);
+    return;
+  }
+  // Permissions API unavailable: fall back to the cached fix (if any) and the
+  // hour-based default rather than risk an unsolicited permission prompt.
+}
+
 export function startAutomaticTheme(): () => void {
   applyAutomaticTheme();
   requestLocationForTheme();
 
   const interval = window.setInterval(() => applyAutomaticTheme(), 60_000);
   const onVisibilityChange = () => {
-    if (document.visibilityState === 'visible') applyAutomaticTheme();
+    if (document.visibilityState === 'visible') {
+      applyAutomaticTheme();
+      requestLocationForTheme();
+    }
   };
   document.addEventListener('visibilitychange', onVisibilityChange);
 
