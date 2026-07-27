@@ -72,7 +72,7 @@ beforeEach(() => {
 });
 
 describe('NearbyPlants capability card', () => {
-  it('shows TM, capacity and verified capability badges without adding a new paid-placement label', async () => {
+  it('shows TM, capacity and verified capability badges without adding another customer label', async () => {
     renderPage();
     expect(await screen.findByText('AAKRUTI INFRA RMC PLANT')).toBeInTheDocument();
     expect(screen.getByText('TM 21')).toBeInTheDocument();
@@ -81,7 +81,7 @@ describe('NearbyPlants capability card', () => {
     expect(screen.getByText('Pump')).toBeInTheDocument();
     expect(screen.getByText('Backup Plant')).toBeInTheDocument();
     expect(screen.getByText('DG')).toBeInTheDocument();
-    expect(screen.queryByText(/sponsored/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/featured rmc plant|paid ad/i)).not.toBeInTheDocument();
   });
 
   it('applies glow only when the backend flag is true and includes reduced-motion protection', async () => {
