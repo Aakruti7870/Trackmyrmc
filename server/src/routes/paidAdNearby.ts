@@ -39,13 +39,14 @@ router.get('/nearby', requireAuth, async (req, res) => {
   const searchRadius = Math.min(Number.isFinite(radius) && radius > 0 ? radius : 40, 250);
 
   try {
+    // Preserve the existing customer visibility contract: approved, active,
+    // location-verified and authority-verified partner plants are eligible.
+    // Older valid plants may not yet have the newer network flags populated.
     const visiblePlants = await db.select().from(plants).where(and(
       eq(plants.plantStatus, 'approved'),
       eq(plants.isActive, true),
       eq(plants.locationVerified, true),
       eq(plants.verified, true),
-      eq(plants.networkStatus, 'active'),
-      eq(plants.showOnNetwork, true),
     ));
     const ids = visiblePlants.map(plant => plant.id);
     const now = new Date();
