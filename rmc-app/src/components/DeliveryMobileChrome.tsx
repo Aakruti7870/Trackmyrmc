@@ -24,9 +24,6 @@ const SURFACE = 'var(--surface)';
 export const MOBILE_HEADER_HEIGHT = 52;
 export const BOTTOM_NAV_HEIGHT = 68;
 
-export const MOBILE_HEADER_HEIGHT = 52;
-export const BOTTOM_NAV_HEIGHT = 68;
-
 type Tab = { icon: ElementType; label: string; href: string; more?: boolean };
 type Fab = { icon: ElementType; label: string; href: string; color: 'teal' | 'red' };
 type RoleNav = { tabs: Tab[]; fab?: Fab };
