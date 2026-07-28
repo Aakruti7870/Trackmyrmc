@@ -157,7 +157,34 @@ router.get('/nearby', requireAuth, async (req, res) => {
         distanceKm: Math.round(haversineKm(lat, lng, pLat, pLng) * 10) / 10,
       }))
       .filter(p => Number.isFinite(p.distanceKm) && p.distanceKm <= effRadius)
-      .sort((a, b) => a.distanceKm - b.distanceKm);
+      .map(p => {
+        // Determine whether this plant has an active paid promotion that covers
+        // the customer's location. A sponsored plant must still pass every
+        // customerVisible() check (done above) — sponsorship only affects rank.
+        const now = Date.now();
+        const promoActive =
+          p.p.promotionActive === true &&
+          p.p.promotionStart != null && new Date(p.p.promotionStart).getTime() <= now &&
+          p.p.promotionEnd != null && new Date(p.p.promotionEnd).getTime() > now &&
+          p.distanceKm <= (p.p.promotionRadiusKm ?? 20);
+        return {
+          ...p,
+          sponsored: promoActive,
+          promotionPriority: promoActive ? (p.p.promotionPriority ?? 0) : -Infinity,
+          adGlow: promoActive && p.p.promotionAdGlow !== false,
+        };
+      })
+      .sort((a, b) => {
+        // Sponsored plants first (higher priority = closer to top);
+        // within the same tier, sort by distance.
+        if (a.sponsored !== b.sponsored) return a.sponsored ? -1 : 1;
+        if (a.sponsored && b.sponsored) {
+          const pDiff = (b.promotionPriority as number) - (a.promotionPriority as number);
+          if (pDiff !== 0) return pDiff;
+        }
+        return a.distanceKm - b.distanceKm;
+      })
+      .map(({ p: _p, promotionPriority: _pp, ...rest }) => rest);
 
     res.status(200).json({ plants: nearby, count: nearby.length });
   } catch (error) {

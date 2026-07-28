@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2, ShieldCheck } from 'lucide-react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2, ShieldCheck, Palette } from 'lucide-react';
+import { useTheme } from '@/lib/theme';
 import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult, type PlantDirectoryEntry, type SocialLinks } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -266,6 +267,67 @@ function SmtpTextField({
         style={{ ...inputStyle, padding: '10px 12px' }}
         autoComplete="off"
       />
+    </div>
+  );
+}
+
+// ─── Theme picker card ─────────────────────────────────────────────────────
+// Three selectable themes: Concrete Gold (light), Trust Blue (light), Infra Green (dark).
+// Auto mode follows the device clock (day→concrete-gold, night→infra-green).
+function ThemePickerCard() {
+  const { themes, preference, setPreference } = useTheme();
+  type Opt = { id: string; label: string; tagline: string; swatch: string; };
+  const opts: Opt[] = [
+    { id: 'auto',          label: 'Auto',          tagline: 'Follows sunrise/sunset', swatch: 'linear-gradient(135deg,#178a6e 50%,#27b58c 50%)' },
+    { id: 'concrete-gold', label: 'Concrete Gold', tagline: 'Light · teal',           swatch: '#178a6e' },
+    { id: 'trust-blue',    label: 'Trust Blue',     tagline: 'Light · blue',          swatch: '#2563eb' },
+    { id: 'infra-green',   label: 'Infra Green',    tagline: 'Dark · night',          swatch: '#27b58c' },
+  ];
+  void themes; // themes available via context, used for future dynamic list
+  return (
+    <div style={{ background: 'var(--panel)', borderRadius: 16, border: '1px solid var(--line)', padding: '20px 18px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+          background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.25)',
+          display: 'grid', placeItems: 'center',
+        }}>
+          <Palette size={15} style={{ color: 'var(--orange)' }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Appearance</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Choose an app theme · saved across sessions</div>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
+        {opts.map(opt => {
+          const active = preference === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setPreference(opt.id as import('@/lib/theme').ThemeMode)}
+              aria-pressed={active}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
+                padding: '12px 12px 10px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                background: active ? 'color-mix(in srgb,var(--gold) 10%,var(--panel))' : 'var(--chip-bg)',
+                border: `2px solid ${active ? 'var(--gold)' : 'var(--line)'}`,
+                transition: 'border-color .15s, background .15s',
+              }}
+            >
+              <span style={{
+                width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+                background: opt.swatch,
+                boxShadow: active ? '0 0 0 3px color-mix(in srgb,var(--gold) 30%,transparent)' : 'none',
+                display: 'block', transition: 'box-shadow .15s',
+              }} />
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', lineHeight: 1.2 }}>{opt.label}</span>
+              <span style={{ fontSize: 10.5, color: 'var(--muted)', lineHeight: 1.3 }}>{opt.tagline}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1717,7 +1779,8 @@ export default function ProfileSettings() {
         </dl>
       </div>
 
-      {/* Appearance: the theme follows sunrise/sunset automatically — no picker. */}
+      {/* ── Appearance / Theme ───────────────────────────────────────────── */}
+      <ThemePickerCard />
 
       {/* Push notifications card */}
       <NotificationsCard />

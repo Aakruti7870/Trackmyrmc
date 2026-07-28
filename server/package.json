@@ -14,6 +14,7 @@
     "db:migrate-fleet-production-plant": "tsx src/db/migrate-fleet-production-plant.ts",
     "db:migrate-rmc-discovery": "tsx src/db/migrate-rmc-discovery.ts",
     "db:migrate-kyc-lifecycle": "tsx src/db/migrate-kyc-lifecycle.ts",
+    "db:migrate-sponsored-plants": "tsx src/db/migrate-sponsored-plants.ts",
     "test": "node scripts/test.mjs"
   },
   "dependencies": {

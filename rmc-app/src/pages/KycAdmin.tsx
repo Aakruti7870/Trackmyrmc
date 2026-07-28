@@ -116,7 +116,9 @@ export default function KycAdmin() {
         .catch((e: Error) => showToast(e.message, 'error'))
         .finally(() => setLoading(false));
     }
-    const qs = tab === 'queue' ? '?status=submitted' : '';
+    // Show both "submitted" (awaiting first review) AND "under_review" (assigned but
+    // not yet decided) so no application falls off the reviewer's radar.
+    const qs = tab === 'queue' ? '?status=submitted,under_review' : '';
     return api.get<ProfileRow[]>(`/kyc-verification/profiles${qs}`)
       .then(setRows)
       .catch((e: Error) => showToast(e.message, 'error'))

@@ -463,8 +463,15 @@ router.get('/profiles', requireRole(...REVIEW_ROLES), async (req, res) => {
   const scope = plantScope(req.user!.plantId, kycProfiles.plantId);
   if (scope) filters.push(scope);
   const status = req.query.status;
-  if (isKycState(status)) {
-    filters.push(eq(kycProfiles.status, status));
+  // Support comma-separated multi-status filter, e.g. ?status=submitted,under_review
+  // for the reviewer queue which must show both awaiting-first-review and in-progress.
+  if (typeof status === 'string' && status) {
+    const statuses = status.split(',').map(s => s.trim()).filter(isKycState);
+    if (statuses.length === 1) {
+      filters.push(eq(kycProfiles.status, statuses[0] as Parameters<typeof eq>[1]));
+    } else if (statuses.length > 1) {
+      filters.push(inArray(kycProfiles.status, statuses as string[]));
+    }
   }
   const entityType = req.query.entityType;
   if (entityType === 'customer' || entityType === 'driver' || entityType === 'staff' || entityType === 'plant_owner' || entityType === 'vehicle') {
@@ -597,11 +604,18 @@ router.post('/profiles/:id/transition', requireRole(...REVIEW_ROLES), async (req
   if (transitionRequiresReason(existing.status as KycState, to) && !reason) {
     res.status(400).json({ error: 'A reason is required for this KYC transition' }); return;
   }
+  // Compare-and-set: the WHERE clause includes the expected current status so that
+  // if a second reviewer races to transition the same profile, one of the updates
+  // will match zero rows and we return 409 instead of silently double-processing.
   const [row] = await db.update(kycProfiles).set({
     status: to, reviewedBy: actor.id, reviewedByName: actor.name, reviewedAt: new Date(),
     rejectionReason: to === 'rejected' || to === 'suspended' || to === 'revoked' ? reason : null,
     updatedAt: new Date(),
-  }).where(eq(kycProfiles.id, id)).returning();
+  }).where(and(eq(kycProfiles.id, id), eq(kycProfiles.status, existing.status as typeof to))).returning();
+  if (!row) {
+    res.status(409).json({ error: 'KYC profile status changed by another reviewer — please reload and try again' });
+    return;
+  }
   await writeAudit(actor, `kyc.${to}`, id, existing.userId, `${existing.status} -> ${to}: ${reason ?? 'no reason required'}`);
   await notifySubject({ id, userId: existing.userId, plantId: existing.plantId, status: to });
   res.json(row);
