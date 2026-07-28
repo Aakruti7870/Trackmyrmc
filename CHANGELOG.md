@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.19 — 2026-07-28
+
+### Merged
+- **fix/nearby-plants-bottom-navigation** — Hardened mobile bottom navigation theming (CSS variable-based, Day/Night safe); tightened nearby-plants API: validated coordinates before saving, improved radius-option guard, robust `{ plants, count }` response handling, overflow-safe nav labels.
+- **feature/plant-profile-capability** — Plant profile pages with capabilities, certificates, and paid-ad glow in nearby results; Super Admin plant profile review workflow; plant owner & plant admin About Plant shortcut; paid-ad nearby ranking with fixed radius; secured plant profile API with re-verification enforcement.
+
+### Changed
+- `versionCode` bumped **19 → 20**
+- `versionName` bumped **1.18 → 1.19**
+- `rmc-app/package.json` version bumped **0.0.0 → 1.19.0**
+- GitHub Actions workflow renamed to `android-v1.19-build.yml`; artifact names updated to `vc20`.
+
+---
+
 ## Final production correction — v1.14 (2026-07-10)
 
 Controlled-correction pass for the final production package. No working features were rewritten.
