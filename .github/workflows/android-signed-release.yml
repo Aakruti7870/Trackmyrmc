@@ -115,7 +115,7 @@ jobs:
       - name: Upload Play Console artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TrackMyRMC-v1.19-vc20-signed-play-console
+          name: TrackMyRMC-v1.18-vc19-signed-play-console
           path: |
             rmc-app/android/app/build/outputs/bundle/release/app-release.aab
             rmc-app/android/app/build/outputs/bundle/release/app-release.aab.sha256
