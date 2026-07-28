@@ -159,17 +159,24 @@ export function loadThemeFont(fontName: string) {
    from the Nearby screen (already stored locally by that feature), we use it
    for accurate local sun times; otherwise we fall back to 06:15 / 18:30. ===== */
 
+/** Coord storage key used by the theme system (separate from nearby-screen cache). */
+export const THEME_GEO_KEY = 'rmc-theme-geo';
+
 function readStoredCoords(): { lat: number; lng: number } | null {
-  try {
-    const raw = localStorage.getItem('rmc_nearby_location');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { lat?: unknown; lng?: unknown };
-    if (typeof parsed.lat === 'number' && typeof parsed.lng === 'number'
-      && Number.isFinite(parsed.lat) && Number.isFinite(parsed.lng)
-      && Math.abs(parsed.lat) <= 90 && Math.abs(parsed.lng) <= 180) {
-      return { lat: parsed.lat, lng: parsed.lng };
-    }
-  } catch { /* ignore */ }
+  // Check theme-specific geo key first (set by ThemeProvider on geolocation grant),
+  // then fall back to the nearby-screen cache if present.
+  for (const key of [THEME_GEO_KEY, 'rmc_nearby_location']) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as { lat?: unknown; lng?: unknown };
+      if (typeof parsed.lat === 'number' && typeof parsed.lng === 'number'
+        && Number.isFinite(parsed.lat) && Number.isFinite(parsed.lng)
+        && Math.abs(parsed.lat) <= 90 && Math.abs(parsed.lng) <= 180) {
+        return { lat: parsed.lat, lng: parsed.lng };
+      }
+    } catch { /* ignore */ }
+  }
   return null;
 }
 

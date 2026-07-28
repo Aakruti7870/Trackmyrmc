@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2, ShieldCheck, Palette } from 'lucide-react';
-import { useTheme } from '@/lib/theme';
+import { useTheme, sunTimes, THEME_GEO_KEY } from '@/lib/theme';
 import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult, type PlantDirectoryEntry, type SocialLinks } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -273,20 +273,52 @@ function SmtpTextField({
 
 // ─── Theme picker card ─────────────────────────────────────────────────────
 // Three selectable themes: Concrete Gold (light), Trust Blue (light), Infra Green (dark).
-// Auto mode follows the device clock (day→concrete-gold, night→infra-green).
+// Auto mode switches concrete-gold ↔ infra-green at the exact local sunrise/sunset.
 function ThemePickerCard() {
   const { themes, preference, setPreference } = useTheme();
-  type Opt = { id: string; label: string; tagline: string; swatch: string; };
+  void themes;
+
+  // Read stored geo and compute today's sun times for the info line.
+  type SunInfo = { rise: string; set: string; hasGeo: boolean };
+  const getSunInfo = useCallback((): SunInfo => {
+    for (const key of [THEME_GEO_KEY, 'rmc_nearby_location']) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const c = JSON.parse(raw) as { lat?: unknown; lng?: unknown };
+        if (typeof c.lat !== 'number' || typeof c.lng !== 'number') continue;
+        const t = sunTimes(new Date(), c.lat, c.lng);
+        if (!t) continue;
+        const fmt = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return { rise: fmt(t.sunrise), set: fmt(t.sunset), hasGeo: true };
+      } catch { /* ignore */ }
+    }
+    return { rise: '06:15', set: '18:30', hasGeo: false };
+  }, []);
+
+  const [sunInfo, setSunInfo] = useState<SunInfo>(() => getSunInfo());
+
+  // Refresh sun times when preference flips to auto (geo may have been granted
+  // by ThemeProvider just before the user navigated here).
+  useEffect(() => {
+    if (preference === 'auto') setSunInfo(getSunInfo());
+  }, [preference, getSunInfo]);
+
+  type Opt = { id: string; label: string; tagline: string; swatch: string };
+  const autoTagline = sunInfo.hasGeo
+    ? `☀\ufe0e ${sunInfo.rise}  ·  ☾\ufe0e ${sunInfo.set}`
+    : 'Sunrise & sunset · location needed';
+
   const opts: Opt[] = [
-    { id: 'auto',          label: 'Auto',          tagline: 'Follows sunrise/sunset', swatch: 'linear-gradient(135deg,#178a6e 50%,#27b58c 50%)' },
-    { id: 'concrete-gold', label: 'Concrete Gold', tagline: 'Light · teal',           swatch: '#178a6e' },
-    { id: 'trust-blue',    label: 'Trust Blue',     tagline: 'Light · blue',          swatch: '#2563eb' },
-    { id: 'infra-green',   label: 'Infra Green',    tagline: 'Dark · night',          swatch: '#27b58c' },
+    { id: 'auto',          label: 'Auto',          tagline: autoTagline,   swatch: 'linear-gradient(135deg,#8B923F 50%,#111110 50%)' },
+    { id: 'concrete-gold', label: 'Concrete Gold', tagline: 'Light · olive', swatch: '#8B923F' },
+    { id: 'trust-blue',    label: 'Trust Blue',    tagline: 'Light · blue',  swatch: '#2563eb' },
+    { id: 'infra-green',   label: 'Infra Green',   tagline: 'Dark · night',  swatch: '#111110' },
   ];
-  void themes; // themes available via context, used for future dynamic list
+
   return (
     <div style={{ background: 'var(--panel)', borderRadius: 16, border: '1px solid var(--line)', padding: '20px 18px', marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <div style={{
           width: 32, height: 32, borderRadius: 10, flexShrink: 0,
           background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.25)',
@@ -299,6 +331,21 @@ function ThemePickerCard() {
           <div style={{ fontSize: 11, color: 'var(--muted)' }}>Choose an app theme · saved across sessions</div>
         </div>
       </div>
+
+      {/* Auto-mode info banner */}
+      {preference === 'auto' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
+          background: 'var(--gold-tint)', border: '1px solid var(--gold-soft)',
+          borderRadius: 10, padding: '8px 12px', fontSize: 12, color: 'var(--muted)',
+        }}>
+          <MapPin size={12} style={{ color: 'var(--gold)', flexShrink: 0 }} />
+          {sunInfo.hasGeo
+            ? <>Theme switches automatically at <strong style={{ color: 'var(--text)' }}>sunrise {sunInfo.rise}</strong> and <strong style={{ color: 'var(--text)' }}>sunset {sunInfo.set}</strong></>
+            : <>Allow location access for precise sunrise/sunset times (current fallback: 06:15 / 18:30)</>}
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
         {opts.map(opt => {
           const active = preference === opt.id;
