@@ -1,327 +1,494 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'wouter';
 import { api } from '@/lib/api';
-import { compressImage, uploadImageToStorage } from '@/lib/imageUpload';
 import { useToast } from '@/lib/toast';
-import VerifiedBadge from '@/components/VerifiedBadge';
-import { DOC_TYPES, DOC_LABEL } from '@/lib/kycDocTypes';
+import { SUPPORT_WHATSAPP_URL } from '@/lib/brand';
 import {
-  ShieldCheck, Upload, Trash2, Eye, Send, AlertCircle, FileText, Loader2,
+  ShieldCheck, ShieldAlert, ShieldX, Clock,
+  Loader2, RefreshCw, AlertCircle, CheckCircle2, ArrowRight,
 } from 'lucide-react';
 
-interface KycProfileData {
-  id: number;
-  status: 'pending' | 'submitted' | 'under_review' | 'verified' | 'rejected' | 'suspended' | 'expired' | 'revoked';
-  legalName: string | null;
-  gstNumber: string | null;
-  panNumber: string | null;
-  dlNumber: string | null;
-  dlExpiry: string | null;
-  aadhaarMasked: string | null;
-  notes: string | null;
-  rejectionReason: string | null;
-  reviewedByName: string | null;
-  reviewedAt: string | null;
-  submittedAt: string | null;
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type EkycStatus = 'not_started' | 'pending' | 'verified' | 'failed' | 'rejected';
+
+interface KycState {
+  configured: boolean;
+  status: EkycStatus;
+  isVerified: boolean;
+  verifiedLegalName: string | null;
+  verifiedAt: string | null;
+  provider: string | null;
+  maskedAadhaar: string | null;
 }
 
-interface KycDoc {
-  id: number;
-  docType: string;
-  fileName: string | null;
-  expiryDate: string | null;
-  createdAt: string;
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function fmtDate(value: string | null): string {
+  if (!value) return '';
+  return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+// ─── Status badge ─────────────────────────────────────────────────────────────
 
-const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid var(--line)',
-  background: 'var(--chip-bg)', color: 'var(--text)', fontSize: 14,
+const BADGE_MAP: Record<EkycStatus, { label: string; color: string; bg: string }> = {
+  not_started: { label: 'Not Started',          color: 'var(--muted)',  bg: 'var(--glass-1)' },
+  pending:     { label: 'Verification Pending', color: 'var(--gold)',   bg: 'color-mix(in srgb,var(--gold) 12%,transparent)' },
+  verified:    { label: 'KYC Verified',         color: 'var(--green)',  bg: 'rgba(34,197,94,.12)' },
+  failed:      { label: 'Verification Failed',  color: 'var(--red)',    bg: 'rgba(239,68,68,.12)' },
+  rejected:    { label: 'Requires Attention',   color: 'var(--orange)', bg: 'rgba(245,158,11,.12)' },
 };
-const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 };
 
-function fmtDate(value: string): string {
-  return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+function StatusBadge({ status }: { status: EkycStatus }) {
+  const s = BADGE_MAP[status] ?? BADGE_MAP.not_started;
+  return (
+    <span style={{
+      display: 'inline-block', padding: '3px 10px', borderRadius: 999,
+      fontSize: 11, fontWeight: 700, color: s.color, background: s.bg, whiteSpace: 'nowrap',
+    }}>{s.label}</span>
+  );
 }
+
+// ─── Shared card wrapper ──────────────────────────────────────────────────────
+
+function KycCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 20,
+      padding: '28px 22px', display: 'flex', flexDirection: 'column', gap: 18,
+    }}>{children}</div>
+  );
+}
+
+// ─── Shared buttons ───────────────────────────────────────────────────────────
+
+function PrimaryBtn({
+  onClick, disabled, children,
+}: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button" onClick={onClick} disabled={disabled}
+      style={{
+        width: '100%', padding: '14px 20px', borderRadius: 14, border: 'none',
+        background: disabled ? 'var(--line)' : 'var(--gold)',
+        color: disabled ? 'var(--muted)' : '#fff',
+        fontWeight: 800, fontSize: 15, cursor: disabled ? 'not-allowed' : 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        transition: 'opacity .15s',
+      }}
+    >{children}</button>
+  );
+}
+
+function SecondaryBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button" onClick={onClick}
+      style={{
+        width: '100%', padding: '12px 20px', borderRadius: 14,
+        border: '1px solid var(--line)', background: 'transparent',
+        color: 'var(--muted)', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+      }}
+    >{children}</button>
+  );
+}
+
+// ─── Screen: not_started / failed ─────────────────────────────────────────────
+
+function StartScreen({ status, configured, starting, onStart }: {
+  status: EkycStatus;
+  configured: boolean;
+  starting: boolean;
+  onStart: () => void;
+}) {
+  const [, go] = useLocation();
+  return (
+    <KycCard>
+      <div style={{ textAlign: 'center', paddingTop: 8 }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%', margin: '0 auto 16px',
+          background: 'color-mix(in srgb,var(--gold) 12%,transparent)',
+          border: '2px solid color-mix(in srgb,var(--gold) 30%,transparent)',
+          display: 'grid', placeItems: 'center',
+        }}>
+          <ShieldCheck size={32} style={{ color: 'var(--gold)' }} />
+        </div>
+
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 10px' }}>
+          Complete KYC to Place Orders
+        </h2>
+        <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.65, margin: 0 }}>
+          Verify your identity securely through DigiLocker. Use the mobile number
+          linked with your Aadhaar account. DigiLocker will complete the identity
+          verification process securely.
+        </p>
+      </div>
+
+      {/* Security notice */}
+      <div style={{
+        display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px',
+        borderRadius: 12,
+        background: 'color-mix(in srgb,var(--green) 8%,transparent)',
+        border: '1px solid color-mix(in srgb,var(--green) 25%,transparent)',
+      }}>
+        <AlertCircle size={16} style={{ color: 'var(--green)', flexShrink: 0, marginTop: 1 }} />
+        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0, lineHeight: 1.55 }}>
+          <strong style={{ color: 'var(--text)' }}>
+            TrackMyRMC will not ask you to manually enter or upload your Aadhaar,
+            PAN or other identity documents on this screen.
+          </strong>
+        </p>
+      </div>
+
+      {/* Previous attempt failure notice */}
+      {status === 'failed' && (
+        <div style={{
+          display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 14px',
+          borderRadius: 12,
+          background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)',
+        }}>
+          <ShieldX size={16} style={{ color: 'var(--red)', flexShrink: 0, marginTop: 1 }} />
+          <p style={{ fontSize: 12.5, color: 'var(--red)', margin: 0, lineHeight: 1.55 }}>
+            Your previous attempt could not be completed. Please try again using
+            the mobile number linked with your Aadhaar account.
+          </p>
+        </div>
+      )}
+
+      {/* Service unavailable notice */}
+      {!configured && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 12,
+          background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)',
+          fontSize: 13, color: 'var(--red)',
+        }}>
+          DigiLocker verification is temporarily unavailable. Please try again later.
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <PrimaryBtn onClick={onStart} disabled={starting || !configured}>
+          {starting
+            ? <><Loader2 size={17} className="spin" /> Opening DigiLocker…</>
+            : <><ShieldCheck size={17} /> Complete KYC</>}
+        </PrimaryBtn>
+        <SecondaryBtn onClick={() => go('/home')}>Back to Home</SecondaryBtn>
+      </div>
+    </KycCard>
+  );
+}
+
+// ─── Screen: pending ──────────────────────────────────────────────────────────
+
+function PendingScreen({ checking, onCheck }: { checking: boolean; onCheck: () => void }) {
+  const [, go] = useLocation();
+  return (
+    <KycCard>
+      <div style={{ textAlign: 'center', paddingTop: 8 }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%', margin: '0 auto 16px',
+          background: 'color-mix(in srgb,var(--gold) 12%,transparent)',
+          border: '2px solid color-mix(in srgb,var(--gold) 30%,transparent)',
+          display: 'grid', placeItems: 'center',
+        }}>
+          <Clock size={32} style={{ color: 'var(--gold)' }} />
+        </div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 10px' }}>
+          KYC Verification in Progress
+        </h2>
+        <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.65, margin: 0 }}>
+          Your DigiLocker verification has been submitted. We are checking the
+          latest verification status.
+        </p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <PrimaryBtn onClick={onCheck} disabled={checking}>
+          {checking
+            ? <><Loader2 size={17} className="spin" /> Checking…</>
+            : <><RefreshCw size={17} /> Check Status</>}
+        </PrimaryBtn>
+        <SecondaryBtn onClick={() => go('/home')}>Back to Home</SecondaryBtn>
+      </div>
+    </KycCard>
+  );
+}
+
+// ─── Screen: verified ─────────────────────────────────────────────────────────
+
+function VerifiedScreen({ kyc }: { kyc: KycState }) {
+  const [, go] = useLocation();
+  return (
+    <KycCard>
+      <div style={{ textAlign: 'center', paddingTop: 8 }}>
+        <div style={{
+          width: 80, height: 80, borderRadius: '50%', margin: '0 auto 16px',
+          background: 'rgba(34,197,94,.12)',
+          border: '2px solid rgba(34,197,94,.3)',
+          display: 'grid', placeItems: 'center',
+        }}>
+          <CheckCircle2 size={38} style={{ color: 'var(--green)' }} />
+        </div>
+        <div style={{
+          fontSize: 12, fontWeight: 700, letterSpacing: '0.08em',
+          color: 'var(--green)', marginBottom: 8, textTransform: 'uppercase',
+        }}>
+          KYC VERIFIED
+        </div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 10px' }}>
+          Your identity has been verified successfully.
+        </h2>
+        <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.65, margin: 0 }}>
+          You can now place concrete orders securely using the TrackMyRMC app.
+        </p>
+      </div>
+
+      {/* Verification details */}
+      <div style={{
+        background: 'rgba(34,197,94,.06)',
+        border: '1px solid rgba(34,197,94,.2)',
+        borderRadius: 14, padding: '14px 16px',
+        display: 'flex', flexDirection: 'column', gap: 12,
+      }}>
+        {kyc.verifiedLegalName && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <ShieldCheck size={16} style={{ color: 'var(--green)', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: 10.5, color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Verified Legal Name
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+                {kyc.verifiedLegalName}
+              </div>
+            </div>
+          </div>
+        )}
+        {kyc.verifiedAt && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Clock size={16} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: 10.5, color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Verified On
+              </div>
+              <div style={{ fontSize: 14, color: 'var(--text)' }}>{fmtDate(kyc.verifiedAt)}</div>
+            </div>
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <CheckCircle2 size={14} style={{ color: 'var(--green)' }} />
+          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>
+            Verified through DigiLocker
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <PrimaryBtn onClick={() => go('/nearby-plants')}>
+          Place Order Now <ArrowRight size={16} />
+        </PrimaryBtn>
+        <SecondaryBtn onClick={() => go('/profile')}>Back to Profile</SecondaryBtn>
+      </div>
+    </KycCard>
+  );
+}
+
+// ─── Screen: rejected ─────────────────────────────────────────────────────────
+
+function RejectedScreen() {
+  const [, go] = useLocation();
+  return (
+    <KycCard>
+      <div style={{ textAlign: 'center', paddingTop: 8 }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%', margin: '0 auto 16px',
+          background: 'rgba(245,158,11,.1)',
+          border: '2px solid rgba(245,158,11,.3)',
+          display: 'grid', placeItems: 'center',
+        }}>
+          <ShieldAlert size={32} style={{ color: 'var(--orange)' }} />
+        </div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 10px' }}>
+          KYC Verification Requires Attention
+        </h2>
+        <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.65, margin: 0 }}>
+          Your identity verification could not be approved. Please review the
+          available information or contact TrackMyRMC support.
+        </p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <PrimaryBtn onClick={() => window.open(SUPPORT_WHATSAPP_URL, '_blank', 'noopener')}>
+          Contact Support
+        </PrimaryBtn>
+        <SecondaryBtn onClick={() => go('/home')}>Back to Home</SecondaryBtn>
+      </div>
+    </KycCard>
+  );
+}
+
+// ─── Screen: network error ────────────────────────────────────────────────────
+
+function ErrorScreen({ onRetry }: { onRetry: () => void }) {
+  const [, go] = useLocation();
+  return (
+    <KycCard>
+      <div style={{ textAlign: 'center', paddingTop: 8 }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%', margin: '0 auto 14px',
+          background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)',
+          display: 'grid', placeItems: 'center',
+        }}>
+          <ShieldX size={28} style={{ color: 'var(--red)' }} />
+        </div>
+        <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', margin: '0 0 8px' }}>
+          Could Not Check KYC Status
+        </h2>
+        <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.65, margin: 0 }}>
+          We could not check your KYC status right now. Please check your
+          internet connection and try again.
+        </p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <PrimaryBtn onClick={onRetry}>
+          <RefreshCw size={16} /> Try Again
+        </PrimaryBtn>
+        <SecondaryBtn onClick={() => go('/home')}>Back to Home</SecondaryBtn>
+      </div>
+    </KycCard>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function KycProfile() {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<KycProfileData | null>(null);
-  const [documents, setDocuments] = useState<KycDoc[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [kyc, setKyc] = useState<KycState | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const [legalName, setLegalName] = useState('');
-  const [gstNumber, setGstNumber] = useState('');
-  const [panNumber, setPanNumber] = useState('');
-  const [dlNumber, setDlNumber] = useState('');
-  const [dlExpiry, setDlExpiry] = useState('');
-  const [aadhaarLast4, setAadhaarLast4] = useState('');
-  const [notes, setNotes] = useState('');
+  // Low-level data fetch — returns a Promise without touching state directly.
+  // All callers apply their own setState in .then/.catch chains so state
+  // updates never fire synchronously in an effect body (react-hooks/set-state-in-effect).
+  const getStatus = useCallback(() => api.get<KycState>('/kyc/status'), []);
 
-  const [docType, setDocType] = useState('pan');
-  const [docExpiry, setDocExpiry] = useState('');
-
-  const applyProfile = useCallback((p: KycProfileData | null, docs: KycDoc[]) => {
-    setProfile(p);
-    setDocuments(docs);
-    if (p) {
-      setLegalName(p.legalName ?? '');
-      setGstNumber(p.gstNumber ?? '');
-      setPanNumber(p.panNumber ?? '');
-      setDlNumber(p.dlNumber ?? '');
-      setDlExpiry(p.dlExpiry ?? '');
-      setAadhaarLast4(p.aadhaarMasked ? p.aadhaarMasked.slice(-4) : '');
-      setNotes(p.notes ?? '');
-    }
-  }, []);
-
-  const load = useCallback(() => {
-    return api.get<{ profile: KycProfileData | null; documents: KycDoc[] }>('/kyc-verification/me')
-      .then(({ profile: p, documents: docs }) => applyProfile(p, docs))
-      .catch((e: Error) => showToast(e.message, 'error'))
+  // Mount: load status once via promise chain
+  useEffect(() => {
+    getStatus()
+      .then(data => { setKyc(data); setFetchError(null); })
+      .catch((e: unknown) => setFetchError(e instanceof Error ? e.message : 'Network error'))
       .finally(() => setLoading(false));
-  }, [applyProfile, showToast]);
+  }, [getStatus]);
 
-  useEffect(() => { load(); }, [load]);
+  // Auto-refresh when the user returns from the DigiLocker external browser
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return;
+      getStatus()
+        .then(data => { setKyc(data); setFetchError(null); })
+        .catch(() => { /* keep showing the last known state on background refresh */ });
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [getStatus]);
 
-  const locked = profile?.status === 'verified';
+  // "Check Status" button — explicit manual refresh
+  const handleCheck = useCallback(() => {
+    setChecking(true);
+    getStatus()
+      .then(data => { setKyc(data); setFetchError(null); })
+      .catch((e: unknown) => setFetchError(e instanceof Error ? e.message : 'Network error'))
+      .finally(() => setChecking(false));
+  }, [getStatus]);
 
-  const saveProfile = async () => {
-    setSaving(true);
+  // Error screen "Try Again"
+  const handleRetry = useCallback(() => {
+    setLoading(true);
+    setFetchError(null);
+    getStatus()
+      .then(data => { setKyc(data); setFetchError(null); })
+      .catch((e: unknown) => setFetchError(e instanceof Error ? e.message : 'Network error'))
+      .finally(() => setLoading(false));
+  }, [getStatus]);
+
+  const handleStart = useCallback(async () => {
+    if (starting) return;
+    setStarting(true);
     try {
-      await api.put('/kyc-verification/me', {
-        legalName, gstNumber, panNumber, dlNumber, dlExpiry, aadhaarMasked: aadhaarLast4, notes,
-      });
-      showToast('KYC details saved', 'success');
-      await load();
+      const { authUrl } = await api.post<{ authUrl: string }>('/kyc/start', {});
+      // Open the DigiLocker auth URL in the system browser.
+      // window.open works in both the web app and the Capacitor Android WebView —
+      // Android routes _blank to the default browser, so DigiLocker can handle
+      // its own OTP/biometric flow outside the app sandbox.
+      window.open(authUrl, '_blank', 'noopener,noreferrer');
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Could not save', 'error');
+      showToast(
+        e instanceof Error ? e.message : 'Could not start verification. Please try again.',
+        'error',
+      );
     } finally {
-      setSaving(false);
+      setStarting(false);
     }
-  };
+  }, [starting, showToast]);
 
-  const submit = async () => {
-    setSaving(true);
-    try {
-      await api.post('/kyc-verification/me/submit', {});
-      showToast('KYC submitted for verification', 'success');
-      await load();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Could not submit', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const uploadDoc = async (file: File) => {
-    setUploading(true);
-    try {
-      const dataUrl = await compressImage(file, 1600, 0.8);
-      const objectPath = await uploadImageToStorage(dataUrl, '/kyc-verification/upload-url');
-      await api.post('/kyc-verification/me/documents', {
-        docType, objectPath, expiryDate: docExpiry || null, fileName: file.name,
-      });
-      showToast('Document uploaded', 'success');
-      setDocExpiry('');
-      await load();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Upload failed', 'error');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const removeDoc = async (id: number) => {
-    if (!window.confirm('Remove this document?')) return;
-    try {
-      await api.delete(`/kyc-verification/me/documents/${id}`);
-      showToast('Document removed', 'success');
-      await load();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Could not remove', 'error');
-    }
-  };
-
-  const viewDoc = async (id: number) => {
-    try {
-      const { url } = await api.get<{ url: string | null }>(`/kyc-verification/me/documents/${id}/url`);
-      if (url) window.open(url, '_blank', 'noopener');
-      else showToast('Document is unavailable', 'error');
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Could not open document', 'error');
-    }
-  };
-
+  // ─── Loading skeleton ───────────────────────────────────────────────────────
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}><Loader2 className="spin" size={22} /> Loading…</div>;
+    return (
+      <div style={{ padding: '56px 24px', textAlign: 'center', color: 'var(--muted)' }}>
+        <Loader2
+          size={28} className="spin"
+          style={{ color: 'var(--gold)', display: 'block', margin: '0 auto 14px' }}
+        />
+        <div style={{ fontSize: 14 }}>Checking your KYC status…</div>
+      </div>
+    );
+  }
+
+  // ─── Error state ────────────────────────────────────────────────────────────
+  if (fetchError || !kyc) {
+    return (
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: '24px 16px' }}>
+        <PageHead status={null} />
+        <ErrorScreen onRetry={handleRetry} />
+      </div>
+    );
   }
 
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+    <div style={{ maxWidth: 480, margin: '0 auto', padding: '24px 16px 32px' }}>
+      <PageHead status={kyc.status} />
+
+      {kyc.status === 'verified'  && <VerifiedScreen kyc={kyc} />}
+      {kyc.status === 'pending'   && <PendingScreen checking={checking} onCheck={handleCheck} />}
+      {kyc.status === 'rejected'  && <RejectedScreen />}
+      {(kyc.status === 'not_started' || kyc.status === 'failed') && (
+        <StartScreen
+          status={kyc.status}
+          configured={kyc.configured}
+          starting={starting}
+          onStart={handleStart}
+        />
+      )}
+    </div>
+  );
+}
+
+function PageHead({ status }: { status: EkycStatus | null }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      marginBottom: 24,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <ShieldCheck size={22} style={{ color: 'var(--gold)' }} />
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>KYC &amp; Verification</h1>
-        <VerifiedBadge status={profile?.status} showEmpty size={13} />
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>
+          KYC &amp; Verification
+        </h1>
       </div>
-      <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 0, marginBottom: 18 }}>
-        Complete your identity verification to unlock a verified badge on your account.
-      </p>
-
-      {profile?.status === 'rejected' && profile.rejectionReason && (
-        <div style={{
-          display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 14px', borderRadius: 12,
-          background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: 'var(--red)',
-          fontSize: 13, marginBottom: 16,
-        }}>
-          <AlertCircle size={16} style={{ marginTop: 1, flexShrink: 0 }} />
-          <div>
-            <strong>Verification was rejected{profile.reviewedByName ? ` by ${profile.reviewedByName}` : ''}.</strong>
-            <div>{profile.rejectionReason}</div>
-            <div style={{ marginTop: 2, color: 'var(--muted)' }}>Fix the issues below and submit again.</div>
-          </div>
-        </div>
-      )}
-      {profile?.status === 'submitted' && (
-        <div style={{
-          padding: '10px 14px', borderRadius: 12, background: 'color-mix(in srgb, var(--gold) 10%, transparent)',
-          border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)', color: 'var(--gold)', fontSize: 13, marginBottom: 16,
-        }}>
-          Your KYC is under review. Editing any detail will withdraw the submission.
-        </div>
-      )}
-      {locked && (
-        <div style={{
-          padding: '10px 14px', borderRadius: 12, background: 'rgba(34,197,94,.1)',
-          border: '1px solid rgba(34,197,94,.3)', color: 'var(--green)', fontSize: 13, marginBottom: 16,
-        }}>
-          Your identity is verified{profile?.reviewedAt ? ` (verified ${fmtDate(profile.reviewedAt)})` : ''}. Contact an administrator to change these details.
-        </div>
-      )}
-
-      <div style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-border)', borderRadius: 16, padding: 18, marginBottom: 18 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: '0 0 14px' }}>Identity details</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-          <div>
-            <label style={labelStyle}>Legal / registered name</label>
-            <input style={inputStyle} value={legalName} onChange={e => setLegalName(e.target.value)} disabled={locked} placeholder="As per PAN / GST" />
-          </div>
-          <div>
-            <label style={labelStyle}>GST number (GSTIN)</label>
-            <input style={inputStyle} value={gstNumber} onChange={e => setGstNumber(e.target.value.toUpperCase())} disabled={locked} placeholder="22AAAAA0000A1Z5" maxLength={15} />
-          </div>
-          <div>
-            <label style={labelStyle}>PAN</label>
-            <input style={inputStyle} value={panNumber} onChange={e => setPanNumber(e.target.value.toUpperCase())} disabled={locked} placeholder="AAAPL1234C" maxLength={10} />
-          </div>
-          <div>
-            <label style={labelStyle}>Aadhaar — last 4 digits only</label>
-            <input style={inputStyle} value={aadhaarLast4} onChange={e => setAadhaarLast4(e.target.value.replace(/\D/g, '').slice(0, 4))} disabled={locked} placeholder="1234" maxLength={4} inputMode="numeric" />
-          </div>
-          <div>
-            <label style={labelStyle}>Driving licence number</label>
-            <input style={inputStyle} value={dlNumber} onChange={e => setDlNumber(e.target.value)} disabled={locked} placeholder="For drivers" />
-          </div>
-          <div>
-            <label style={labelStyle}>Driving licence expiry</label>
-            <input type="date" style={inputStyle} value={dlExpiry} onChange={e => setDlExpiry(e.target.value)} disabled={locked} />
-          </div>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <label style={labelStyle}>Notes for the reviewer (optional)</label>
-          <input style={inputStyle} value={notes} onChange={e => setNotes(e.target.value)} disabled={locked} placeholder="Anything the reviewer should know" />
-        </div>
-        {!locked && (
-          <button
-            onClick={saveProfile}
-            disabled={saving}
-            style={{
-              marginTop: 14, padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
-              background: 'var(--gold)', color: '#fff', fontWeight: 700, fontSize: 13, opacity: saving ? 0.6 : 1,
-            }}
-          >
-            {saving ? 'Saving…' : 'Save details'}
-          </button>
-        )}
-      </div>
-
-      <div style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-border)', borderRadius: 16, padding: 18, marginBottom: 18 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: '0 0 14px' }}>Documents</h2>
-        {documents.length === 0 && (
-          <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>No documents uploaded yet.</div>
-        )}
-        {documents.map(d => (
-          <div key={d.id} style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12,
-            border: '1px solid var(--line)', marginBottom: 8, background: 'var(--chip-bg)',
-          }}>
-            <FileText size={16} style={{ color: 'var(--gold)', flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{DOC_LABEL[d.docType] ?? d.docType}</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                {d.fileName ?? 'document'} · uploaded {fmtDate(d.createdAt)}
-                {d.expiryDate ? ` · expires ${fmtDate(d.expiryDate)}` : ''}
-              </div>
-            </div>
-            <button onClick={() => viewDoc(d.id)} title="View" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 6 }}>
-              <Eye size={16} />
-            </button>
-            {!locked && (
-              <button onClick={() => removeDoc(d.id)} title="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', padding: 6 }}>
-                <Trash2 size={16} />
-              </button>
-            )}
-          </div>
-        ))}
-
-        {!locked && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end', marginTop: 12 }}>
-            <div style={{ minWidth: 180 }}>
-              <label style={labelStyle}>Document type</label>
-              <select style={inputStyle} value={docType} onChange={e => setDocType(e.target.value)}>
-                {DOC_TYPES.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>Expiry (if any)</label>
-              <input type="date" style={inputStyle} value={docExpiry} onChange={e => setDocExpiry(e.target.value)} />
-            </div>
-            <label style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10,
-              border: '1px dashed var(--gold)', color: 'var(--gold)', fontWeight: 700, fontSize: 13,
-              cursor: uploading ? 'wait' : 'pointer', opacity: uploading ? 0.6 : 1,
-            }}>
-              <Upload size={15} /> {uploading ? 'Uploading…' : 'Upload photo/scan'}
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                disabled={uploading}
-                onChange={e => {
-                  const f = e.target.files?.[0];
-                  e.target.value = '';
-                  if (f) uploadDoc(f);
-                }}
-              />
-            </label>
-          </div>
-        )}
-      </div>
-
-      {!locked && profile && profile.status !== 'submitted' && (
-        <button
-          onClick={submit}
-          disabled={saving}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 22px', borderRadius: 12,
-            border: 'none', cursor: 'pointer', background: 'var(--gold)', color: '#fff', fontWeight: 800,
-            fontSize: 14, opacity: saving ? 0.6 : 1,
-          }}
-        >
-          <Send size={16} /> Submit for verification
-        </button>
-      )}
+      {status && <StatusBadge status={status} />}
     </div>
   );
 }

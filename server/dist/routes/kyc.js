@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, and, desc, isNull, gt } from 'drizzle-orm';
+import { eq, and, desc, isNull, gt, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users, kycVerifications } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
@@ -97,6 +97,14 @@ router.get('/callback', async (req, res) => {
                 await tx.update(users)
                     .set({ kycStatus: 'verified', kycVerifiedAt: now })
                     .where(eq(users.id, row.userId));
+                // Replace auto-generated "Customer ####" display names with the verified
+                // legal name from DigiLocker. Only overwrites if the name still matches
+                // the seeded pattern — a customer who already set a custom name keeps it.
+                if (result.fullName) {
+                    await tx.update(users)
+                        .set({ name: result.fullName })
+                        .where(and(eq(users.id, row.userId), sql `${users.name} ~* ${'^customer\\s+\\d+$'}`));
+                }
             });
             sendPage(res, 200, 'success', 'Your Aadhaar identity has been verified.');
             return;
@@ -123,8 +131,9 @@ router.get('/callback', async (req, res) => {
     }
 });
 router.use(requireAuth);
-// Current customer's KYC state, for the profile badge. `configured` tells the UI
-// whether the Verify action is available at all.
+// Current customer's KYC state. `configured` tells the UI whether DigiLocker is
+// available. `status` uses the spec-aligned enum value (not_started instead of
+// the internal 'unverified') so callers don't need to know internal enum names.
 router.get('/status', requireRole('client'), async (req, res) => {
     const actor = req.user;
     const config = await getKycConfig();
@@ -133,17 +142,27 @@ router.get('/status', requireRole('client'), async (req, res) => {
         .from(users)
         .where(eq(users.id, actor.id));
     const [latest] = await db
-        .select({ maskedAadhaar: kycVerifications.maskedAadhaar, fullName: kycVerifications.fullName })
+        .select({
+        maskedAadhaar: kycVerifications.maskedAadhaar,
+        fullName: kycVerifications.fullName,
+        provider: kycVerifications.provider,
+    })
         .from(kycVerifications)
         .where(and(eq(kycVerifications.userId, actor.id), eq(kycVerifications.status, 'verified')))
         .orderBy(desc(kycVerifications.completedAt))
         .limit(1);
+    const rawStatus = user?.kycStatus ?? 'unverified';
+    // Map internal 'unverified' → 'not_started' so the frontend uses the spec-aligned enum.
+    const status = rawStatus === 'unverified' ? 'not_started' : rawStatus;
     res.json({
+        success: true,
         configured: config.configured,
-        status: user?.kycStatus ?? 'unverified',
+        status,
+        isVerified: rawStatus === 'verified',
+        verifiedLegalName: latest?.fullName ?? null,
         verifiedAt: user?.kycVerifiedAt ?? null,
+        provider: latest?.provider ?? null,
         maskedAadhaar: latest?.maskedAadhaar ?? null,
-        fullName: latest?.fullName ?? null,
     });
 });
 // Start a DigiLocker consent session. Returns the aggregator authorization URL

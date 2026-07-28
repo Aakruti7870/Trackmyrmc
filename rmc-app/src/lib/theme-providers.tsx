@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import {
   THEMES, ThemeContext, initialTheme, initialPreference,
   applyTheme, loadThemeFont, resolveTheme, writeThemePreference,
@@ -80,15 +80,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /* Schedule a single precise timeout that fires exactly at the next
-     sunrise or sunset, then chains itself for the crossing after that. */
+     sunrise or sunset, then chains itself for the crossing after that.
+     The ref breaks the circular dependency that would otherwise violate
+     the react-hooks/immutability rule on `armPreciseFlip`. */
+  const armPreciseFlipRef = useRef<(lat: number, lng: number) => void>(() => {});
   const armPreciseFlip = useCallback((lat: number, lng: number) => {
     if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
     const delay = msUntilNextCrossing(lat, lng);
     flipTimerRef.current = setTimeout(() => {
       applyResolved('auto');
-      armPreciseFlip(lat, lng); // chain next crossing
+      armPreciseFlipRef.current(lat, lng); // chain via ref — avoids TDZ lint error
     }, delay);
   }, [applyResolved]);
+  // Keep the ref in sync with the latest stable callback.
+  // useLayoutEffect runs synchronously after DOM mutations but before paint,
+  // satisfying the react-hooks/refs rule (no ref writes during render).
+  useLayoutEffect(() => { armPreciseFlipRef.current = armPreciseFlip; });
 
   /* ── Auto mode: geolocation + precise flip ──────────────────────────── */
   useEffect(() => {
@@ -98,10 +105,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Apply immediately with whatever coords we already have stored.
+    // Apply with whatever coords we already have stored.
+    // Deferred via setTimeout to satisfy react-hooks/set-state-in-effect
+    // (applyResolved calls setThemeState internally).
     const stored = readThemeGeo();
     if (stored) {
-      applyResolved('auto');
+      setTimeout(() => applyResolved('auto'), 0);
       armPreciseFlip(stored.lat, stored.lng);
     }
 

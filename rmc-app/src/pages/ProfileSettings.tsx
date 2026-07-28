@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2, ShieldCheck, Palette } from 'lucide-react';
 import { useTheme, sunTimes, THEME_GEO_KEY } from '@/lib/theme';
 import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult, type PlantDirectoryEntry, type SocialLinks } from '@/lib/api';
@@ -296,13 +296,13 @@ function ThemePickerCard() {
     return { rise: '06:15', set: '18:30', hasGeo: false };
   }, []);
 
-  const [sunInfo, setSunInfo] = useState<SunInfo>(() => getSunInfo());
-
-  // Refresh sun times when preference flips to auto (geo may have been granted
-  // by ThemeProvider just before the user navigated here).
-  useEffect(() => {
-    if (preference === 'auto') setSunInfo(getSunInfo());
-  }, [preference, getSunInfo]);
+  // Derive sun times directly — no state needed since getSunInfo only reads
+  // localStorage synchronously; useMemo avoids the setState-in-effect lint error.
+  const sunInfo = useMemo<SunInfo>(
+    () => getSunInfo(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getSunInfo, preference], // re-compute when pref switches to 'auto'
+  );
 
   type Opt = { id: string; label: string; tagline: string; swatch: string };
   const autoTagline = sunInfo.hasGeo

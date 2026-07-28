@@ -1,6 +1,7 @@
-import { useState, useEffect, type ReactNode, type CSSProperties } from 'react';
+import { useState, useEffect, useCallback, type ReactNode, type CSSProperties } from 'react';
 import { useLocation } from 'wouter';
 import { api, type Order, type Challan } from '@/lib/api';
+import { useToast } from '@/lib/toast';
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
 import {
@@ -151,8 +152,32 @@ export default function CustomerHome() {
     }).finally(() => setLoading(false));
   }, []);
 
+  const { showToast } = useToast();
   const can = (p: string) => (user ? canAccess(user.role, p) : false);
   const go = (p: string) => navigate(p);
+
+  // KYC gate: verify DigiLocker status before opening the order flow.
+  // Clients without verified KYC are redirected to the KYC screen instead.
+  const [kycChecking, setKycChecking] = useState(false);
+  const handlePlaceOrder = useCallback(async () => {
+    if (kycChecking) return;
+    if (user?.role !== 'client') { go('/nearby-plants'); return; }
+    setKycChecking(true);
+    try {
+      const { isVerified } = await api.get<{ isVerified: boolean }>('/kyc/status');
+      if (isVerified) {
+        go('/nearby-plants');
+      } else {
+        showToast('Complete KYC to place an order', 'info');
+        go('/kyc');
+      }
+    } catch {
+      // If the check fails, let the KYC screen handle the error state.
+      go('/kyc');
+    } finally {
+      setKycChecking(false);
+    }
+  }, [kycChecking, user?.role, showToast]); // eslint-disable-line react-hooks/exhaustive-deps
   const activeOrders = orders.filter(o => o.status === 'pending' || o.status === 'in_progress');
   const primary = activeOrders[0] || orders[0];
   const otherRecent = orders.filter(o => o.id !== primary?.id).slice(0, 3);
@@ -185,7 +210,8 @@ export default function CustomerHome() {
           </p>
           {can('/nearby-plants') && (
             <button
-              onClick={() => go('/nearby-plants')}
+              onClick={handlePlaceOrder}
+              disabled={kycChecking}
               className="mt-3.5 inline-flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-[13px] font-bold shadow-sm active:scale-[.98]"
               style={{
                 background: `linear-gradient(135deg, ${GOLD} 0%, ${GOLD_LIGHT} 100%)`,
@@ -214,7 +240,7 @@ export default function CustomerHome() {
       <QuickGrid cols={3}>
         {can('/nearby-plants') && (
           <QuickAction
-            label="Place Order" icon={<Truck className="h-6 w-6" />} onClick={() => go('/nearby-plants')}
+            label="Place Order" icon={<Truck className="h-6 w-6" />} onClick={handlePlaceOrder}
             badge={
               <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full" style={{ background: GOLD, color: DGREEN }}>
                 <Plus className="h-3 w-3" strokeWidth={3} />
@@ -327,7 +353,7 @@ export default function CustomerHome() {
           title="Find plants near you"
           sub="Order concrete from approved RMC plants nearby."
           actionLabel="Find"
-          onAction={() => go('/nearby-plants')}
+          onAction={handlePlaceOrder}
         />
       )}
 
@@ -351,7 +377,7 @@ export default function CustomerHome() {
         {can('/nearby-plants') && (
           <GoldButton
             label="Find Plants & Place Order"
-            onClick={() => { setSheet(null); go('/nearby-plants'); }}
+            onClick={() => { setSheet(null); handlePlaceOrder(); }}
           />
         )}
       </BottomSheet>
