@@ -1,3 +1,4 @@
+- [RMC local main is unrelated history](rmc-local-main-unrelated.md) — never `git checkout main`/merge it blind; local main is a disconnected Replit scaffold, real app lives on origin/main.
 - [RMC App Layout Fix](rmc-layout-fix.md) — Mobile header must NOT be a grid/flex child alongside sidebar; keep it above the flex row in a column container.
 - [Workbox runtimeCaching urlPattern](workbox-runtimecaching-urlpattern.md) — Workbox RegExp urlPatterns match the full href, not pathname; use a `({url})=>url.pathname.startsWith('/api')` callback or the rule silently no-ops.
 - [RMC runtime theming](rmc-theming.md) — ONE teal Day/Night pair + clock-driven Auto mode under legacy --gold* keys; keep theme.tsx + index.css :root + Landing/Login C + main.tsx Clerk vars + static index.html in sync.
