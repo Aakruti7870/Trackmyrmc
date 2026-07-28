@@ -48,6 +48,13 @@ interface Plant {
   ownerCount: number;
   // True when an approved KYC profile for this plant carries both GST and PAN.
   gstPanVerified?: boolean;
+  // Sponsored placement fields (platform-staff only).
+  promotionActive?: boolean;
+  promotionStart?: string | null;
+  promotionEnd?: string | null;
+  promotionRadiusKm?: number;
+  promotionPriority?: number;
+  promotionAdGlow?: boolean;
 }
 
 // Per-plant ₹/m³ rate per concrete grade.
@@ -126,6 +133,13 @@ interface FormState {
   grades: string[]; openTime: string; closeTime: string;
   // Per-plant commission override (percent). '' = inherit the platform default.
   commissionPct: string;
+  // Sponsored placement (platform Super Admin only).
+  promotionActive: boolean;
+  promotionStart: string;   // ISO date-time string or ''
+  promotionEnd: string;
+  promotionRadiusKm: number;
+  promotionPriority: number;
+  promotionAdGlow: boolean;
 }
 
 const emptyForm: FormState = {
@@ -135,6 +149,8 @@ const emptyForm: FormState = {
   isActive: true, locationVerified: false, verified: false, deliveryRadiusKm: 25,
   grades: [], openTime: '06:00', closeTime: '20:00',
   commissionPct: '',
+  promotionActive: false, promotionStart: '', promotionEnd: '',
+  promotionRadiusKm: 20, promotionPriority: 0, promotionAdGlow: true,
 };
 
 const GST_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
@@ -355,6 +371,9 @@ export default function Plants() {
   }
 
   function openEdit(p: Plant) {
+    // ISO date-time to a <input type="datetime-local"> value (truncate seconds).
+    const toDatetimeLocal = (v: string | null | undefined) =>
+      v ? new Date(v).toISOString().slice(0, 16) : '';
     setForm({
       name: p.name, legalName: p.legalName ?? '', gstNo: p.gstNo ?? '', email: p.email ?? '',
       address: p.address ?? '', city: p.city ?? '', contactNumber: p.contactNumber ?? '',
@@ -365,6 +384,12 @@ export default function Plants() {
       isActive: p.isActive, locationVerified: p.locationVerified, verified: p.verified, deliveryRadiusKm: p.deliveryRadiusKm,
       grades: p.grades, openTime: p.openTime ?? '', closeTime: p.closeTime ?? '',
       commissionPct: p.commissionPct ?? '',
+      promotionActive: p.promotionActive ?? false,
+      promotionStart: toDatetimeLocal(p.promotionStart),
+      promotionEnd: toDatetimeLocal(p.promotionEnd),
+      promotionRadiusKm: p.promotionRadiusKm ?? 20,
+      promotionPriority: p.promotionPriority ?? 0,
+      promotionAdGlow: p.promotionAdGlow ?? true,
     });
     setEditId(p.id);
     resetExtractionState();
@@ -986,6 +1011,69 @@ export default function Plants() {
                 </div>
               )}
             </div>
+
+            {/* ── Sponsored Placement (Super Admin only) ────────────────── */}
+            {isSuperAdmin && editId != null && (
+              <div style={{ border: '1px solid color-mix(in srgb,var(--orange) 40%,transparent)', borderRadius: 12, padding: '16px 16px 12px', marginTop: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--orange)', letterSpacing: 0.2 }}>★ Sponsored Placement</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>Platform Super Admin only · controls paid-ad ranking in /nearby</span>
+                </div>
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
+                    <label style={checkRow}>
+                      <input type="checkbox" checked={form.promotionActive} onChange={e => setForm(f => ({ ...f, promotionActive: e.target.checked }))} />
+                      Promotion active
+                    </label>
+                    <label style={checkRow}>
+                      <input type="checkbox" checked={form.promotionAdGlow} onChange={e => setForm(f => ({ ...f, promotionAdGlow: e.target.checked }))} />
+                      Show glow effect on card
+                    </label>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <Field label="Promotion starts">
+                      <input
+                        type="datetime-local"
+                        value={form.promotionStart}
+                        onChange={e => setForm(f => ({ ...f, promotionStart: e.target.value }))}
+                        style={input}
+                      />
+                    </Field>
+                    <Field label="Promotion ends">
+                      <input
+                        type="datetime-local"
+                        value={form.promotionEnd}
+                        onChange={e => setForm(f => ({ ...f, promotionEnd: e.target.value }))}
+                        style={input}
+                      />
+                    </Field>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <Field label="Promotion radius (km)">
+                      <input
+                        type="number" min={1} max={250}
+                        value={form.promotionRadiusKm}
+                        onChange={e => setForm(f => ({ ...f, promotionRadiusKm: Number(e.target.value) }))}
+                        style={input}
+                      />
+                    </Field>
+                    <Field label="Priority (higher = ranked first)">
+                      <input
+                        type="number" min={0} max={9999}
+                        value={form.promotionPriority}
+                        onChange={e => setForm(f => ({ ...f, promotionPriority: Number(e.target.value) }))}
+                        style={input}
+                      />
+                    </Field>
+                  </div>
+                  {form.promotionActive && (!form.promotionStart || !form.promotionEnd) && (
+                    <div style={{ fontSize: 12, color: 'var(--orange)', display: 'flex', gap: 6, alignItems: 'center' }}>
+                      ⚠ Set both start and end dates for the promotion to take effect.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {editId != null && (
               <RateCardsSection plantId={editId} grades={form.grades} />

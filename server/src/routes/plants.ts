@@ -814,6 +814,21 @@ function parseBody(body: Record<string, unknown>) {
   if (body.grades !== undefined) out.grades = Array.isArray(body.grades) ? body.grades.map(String) : [];
   if (body.openTime !== undefined) out.openTime = body.openTime === null ? null : String(body.openTime);
   if (body.closeTime !== undefined) out.closeTime = body.closeTime === null ? null : String(body.closeTime);
+  // ── Sponsored / paid-ad placement (platform-staff only; caller must check role) ──
+  if (body.promotionActive !== undefined) out.promotionActive = Boolean(body.promotionActive);
+  if (body.promotionStart !== undefined) {
+    out.promotionStart = body.promotionStart === null || body.promotionStart === '' ? null : new Date(String(body.promotionStart));
+  }
+  if (body.promotionEnd !== undefined) {
+    out.promotionEnd = body.promotionEnd === null || body.promotionEnd === '' ? null : new Date(String(body.promotionEnd));
+  }
+  if (body.promotionRadiusKm !== undefined) {
+    out.promotionRadiusKm = Math.max(1, Math.min(250, Math.round(Number(body.promotionRadiusKm)) || 20));
+  }
+  if (body.promotionPriority !== undefined) {
+    out.promotionPriority = Math.max(0, Math.min(9999, Math.round(Number(body.promotionPriority)) || 0));
+  }
+  if (body.promotionAdGlow !== undefined) out.promotionAdGlow = Boolean(body.promotionAdGlow);
   return out;
 }
 
