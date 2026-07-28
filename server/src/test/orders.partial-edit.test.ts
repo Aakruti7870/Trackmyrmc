@@ -83,6 +83,18 @@ after(async () => {
   await pool.end();
 });
 
+test('an invalid order id is rejected before querying PostgreSQL', async () => {
+  const actor = await createUser('admin', 'admin-invalid-id@test.com');
+
+  const res = await request(app)
+    .put('/api/orders/not-a-number')
+    .set('Authorization', `Bearer ${tokenFor(actor)}`)
+    .send({ status: 'approved' });
+
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error, 'Invalid order id');
+});
+
 // A partial edit that only touches a couple of fields (e.g. a status change)
 // must not erase the order's other saved details. The PUT handler relies on
 // Drizzle skipping `undefined` columns, so for every optional field, omitting

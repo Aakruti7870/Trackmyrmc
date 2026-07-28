@@ -66,16 +66,6 @@ function isValidCoords(value: LatLng): boolean {
     && value.lat >= -90 && value.lat <= 90 && value.lng >= -180 && value.lng <= 180;
 }
 
-interface NearbyPlantsResponse {
-  plants: NearbyPlant[];
-  count: number;
-}
-
-function isValidCoords(value: LatLng): boolean {
-  return Number.isFinite(value.lat) && Number.isFinite(value.lng) &&
-    value.lat >= -90 && value.lat <= 90 && value.lng >= -180 && value.lng <= 180;
-}
-
 function readSavedLocation(): SavedLocation | null {
   try {
     const raw = localStorage.getItem(SAVED_LOCATION_KEY);

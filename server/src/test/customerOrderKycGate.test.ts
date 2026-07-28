@@ -147,10 +147,10 @@ test('approved enterprise KYC profile can create an order', async () => {
   assert.equal(res.status, 201);
 });
 
-test('draft, submitted and rejected KYC profiles do not authorize order creation', async () => {
+test('pending, submitted and rejected KYC profiles do not authorize order creation', async () => {
   const plant = await createPlant();
 
-  for (const status of ['draft', 'submitted', 'rejected'] as const) {
+  for (const status of ['pending', 'submitted', 'rejected'] as const) {
     const client = await createClient();
     const customer = await createUser('client', `gate-${status}@test.com`, { linkedClientId: client.id });
     await db.insert(kycProfiles).values({ entityType: 'customer', userId: customer.id, status });

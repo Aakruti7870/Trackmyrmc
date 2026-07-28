@@ -84,7 +84,7 @@ test('client creates a KYC profile; Aadhaar is stored masked (last 4 only)', asy
   assert.equal(res.status, 201);
   assert.equal(res.body.aadhaarMasked, 'XXXX-XXXX-4321');
   assert.equal(res.body.entityType, 'customer');
-  assert.equal(res.body.status, 'draft');
+  assert.equal(res.body.status, 'pending');
 
   const me = await request(app).get('/api/kyc-verification/me').set('Authorization', `Bearer ${token}`);
   assert.equal(me.status, 200);
@@ -110,7 +110,7 @@ test('invalid GST and PAN formats are rejected', async () => {
   assert.equal(pan.status, 400);
 });
 
-test('submit flow: draft -> submitted; resubmission blocked; edit drops back to draft', async () => {
+test('submit flow: pending -> submitted; resubmission blocked; edit drops back to pending', async () => {
   const { user } = await createClientUser('kyc-client4@test.com');
   const token = tokenFor(user);
   await request(app).put('/api/kyc-verification/me').set('Authorization', `Bearer ${token}`).send({ legalName: 'X' });
@@ -124,7 +124,7 @@ test('submit flow: draft -> submitted; resubmission blocked; edit drops back to 
 
   const edit = await request(app).put('/api/kyc-verification/me').set('Authorization', `Bearer ${token}`).send({ legalName: 'Y' });
   assert.equal(edit.status, 200);
-  assert.equal(edit.body.status, 'draft');
+  assert.equal(edit.body.status, 'pending');
 });
 
 test('an approved profile can no longer be edited by its subject', async () => {

@@ -286,11 +286,11 @@ function runFile(file, dbName) {
     let buf = '';
     child.stdout.on('data', (d) => { buf += d; });
     child.stderr.on('data', (d) => { buf += d; });
-    child.on('close', (code) => {
-      resolve({ code: code ?? 1, buf, ms: Date.now() - started });
+    child.on('close', (code, signal) => {
+      resolve({ code: code ?? 1, signal: signal ?? null, buf, ms: Date.now() - started });
     });
     child.on('error', (err) => {
-      resolve({ code: 1, buf: `failed to start: ${err.message}\n`, ms: Date.now() - started });
+      resolve({ code: 1, signal: null, buf: `failed to start: ${err.message}\n`, ms: Date.now() - started });
     });
   });
 }
@@ -305,20 +305,24 @@ function runWorker(index, dbName, queue, measured) {
     let worstCode = 0;
     let count = 0;
     let totalMs = 0;
+    const failures = [];
     const step = () => {
       const file = queue.shift(); // shift() is atomic between awaits (single-threaded)
       if (file === undefined) {
-        resolve({ code: worstCode, count, totalMs });
+        resolve({ code: worstCode, count, totalMs, failures });
         return;
       }
-      runFile(file, dbName).then(({ code, buf, ms }) => {
+      runFile(file, dbName).then(({ code, signal, buf, ms }) => {
         const rel = path.relative(serverDir, file);
         measured[rel] = ms;
         count += 1;
         totalMs += ms;
-        if (code !== 0) worstCode = 1;
+        if (code !== 0) {
+          worstCode = 1;
+          failures.push({ file: rel, code, signal });
+        }
         console.log(
-          `\n===== worker ${index + 1} — ${path.basename(file)} — exit ${code} — ${(ms / 1000).toFixed(1)}s =====`,
+          `\n===== worker ${index + 1} — ${path.basename(file)} — exit ${code}${signal ? ` (${signal})` : ''} — ${(ms / 1000).toFixed(1)}s =====`,
         );
         process.stdout.write(buf);
         step();
@@ -431,6 +435,16 @@ try {
         workerDbs.map((dbName, i) => runWorker(i, dbName, queue, measured)),
       );
       exitCode = results.every((r) => r.code === 0) ? 0 : 1;
+
+      const failures = results.flatMap((r) => r.failures);
+      if (failures.length > 0) {
+        console.error('\n[test] Failing test processes:');
+        for (const failure of failures) {
+          console.error(
+            `[test]   ${failure.file}: exit ${failure.code}${failure.signal ? ` (${failure.signal})` : ''}`,
+          );
+        }
+      }
 
       // 6. Persist timings for next run's ordering, and report the balance so the
       //    spread between the busiest and idlest worker is visible.
