@@ -1,164 +1,396 @@
-import { useState, useEffect } from "react";
-import { MapPin, MousePointerClick, ShieldCheck, BadgeCheck, Crown, ArrowRight, LogIn } from "lucide-react";
-import SocialLinksBar from "@/components/SocialLinksBar";
-import FeatureCarousel from "@/components/FeatureCarousel";
-import { hasCompletedOnboarding, markOnboardingComplete } from "@/lib/onboarding";
+import { useState } from 'react';
+import { ShieldCheck } from 'lucide-react';
+import SplashScreen from '@/components/SplashScreen';
+import { BrandCredits } from '@/components/BrandLogo';
+import { SUPPORT_WHATSAPP_URL } from '@/lib/brand';
+import { hasSeenSplash } from '@/lib/onboarding';
 
-/* ════════════════════════════════════════════════════════
-   CONCRETE KING – RMC OPERATIONS OS
-   Compact 2-step experience: a single Home hero whose CTAs
-   take the user straight to the real /login page (SPA nav).
-════════════════════════════════════════════════════════ */
-
-/* Theme-driven palette — reads the app-wide Day/Night tokens so the landing
-   page re-themes together with the rest of the app. */
-const C = {
-  teal:   "var(--gold)",
-  dark:   "var(--bg)",
-  panel:  "var(--panel)",
-  border: "var(--line)",
-  text:   "var(--text)",
-  muted:  "var(--muted)",
-};
-
-/* SPA-navigate to the real main-app /login page (wouter listens to popstate). */
-const openLogin = () => {
-  if (typeof window === "undefined") return;
-  window.history.pushState({}, "", "/login");
-  window.dispatchEvent(new PopStateEvent("popstate"));
-};
-
-/* ── FLAT CARD ── */
-const Glass=({children,style={},className=""}:{children:React.ReactNode;style?:React.CSSProperties;className?:string})=>(
-  <div className={className} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:20,boxShadow:"0 1px 3px rgba(var(--shadow-rgb),0.06), 0 8px 24px rgba(var(--shadow-rgb),0.05)",...style}}>{children}</div>
-);
-
-/* ── LABEL CHIP ── */
-const Label=({children,color=C.teal}:{children:React.ReactNode;color?:string})=>(
-  <div className="ck-label" style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,fontWeight:700,letterSpacing:"0.18em",color,fontFamily:"'JetBrains Mono',monospace",marginBottom:18}}>
-    {children}
-  </div>
-);
-
-/* ════════════ HOME ════════════ */
-function Home(){
-  const [word,setWord]=useState(0);
-  const words=["Dispatch.","Freshness.","Fleet.","Output."];
-  const colors=[C.teal,"var(--gold-dark)","#C19B4D","var(--text)"];
-  useEffect(()=>{const id=setInterval(()=>setWord(w=>(w+1)%4),2800);return()=>clearInterval(id);},[]);
-  return(
-    <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"center"}}>
-      <div className="ck-hero-grid" style={{position:"relative",zIndex:2,width:"100%",padding:"0 6vw",display:"grid",gridTemplateColumns:"1.15fr 0.85fr",alignItems:"center",gap:40}}>
-        <div>
-          <Label>READY MIX CONCRETE · OPERATIONS OS</Label>
-          <h1 className="ck-h1" style={{fontSize:"clamp(40px,5.5vw,72px)",fontWeight:900,color:C.text,lineHeight:1.05,letterSpacing:"-0.03em",marginBottom:4,fontFamily:"Inter,sans-serif"}}>Control your</h1>
-          <h1 className="ck-h1 ck-h1-word" style={{fontSize:"clamp(40px,5.5vw,72px)",fontWeight:900,lineHeight:1.05,letterSpacing:"-0.03em",marginBottom:24,fontFamily:"Inter,sans-serif",color:colors[word],transition:"color 0.4s",minHeight:"1.1em"}}>{words[word]}</h1>
-          <p className="ck-sub" style={{fontSize:16,color:C.muted,lineHeight:1.75,maxWidth:430,marginBottom:36}}>The only platform built ground-up for RMC plants. Live GPS, freshness tracking, IS-code AI, and fleet intelligence — <em style={{color:C.text,fontStyle:"normal",fontWeight:500}}>one screen.</em></p>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-            {[
-              {Icon:MapPin,l:"Live Tracking",s:"Real-time mixer GPS"},
-              {Icon:MousePointerClick,l:"Easy to Use",s:"Order in seconds"},
-              {Icon:ShieldCheck,l:"KYC Verified Users",s:"Aadhaar-checked"},
-              {Icon:BadgeCheck,l:"Verified Plants",s:"Approved suppliers"},
-            ].map((k,i)=>(
-              <Glass key={i} className="ck-feature-card" style={{padding:"16px 12px"}}>
-                <div className="ck-feature-icon" style={{marginBottom:10,color:C.teal,display:"flex"}}><k.Icon size={22}/></div>
-                <div style={{fontSize:13,color:C.text,fontWeight:700,marginBottom:3,lineHeight:1.2}}>{k.l}</div>
-                <div style={{fontSize:10,color:C.muted}}>{k.s}</div>
-              </Glass>
-            ))}
-          </div>
-        </div>
-        <div className="ck-next-col" style={{display:"flex",justifyContent:"flex-end"}}>
-          <button onClick={openLogin} style={{textAlign:"left",cursor:"pointer",background:"none",border:"none",padding:0,width:"100%",maxWidth:340}}>
-            <Glass className="ck-signin-card" style={{padding:"26px 26px",display:"flex",flexDirection:"column",gap:18}}>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:46,height:46,borderRadius:13,background:"var(--gold-soft)",border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:C.teal,flexShrink:0}}><LogIn size={22}/></div>
-                <div>
-                  <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.16em",color:C.teal,fontFamily:"'JetBrains Mono',monospace",marginBottom:4}}>NEXT</div>
-                  <div style={{fontSize:18,fontWeight:800,color:C.text,fontFamily:"Inter,sans-serif",lineHeight:1.1}}>Sign in to continue</div>
-                </div>
-              </div>
-              <p style={{fontSize:13,color:C.muted,lineHeight:1.6,margin:0}}>Customers and plant staff — one quick step to your dashboard.</p>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:14,borderTop:`1px solid ${C.border}`}}>
-                <span style={{fontSize:13,fontWeight:700,color:C.text}}>Go to Login</span>
-                <span style={{width:34,height:34,borderRadius:"50%",background:C.teal,color:"#ffffff",display:"flex",alignItems:"center",justifyContent:"center"}}><ArrowRight size={18}/></span>
-              </div>
-            </Glass>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+/* SPA navigation helper */
+function navigate(to: string) {
+  window.history.pushState({}, '', to);
+  window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
-/* ════════════ NAVBAR ════════════ */
-function NavBar(){
-  return(
-    <div style={{position:"absolute",top:0,left:0,right:0,zIndex:100,height:"calc(60px + env(safe-area-inset-top, 0px))",paddingTop:"env(safe-area-inset-top, 0px)",display:"flex",alignItems:"center",justifyContent:"space-between",paddingLeft:"max(20px, env(safe-area-inset-left, 0px))",paddingRight:"max(20px, env(safe-area-inset-right, 0px))",background:"var(--header-bg)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderBottom:`1px solid ${C.border}`}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-        <div style={{width:32,height:32,borderRadius:9,background:C.teal,display:"flex",alignItems:"center",justifyContent:"center"}}><Crown size={18} color="#ffffff"/></div>
-        <div>
-          <div style={{fontSize:14,fontWeight:900,color:C.text,letterSpacing:"-0.02em",lineHeight:1,fontFamily:"Inter,sans-serif"}}>Concrete King</div>
-          <div style={{fontSize:8,color:C.muted,fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.15em",lineHeight:1.2}}>RMC OPERATIONS OS</div>
-        </div>
-      </div>
-      <button onClick={openLogin} style={{padding:"9px 24px",borderRadius:99,border:"none",background:C.teal,color:"#ffffff",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"Inter,sans-serif",flexShrink:0}}>Login</button>
-    </div>
-  );
-}
+type Tab = 'customer' | 'staff' | 'partner';
 
-/* ════════════ ROOT ════════════ */
-export default function Landing(){
-  const [showOnboarding, setShowOnboarding] = useState(() => !hasCompletedOnboarding());
-  if (showOnboarding) {
-    return <FeatureCarousel onDone={() => { markOnboardingComplete(); setShowOnboarding(false); }} />;
+/* ══════════════════════════════════════════════════════════
+   Screen 2 — Landing / login entry
+   Layout: brand header → RMC scene SVG → dark login card
+══════════════════════════════════════════════════════════ */
+function LandingScreen() {
+  const [tab, setTab]     = useState<Tab>('customer');
+  const [phone, setPhone] = useState('');
+
+  function handleGetOtp(e: React.FormEvent) {
+    e.preventDefault();
+    const clean = phone.replace(/\D/g, '').slice(-10);
+    if (clean.length < 10) return;
+    navigate(`/login?phone=${encodeURIComponent(clean)}`);
   }
-  return(
-    <div className="ck-root" style={{width:"100%",overflow:"hidden",background:C.dark,fontFamily:"Inter,sans-serif",position:"relative"}}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap');
-        @keyframes ckFadeIn{from{opacity:0;transform:scale(0.983)}to{opacity:1;transform:scale(1)}}
-        input::placeholder{color:var(--muted)}
-        .ck-deck button:hover{opacity:0.92}
-        /* Fit the landing screen exactly to the viewport (dynamic vh where
-           supported) so it never scrolls; falls back to vh on old browsers. */
-        .ck-root{height:100vh;height:100dvh;max-height:100dvh;}
-        @media (max-width:920px){
-          .ck-hero-grid{grid-template-columns:1fr !important;gap:14px !important;align-content:center;padding:10px 20px !important;overflow:hidden;max-height:100%}
-          .ck-next-col{justify-content:stretch !important;order:-1}
-          .ck-next-col button{max-width:100% !important}
-          .ck-h1{font-size:clamp(30px,8.5vw,44px) !important;margin-bottom:2px !important}
-          .ck-h1-word{margin-bottom:12px !important}
-          .ck-sub{font-size:13px !important;line-height:1.5 !important;margin-bottom:14px !important;max-width:100% !important}
-          .ck-label{margin-bottom:8px !important}
-          .ck-signin-card{padding:16px !important;gap:12px !important}
-          .ck-feature-card{padding:11px 10px !important}
-          .ck-feature-icon{margin-bottom:6px !important}
-        }
-        @media (max-width:560px){
-          .ck-hero-grid > div:first-child > div:last-child{grid-template-columns:repeat(2,1fr) !important}
-        }
-        /* Very short phones (e.g. 360x640): trim further so it still fits. */
-        @media (max-width:920px) and (max-height:720px){
-          .ck-hero-grid{gap:10px !important}
-          .ck-h1{font-size:clamp(26px,7.5vw,38px) !important}
-          .ck-sub{margin-bottom:10px !important}
-          .ck-signin-card{padding:13px !important;gap:9px !important}
-        }
-      `}</style>
-      <div className="ck-deck" style={{width:"100%",height:"100%",position:"relative"}}>
-        <NavBar/>
-        <div style={{position:"absolute",inset:0,paddingTop:"calc(60px + env(safe-area-inset-top, 0px))",paddingBottom:"env(safe-area-inset-bottom, 0px)",animation:"ckFadeIn 0.26s cubic-bezier(0.4,0,0.2,1) both"}}>
-          <div style={{width:"100%",height:"100%",position:"relative"}}>
-            <Home/>
+
+  return (
+    <div style={{
+      width: '100%', height: '100vh',
+      display: 'flex', flexDirection: 'column',
+      background: '#F0F0EE',
+      fontFamily: 'Inter, system-ui, sans-serif',
+      overflow: 'hidden',
+      paddingTop: 'env(safe-area-inset-top, 0px)',
+    }}>
+
+      {/* ── Brand header ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '16px 22px 12px', flexShrink: 0,
+      }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+          background: 'linear-gradient(135deg, #9BA342, #707439)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 14px rgba(112,116,57,0.28)',
+        }}>
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+            <rect x="2" y="12" width="14" height="9" rx="2" fill="white" opacity="0.95"/>
+            <path d="M16 13.5 L16 12 L24 12 L26 17 L16 17 Z" fill="white" opacity="0.88"/>
+            <circle cx="7" cy="12" r="4" fill="white" opacity="0.6"/>
+            <circle cx="6"  cy="22" r="2.8" fill="rgba(255,255,255,0.5)" stroke="white" strokeWidth="1"/>
+            <circle cx="20" cy="22" r="2.8" fill="rgba(255,255,255,0.5)" stroke="white" strokeWidth="1"/>
+          </svg>
+        </div>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: '#1F1F1E', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+            TrackMy<span style={{ color: '#8B923F' }}>RMC</span>
+          </div>
+          <div style={{ fontSize: 11.5, color: '#8A8A85', fontWeight: 500, lineHeight: 1 }}>
+            Moving Concrete. Building Trust.
           </div>
         </div>
-        {/* Social links — bottom-right of the landing screen */}
-        <div className="ck-socials" style={{position:"absolute",right:14,bottom:"calc(10px + env(safe-area-inset-bottom, 0px))",zIndex:110}}>
-          <SocialLinksBar compact/>
+      </div>
+
+      {/* ── Scene illustration ── */}
+      <div style={{
+        flex: 1, minHeight: 0,
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        overflow: 'hidden',
+      }}>
+        <SceneSVG />
+      </div>
+
+      {/* ── Dark login card ── */}
+      <div style={{
+        flexShrink: 0,
+        background: '#111110',
+        borderRadius: '28px 28px 0 0',
+        padding: '26px 22px',
+        paddingBottom: 'max(26px, calc(26px + env(safe-area-inset-bottom, 0px)))',
+        overflowY: 'auto',
+        maxHeight: '64vh',
+      }}>
+
+        {/* Headline */}
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#F2F2F0', lineHeight: 1.2 }}>
+            Ready Mix Concrete,
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#9BA342', lineHeight: 1.2 }}>
+            On Time, Every Time.
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{
+          display: 'flex', gap: 4,
+          background: 'rgba(255,255,255,0.07)',
+          borderRadius: 12, padding: 4, marginBottom: 18,
+        }}>
+          {(['customer', 'staff', 'partner'] as Tab[]).map(t => (
+            <button
+              key={t} type="button" onClick={() => setTab(t)}
+              style={{
+                flex: 1, padding: '9px 6px', borderRadius: 9,
+                border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                fontSize: 13, fontWeight: 700,
+                background: tab === t ? '#9BA342' : 'transparent',
+                color:      tab === t ? '#ffffff' : '#8A8A85',
+                transition: 'all 0.18s ease', textTransform: 'capitalize',
+              }}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Customer — phone OTP */}
+        {tab === 'customer' && (
+          <form onSubmit={handleGetOtp}>
+            <p style={{ fontSize: 13, color: '#8A8A85', margin: '0 0 12px', lineHeight: 1.5 }}>
+              Enter your mobile number to get started.
+            </p>
+            <div style={{
+              display: 'flex', alignItems: 'center',
+              background: 'rgba(255,255,255,0.08)',
+              border: '1.5px solid rgba(255,255,255,0.12)',
+              borderRadius: 14, overflow: 'hidden', marginBottom: 14,
+            }}>
+              <div style={{
+                padding: '14px 14px 14px 16px',
+                fontSize: 15, fontWeight: 700, color: '#F2F2F0',
+                borderRight: '1.5px solid rgba(255,255,255,0.1)',
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}>+91</div>
+              <input
+                type="tel" inputMode="numeric"
+                placeholder="98765 43210"
+                value={phone}
+                onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ''))}
+                maxLength={11} required
+                style={{
+                  flex: 1, padding: '14px',
+                  background: 'transparent', border: 'none', outline: 'none',
+                  fontSize: 16, fontWeight: 600, color: '#F2F2F0',
+                  fontFamily: 'inherit', letterSpacing: '0.03em',
+                }}
+              />
+            </div>
+            <button type="submit" style={{
+              width: '100%', padding: '15px', borderRadius: 14, border: 'none',
+              background: '#9BA342', color: '#ffffff',
+              fontSize: 16, fontWeight: 800, fontFamily: 'inherit',
+              cursor: 'pointer', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', gap: 8, marginBottom: 10,
+              boxShadow: '0 6px 20px rgba(112,116,57,0.35)',
+            }}>
+              Get OTP <span style={{ fontSize: 18 }}>&#x2192;</span>
+            </button>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              fontSize: 12, color: '#8A8A85', marginBottom: 16,
+            }}>
+              <ShieldCheck size={13} color="#9BA342" />
+              Secure OTP login &#183; No password needed
+            </div>
+            {/* Staff link */}
+            <div style={{ textAlign: 'center', marginBottom: 14 }}>
+              <button
+                type="button"
+                onClick={() => navigate('/login?staff=1')}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#9BA342', fontWeight: 700, fontSize: 14, fontFamily: 'inherit',
+                }}
+              >
+                Staff login with email
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Staff */}
+        {tab === 'staff' && (
+          <div>
+            <p style={{ fontSize: 13, color: '#8A8A85', margin: '0 0 14px', lineHeight: 1.5 }}>
+              Staff accounts are provisioned by your plant admin. Sign in with your work email.
+            </p>
+            <button
+              type="button" onClick={() => navigate('/login?staff=1')}
+              style={{
+                width: '100%', padding: '15px', borderRadius: 14, border: 'none',
+                background: '#9BA342', color: '#ffffff',
+                fontSize: 16, fontWeight: 800, fontFamily: 'inherit',
+                cursor: 'pointer', marginBottom: 16,
+                boxShadow: '0 6px 20px rgba(112,116,57,0.35)',
+              }}
+            >
+              Staff login with email &#x2192;
+            </button>
+          </div>
+        )}
+
+        {/* Partner */}
+        {tab === 'partner' && (
+          <div>
+            <p style={{ fontSize: 13, color: '#8A8A85', margin: '0 0 14px', lineHeight: 1.5 }}>
+              Register your RMC plant on the TrackMyRMC network and reach more customers.
+            </p>
+            <button
+              type="button" onClick={() => navigate('/login?partner=1')}
+              style={{
+                width: '100%', padding: '15px', borderRadius: 14, border: 'none',
+                background: '#9BA342', color: '#ffffff',
+                fontSize: 16, fontWeight: 800, fontFamily: 'inherit',
+                cursor: 'pointer', marginBottom: 16,
+                boxShadow: '0 6px 20px rgba(112,116,57,0.35)',
+              }}
+            >
+              Register as Partner &#x2192;
+            </button>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div style={{ textAlign: 'center', fontSize: 11.5, color: '#555', lineHeight: 1.8 }}>
+          <div>
+            By continuing you agree to our{' '}
+            <button type="button" onClick={() => navigate('/terms')}
+              style={{ background:'none',border:'none',cursor:'pointer',color:'#9BA342',fontWeight:600,fontFamily:'inherit',fontSize:'inherit',padding:0,textDecoration:'underline',textUnderlineOffset:2 }}>
+              Terms
+            </button>
+            {' '}&amp;{' '}
+            <button type="button" onClick={() => navigate('/privacy')}
+              style={{ background:'none',border:'none',cursor:'pointer',color:'#9BA342',fontWeight:600,fontFamily:'inherit',fontSize:'inherit',padding:0,textDecoration:'underline',textUnderlineOffset:2 }}>
+              Privacy Policy
+            </button>
+          </div>
+          <div>
+            <a href={SUPPORT_WHATSAPP_URL} target="_blank" rel="noopener noreferrer"
+              style={{ color: '#555', textDecoration: 'none' }}>
+              &#9711; Need help? Chat with support
+            </a>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>
+          <div style={{ opacity: 0.6 }}>
+            <BrandCredits oneRow align="center" />
+          </div>
         </div>
       </div>
+
+      <style>{`input::placeholder{color:rgba(242,242,240,0.32)} input:focus{outline:none}`}</style>
     </div>
   );
+}
+
+/* ─── RMC scene SVG (flat 2-D illustration) ───────────────────────────────── */
+function SceneSVG() {
+  return (
+    <svg
+      viewBox="0 0 390 220"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ width: '100%', height: 'auto', maxHeight: 230, display: 'block' }}
+      preserveAspectRatio="xMidYMax meet"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#E6EEF5"/>
+          <stop offset="100%" stopColor="#F0F0EE"/>
+        </linearGradient>
+        <linearGradient id="drumG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f4f4f2"/>
+          <stop offset="100%" stopColor="#e6e6e4"/>
+        </linearGradient>
+      </defs>
+      <rect width="390" height="220" fill="url(#skyG)"/>
+
+      {/* Crane (background right) */}
+      <rect x="342" y="48" width="4" height="88" fill="#d4d4d0"/>
+      <rect x="330" y="44" width="18" height="4" fill="#d4d4d0"/>
+      <line x1="340" y1="48" x2="340" y2="72" stroke="#d4d4d0" strokeWidth="1"/>
+      {/* Trees */}
+      <ellipse cx="372" cy="88" rx="10" ry="13" fill="#c8d8c8" opacity="0.65"/>
+      <rect x="371" y="99" width="2" height="16" fill="#b0c0a8" opacity="0.65"/>
+      <ellipse cx="360" cy="93" rx="8"  ry="10" fill="#c8d8c8" opacity="0.45"/>
+
+      {/* ── SILO 1 (taller) ── */}
+      <rect x="96" y="14" width="38" height="158" rx="18" fill="#f4f4f2" stroke="#dcdcd8" strokeWidth="1.5"/>
+      <rect x="96" y="38"  width="38" height="13" rx="4" fill="#8B923F" opacity="0.82"/>
+      <rect x="96" y="72"  width="38" height="9"  rx="3" fill="#8B923F" opacity="0.56"/>
+      <ellipse cx="115" cy="14" rx="19" ry="5.5" fill="#e8e8e5" stroke="#d8d8d4" strokeWidth="1.5"/>
+      {/* RMC label */}
+      <rect x="101" y="106" width="28" height="18" rx="4" fill="#707439"/>
+      <text x="115" y="118" fontSize="8" fontWeight="800" fill="white" textAnchor="middle" fontFamily="sans-serif">RMC</text>
+      {/* Ladder */}
+      <rect x="97" y="34" width="2.5" height="92" fill="#c8c8c4"/>
+      {[46,58,70,82,94,106,118].map(y => (
+        <line key={y} x1="97" y1={y} x2="99.5" y2={y} stroke="#b4b4b0" strokeWidth="1"/>
+      ))}
+      {/* Discharge pipe */}
+      <path d="M114 172 L104 210" stroke="#c8c8c4" strokeWidth="4" strokeLinecap="round"/>
+
+      {/* ── SILO 2 (shorter) ── */}
+      <rect x="136" y="38" width="32" height="134" rx="14" fill="#f4f4f2" stroke="#dcdcd8" strokeWidth="1.5"/>
+      <rect x="136" y="58"  width="32" height="11" rx="3.5" fill="#8B923F" opacity="0.82"/>
+      <rect x="136" y="88"  width="32" height="8"  rx="3"   fill="#8B923F" opacity="0.55"/>
+      <ellipse cx="152" cy="38" rx="16" ry="5" fill="#e8e8e5" stroke="#d8d8d4" strokeWidth="1.5"/>
+      <rect x="140" y="120" width="24" height="16" rx="3.5" fill="#707439"/>
+      <text x="152" y="131" fontSize="7.5" fontWeight="800" fill="white" textAnchor="middle" fontFamily="sans-serif">RMC</text>
+
+      {/* ── PLATFORM ── */}
+      <rect x="92" y="58" width="78" height="10" rx="4" fill="#d8d8d4" stroke="#c8c8c4" strokeWidth="1"/>
+
+      {/* ── PLANT BUILDING ── */}
+      <rect x="104" y="172" width="62" height="42" rx="5" fill="#e8e8e6" stroke="#d8d8d4" strokeWidth="1"/>
+      <rect x="110" y="180" width="16" height="14" rx="2.5" fill="#c0d8f0" opacity="0.7"/>
+      <rect x="132" y="180" width="16" height="14" rx="2.5" fill="#c0d8f0" opacity="0.7"/>
+      <rect x="104" y="200" width="62" height="12" rx="3" fill="#707439"/>
+      <text x="135" y="209" fontSize="5.5" fontWeight="700" fill="white" textAnchor="middle" fontFamily="sans-serif">TRACKMYRMC</text>
+
+      {/* ── MIXER TRUCK ── */}
+      <rect x="172" y="190" width="114" height="38" rx="5" fill="#eeeeed" stroke="#dcdcd8" strokeWidth="1.2"/>
+      <path d="M254 190 L254 162 Q254 154 262 154 L280 154 Q290 154 290 162 L290 190 Z" fill="#e4e4e2" stroke="#dcdcd8" strokeWidth="1"/>
+      <rect x="258" y="158" width="26" height="20" rx="2.5" fill="#c0d8f0" opacity="0.72"/>
+      {/* Drum */}
+      <ellipse cx="212" cy="188" rx="34" ry="22" fill="url(#drumG)" stroke="#dcdcd8" strokeWidth="1.5"/>
+      {[0,1,2].map(i => (
+        <path key={i}
+          d={`M${185+i*3} ${179+i*5} Q212 ${167+i*5} ${239-i*3} ${179+i*5}`}
+          stroke="#8B923F" strokeWidth="5.5" fill="none" strokeLinecap="round"
+          opacity={0.74 - i*0.12}
+        />
+      ))}
+      <ellipse cx="212" cy="188" rx="9" ry="7" fill="#8B923F" opacity="0.2"/>
+      <rect x="196" y="208" width="32" height="5" rx="2" fill="#d8d8d4"/>
+      {/* Wheels */}
+      {[192, 220, 268].map(cx => (
+        <g key={cx}>
+          <circle cx={cx} cy="231" r="13.5" fill="#383838" stroke="#282828" strokeWidth="1.2"/>
+          <circle cx={cx} cy="231" r="7.5"  fill="#666"/>
+          <circle cx={cx} cy="231" r="3"    fill="#383838"/>
+        </g>
+      ))}
+      <rect x="288" y="177" width="5" height="5" rx="1" fill="#fdf9c0" opacity="0.9"/>
+
+      {/* ── CONCRETE PUMP TRUCK ── */}
+      <rect x="295" y="196" width="88" height="36" rx="5" fill="#eeeeed" stroke="#dcdcd8" strokeWidth="1.2"/>
+      <rect x="358" y="180" width="27" height="18" rx="3" fill="#e4e4e2" stroke="#dcdcd8" strokeWidth="1"/>
+      <rect x="361" y="183" width="19" height="11" rx="2" fill="#c0d8f0" opacity="0.7"/>
+      {/* Outriggers */}
+      {[303,315,363,373].map(x => (
+        <rect key={x} x={x} y="231" width="5" height="9" rx="1" fill="#c4c4c0"/>
+      ))}
+      {/* Boom tower */}
+      <rect x="323" y="162" width="14" height="36" rx="3" fill="#6a6a68"/>
+      {/* Boom arm */}
+      <line x1="330" y1="165" x2="245" y2="92" stroke="#5a5a58" strokeWidth="9"  strokeLinecap="round"/>
+      <line x1="245" y1="92"  x2="228" y2="102" stroke="#5a5a58" strokeWidth="6" strokeLinecap="round"/>
+      {/* Olive pipe */}
+      <line x1="330" y1="170" x2="246" y2="97" stroke="#8B923F" strokeWidth="3" strokeLinecap="round" opacity="0.6"/>
+      {/* Pump housing */}
+      <rect x="327" y="192" width="26" height="20" rx="3" fill="#686868" stroke="#585858" strokeWidth="1"/>
+      {/* Wheels */}
+      {[312, 338, 372].map(cx => (
+        <g key={cx}>
+          <circle cx={cx} cy="235" r="12.5" fill="#383838" stroke="#282828" strokeWidth="1.2"/>
+          <circle cx={cx} cy="235" r="7"    fill="#666"/>
+          <circle cx={cx} cy="235" r="2.5"  fill="#383838"/>
+        </g>
+      ))}
+
+      {/* ── GROUND ── */}
+      <rect x="0" y="214" width="390" height="2" fill="rgba(31,31,30,0.07)"/>
+      <ellipse cx="228" cy="216" rx="78" ry="4" fill="rgba(31,31,30,0.05)"/>
+      <ellipse cx="338" cy="216" rx="55" ry="3.5" fill="rgba(31,31,30,0.04)"/>
+    </svg>
+  );
+}
+
+/* ══ Root — splash once per session, then landing ══════════════════════════ */
+export default function Landing() {
+  const [splashDone, setSplashDone] = useState(() => hasSeenSplash());
+
+  if (!splashDone) {
+    return <SplashScreen onDone={() => setSplashDone(true)} />;
+  }
+  return <LandingScreen />;
 }

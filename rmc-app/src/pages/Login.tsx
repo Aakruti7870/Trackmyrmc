@@ -126,8 +126,8 @@ export default function Login() {
   const [staffCode, setStaffCode] = useState('');
   const [staffDevCode, setStaffDevCode] = useState<string | null>(null);
 
-  // Phone OTP (customers).
-  const [phone, setPhone] = useState('');
+  // Phone OTP (customers). Pre-fill if landing page passed ?phone=.
+  const [phone, setPhone] = useState(() => new URLSearchParams(search).get('phone') ?? '');
   const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
   const [code, setCode] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
