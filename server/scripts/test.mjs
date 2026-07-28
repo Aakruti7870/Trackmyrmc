@@ -368,9 +368,38 @@ try {
     env: { ...baseEnv, DATABASE_URL: urlFor(templateName) },
     cwd: serverDir,
   });
+  let migrationsFailed = false;
+  if (push.status === 0) {
+    // The RMC discovery columns/tables and the KYC lifecycle enum rename are
+    // hand-run production migrations (see server/src/db/migrate-*.ts) — they
+    // are not part of the Drizzle-managed schema `drizzle-kit push` just
+    // applied, the same way they aren't picked up by a bare `db:push` in
+    // production. Apply them to the template here so every worker database
+    // (cloned from this template below) carries the same schema the app
+    // actually runs against; without this, any test touching those columns
+    // fails with "column ... does not exist" only under `pnpm test`, never
+    // under a plain `db:push`+manual-migrate local setup.
+    console.log('[test] Applying hand-run migrations to template database...');
+    const tsxBin = path.join(serverDir, 'node_modules', '.bin', 'tsx');
+    for (const script of ['src/db/migrate-rmc-discovery.ts', 'src/db/migrate-kyc-lifecycle.ts']) {
+      const migrate = spawnSync(tsxBin, [script], {
+        stdio: 'inherit',
+        env: { ...baseEnv, DATABASE_URL: urlFor(templateName) },
+        cwd: serverDir,
+      });
+      if (migrate.status !== 0) {
+        console.error(`[test] ${script} failed against the template database.`);
+        migrationsFailed = true;
+        exitCode = migrate.status ?? 1;
+        break;
+      }
+    }
+  }
   if (push.status !== 0) {
     console.error('[test] drizzle-kit push failed.');
     exitCode = push.status ?? 1;
+  } else if (migrationsFailed) {
+    // exitCode already set above.
   } else {
     const testFiles = findTests(path.join(serverDir, 'src')).sort();
     if (testFiles.length === 0) {

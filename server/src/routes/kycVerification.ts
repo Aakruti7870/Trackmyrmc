@@ -7,7 +7,7 @@ import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 import { plantScope } from '../lib/tenancy.js';
 import { registerUploadedFileSafe, unregisterUploadedFilesSafe } from '../lib/uploadedFiles.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
-import { assertKycTransition, isKycState, transitionRequiresReason, type KycState } from '../lib/kycStateMachine.js';
+import { assertKycTransition, canTransitionKyc, isKycState, transitionRequiresReason, type KycState } from '../lib/kycStateMachine.js';
 
 // ============================================================================
 // KYC & Verification module. Additive on top of the legacy Aadhaar/DigiLocker
@@ -251,6 +251,14 @@ router.post('/me/submit', async (req, res) => {
   if (!existing) { res.status(404).json({ error: 'Fill in your KYC details before submitting' }); return; }
   if (existing.status === 'verified') { res.status(409).json({ error: 'Already verified' }); return; }
   if (existing.status === 'submitted') { res.status(409).json({ error: 'Already submitted and awaiting review' }); return; }
+  // suspended/revoked/under_review have no subject-initiated path to
+  // 'submitted' (kycStateMachine.ts) — without this, a suspended or revoked
+  // subject could resubmit and re-enter review on their own, bypassing the
+  // reviewer-only recovery path those states are reserved for.
+  if (!canTransitionKyc(existing.status as KycState, 'submitted', 'subject')) {
+    res.status(409).json({ error: `Cannot submit from status "${existing.status}". Contact an administrator.` });
+    return;
+  }
   const [row] = await db
     .update(kycProfiles)
     .set({ status: 'submitted', submittedAt: new Date(), rejectionReason: null, updatedAt: new Date() })
@@ -393,6 +401,10 @@ router.post('/vehicles/:vehicleId/submit', requireRole(...VEHICLE_MANAGER_ROLES)
   if (!existing) { res.status(404).json({ error: 'Fill in the vehicle KYC details before submitting' }); return; }
   if (existing.status === 'verified') { res.status(409).json({ error: 'Already verified' }); return; }
   if (existing.status === 'submitted') { res.status(409).json({ error: 'Already submitted and awaiting review' }); return; }
+  if (!canTransitionKyc(existing.status as KycState, 'submitted', 'subject')) {
+    res.status(409).json({ error: `Cannot submit from status "${existing.status}". Contact an administrator.` });
+    return;
+  }
   const [row] = await db
     .update(kycProfiles)
     .set({ status: 'submitted', submittedAt: new Date(), rejectionReason: null, updatedAt: new Date() })

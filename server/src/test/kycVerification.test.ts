@@ -127,6 +127,37 @@ test('submit flow: pending -> submitted; resubmission blocked; edit drops back t
   assert.equal(edit.body.status, 'pending');
 });
 
+test('a subject cannot self-submit out of suspended, revoked, or under_review', async () => {
+  for (const status of ['suspended', 'revoked', 'under_review'] as const) {
+    const { user } = await createClientUser(`kyc-blocked-${status}@test.com`);
+    await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status, legalName: 'X' });
+
+    const res = await request(app)
+      .post('/api/kyc-verification/me/submit')
+      .set('Authorization', `Bearer ${tokenFor(user)}`)
+      .send({});
+    assert.equal(res.status, 409, `${status} must not allow a subject-initiated submit`);
+
+    const [row] = await db.select({ status: kycProfiles.status }).from(kycProfiles).where(sql`user_id = ${user.id}`);
+    assert.equal(row.status, status, `status must stay ${status}, not flip to submitted`);
+  }
+});
+
+test('a vehicle KYC profile cannot self-submit out of suspended, revoked, or under_review', async () => {
+  const plant = await createPlant();
+  const manager = await createUser('fleet_manager', 'kyc-vehicle-mgr@test.com', plant.id);
+  for (const status of ['suspended', 'revoked', 'under_review'] as const) {
+    const [vehicle] = await db.insert(vehicles).values({ vehicleNo: `MH01-${status}`, capacity: '8.00', plantId: plant.id }).returning();
+    await db.insert(kycProfiles).values({ entityType: 'vehicle', vehicleId: vehicle.id, plantId: plant.id, status });
+
+    const res = await request(app)
+      .post(`/api/kyc-verification/vehicles/${vehicle.id}/submit`)
+      .set('Authorization', `Bearer ${tokenFor(manager)}`)
+      .send({});
+    assert.equal(res.status, 409, `${status} must not allow a subject-initiated submit`);
+  }
+});
+
 test('an approved profile can no longer be edited by its subject', async () => {
   const { user } = await createClientUser('kyc-client5@test.com');
   await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status: 'verified', legalName: 'Locked' });
