@@ -671,3 +671,9 @@ id = "pNy6rEIcIE45qBonMWvXT"
 uri = "file://dist/TrackMyRMC-android-v1.15-vc16.zip"
 type = "unspecified"
 title = "TrackMyRMC Android project (v1.15, versionCode 16) — ready for Android Studio → AAB"
+
+[[outputs]]
+id = "WpCph8uI_nbRZg9JKS2h7"
+uri = "file://rmc-app/android/app/build/outputs/bundle/release/app-release.aab"
+type = "unspecified"
+title = "Concrete King v1.19 (versionCode 20) — Signed Release AAB"
