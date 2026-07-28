@@ -649,7 +649,10 @@ router.get('/badges', requireRole(...REVIEW_ROLES, 'supervisor', 'fleet_manager'
   const map: Record<number, string> = {};
   for (const r of rows) {
     const key = entity === 'vehicle' ? r.vehicleId : r.userId;
-    if (key != null) map[key] = r.status;
+    // 'verified' is the modern profile status; the client-facing badge still
+    // speaks the legacy 'approved' label (see VerifiedBadge.tsx), so normalize
+    // both to the one value consumers actually key their UI off of.
+    if (key != null) map[key] = r.status === 'verified' ? 'approved' : r.status;
   }
   res.json(map);
 });

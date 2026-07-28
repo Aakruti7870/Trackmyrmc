@@ -46,7 +46,7 @@ export async function isUserKycVerified(userId: number): Promise<boolean> {
             SELECT 1
             FROM kyc_profiles kp
             WHERE kp.user_id = u.id
-              AND kp.status = 'approved'
+              AND kp.status IN ('approved', 'verified')
           )
         )
     ) AS verified
