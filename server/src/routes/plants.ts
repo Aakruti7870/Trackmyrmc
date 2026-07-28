@@ -155,6 +155,13 @@ router.get('/nearby', requireAuth, async (req, res) => {
         openNow: isOpenNow(p.openTime, p.closeTime),
         gstPanVerified: gstPanVerified.has(p.id),
         distanceKm: Math.round(haversineKm(lat, lng, pLat, pLng) * 10) / 10,
+        // Carry promotion fields so the ranking step can evaluate them.
+        promotionActive: p.promotionActive,
+        promotionStart: p.promotionStart,
+        promotionEnd: p.promotionEnd,
+        promotionRadiusKm: p.promotionRadiusKm,
+        promotionPriorityRaw: p.promotionPriority,
+        promotionAdGlow: p.promotionAdGlow,
       }))
       .filter(p => Number.isFinite(p.distanceKm) && p.distanceKm <= effRadius)
       .map(p => {
@@ -163,15 +170,15 @@ router.get('/nearby', requireAuth, async (req, res) => {
         // customerVisible() check (done above) — sponsorship only affects rank.
         const now = Date.now();
         const promoActive =
-          p.p.promotionActive === true &&
-          p.p.promotionStart != null && new Date(p.p.promotionStart).getTime() <= now &&
-          p.p.promotionEnd != null && new Date(p.p.promotionEnd).getTime() > now &&
-          p.distanceKm <= (p.p.promotionRadiusKm ?? 20);
+          p.promotionActive === true &&
+          p.promotionStart != null && new Date(p.promotionStart).getTime() <= now &&
+          p.promotionEnd != null && new Date(p.promotionEnd).getTime() > now &&
+          p.distanceKm <= (p.promotionRadiusKm ?? 20);
         return {
           ...p,
           sponsored: promoActive,
-          promotionPriority: promoActive ? (p.p.promotionPriority ?? 0) : -Infinity,
-          adGlow: promoActive && p.p.promotionAdGlow !== false,
+          promotionPriority: promoActive ? (p.promotionPriorityRaw ?? 0) : -Infinity,
+          adGlow: promoActive && p.promotionAdGlow !== false,
         };
       })
       .sort((a, b) => {
@@ -184,7 +191,10 @@ router.get('/nearby', requireAuth, async (req, res) => {
         }
         return a.distanceKm - b.distanceKm;
       })
-      .map(({ p: _p, promotionPriority: _pp, ...rest }) => rest);
+      // Strip internal ranking fields before sending to client.
+      .map(({ promotionActive: _pa, promotionStart: _ps, promotionEnd: _pe,
+               promotionRadiusKm: _pr, promotionPriorityRaw: _pp2,
+               promotionAdGlow: _pag, promotionPriority: _pp, ...rest }) => rest);
 
     res.status(200).json({ plants: nearby, count: nearby.length });
   } catch (error) {

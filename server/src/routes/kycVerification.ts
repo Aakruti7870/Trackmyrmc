@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { eq, and, desc, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { kycProfiles, kycDocuments, users, vehicles, auditLogs } from '../db/schema.js';
+import { kycProfiles, kycDocuments, users, vehicles, auditLogs, kycProfileStatusEnum } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 import { plantScope } from '../lib/tenancy.js';
@@ -466,11 +466,12 @@ router.get('/profiles', requireRole(...REVIEW_ROLES), async (req, res) => {
   // Support comma-separated multi-status filter, e.g. ?status=submitted,under_review
   // for the reviewer queue which must show both awaiting-first-review and in-progress.
   if (typeof status === 'string' && status) {
-    const statuses = status.split(',').map(s => s.trim()).filter(isKycState);
+    type KycProfileStatus = (typeof kycProfileStatusEnum.enumValues)[number];
+    const statuses = status.split(',').map(s => s.trim()).filter(isKycState) as KycProfileStatus[];
     if (statuses.length === 1) {
-      filters.push(eq(kycProfiles.status, statuses[0] as Parameters<typeof eq>[1]));
+      filters.push(eq(kycProfiles.status, statuses[0]));
     } else if (statuses.length > 1) {
-      filters.push(inArray(kycProfiles.status, statuses as string[]));
+      filters.push(inArray(kycProfiles.status, statuses));
     }
   }
   const entityType = req.query.entityType;
