@@ -1,0 +1,844 @@
+Update the complete TrackMyRMC website UI theme to match the premium industrial visual identity described below.
+
+Project:
+- Website: trackmyrmc.com
+- Brand: TrackMyRMC
+- Industry: Ready-Mix Concrete, RMC plants, logistics, construction technology
+- Objective: Apply one consistent colour system across the complete website without breaking any existing functionality, forms, APIs, authentication, routing, dashboards, animations, responsive layouts or backend code.
+
+IMPORTANT:
+1. First inspect the complete project structure and identify:
+   - Frontend framework
+   - Existing global CSS files
+   - Tailwind configuration, if used
+   - Theme providers
+   - Reusable Button, Card, Header, Footer, Badge, Input and Modal components
+   - Pages containing hardcoded colours
+2. Do not rewrite the application unnecessarily.
+3. Reuse the existing component structure.
+4. Replace inconsistent colours with centralized theme variables.
+5. Do not change business logic, APIs, database queries, authentication or routes.
+6. Do not remove existing website content.
+7. Make a backup or clearly report every file changed.
+8. Apply the theme across both desktop and mobile layouts.
+9. Do not use bright yellow, neon green, purple or unrelated blue colours.
+10. Keep the overall website light, clean and premium.
+
+==================================================
+TRACKMYRMC BRAND COLOUR SYSTEM
+==================================================
+
+Primary background:
+- Soft industrial white: #F2F2F0
+
+Card and elevated surface:
+- Pure white: #FFFFFF
+
+Primary text and logo:
+- Deep black: #080808
+
+Headings:
+- Charcoal black: #1F1F1E
+
+Secondary text:
+- Medium grey: #666661
+
+Muted text:
+- Concrete grey: #8A8A85
+
+Borders and dividers:
+- Light concrete grey: #D6D6D2
+
+Secondary surface:
+- Silver grey: #E7E7E4
+
+Primary brand accent:
+- Olive green: #8B923F
+
+Dark olive:
+- #707439
+
+Olive hover:
+- #5F632F
+
+Premium accent:
+- Muted gold: #C19B4D
+
+Gold hover:
+- #A9843E
+
+Soft gold surface:
+- #F4EBD8
+
+Dark footer:
+- #111110
+
+Controlled error red:
+- #B94040
+
+Success green:
+- #667534
+
+Warning background:
+- #F4EBD8
+
+Recommended visual distribution:
+- 65% white and off-white
+- 20% black and charcoal
+- 8% concrete grey
+- 4% olive green
+- 3% muted gold
+
+Green and gold must only be used as controlled accents. Do not make large sections completely green or gold.
+
+==================================================
+CREATE CENTRALIZED THEME VARIABLES
+==================================================
+
+Create or update the global theme stylesheet.
+
+Use the following CSS variables:
+
+:root {
+  --tm-background: #F2F2F0;
+  --tm-surface: #FFFFFF;
+  --tm-surface-secondary: #E7E7E4;
+
+  --tm-black: #080808;
+  --tm-charcoal: #1F1F1E;
+  --tm-text-primary: #1F1F1E;
+  --tm-text-secondary: #666661;
+  --tm-text-muted: #8A8A85;
+
+  --tm-border: #D6D6D2;
+  --tm-border-dark: #BEBEB8;
+
+  --tm-green: #8B923F;
+  --tm-green-dark: #707439;
+  --tm-green-hover: #5F632F;
+  --tm-green-soft: #EEF0E2;
+
+  --tm-gold: #C19B4D;
+  --tm-gold-hover: #A9843E;
+  --tm-gold-soft: #F4EBD8;
+
+  --tm-footer: #111110;
+  --tm-error: #B94040;
+  --tm-success: #667534;
+
+  --tm-shadow-sm: 0 4px 14px rgba(8, 8, 8, 0.05);
+  --tm-shadow-md: 0 12px 30px rgba(8, 8, 8, 0.07);
+  --tm-shadow-lg: 0 24px 60px rgba(8, 8, 8, 0.10);
+
+  --tm-radius-sm: 8px;
+  --tm-radius-md: 14px;
+  --tm-radius-lg: 22px;
+  --tm-radius-pill: 999px;
+
+  --tm-transition: 180ms ease;
+}
+
+Apply these global base styles:
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--tm-background);
+  color: var(--tm-text-primary);
+  font-family: Inter, Manrope, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--tm-black);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+p {
+  color: var(--tm-text-secondary);
+  line-height: 1.7;
+}
+
+a {
+  color: var(--tm-green-dark);
+  text-decoration: none;
+  transition: color var(--tm-transition);
+}
+
+a:hover {
+  color: var(--tm-green-hover);
+}
+
+::selection {
+  background: var(--tm-gold-soft);
+  color: var(--tm-black);
+}
+
+==================================================
+HEADER AND NAVIGATION
+==================================================
+
+Update the header to use:
+- White background
+- Deep black logo
+- Charcoal navigation labels
+- Olive green active navigation item
+- Muted gold active underline
+- Light concrete-grey bottom border
+- Subtle shadow only after scrolling
+
+Use styling similar to:
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid var(--tm-border);
+  backdrop-filter: blur(16px);
+  transition:
+    box-shadow var(--tm-transition),
+    background var(--tm-transition);
+}
+
+.site-header.is-scrolled {
+  box-shadow: var(--tm-shadow-sm);
+}
+
+.site-nav a {
+  position: relative;
+  color: var(--tm-charcoal);
+  font-weight: 600;
+}
+
+.site-nav a:hover,
+.site-nav a.active {
+  color: var(--tm-green-dark);
+}
+
+.site-nav a.active::after {
+  content: "";
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  bottom: -10px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--tm-gold);
+}
+
+Mobile navigation must use the same colour system.
+
+==================================================
+HERO SECTION
+==================================================
+
+Update the homepage hero section to resemble a clean white industrial presentation.
+
+Requirements:
+- Background: soft white or subtle white-to-grey gradient
+- Main heading: deep black
+- One important phrase or word: olive green
+- Small lines, icons or accents: muted gold
+- Avoid heavy gradients
+- Avoid oversized green blocks
+- Keep the RMC plant, transit mixer, concrete pump, map or logistics visual as the main visual focus
+- Use generous white space
+- Maintain responsive image proportions
+- Do not crop important machinery on mobile
+
+Recommended hero background:
+
+.hero-section {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 75% 35%,
+      rgba(193, 155, 77, 0.09),
+      transparent 32%
+    ),
+    linear-gradient(
+      180deg,
+      #FFFFFF 0%,
+      #F2F2F0 100%
+    );
+}
+
+.hero-title {
+  color: var(--tm-black);
+  font-size: clamp(2.6rem, 6vw, 5.5rem);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.hero-title .highlight {
+  color: var(--tm-green-dark);
+}
+
+.hero-eyebrow {
+  color: var(--tm-green-dark);
+  background: var(--tm-green-soft);
+  border: 1px solid rgba(112, 116, 57, 0.22);
+  border-radius: var(--tm-radius-pill);
+}
+
+.hero-accent-line {
+  width: 72px;
+  height: 4px;
+  background: var(--tm-gold);
+  border-radius: var(--tm-radius-pill);
+}
+
+==================================================
+BUTTONS
+==================================================
+
+Create or update reusable button variants.
+
+Primary action:
+
+.tm-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid var(--tm-green-dark);
+  border-radius: 12px;
+  background: var(--tm-green-dark);
+  color: #FFFFFF;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(112, 116, 57, 0.18);
+  transition:
+    transform var(--tm-transition),
+    background var(--tm-transition),
+    box-shadow var(--tm-transition);
+}
+
+.tm-btn-primary:hover {
+  background: var(--tm-green-hover);
+  color: #FFFFFF;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(112, 116, 57, 0.24);
+}
+
+Gold secondary action:
+
+.tm-btn-gold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid var(--tm-gold);
+  border-radius: 12px;
+  background: var(--tm-gold);
+  color: var(--tm-black);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform var(--tm-transition),
+    background var(--tm-transition);
+}
+
+.tm-btn-gold:hover {
+  background: var(--tm-gold-hover);
+  border-color: var(--tm-gold-hover);
+  color: var(--tm-black);
+  transform: translateY(-2px);
+}
+
+Outline action:
+
+.tm-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid var(--tm-border-dark);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--tm-charcoal);
+  font-weight: 700;
+}
+
+.tm-btn-outline:hover {
+  border-color: var(--tm-green-dark);
+  color: var(--tm-green-dark);
+  background: var(--tm-green-soft);
+}
+
+Apply button hierarchy:
+- Get a Quote: olive primary
+- Find RMC Plants: olive primary
+- Track Order: olive primary
+- Download App: olive primary
+- Become a Partner: gold
+- Explore Services: gold or outline
+- Contact Sales: gold
+- Secondary navigation buttons: outline
+
+All buttons must have visible keyboard focus states.
+
+==================================================
+CARDS
+==================================================
+
+Use white cards with concrete-grey borders.
+
+.tm-card {
+  background: var(--tm-surface);
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius-lg);
+  box-shadow: var(--tm-shadow-sm);
+  transition:
+    transform var(--tm-transition),
+    border-color var(--tm-transition),
+    box-shadow var(--tm-transition);
+}
+
+.tm-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(112, 116, 57, 0.45);
+  box-shadow: var(--tm-shadow-md);
+}
+
+.tm-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--tm-gold-soft);
+  color: var(--tm-gold-hover);
+}
+
+Do not use a different bright colour for every card.
+
+Card icons may alternate only between:
+- Muted gold on soft gold
+- Olive green on soft olive
+- Charcoal on silver-grey
+
+==================================================
+SECTIONS
+==================================================
+
+Alternate sections using:
+1. Pure white
+2. Soft industrial white
+3. Very light concrete grey
+
+Do not alternate with bright green or gold backgrounds.
+
+Example:
+
+.section-white {
+  background: #FFFFFF;
+}
+
+.section-soft {
+  background: var(--tm-background);
+}
+
+.section-concrete {
+  background: var(--tm-surface-secondary);
+}
+
+Dark promotional sections may use:
+
+.section-dark {
+  background: var(--tm-footer);
+  color: #FFFFFF;
+}
+
+.section-dark h2,
+.section-dark h3 {
+  color: #FFFFFF;
+}
+
+.section-dark p {
+  color: #C9C9C4;
+}
+
+Use muted gold or olive only for small details inside dark sections.
+
+==================================================
+FORMS AND INPUTS
+==================================================
+
+Update all contact, quote, login, registration and enquiry forms.
+
+.tm-input,
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--tm-border);
+  border-radius: 10px;
+  background: #FFFFFF;
+  color: var(--tm-charcoal);
+  outline: none;
+  transition:
+    border-color var(--tm-transition),
+    box-shadow var(--tm-transition);
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.tm-input:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--tm-green-dark);
+  box-shadow: 0 0 0 4px rgba(112, 116, 57, 0.12);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--tm-text-muted);
+}
+
+Validation errors:
+- Use #B94040
+- Show clear error text
+- Do not rely only on colour to communicate errors
+
+==================================================
+STATUS BADGES
+==================================================
+
+Create consistent badge styles:
+
+.tm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--tm-radius-pill);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.tm-badge-active,
+.tm-badge-approved,
+.tm-badge-completed {
+  color: #56602D;
+  background: #EEF0E2;
+  border: 1px solid rgba(102, 117, 52, 0.22);
+}
+
+.tm-badge-loading {
+  color: var(--tm-green-dark);
+  background: var(--tm-green-soft);
+  border: 1px solid rgba(112, 116, 57, 0.22);
+}
+
+.tm-badge-transit,
+.tm-badge-pending {
+  color: #806326;
+  background: var(--tm-gold-soft);
+  border: 1px solid rgba(193, 155, 77, 0.28);
+}
+
+.tm-badge-error,
+.tm-badge-cancelled {
+  color: #9B3030;
+  background: #FBE8E8;
+  border: 1px solid rgba(185, 64, 64, 0.22);
+}
+
+.tm-badge-inactive {
+  color: #666661;
+  background: #E7E7E4;
+  border: 1px solid #D6D6D2;
+}
+
+==================================================
+TABLES AND DASHBOARD ELEMENTS
+==================================================
+
+Where tables are used:
+- White table background
+- Light-grey borders
+- Charcoal headings
+- Olive active filters
+- Gold highlights only for important totals or pending action
+- Avoid large colourful table rows
+
+.tm-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #FFFFFF;
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius-md);
+  overflow: hidden;
+}
+
+.tm-table th {
+  padding: 14px 16px;
+  background: #F7F7F4;
+  color: var(--tm-charcoal);
+  font-weight: 700;
+  text-align: left;
+  border-bottom: 1px solid var(--tm-border);
+}
+
+.tm-table td {
+  padding: 14px 16px;
+  color: var(--tm-text-secondary);
+  border-bottom: 1px solid var(--tm-border);
+}
+
+.tm-table tr:hover td {
+  background: #FAFAF7;
+}
+
+==================================================
+FOOTER
+==================================================
+
+Use a premium dark footer.
+
+.site-footer {
+  background: var(--tm-footer);
+  color: #F2F2F0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.site-footer h3,
+.site-footer h4 {
+  color: #FFFFFF;
+}
+
+.site-footer p,
+.site-footer li {
+  color: #BFBFBA;
+}
+
+.site-footer a {
+  color: #D5D5D0;
+}
+
+.site-footer a:hover {
+  color: var(--tm-gold);
+}
+
+.site-footer .footer-divider {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+Use olive green for hover links and muted gold for small icons, dividers or premium labels.
+
+==================================================
+ACCESSIBILITY
+==================================================
+
+Ensure:
+- Text contrast meets WCAG AA
+- Black text is used on gold backgrounds
+- White text is used on dark olive buttons
+- Focus indicators are visible
+- Buttons are keyboard accessible
+- Form labels are connected to their inputs
+- Icon-only buttons have aria-label attributes
+- Reduced-motion preferences are respected
+
+Add:
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+==================================================
+RESPONSIVE REQUIREMENTS
+==================================================
+
+Check the website at:
+- 360px
+- 390px
+- 430px
+- 768px
+- 1024px
+- 1366px
+- 1440px
+
+Confirm:
+- No horizontal scrolling
+- No clipped headings
+- No overlapping buttons
+- Hero machinery image remains visible
+- Navigation works on mobile
+- Cards form clean one-column layouts on small screens
+- Tables either scroll safely or transform into responsive cards
+- Forms remain fully usable
+- Floating WhatsApp, Call, Quote and Direction buttons do not cover important content
+
+==================================================
+TAILWIND CONFIGURATION
+==================================================
+
+If the project uses Tailwind CSS, extend the existing Tailwind configuration instead of replacing it.
+
+Add equivalent theme values:
+
+colors: {
+  tm: {
+    background: "#F2F2F0",
+    surface: "#FFFFFF",
+    silver: "#E7E7E4",
+    black: "#080808",
+    charcoal: "#1F1F1E",
+    secondary: "#666661",
+    muted: "#8A8A85",
+    border: "#D6D6D2",
+    green: "#8B923F",
+    "green-dark": "#707439",
+    "green-hover": "#5F632F",
+    "green-soft": "#EEF0E2",
+    gold: "#C19B4D",
+    "gold-hover": "#A9843E",
+    "gold-soft": "#F4EBD8",
+    footer: "#111110",
+    error: "#B94040",
+    success: "#667534"
+  }
+}
+
+Use classes such as:
+- bg-tm-background
+- bg-tm-surface
+- text-tm-black
+- text-tm-secondary
+- border-tm-border
+- bg-tm-green-dark
+- hover:bg-tm-green-hover
+- bg-tm-gold
+- bg-tm-gold-soft
+
+Do not delete existing Tailwind plugins or content paths.
+
+==================================================
+PAGES TO CHECK
+==================================================
+
+Apply the theme consistently to every public website page, including where available:
+
+- Home
+- About Us
+- Services
+- RMC Plant Discovery
+- Concrete Calculator
+- Track Order
+- Get a Quote
+- Contact
+- Pricing
+- Careers
+- Blog
+- Team and Leadership
+- Laboratory
+- Fleet Management
+- Batching Plant
+- Infrastructure
+- Specifications
+- Applications
+- Projects
+- Plant Tour
+- Manufacturing Process
+- Login
+- Registration
+- Customer onboarding
+- Plant partner onboarding
+- Privacy Policy
+- Terms and Conditions
+- Error and 404 pages
+
+Also check:
+- Popups
+- Dropdowns
+- Modals
+- Toast messages
+- Forms
+- Mobile menus
+- Floating contact buttons
+- Cookie banners
+- Loading skeletons
+- Empty states
+
+==================================================
+DO NOT CHANGE
+==================================================
+
+Do not modify:
+- API endpoints
+- Backend logic
+- Database schema
+- Authentication behaviour
+- Existing form submission logic
+- Google Maps integration
+- WhatsApp links
+- Phone numbers
+- Business information
+- SEO content
+- Domain configuration
+- Analytics
+- Existing routes
+- Android application code unless it shares the same frontend and must inherit the theme safely
+
+==================================================
+FINAL VERIFICATION
+==================================================
+
+After implementation:
+
+1. Run the project.
+2. Fix all TypeScript, JavaScript, CSS and build errors.
+3. Check browser console for errors.
+4. Test desktop and mobile navigation.
+5. Test every important CTA.
+6. Test quote and contact forms.
+7. Test login and registration pages.
+8. Confirm no content became invisible.
+9. Confirm gold buttons use black text.
+10. Confirm olive buttons use white text.
+11. Confirm there are no remaining unrelated blue, purple, neon green or bright yellow colours, except where technically necessary for third-party branding.
+12. Confirm the website compiles successfully.
+13. Do not mark the task complete until the build passes.
+
+At the end, provide a clear report containing:
+- Files changed
+- Components updated
+- Hardcoded colours replaced
+- Pages reviewed
+- Responsive issues fixed
+- Build command used
+- Build result
+- Any pages that still require manual visual review
