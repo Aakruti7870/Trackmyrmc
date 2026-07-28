@@ -166,9 +166,14 @@ router.post('/:id/reject', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'Invalid order id' });
+    return;
+  }
   const { clientId, siteId, grade, quantity, pumpRequired, deliveryDate, deliveryTime, notes, status } = req.body;
   const [prev] = await db.select({ status: orders.status })
-    .from(orders).where(and(eq(orders.id, +req.params.id), plantScope(req.user!.plantId, orders.plantId)));
+    .from(orders).where(and(eq(orders.id, id), plantScope(req.user!.plantId, orders.plantId)));
   if (!prev) { res.status(404).json({ error: 'Not found' }); return; }
   // Retargeting to a customer must stay within the actor's plant — a plant can't
   // reassign its order to another plant's client row.
@@ -192,7 +197,7 @@ router.put('/:id', async (req, res) => {
     grade, quantity: quantity?.toString(),
     pumpRequired: pumpRequired !== undefined ? !!pumpRequired : undefined,
     deliveryDate, deliveryTime, notes: notesUpdate, status,
-  }).where(and(eq(orders.id, +req.params.id), plantScope(req.user!.plantId, orders.plantId))).returning();
+  }).where(and(eq(orders.id, id), plantScope(req.user!.plantId, orders.plantId))).returning();
   if (row && status !== undefined && prev?.status !== row.status) {
     emitSSEEvent('order.updated', row, { clientId: row.clientId });
   }
@@ -200,7 +205,12 @@ router.put('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
-  await db.delete(orders).where(and(eq(orders.id, +req.params.id), plantScope(req.user!.plantId, orders.plantId)));
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'Invalid order id' });
+    return;
+  }
+  await db.delete(orders).where(and(eq(orders.id, id), plantScope(req.user!.plantId, orders.plantId)));
   res.json({ ok: true });
 });
 
