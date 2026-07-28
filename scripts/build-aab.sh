@@ -24,14 +24,17 @@ if [ ! -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
   echo "=== SDK installed ==="
 fi
 
-# Decode keystore from Replit Secret on every run
+# Decode keystore from Replit Secret
 echo "=== Decoding keystore ==="
 if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-  echo "ERROR: ANDROID_KEYSTORE_BASE64 secret is not set"
-  exit 1
+  echo "ERROR: ANDROID_KEYSTORE_BASE64 secret is not set"; exit 1
 fi
-echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > /home/runner/workspace/rmc-app/android/app/concreteking-release.jks
-echo "Keystore: $(wc -c < /home/runner/workspace/rmc-app/android/app/concreteking-release.jks) bytes"
+KEYSTORE=/tmp/concreteking-release.jks
+echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+echo "Keystore: $(wc -c < $KEYSTORE) bytes"
+
+# Copy keystore into android/app/ where build.gradle expects it
+cp "$KEYSTORE" /home/runner/workspace/rmc-app/android/app/concreteking-release.jks
 
 echo ""
 echo "=== Starting Gradle bundleRelease ==="
@@ -39,16 +42,33 @@ cd /home/runner/workspace/rmc-app/android
 ./gradlew clean bundleRelease
 
 echo ""
+echo "=== Signing & saving to releases/ ==="
+UNSIGNED=app/build/intermediates/intermediary_bundle/release/packageReleaseBundle/intermediary-bundle.aab
+mkdir -p /home/runner/workspace/releases
+
+# Extract version from build.gradle
+VERSION=$(grep 'versionName' app/build.gradle | head -1 | grep -oP '"\K[^"]+')
+VCODE=$(grep 'versionCode' app/build.gradle | head -1 | grep -oP '\d+')
+DEST="/home/runner/workspace/releases/app-release-v${VERSION}-vc${VCODE}-signed.aab"
+
+"$JAVA_HOME/bin/jarsigner" \
+  -keystore "$KEYSTORE" \
+  -storepass "$ANDROID_STORE_PASSWORD" \
+  -keypass  "$ANDROID_KEY_PASSWORD" \
+  -signedjar "$DEST" \
+  "$UNSIGNED" \
+  "$ANDROID_KEY_ALIAS"
+
+echo "Signed AAB: $DEST ($(du -h $DEST | cut -f1))"
+
+# Verify
+"$JAVA_HOME/bin/jarsigner" -verify -certs "$DEST" 2>&1 | head -3
+
+# Clean up secrets from disk
+rm -f "$KEYSTORE" /home/runner/workspace/rmc-app/android/app/concreteking-release.jks
+echo "=== Keystore cleared from disk ==="
+
+echo ""
 echo "=== BUILD COMPLETE ==="
-AAB=app/build/outputs/bundle/release/app-release.aab
-if [ -f "$AAB" ]; then
-  echo "Output: $AAB"
-  echo "Size: $(du -h "$AAB" | cut -f1)"
-  "$JAVA_HOME/bin/jarsigner" -verify -verbose -certs "$AAB" 2>&1 | head -6 || true
-  # Clean up decoded keystore — it lives safely in ANDROID_KEYSTORE_BASE64 secret
-  rm -f /home/runner/workspace/rmc-app/android/app/concreteking-release.jks
-  echo "=== Keystore cleared from disk ==="
-else
-  echo "ERROR: AAB not found at $AAB"
-  exit 1
-fi
+echo "File ready for Play Console: $DEST"
+ls -lh "$DEST"
