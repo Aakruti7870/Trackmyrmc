@@ -123,8 +123,6 @@ app.use('/api/public', rmcDiscoveryPublicRoutes);
 app.use('/api/events', eventsRoutes);
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
-
 if (isProd) {
   const staticDir = path.resolve(__dirname, '../../rmc-app/dist');
   app.use(express.static(staticDir));

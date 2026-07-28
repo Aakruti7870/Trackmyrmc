@@ -21,5 +21,8 @@ export function resolvedClientNameSql(): SQL<string> {
 }
 
 export function resolveCustomerName(input: { verifiedKycName?: string | null; registrationName?: string | null; clientId: number }): string {
-  return input.verifiedKycName?.trim() || input.registrationName?.trim() || `Customer ${input.clientId}`;
+  // Before KYC: show a privacy-safe masked reference (last 4 digits of the
+  // customer's numeric id) — never the full id, never a real name placeholder.
+  const masked = `Customer \u2022\u2022\u2022\u2022 ${String(input.clientId).slice(-4)}`;
+  return input.verifiedKycName?.trim() || input.registrationName?.trim() || masked;
 }

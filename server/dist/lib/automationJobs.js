@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, isNotNull, lt, max, ne, notLike, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { auditLogs, challans, clients, orders, otpCodes, passwordSetupTokens, plants, pushSubscriptions, rateLimitHits, responseCache, staffOtpCodes, trackingTokens, users, vehicles, whatsappMessages, } from '../db/schema.js';
+import { auditLogs, challans, clients, orders, otpCodes, passwordSetupTokens, plants, pushSubscriptions, rateLimitHits, responseCache, staffOtpCodes, trackingTokens, users, vehicles, } from '../db/schema.js';
 import { claimSend, istParts, istDayStartUtc, loadAutomationSnapshot, periodKey, recordLastRun, } from './automations.js';
 import { sendAutomationEmail } from './automationEmail.js';
 import { isPushConfigured, sendPushToClientUsers, sendPushToStaff } from './push.js';
@@ -10,6 +10,7 @@ import { createTrackingToken } from './trackingTokens.js';
 import { normalizePhone } from './otp.js';
 import { isRealEmail } from './customerAccount.js';
 import { computeFuelReconciliation } from '../routes/reports.js';
+import { recordWhatsAppAttempt } from './whatsappMessageStore.js';
 // Staff roles that receive operational automation alerts (follow-ups, idle
 // vehicles, fuel anomalies). `authority` is the platform super-admin.
 const STAFF_ALERT_ROLES = ['admin', 'plant_owner', 'dispatcher', 'authority'];
@@ -40,7 +41,7 @@ function str(cfg, key) {
 async function recordAutomationWhatsApp(automation, link, toPhone, result) {
     try {
         const status = result.ok ? (result.status ?? (result.channel === 'dev' ? 'dev' : 'queued')) : 'error';
-        await db.insert(whatsappMessages).values({
+        await recordWhatsAppAttempt({
             messageSid: result.sid ?? null,
             event: `automation:${automation}`,
             orderId: link.orderId ?? null,

@@ -155,9 +155,46 @@ router.get('/nearby', requireAuth, async (req, res) => {
         openNow: isOpenNow(p.openTime, p.closeTime),
         gstPanVerified: gstPanVerified.has(p.id),
         distanceKm: Math.round(haversineKm(lat, lng, pLat, pLng) * 10) / 10,
+        // Carry promotion fields so the ranking step can evaluate them.
+        promotionActive: p.promotionActive,
+        promotionStart: p.promotionStart,
+        promotionEnd: p.promotionEnd,
+        promotionRadiusKm: p.promotionRadiusKm,
+        promotionPriorityRaw: p.promotionPriority,
+        promotionAdGlow: p.promotionAdGlow,
       }))
       .filter(p => Number.isFinite(p.distanceKm) && p.distanceKm <= effRadius)
-      .sort((a, b) => a.distanceKm - b.distanceKm);
+      .map(p => {
+        // Determine whether this plant has an active paid promotion that covers
+        // the customer's location. A sponsored plant must still pass every
+        // customerVisible() check (done above) — sponsorship only affects rank.
+        const now = Date.now();
+        const promoActive =
+          p.promotionActive === true &&
+          p.promotionStart != null && new Date(p.promotionStart).getTime() <= now &&
+          p.promotionEnd != null && new Date(p.promotionEnd).getTime() > now &&
+          p.distanceKm <= (p.promotionRadiusKm ?? 20);
+        return {
+          ...p,
+          sponsored: promoActive,
+          promotionPriority: promoActive ? (p.promotionPriorityRaw ?? 0) : -Infinity,
+          adGlow: promoActive && p.promotionAdGlow !== false,
+        };
+      })
+      .sort((a, b) => {
+        // Sponsored plants first (higher priority = closer to top);
+        // within the same tier, sort by distance.
+        if (a.sponsored !== b.sponsored) return a.sponsored ? -1 : 1;
+        if (a.sponsored && b.sponsored) {
+          const pDiff = (b.promotionPriority as number) - (a.promotionPriority as number);
+          if (pDiff !== 0) return pDiff;
+        }
+        return a.distanceKm - b.distanceKm;
+      })
+      // Strip internal ranking fields before sending to client.
+      .map(({ promotionActive: _pa, promotionStart: _ps, promotionEnd: _pe,
+               promotionRadiusKm: _pr, promotionPriorityRaw: _pp2,
+               promotionAdGlow: _pag, promotionPriority: _pp, ...rest }) => rest);
 
     res.status(200).json({ plants: nearby, count: nearby.length });
   } catch (error) {
@@ -787,6 +824,21 @@ function parseBody(body: Record<string, unknown>) {
   if (body.grades !== undefined) out.grades = Array.isArray(body.grades) ? body.grades.map(String) : [];
   if (body.openTime !== undefined) out.openTime = body.openTime === null ? null : String(body.openTime);
   if (body.closeTime !== undefined) out.closeTime = body.closeTime === null ? null : String(body.closeTime);
+  // ── Sponsored / paid-ad placement (platform-staff only; caller must check role) ──
+  if (body.promotionActive !== undefined) out.promotionActive = Boolean(body.promotionActive);
+  if (body.promotionStart !== undefined) {
+    out.promotionStart = body.promotionStart === null || body.promotionStart === '' ? null : new Date(String(body.promotionStart));
+  }
+  if (body.promotionEnd !== undefined) {
+    out.promotionEnd = body.promotionEnd === null || body.promotionEnd === '' ? null : new Date(String(body.promotionEnd));
+  }
+  if (body.promotionRadiusKm !== undefined) {
+    out.promotionRadiusKm = Math.max(1, Math.min(250, Math.round(Number(body.promotionRadiusKm)) || 20));
+  }
+  if (body.promotionPriority !== undefined) {
+    out.promotionPriority = Math.max(0, Math.min(9999, Math.round(Number(body.promotionPriority)) || 0));
+  }
+  if (body.promotionAdGlow !== undefined) out.promotionAdGlow = Boolean(body.promotionAdGlow);
   return out;
 }
 

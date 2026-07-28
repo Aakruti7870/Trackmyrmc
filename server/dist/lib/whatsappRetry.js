@@ -34,6 +34,23 @@ export function backoffDelayMs(attemptsMade) {
     const delay = BACKOFF_BASE_MS * 2 ** (attemptsMade - 1);
     return Math.min(delay, MAX_BACKOFF_MS);
 }
+// Provider adapters normally convert failures into WhatsAppSendResult, but a
+// transport bug, SDK regression, or test double can still reject unexpectedly.
+// Treat an unexpected rejection as transient so notification callers keep their
+// best-effort contract and the retry queue retains the message for another try.
+async function sendSafely(toPhone, templateSid, variables) {
+    try {
+        return await sendWhatsAppTemplate(toPhone, templateSid, variables);
+    }
+    catch (error) {
+        return {
+            ok: false,
+            channel: 'whatsapp',
+            retryable: true,
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
 // Persist a transiently-failed send so the background tick can re-send it.
 // Caller must have already confirmed result.retryable; only called with a valid
 // recipient + template (the only case a send is ever retryable). Never throws —
@@ -60,7 +77,7 @@ export async function enqueueWhatsAppRetry(params) {
 // their existing fire-and-forget contract. This is the entry point delivery
 // notifications should use instead of sendWhatsAppTemplate directly.
 export async function sendWhatsAppWithRetry(toPhone, templateSid, variables, event) {
-    const result = await sendWhatsAppTemplate(toPhone, templateSid, variables);
+    const result = await sendSafely(toPhone, templateSid, variables);
     // retryable is only ever true when toPhone + templateSid were valid (that is
     // the only path that reaches a real provider call), so the narrowing below
     // always holds; the guard keeps TypeScript happy and is defensive.
@@ -98,7 +115,7 @@ export async function runDueWhatsAppRetries(now = new Date()) {
         if (!claimed)
             break;
         // Phase 2: attempt the send with no transaction / lock held.
-        const res = await sendWhatsAppTemplate(claimed.toPhone, claimed.templateSid, claimed.variables);
+        const res = await sendSafely(claimed.toPhone, claimed.templateSid, claimed.variables);
         // Phase 3: record the outcome.
         if (res.ok) {
             await db.delete(whatsappRetries).where(eq(whatsappRetries.id, claimed.id));
@@ -213,7 +230,7 @@ export async function retryWhatsAppNow(id, now = new Date()) {
     });
     if (!claimed)
         return 'notFound';
-    const res = await sendWhatsAppTemplate(claimed.toPhone, claimed.templateSid, claimed.variables);
+    const res = await sendSafely(claimed.toPhone, claimed.templateSid, claimed.variables);
     if (res.ok) {
         await db.delete(whatsappRetries).where(eq(whatsappRetries.id, claimed.id));
         return 'sent';

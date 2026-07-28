@@ -5,16 +5,15 @@ import { challans, plants, vehicles, drivers, sites } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { getLivePosition } from './positions.js';
 import { isOpenNow } from './plants.js';
+import { rmcDiscoveryAdminRoutes, rmcDiscoveryPublicRoutes } from './rmcDiscovery.js';
 const router = Router();
+// This router is mounted at /api. The discovery subrouters therefore become:
+// /api/super-admin/rmc-discovery/* and /api/public/rmc-plants*.
+router.use('/super-admin/rmc-discovery', rmcDiscoveryAdminRoutes);
+router.use('/public', rmcDiscoveryPublicRoutes);
 // NOTE: this router is mounted at the broad '/api' prefix, so a router-level
-// `router.use(requireAuth)` would run for EVERY /api/* request (including public
-// routes mounted after it, e.g. webhooks) and 401 them before they reach their
-// own routers. requireAuth is therefore applied PER-ROUTE below, so it only runs
-// when the path actually matches. requireRole still needs it (it reads req.user).
-// Roles allowed to see the live fleet map. Super Admin (authority) sees every
-// plant's vehicles; the plant-bound staff roles below see only their own plant's
-// vehicles (enforced server-side, never by the client). Drivers and customers
-// are intentionally excluded.
+// `router.use(requireAuth)` would run for EVERY /api/* request. Authentication is
+// intentionally attached only to routes/subrouters that require it.
 const FLEET_ROLES = [
     'authority',
     'plant_owner',
@@ -25,10 +24,6 @@ const FLEET_ROLES = [
     'fleet_manager',
     'quality_engineer',
 ];
-// Live fleet: every in-transit (dispatched) load, scoped to the caller's plant
-// unless they are the Super Admin. The latest GPS fix is folded in from the
-// in-memory live-position store; a load with no fix yet still appears (so staff
-// can see the truck is out) but carries null coordinates.
 router.get('/live-fleet-map', requireAuth, requireRole(...FLEET_ROLES), async (req, res) => {
     const actor = req.user;
     const scoped = actor.role !== 'authority';
@@ -79,12 +74,6 @@ router.get('/live-fleet-map', requireAuth, requireRole(...FLEET_ROLES), async (r
     });
     res.json(fleet);
 });
-// A customer's own live fleet: only the in-transit (dispatched) loads that
-// belong to the signed-in client, with the latest GPS fix folded in from the
-// live-position store. Scoped strictly by the account's linked client id — a
-// customer never sees another client's or the plant-wide fleet. Returns [] when
-// the account isn't linked to a client. Mirrors the staff /live-fleet-map shape
-// so the same UI renders it.
 router.get('/me/live-fleet-map', requireAuth, requireRole('client'), async (req, res) => {
     const clientId = req.user.linkedClientId ?? null;
     if (clientId == null) {
@@ -131,10 +120,6 @@ router.get('/me/live-fleet-map', requireAuth, requireRole('client'), async (req,
     });
     res.json(fleet);
 });
-// Plant network map: the FULL onboarded plant network with online/offline
-// (open-now) status — not just customer-visible plants. Super Admin (authority)
-// ONLY; plant staff have no cross-plant visibility, so the route rejects
-// everyone else at the server. Shape matches the client MapPlant type.
 router.get('/plant-network-map', requireAuth, requireRole('authority'), async (_req, res) => {
     const rows = await db.select().from(plants);
     const mapped = rows

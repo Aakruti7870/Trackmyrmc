@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { resolvedClientNameSql } from '../lib/customerIdentity.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { recurringOrders, clients, sites } from '../db/schema.js';
@@ -18,7 +19,7 @@ router.get('/', async (_req, res) => {
         frequency: recurringOrders.frequency, anchor: recurringOrders.anchor,
         nextRunDate: recurringOrders.nextRunDate, active: recurringOrders.active,
         lastRunAt: recurringOrders.lastRunAt, createdAt: recurringOrders.createdAt,
-        clientName: clients.name,
+        clientName: resolvedClientNameSql(),
         siteName: sites.name,
     }).from(recurringOrders)
         .leftJoin(clients, eq(recurringOrders.clientId, clients.id))

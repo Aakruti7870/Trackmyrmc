@@ -23,6 +23,12 @@ export const proofPhotoStore = {
         if (!match) {
             throw new Error('Proof photo must be a base64 image data URL');
         }
+        // Automated tests must never require Replit/GCS credentials or make external
+        // storage calls. Keeping the validated data URL exercises the legacy storage
+        // compatibility path while production continues to upload to object storage.
+        if (process.env.NODE_ENV === 'test' && !process.env.PRIVATE_OBJECT_DIR) {
+            return dataUrl;
+        }
         const contentType = match[1];
         const buffer = Buffer.from(match[2], 'base64');
         const service = new ObjectStorageService();

@@ -1,4 +1,4 @@
-import { and, eq, lte } from 'drizzle-orm';
+import { and, eq, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { orders, recurringOrders } from '../db/schema.js';
 import { nextOrderNo } from './orderNo.js';
@@ -54,7 +54,7 @@ export async function runDueRecurringOrders(now = new Date()) {
     // rows are collected and dispatched only after each commit succeeds.
     const emitted = [];
     for (;;) {
-        const inserted = await db.transaction(async (tx) => {
+        const processed = await db.transaction(async (tx) => {
             const [tpl] = await tx.select().from(recurringOrders)
                 .where(and(eq(recurringOrders.active, true), lte(recurringOrders.nextRunDate, today)))
                 .orderBy(recurringOrders.id)
@@ -62,6 +62,37 @@ export async function runDueRecurringOrders(now = new Date()) {
                 .for('update', { skipLocked: true });
             if (!tpl)
                 return null;
+            // Recurring generation bypasses the HTTP order route, so it must perform
+            // the same live identity authorization itself. Support both the legacy
+            // primary-client link and future/per-plant customer links.
+            const kyc = await tx.execute(sql `
+        SELECT EXISTS (
+          SELECT 1
+          FROM users u
+          LEFT JOIN plant_customers pc ON pc.user_id = u.id
+          WHERE (u.linked_client_id = ${tpl.clientId} OR pc.client_id = ${tpl.clientId})
+            AND u.deleted_at IS NULL
+            AND u.is_active = true
+            AND (
+              u.kyc_status = 'verified'
+              OR EXISTS (
+                SELECT 1 FROM kyc_profiles kp
+                WHERE kp.user_id = u.id AND kp.status = 'approved'
+              )
+            )
+        ) AS verified
+      `);
+            const verified = kyc.rows[0]?.verified === true;
+            const next = computeRunDate(tpl.frequency, tpl.anchor, now, false);
+            if (!verified) {
+                // Pause instead of repeatedly retrying every scheduler tick. Advance past
+                // the missed occurrence so reactivation after KYC never creates a stale
+                // order for an old delivery date.
+                await tx.update(recurringOrders)
+                    .set({ active: false, nextRunDate: next })
+                    .where(eq(recurringOrders.id, tpl.id));
+                return { kind: 'blocked', templateId: tpl.id };
+            }
             const orderNo = await nextOrderNo(tx);
             const [row] = await tx.insert(orders).values({
                 orderNo,
@@ -75,15 +106,19 @@ export async function runDueRecurringOrders(now = new Date()) {
                 notes: tpl.notes ?? null,
                 status: 'pending',
             }).returning();
-            const next = computeRunDate(tpl.frequency, tpl.anchor, now, false);
             await tx.update(recurringOrders)
                 .set({ nextRunDate: next, lastRunAt: now })
                 .where(eq(recurringOrders.id, tpl.id));
-            return row;
+            return { kind: 'created', row };
         });
-        if (!inserted)
+        if (!processed)
             break;
-        emitted.push({ clientId: inserted.clientId, row: inserted });
+        if (processed.kind === 'created') {
+            emitted.push({ clientId: processed.row.clientId, row: processed.row });
+        }
+        else {
+            console.warn(`Recurring order template ${processed.templateId} paused because customer KYC is not verified`);
+        }
     }
     for (const { clientId, row } of emitted) {
         emitSSEEvent('order.created', row, { clientId });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapPin, ClipboardList, Navigation, FileText, ChevronRight } from 'lucide-react';
 
 interface Slide {
@@ -8,20 +8,43 @@ interface Slide {
 }
 
 const SLIDES: Slide[] = [
-  { icon: MapPin, title: 'Find approved RMC plants', body: 'Discover verified ready-mix concrete plants near your site.' },
-  { icon: ClipboardList, title: 'Order concrete and track status', body: 'Place an order in seconds and follow it from approval to delivery.' },
-  { icon: Navigation, title: 'Live transit mixer GPS', body: 'Watch your transit mixer move toward the site in real time.' },
-  { icon: FileText, title: 'Digital challan and delivery records', body: 'Every delivery comes with a digital challan you can access anytime.' },
+  { icon: MapPin,        title: 'Find approved RMC plants',            body: 'Discover verified ready-mix concrete plants near your site.' },
+  { icon: ClipboardList, title: 'Order concrete and track status',     body: 'Place an order in seconds and follow it from approval to delivery.' },
+  { icon: Navigation,    title: 'Live transit mixer GPS',              body: 'Watch your transit mixer move toward the site in real time.' },
+  { icon: FileText,      title: 'Digital challan and delivery records', body: 'Every delivery comes with a digital challan you can access anytime.' },
 ];
 
+// Auto-advance interval (ms). Paused after manual interaction.
+const AUTO_ADVANCE_MS = 3500;
+
 // Four-slide feature carousel shown once before the pre-login Landing screen.
-// Purely informational — it never touches auth state and never blocks a
-// returning/authenticated user (Landing only renders when signed out).
+// Auto-advances every 3.5 s; pauses when the user taps a navigation button or
+// when prefers-reduced-motion is active.
 export default function FeatureCarousel({ onDone }: { onDone: () => void }) {
-  const [index, setIndex] = useState(0);
-  const last = index === SLIDES.length - 1;
+  const [index, setIndex]   = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  // Detect system reduced-motion preference once at mount.
+  const prefersReduced =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Auto-advance while not manually paused and not on the last slide.
+  useEffect(() => {
+    if (paused || prefersReduced || index === SLIDES.length - 1) return;
+    const id = window.setTimeout(() => setIndex(i => i + 1), AUTO_ADVANCE_MS);
+    return () => window.clearTimeout(id);
+  }, [index, paused, prefersReduced]);
+
+  // Helper: manual navigation always pauses auto-advance.
+  function go(next: number) {
+    setPaused(true);
+    setIndex(Math.max(0, Math.min(SLIDES.length - 1, next)));
+  }
+
+  const last  = index === SLIDES.length - 1;
   const slide = SLIDES[index];
-  const Icon = slide.icon;
+  const Icon  = slide.icon;
 
   return (
     <div
@@ -32,12 +55,13 @@ export default function FeatureCarousel({ onDone }: { onDone: () => void }) {
         position: 'fixed', inset: 0, zIndex: 200,
         background: 'var(--bg)', color: 'var(--text)',
         display: 'flex', flexDirection: 'column',
-        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingTop:    'env(safe-area-inset-top, 0px)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        paddingLeft: 'env(safe-area-inset-left, 0px)',
-        paddingRight: 'env(safe-area-inset-right, 0px)',
+        paddingLeft:   'env(safe-area-inset-left, 0px)',
+        paddingRight:  'env(safe-area-inset-right, 0px)',
       }}
     >
+      {/* Skip */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '14px 18px' }}>
         <button
           type="button"
@@ -52,13 +76,18 @@ export default function FeatureCarousel({ onDone }: { onDone: () => void }) {
         </button>
       </div>
 
+      {/* Slide content */}
       <div
         key={index}
         aria-live="polite"
+        aria-atomic="true"
         style={{
-          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          textAlign: 'center', padding: '0 24px', maxWidth: 480, margin: '0 auto', width: '100%',
-          minHeight: 0,
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          textAlign: 'center', padding: '0 24px',
+          maxWidth: 480, margin: '0 auto', width: '100%', minHeight: 0,
+          // Fade transition — skipped when reduced-motion is on.
+          animation: prefersReduced ? 'none' : 'fadeIn .3s ease',
         }}
       >
         <div style={{
@@ -77,25 +106,31 @@ export default function FeatureCarousel({ onDone }: { onDone: () => void }) {
         </p>
       </div>
 
+      {/* Dot indicators */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 8, paddingBottom: 18 }}>
         {SLIDES.map((s, i) => (
-          <span
+          <button
             key={s.title}
-            aria-hidden="true"
+            type="button"
+            onClick={() => go(i)}
+            aria-label={`Go to slide ${i + 1}`}
+            aria-current={i === index ? 'true' : undefined}
             style={{
               width: i === index ? 22 : 8, height: 8, borderRadius: 999,
               background: i === index ? 'var(--gold)' : 'var(--line)',
-              transition: 'width .2s, background .2s',
+              border: 'none', padding: 0, cursor: 'pointer',
+              transition: prefersReduced ? 'none' : 'width .2s, background .2s',
             }}
           />
         ))}
       </div>
 
+      {/* Navigation buttons */}
       <div style={{ display: 'flex', gap: 12, padding: '0 24px calc(24px + env(safe-area-inset-bottom, 0px))' }}>
         {index > 0 && (
           <button
             type="button"
-            onClick={() => setIndex(i => Math.max(0, i - 1))}
+            onClick={() => go(index - 1)}
             aria-label="Previous slide"
             style={{
               flex: 1, minHeight: 48, padding: '12px 18px', borderRadius: 12,
@@ -108,10 +143,11 @@ export default function FeatureCarousel({ onDone }: { onDone: () => void }) {
         )}
         <button
           type="button"
-          onClick={() => (last ? onDone() : setIndex(i => Math.min(SLIDES.length - 1, i + 1)))}
+          onClick={() => (last ? onDone() : go(index + 1))}
           aria-label={last ? 'Continue to TrackMyRMC' : 'Next slide'}
           style={{
-            flex: 2, minHeight: 48, padding: '12px 18px', borderRadius: 12, border: 'none', cursor: 'pointer',
+            flex: 2, minHeight: 48, padding: '12px 18px', borderRadius: 12,
+            border: 'none', cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             background: 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
             color: '#111827', fontWeight: 800, fontSize: 14.5,
@@ -120,6 +156,9 @@ export default function FeatureCarousel({ onDone }: { onDone: () => void }) {
           {last ? 'Continue' : 'Next'} <ChevronRight size={17} aria-hidden="true" />
         </button>
       </div>
+
+      {/* Keyframe for fade — injected inline so no CSS file dependency */}
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }`}</style>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { resolvedClientNameSql } from '../lib/customerIdentity.js';
 import { eq, and, desc, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { batchReports, mixDesigns, challans, clients, sites, vehicles, drivers, orders } from '../db/schema.js';
@@ -107,7 +108,7 @@ async function loadChallanBrief(actorPlantId, challanId) {
         quantity: challans.quantity, orderId: challans.orderId,
         dispatchTime: challans.dispatchTime, deliveryTime: challans.deliveryTime,
         createdAt: challans.createdAt,
-        clientName: clients.name, siteName: sites.name,
+        clientName: resolvedClientNameSql(), siteName: sql `coalesce(${orders.siteName}, ${sites.name})`,
         vehicleNo: vehicles.vehicleNo, driverName: drivers.name,
         orderQty: orders.quantity,
     }).from(challans)

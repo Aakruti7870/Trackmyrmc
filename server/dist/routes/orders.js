@@ -7,6 +7,7 @@ import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { plantScope, clientInScope } from '../lib/tenancy.js';
 import { notifyOrderPlaced, notifyOrderDecision } from '../lib/deliveryNotify.js';
 import { clientKycVerifiedSql } from '../lib/kycBadge.js';
+import { resolvedClientNameSql } from '../lib/customerIdentity.js';
 // The full order projection shared by the list and detail selects. Includes the
 // customer approval snapshot fields so staff can review/auto-fill a challan. The
 // displayed site name prefers the linked site, falling back to the order's own
@@ -22,8 +23,8 @@ const orderSelect = {
     siteAddress: orders.siteAddress, latitude: orders.latitude, longitude: orders.longitude,
     paymentType: orders.paymentType, poNumber: orders.poNumber,
     sitePhoto: orders.sitePhoto, rejectionReason: orders.rejectionReason,
-    clientName: clients.name,
-    siteName: sql `coalesce(${sites.name}, ${orders.siteName})`,
+    clientName: resolvedClientNameSql(),
+    siteName: sql `coalesce(${orders.siteName}, ${sites.name})`,
     // Trust signal for the receiving plant: true when the ordering customer's
     // account has completed KYC (Aadhaar eKYC or an approved KYC profile).
     customerKycVerified: clientKycVerifiedSql(),
@@ -97,6 +98,14 @@ router.post('/', async (req, res) => {
         plantId = client?.plantId ?? null;
     }
     const orderNo = await nextOrderNo();
+    const [siteSnapshot] = siteId
+        ? await db.select({ name: sites.name, address: sites.address, latitude: sites.latitude, longitude: sites.longitude })
+            .from(sites).where(and(eq(sites.id, +siteId), eq(sites.clientId, +clientId)))
+        : [];
+    if (siteId && !siteSnapshot) {
+        res.status(400).json({ error: 'The selected site does not belong to this customer.' });
+        return;
+    }
     // Staff-placed orders are pre-approved (the staff creating it is the approver),
     // so they are immediately dispatchable — no customer approval round-trip.
     const [row] = await db.insert(orders).values({
@@ -105,6 +114,10 @@ router.post('/', async (req, res) => {
         grade, quantity: quantity.toString(),
         pumpRequired: !!pumpRequired,
         deliveryDate, deliveryTime, notes,
+        siteName: siteSnapshot?.name ?? null,
+        siteAddress: siteSnapshot?.address ?? null,
+        latitude: siteSnapshot?.latitude ?? null,
+        longitude: siteSnapshot?.longitude ?? null,
         status: 'approved',
     }).returning();
     // Confirm the order to the customer over WhatsApp (best-effort).
@@ -162,9 +175,14 @@ router.post('/:id/reject', async (req, res) => {
     res.json(row);
 });
 router.put('/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid order id' });
+        return;
+    }
     const { clientId, siteId, grade, quantity, pumpRequired, deliveryDate, deliveryTime, notes, status } = req.body;
     const [prev] = await db.select({ status: orders.status })
-        .from(orders).where(and(eq(orders.id, +req.params.id), plantScope(req.user.plantId, orders.plantId)));
+        .from(orders).where(and(eq(orders.id, id), plantScope(req.user.plantId, orders.plantId)));
     if (!prev) {
         res.status(404).json({ error: 'Not found' });
         return;
@@ -191,14 +209,19 @@ router.put('/:id', async (req, res) => {
         grade, quantity: quantity?.toString(),
         pumpRequired: pumpRequired !== undefined ? !!pumpRequired : undefined,
         deliveryDate, deliveryTime, notes: notesUpdate, status,
-    }).where(and(eq(orders.id, +req.params.id), plantScope(req.user.plantId, orders.plantId))).returning();
+    }).where(and(eq(orders.id, id), plantScope(req.user.plantId, orders.plantId))).returning();
     if (row && status !== undefined && prev?.status !== row.status) {
         emitSSEEvent('order.updated', row, { clientId: row.clientId });
     }
     res.json(row);
 });
 router.delete('/:id', async (req, res) => {
-    await db.delete(orders).where(and(eq(orders.id, +req.params.id), plantScope(req.user.plantId, orders.plantId)));
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid order id' });
+        return;
+    }
+    await db.delete(orders).where(and(eq(orders.id, id), plantScope(req.user.plantId, orders.plantId)));
     res.json({ ok: true });
 });
 export default router;

@@ -4,7 +4,7 @@ import { db } from '../db/index.js';
 //
 // A CUSTOMER counts as KYC-verified when any live login account linked to the
 // client record has either completed Aadhaar eKYC (users.kyc_status='verified')
-// or holds an approved enterprise KYC profile. Evaluated as an EXISTS subquery
+// or holds an verified enterprise KYC profile. Evaluated as an EXISTS subquery
 // so list endpoints can project it without extra round-trips.
 //
 // NOTE: the correlated column is written as a fully-qualified raw identifier
@@ -21,10 +21,36 @@ export function clientKycVerifiedSql() {
         u.kyc_status = 'verified'
         OR EXISTS (
           SELECT 1 FROM kyc_profiles kp
-          WHERE kp.user_id = u.id AND kp.status = 'approved'
+          WHERE kp.user_id = u.id AND kp.status IN ('approved', 'verified')
         )
       )
   )`;
+}
+// Backend-authoritative check for a signed-in customer. This deliberately reads
+// the live database state by authenticated user id; request-body fields such as
+// `kycVerified: true` are never trusted. Keep this predicate in lockstep with
+// clientKycVerifiedSql so badges and order authorization cannot disagree.
+export async function isUserKycVerified(userId) {
+    const result = await db.execute(sql `
+    SELECT EXISTS (
+      SELECT 1
+      FROM users u
+      WHERE u.id = ${userId}
+        AND u.deleted_at IS NULL
+        AND u.is_active = true
+        AND (
+          u.kyc_status = 'verified'
+          OR EXISTS (
+            SELECT 1
+            FROM kyc_profiles kp
+            WHERE kp.user_id = u.id
+              AND kp.status IN ('approved', 'verified')
+          )
+        )
+    ) AS verified
+  `);
+    const row = result.rows[0];
+    return row?.verified === true;
 }
 // A PLANT earns the "GST & PAN Verified" badge when an APPROVED KYC profile is
 // scoped to it and that profile carries BOTH a GST and a PAN — either as a
@@ -34,7 +60,7 @@ export async function getGstPanVerifiedPlantIds() {
     const rows = await db.execute(sql `
     SELECT DISTINCT kp.plant_id AS plant_id
     FROM kyc_profiles kp
-    WHERE kp.status = 'approved'
+    WHERE kp.status IN ('approved', 'verified')
       AND kp.plant_id IS NOT NULL
       AND (
         (kp.gst_number IS NOT NULL AND kp.gst_number <> '')

@@ -148,7 +148,9 @@ test('GET /plants/nearby excludes unverified leads, includes verified partners',
         .set('Authorization', `Bearer ${tokenFor(customer)}`)
         .query({ lat: 19.033, lng: 73.0297 });
     assert.equal(res.status, 200);
-    const names = res.body.map((p) => p.name);
+    assert.ok(Array.isArray(res.body.plants));
+    assert.equal(res.body.count, res.body.plants.length);
+    const names = res.body.plants.map((p) => p.name);
     assert.ok(names.includes('Verified Plant'), 'verified partner should be visible to customers');
     assert.ok(!names.includes('Lead Plant'), 'onboarding lead must never reach customers');
 });

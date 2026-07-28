@@ -79,6 +79,20 @@ test('a transient inline failure is enqueued for retry', async () => {
     // first retry is scheduled in the future
     assert.ok(queued[0].nextAttemptAt.getTime() > now.getTime());
 });
+test('an unexpected provider rejection is converted to a retryable result', async () => {
+    sendImpl = () => { throw new Error('provider exploded'); };
+    const res = await sendWhatsAppWithRetry(PHONE, SID, VARS, 'dispatch');
+    assert.deepEqual(res, {
+        ok: false,
+        channel: 'whatsapp',
+        retryable: true,
+        error: 'provider exploded',
+    });
+    const [queued] = await rows();
+    assert.ok(queued);
+    assert.equal(queued.lastError, 'provider exploded');
+    assert.equal(queued.event, 'dispatch');
+});
 test('a permanent inline failure is NOT enqueued', async () => {
     sendImpl = () => ({ ok: false, channel: 'whatsapp', retryable: false, error: 'invalid number' });
     await sendWhatsAppWithRetry(PHONE, SID, VARS, 'order');

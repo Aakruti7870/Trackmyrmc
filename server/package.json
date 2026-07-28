@@ -14,10 +14,12 @@
     "db:migrate-fleet-production-plant": "tsx src/db/migrate-fleet-production-plant.ts",
     "db:migrate-rmc-discovery": "tsx src/db/migrate-rmc-discovery.ts",
     "db:migrate-kyc-lifecycle": "tsx src/db/migrate-kyc-lifecycle.ts",
+    "db:migrate-sponsored-plants": "tsx src/db/migrate-sponsored-plants.ts",
     "test": "node scripts/test.mjs"
   },
   "dependencies": {
     "@clerk/backend": "^3.6.1",
+    "@google-cloud/storage": "^7.21.0",
     "@types/nodemailer": "^8.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

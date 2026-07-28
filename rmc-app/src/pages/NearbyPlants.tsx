@@ -38,6 +38,10 @@ export interface NearbyPlant {
   distanceKm: number;
   capabilities?: PlantCapabilities | null;
   showGlowingEffect?: boolean;
+  /** True when this plant has an active paid promotion covering the customer's location. */
+  sponsored?: boolean;
+  /** When sponsored=true, show the pulsing glow card effect. */
+  adGlow?: boolean;
 }
 
 export interface DiscoveredPlant {
@@ -146,9 +150,15 @@ export default function NearbyPlants() {
     setPhase('loading');
     setFetchError('');
     setDiscovered([]);
-    const params = new URLSearchParams({ lat: String(location.lat), lng: String(location.lng), radius: String(radius) });
+    const params = new URLSearchParams({
+      lat: String(location.lat),
+      lng: String(location.lng),
+      radius: String(radius),
+    });
     try {
       const data = await api.get<NearbyPlantsResponse | NearbyPlant[]>(`/plants/nearby?${params.toString()}`);
+      // Accept the legacy array during rolling deployments, but prefer the
+      // documented { plants, count } response from the hardened backend.
       const result = Array.isArray(data) ? data : data.plants;
       setPlants(Array.isArray(result) ? result : []);
       setPhase('ready');
@@ -388,10 +398,22 @@ function CapabilityBadges({ capabilities }: { capabilities?: PlantCapabilities |
 
 function PlantCard({ plant, onOrder, onMap, onAbout }: { plant: NearbyPlant; onOrder: () => void; onMap: () => void; onAbout: () => void }) {
   return (
-    <article className={plant.showGlowingEffect ? 'np-paid-glow' : undefined} style={card}>
+    <article className={(plant.adGlow || plant.showGlowingEffect) ? 'np-paid-glow' : undefined} style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, flex: '1 1 190px' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}><span style={verifiedTag}><ShieldCheck size={12} /> Verified partner</span>{plant.gstPanVerified && <GstPanBadge />}</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <span style={verifiedTag}><ShieldCheck size={12} /> Verified partner</span>
+            {plant.gstPanVerified && <GstPanBadge />}
+            {plant.sponsored && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
+                color: 'var(--orange)', background: 'rgba(245,158,11,.12)',
+                border: '1px solid rgba(245,158,11,.28)', borderRadius: 99,
+                padding: '2px 7px',
+              }}>★ Featured RMC Plant</span>
+            )}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 16.5, lineHeight: 1.25, overflowWrap: 'anywhere' }}>{plant.name}</div>
             <button onClick={onAbout} aria-label={`About ${plant.name}`} title="About Plant" style={infoBtn}><Info size={16} /></button>

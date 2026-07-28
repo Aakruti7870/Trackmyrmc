@@ -8,6 +8,7 @@ import { sendPushToClientUsers, sendPushToStaff } from './push.js';
 import { emitSSEEvent } from './sseEmitter.js';
 import { getWhatsAppConfig, eventEnabled, } from './whatsapp.js';
 import { sendWhatsAppWithRetry } from './whatsappRetry.js';
+import { recordWhatsAppAttempt } from './whatsappMessageStore.js';
 // Staff roles alerted when a customer's WhatsApp update fails to deliver. Mirrors
 // the delivery-status panel's readers, including `authority` (the super-admin,
 // which sits outside the SSE STAFF_ROLES set) so the role allow-list reaches it.
@@ -26,7 +27,7 @@ async function recordWhatsAppMessage(event, link, toPhone, result) {
         // Map the send result to a stored status: a real send carries Twilio's
         // initial state, the dev fallback is 'dev', and a rejected send is 'error'.
         const status = result.ok ? (result.status ?? (result.channel === 'dev' ? 'dev' : 'queued')) : 'error';
-        await db.insert(whatsappMessages).values({
+        await recordWhatsAppAttempt({
             messageSid: result.sid ?? null,
             event,
             orderId: link.orderId ?? null,

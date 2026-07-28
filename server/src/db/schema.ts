@@ -642,6 +642,20 @@ export const plants = pgTable('plants', {
   grades: text('grades').array().notNull().default(sql`ARRAY[]::text[]`),
   openTime: text('open_time'),   // 'HH:MM' 24h local
   closeTime: text('close_time'), // 'HH:MM' 24h local
+  // ─── Sponsored / paid-ad placement ─────────────────────────────────────────
+  // A sponsored plant is ranked above organic results in /nearby, within
+  // promotionRadiusKm of its coordinates, only while the promotion window is
+  // active. Super Admin controls priority between multiple sponsored plants.
+  // A sponsored plant still passes every standard customerVisible() check —
+  // sponsorship NEVER overrides eligibility or visibility requirements.
+  // Sponsored/paid-ad placement: active only when flag=true AND within window AND radius.
+  // Sponsorship NEVER overrides customerVisible() eligibility checks.
+  promotionActive:     boolean('promotion_active').notNull().default(false),
+  promotionStart:      timestamp('promotion_start'),
+  promotionEnd:        timestamp('promotion_end'),
+  promotionRadiusKm:   integer('promotion_radius_km').notNull().default(20),
+  promotionPriority:   integer('promotion_priority').notNull().default(0),  // higher = ranked first
+  promotionAdGlow:     boolean('promotion_ad_glow').notNull().default(true),  // pulsing card effect in /nearby
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({

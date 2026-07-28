@@ -320,8 +320,14 @@ router.post('/location', requireRole(...ATTEND_ROLES), async (req, res) => {
   }
   const latitude = Number(req.body?.lat);
   const longitude = Number(req.body?.lng);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    res.status(400).json({ error: 'lat and lng must be valid numbers' });
+  // Reject "undefined", "null", NaN, Infinity and out-of-range coordinates.
+  // Android sends location.getLatitude() as a double; a default/unset GPS fix
+  // can produce 0,0 (acceptable) but never NaN or values outside range.
+  if (
+    !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+    latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180
+  ) {
+    res.status(400).json({ error: 'lat must be −90…90 and lng must be −180…180' });
     return;
   }
   const accuracy = intOrNull(req.body?.accuracy);
