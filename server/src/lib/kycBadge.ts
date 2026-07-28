@@ -5,7 +5,7 @@ import { db } from '../db/index.js';
 //
 // A CUSTOMER counts as KYC-verified when any live login account linked to the
 // client record has either completed Aadhaar eKYC (users.kyc_status='verified')
-// or holds an approved enterprise KYC profile. Evaluated as an EXISTS subquery
+// or holds an verified enterprise KYC profile. Evaluated as an EXISTS subquery
 // so list endpoints can project it without extra round-trips.
 //
 // NOTE: the correlated column is written as a fully-qualified raw identifier
@@ -22,7 +22,7 @@ export function clientKycVerifiedSql(): SQL<boolean> {
         u.kyc_status = 'verified'
         OR EXISTS (
           SELECT 1 FROM kyc_profiles kp
-          WHERE kp.user_id = u.id AND kp.status = 'approved'
+          WHERE kp.user_id = u.id AND kp.status IN ('approved', 'verified')
         )
       )
   )`;
@@ -46,7 +46,7 @@ export async function isUserKycVerified(userId: number): Promise<boolean> {
             SELECT 1
             FROM kyc_profiles kp
             WHERE kp.user_id = u.id
-              AND kp.status = 'approved'
+              AND kp.status IN ('approved', 'verified')
           )
         )
     ) AS verified
@@ -64,7 +64,7 @@ export async function getGstPanVerifiedPlantIds(): Promise<Set<number>> {
   const rows = await db.execute(sql`
     SELECT DISTINCT kp.plant_id AS plant_id
     FROM kyc_profiles kp
-    WHERE kp.status = 'approved'
+    WHERE kp.status IN ('approved', 'verified')
       AND kp.plant_id IS NOT NULL
       AND (
         (kp.gst_number IS NOT NULL AND kp.gst_number <> '')

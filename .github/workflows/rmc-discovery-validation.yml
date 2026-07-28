@@ -34,6 +34,7 @@ jobs:
       JWT_SECRET: ci-only-not-a-production-secret
       APP_URL: https://trackmyrmc.test
       NODE_ENV: test
+      TEST_WORKERS: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -52,9 +53,35 @@ jobs:
       - name: Install server dependencies
         working-directory: server
         run: pnpm install --frozen-lockfile
-      - name: Push test schema
+      - name: Reset and prepare test database
         working-directory: server
-        run: pnpm db:push
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U postgres; then
+              break
+            fi
+            if [[ "$attempt" == 30 ]]; then
+              echo "PostgreSQL did not become ready" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          psql postgresql://postgres:postgres@localhost:5432/postgres \
+            --set ON_ERROR_STOP=1 \
+            --command "DROP DATABASE IF EXISTS trackmyrmc_ci WITH (FORCE)"
+          psql postgresql://postgres:postgres@localhost:5432/postgres \
+            --set ON_ERROR_STOP=1 \
+            --command "CREATE DATABASE trackmyrmc_ci"
+          pnpm db:push
+          # The RMC discovery columns (verification_level, owner_user_id, the
+          # rmc_market_areas seed data, etc.) and the KYC lifecycle enum
+          # rename are hand-run production migrations, not part of the
+          # Drizzle-managed schema db:push syncs — run them here too so CI
+          # exercises the same schema the app actually runs against.
+          pnpm db:migrate-rmc-discovery
+          pnpm db:migrate-kyc-lifecycle
       - name: Build server
         working-directory: server
         shell: bash

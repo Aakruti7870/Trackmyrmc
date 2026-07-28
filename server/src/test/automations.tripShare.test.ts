@@ -53,8 +53,9 @@ async function dispatchChallan(): Promise<{ id: number; challanNo: string; tripS
   return res.body;
 }
 
-// The trip-share hook is fire-and-forget from the dispatch route, so give the
-// background promise a moment to land before asserting on its side effects.
+// Production runs trip-share off the response path. NODE_ENV=test makes the
+// dispatch route drain that task before responding, while these polling helpers
+// remain useful for direct calls and document the eventual-delivery contract.
 async function waitForSends(expected: number, timeoutMs = 5000): Promise<typeof automationSends.$inferSelect[]> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {

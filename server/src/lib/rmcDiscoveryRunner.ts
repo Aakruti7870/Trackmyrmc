@@ -290,6 +290,28 @@ export function enqueueRmcImportRun(runId: number): void {
 }
 
 export async function resumeQueuedRmcImportRuns(): Promise<void> {
+  // A previous process instance dying mid-run leaves its row stuck at
+  // RUNNING forever: nothing else claims RUNNING rows (processRmcImportRun's
+  // claim guard only matches status='QUEUED'), and the active-run check in
+  // the route blocks starting any new import while one is stuck. This runner
+  // has no distributed lease/heartbeat, so on a fresh boot the only way a row
+  // can still be RUNNING is that the process that owned it is gone — reclaim
+  // it here. A cancellation that arrived too late to be observed is
+  // finalized directly; anything else is put back in QUEUED so the normal
+  // claim path below resumes it (already-completed queries are skipped since
+  // per-query status persists independently of the run row).
+  const orphaned = await db.select({ id: rmcPlantImportRuns.id, cancelRequested: rmcPlantImportRuns.cancelRequested })
+    .from(rmcPlantImportRuns).where(eq(rmcPlantImportRuns.status, 'RUNNING'));
+  for (const run of orphaned) {
+    if (run.cancelRequested) {
+      await db.update(rmcPlantImportRuns).set({ status: 'CANCELLED', completedAt: new Date(), updatedAt: new Date() })
+        .where(eq(rmcPlantImportRuns.id, run.id));
+    } else {
+      await db.update(rmcPlantImportRuns).set({ status: 'QUEUED', updatedAt: new Date() })
+        .where(eq(rmcPlantImportRuns.id, run.id));
+    }
+  }
+
   const queued = await db.select({ id: rmcPlantImportRuns.id }).from(rmcPlantImportRuns)
     .where(eq(rmcPlantImportRuns.status, 'QUEUED'));
   for (const run of queued) enqueueRmcImportRun(run.id);

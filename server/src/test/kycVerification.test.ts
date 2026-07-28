@@ -84,7 +84,7 @@ test('client creates a KYC profile; Aadhaar is stored masked (last 4 only)', asy
   assert.equal(res.status, 201);
   assert.equal(res.body.aadhaarMasked, 'XXXX-XXXX-4321');
   assert.equal(res.body.entityType, 'customer');
-  assert.equal(res.body.status, 'draft');
+  assert.equal(res.body.status, 'pending');
 
   const me = await request(app).get('/api/kyc-verification/me').set('Authorization', `Bearer ${token}`);
   assert.equal(me.status, 200);
@@ -110,7 +110,7 @@ test('invalid GST and PAN formats are rejected', async () => {
   assert.equal(pan.status, 400);
 });
 
-test('submit flow: draft -> submitted; resubmission blocked; edit drops back to draft', async () => {
+test('submit flow: pending -> submitted; resubmission blocked; edit drops back to pending', async () => {
   const { user } = await createClientUser('kyc-client4@test.com');
   const token = tokenFor(user);
   await request(app).put('/api/kyc-verification/me').set('Authorization', `Bearer ${token}`).send({ legalName: 'X' });
@@ -124,12 +124,43 @@ test('submit flow: draft -> submitted; resubmission blocked; edit drops back to 
 
   const edit = await request(app).put('/api/kyc-verification/me').set('Authorization', `Bearer ${token}`).send({ legalName: 'Y' });
   assert.equal(edit.status, 200);
-  assert.equal(edit.body.status, 'draft');
+  assert.equal(edit.body.status, 'pending');
+});
+
+test('a subject cannot self-submit out of suspended, revoked, or under_review', async () => {
+  for (const status of ['suspended', 'revoked', 'under_review'] as const) {
+    const { user } = await createClientUser(`kyc-blocked-${status}@test.com`);
+    await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status, legalName: 'X' });
+
+    const res = await request(app)
+      .post('/api/kyc-verification/me/submit')
+      .set('Authorization', `Bearer ${tokenFor(user)}`)
+      .send({});
+    assert.equal(res.status, 409, `${status} must not allow a subject-initiated submit`);
+
+    const [row] = await db.select({ status: kycProfiles.status }).from(kycProfiles).where(sql`user_id = ${user.id}`);
+    assert.equal(row.status, status, `status must stay ${status}, not flip to submitted`);
+  }
+});
+
+test('a vehicle KYC profile cannot self-submit out of suspended, revoked, or under_review', async () => {
+  const plant = await createPlant();
+  const manager = await createUser('fleet_manager', 'kyc-vehicle-mgr@test.com', plant.id);
+  for (const status of ['suspended', 'revoked', 'under_review'] as const) {
+    const [vehicle] = await db.insert(vehicles).values({ vehicleNo: `MH01-${status}`, capacity: '8.00', plantId: plant.id }).returning();
+    await db.insert(kycProfiles).values({ entityType: 'vehicle', vehicleId: vehicle.id, plantId: plant.id, status });
+
+    const res = await request(app)
+      .post(`/api/kyc-verification/vehicles/${vehicle.id}/submit`)
+      .set('Authorization', `Bearer ${tokenFor(manager)}`)
+      .send({});
+    assert.equal(res.status, 409, `${status} must not allow a subject-initiated submit`);
+  }
 });
 
 test('an approved profile can no longer be edited by its subject', async () => {
   const { user } = await createClientUser('kyc-client5@test.com');
-  await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status: 'approved', legalName: 'Locked' });
+  await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status: 'verified', legalName: 'Locked' });
   const res = await request(app)
     .put('/api/kyc-verification/me')
     .set('Authorization', `Bearer ${tokenFor(user)}`)
@@ -153,14 +184,14 @@ test('reviewer approves a submitted profile; audit history is recorded', async (
     .set('Authorization', `Bearer ${tokenFor(admin)}`)
     .send({});
   assert.equal(res.status, 200);
-  assert.equal(res.body.status, 'approved');
+  assert.equal(res.body.status, 'verified');
   assert.equal(res.body.reviewedByName, admin.name);
 
   const detail = await request(app)
     .get(`/api/kyc-verification/profiles/${profile.id}`)
     .set('Authorization', `Bearer ${tokenFor(admin)}`);
   assert.equal(detail.status, 200);
-  assert.ok(detail.body.history.some((h: { action: string }) => h.action === 'kyc.approved'));
+  assert.ok(detail.body.history.some((h: { action: string }) => h.action === 'kyc.verified'));
 });
 
 test('rejection requires a reason; only submitted profiles can be reviewed', async () => {
@@ -293,7 +324,7 @@ test('vehicle KYC is plant-scoped for plant-bound managers', async () => {
 test('expiring endpoint lists documents inside the window only', async () => {
   const admin = await createUser('admin', 'kyc-admin4@test.com');
   const { user } = await createClientUser('kyc-client9@test.com');
-  const [profile] = await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status: 'approved' }).returning();
+  const [profile] = await db.insert(kycProfiles).values({ entityType: 'customer', userId: user.id, status: 'verified' }).returning();
   const soon = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
   const far = new Date(Date.now() + 200 * 86400000).toISOString().slice(0, 10);
   await db.insert(kycDocuments).values([
@@ -315,7 +346,7 @@ test('badges endpoint returns a status map for requested vehicle ids', async () 
   const admin = await createUser('admin', 'kyc-admin5@test.com');
   const [v1] = await db.insert(vehicles).values({ vehicleNo: 'MH03-KYC-3', capacity: '8.00', plantId: plant.id }).returning();
   const [v2] = await db.insert(vehicles).values({ vehicleNo: 'MH03-KYC-4', capacity: '8.00', plantId: plant.id }).returning();
-  await db.insert(kycProfiles).values({ entityType: 'vehicle', vehicleId: v1.id, plantId: plant.id, status: 'approved' });
+  await db.insert(kycProfiles).values({ entityType: 'vehicle', vehicleId: v1.id, plantId: plant.id, status: 'verified' });
 
   const res = await request(app)
     .get(`/api/kyc-verification/badges?entity=vehicle&ids=${v1.id},${v2.id}`)
@@ -328,7 +359,7 @@ test('badges endpoint returns a status map for requested vehicle ids', async () 
 test('badges endpoint refuses plant-unbound sub-admin roles', async () => {
   const plant = await createPlant();
   const [v1] = await db.insert(vehicles).values({ vehicleNo: 'MH04-KYC-5', capacity: '8.00', plantId: plant.id }).returning();
-  await db.insert(kycProfiles).values({ entityType: 'vehicle', vehicleId: v1.id, plantId: plant.id, status: 'approved' });
+  await db.insert(kycProfiles).values({ entityType: 'vehicle', vehicleId: v1.id, plantId: plant.id, status: 'verified' });
 
   for (const role of ['supervisor', 'fleet_manager', 'dispatcher'] as const) {
     const unbound = await createUser(role, `kyc-unbound-${role}@test.com`, null);

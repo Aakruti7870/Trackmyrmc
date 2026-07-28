@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, isNull, gt } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users, kycVerifications } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
@@ -62,6 +62,24 @@ router.get('/callback', async (req, res) => {
       row.status === 'verified' ? 'Your identity is verified.' : 'Verification was not successful.');
     return;
   }
+  if (row.expiresAt.getTime() <= Date.now()) {
+    await db.update(kycVerifications).set({ status: 'failed', error: 'callback expired', completedAt: new Date() })
+      .where(and(eq(kycVerifications.id, row.id), eq(kycVerifications.status, 'pending')));
+    sendPage(res, 410, 'error', 'This verification link has expired. Please start again.');
+    return;
+  }
+
+  // Atomically claim the callback. Concurrent/duplicate deliveries never call
+  // the provider twice and therefore cannot replay a one-time provider token.
+  const [claimed] = await db.update(kycVerifications).set({ callbackClaimedAt: new Date() })
+    .where(and(
+      eq(kycVerifications.id, row.id), eq(kycVerifications.status, 'pending'),
+      isNull(kycVerifications.callbackClaimedAt), gt(kycVerifications.expiresAt, new Date()),
+    )).returning({ id: kycVerifications.id });
+  if (!claimed) {
+    sendPage(res, 200, 'error', 'Verification is already being processed. You can return to the app.');
+    return;
+  }
 
   const config = await getKycConfig();
   if (!config.configured || !row.providerTxnId) {
@@ -110,11 +128,10 @@ router.get('/callback', async (req, res) => {
   } catch (err) {
     console.error('[kyc] callback fetch failed:', err);
     await db.update(kycVerifications)
-      .set({ status: 'failed', error: 'aggregator error', completedAt: new Date() })
+      // A provider outage is retryable while the callback transaction remains
+      // valid. Release the claim instead of permanently consuming the attempt.
+      .set({ error: 'aggregator error', callbackClaimedAt: null })
       .where(eq(kycVerifications.id, row.id));
-    await db.update(users)
-      .set({ kycStatus: 'failed' })
-      .where(and(eq(users.id, row.userId), eq(users.kycStatus, 'pending')));
     sendPage(res, 502, 'error', 'The verification service did not respond. Please try again.');
   }
 });
@@ -179,6 +196,7 @@ router.post('/start', requireRole('client'), async (req, res) => {
       providerRef: ref,
       providerTxnId: txnId,
       status: 'pending',
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
     });
     // Reflect the in-flight attempt on the profile, but never overwrite an
     // existing 'verified' badge while a re-verification is in progress.

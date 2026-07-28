@@ -36,6 +36,7 @@ import { createTrackingToken } from './trackingTokens.js';
 import { normalizePhone } from './otp.js';
 import { isRealEmail } from './customerAccount.js';
 import { computeFuelReconciliation } from '../routes/reports.js';
+import { recordWhatsAppAttempt } from './whatsappMessageStore.js';
 
 // Staff roles that receive operational automation alerts (follow-ups, idle
 // vehicles, fuel anomalies). `authority` is the platform super-admin.
@@ -77,7 +78,7 @@ async function recordAutomationWhatsApp(
 ): Promise<void> {
   try {
     const status = result.ok ? (result.status ?? (result.channel === 'dev' ? 'dev' : 'queued')) : 'error';
-    await db.insert(whatsappMessages).values({
+    await recordWhatsAppAttempt({
       messageSid: result.sid ?? null,
       event: `automation:${automation}`,
       orderId: link.orderId ?? null,

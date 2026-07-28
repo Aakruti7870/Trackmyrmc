@@ -45,6 +45,27 @@ export function backoffDelayMs(attemptsMade: number): number {
   return Math.min(delay, MAX_BACKOFF_MS);
 }
 
+// Provider adapters normally convert failures into WhatsAppSendResult, but a
+// transport bug, SDK regression, or test double can still reject unexpectedly.
+// Treat an unexpected rejection as transient so notification callers keep their
+// best-effort contract and the retry queue retains the message for another try.
+async function sendSafely(
+  toPhone: string | null | undefined,
+  templateSid: string | null | undefined,
+  variables: Record<string, string>,
+): Promise<WhatsAppSendResult> {
+  try {
+    return await sendWhatsAppTemplate(toPhone, templateSid, variables);
+  } catch (error) {
+    return {
+      ok: false,
+      channel: 'whatsapp',
+      retryable: true,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 // Persist a transiently-failed send so the background tick can re-send it.
 // Caller must have already confirmed result.retryable; only called with a valid
 // recipient + template (the only case a send is ever retryable). Never throws —
@@ -83,7 +104,7 @@ export async function sendWhatsAppWithRetry(
   variables: Record<string, string>,
   event?: WhatsAppEvent,
 ): Promise<WhatsAppSendResult> {
-  const result = await sendWhatsAppTemplate(toPhone, templateSid, variables);
+  const result = await sendSafely(toPhone, templateSid, variables);
   // retryable is only ever true when toPhone + templateSid were valid (that is
   // the only path that reaches a real provider call), so the narrowing below
   // always holds; the guard keeps TypeScript happy and is defensive.
@@ -131,7 +152,7 @@ export async function runDueWhatsAppRetries(now = new Date()): Promise<RetryRunR
     if (!claimed) break;
 
     // Phase 2: attempt the send with no transaction / lock held.
-    const res = await sendWhatsAppTemplate(
+    const res = await sendSafely(
       claimed.toPhone,
       claimed.templateSid,
       claimed.variables as Record<string, string>,
@@ -282,7 +303,7 @@ export async function retryWhatsAppNow(id: number, now = new Date()): Promise<Fo
   });
   if (!claimed) return 'notFound';
 
-  const res = await sendWhatsAppTemplate(
+  const res = await sendSafely(
     claimed.toPhone,
     claimed.templateSid,
     claimed.variables as Record<string, string>,

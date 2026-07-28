@@ -273,53 +273,62 @@ adminRouter.post('/candidates/:id/approve', async (req, res) => {
   if (duplicate.rowCount) { res.status(409).json({ error: 'A plant already exists for this Google Place ID.', duplicate: duplicate.rows[0] }); return; }
 
   try {
-    const [plant] = await db.insert(plants).values({
-      name: body.plantName,
-      legalName: body.legalBusinessName ?? null,
-      gstNo: body.gstin ?? null,
-      email: body.email ?? null,
-      address: body.address,
-      city: body.locality,
-      contactNumber: body.mobileNumber ?? null,
-      latitude: String(body.latitude),
-      longitude: String(body.longitude),
-      plantStatus: 'pending',
-      isActive: false,
-      locationVerified: false,
-      verified: false,
-      ownerName: body.contactPersonName ?? null,
-      networkStatus: 'pending',
-      showOnNetwork: false,
-      placeId: candidate.googlePlaceId,
-      deliveryRadiusKm: body.deliveryRadiusKm,
-      grades: body.availableGrades,
-    }).returning();
+    // A single transaction: if the discovery-column UPDATE, the candidate
+    // status update, or the history insert fails partway (a transient DB
+    // error, a partial schema rollout), the whole approval rolls back instead
+    // of leaving a half-approved plant that already carries the candidate's
+    // place_id — which would permanently trip the duplicate check above on
+    // every retry, with no way to finish approving the candidate.
+    const plantId = await db.transaction(async (tx) => {
+      const [plant] = await tx.insert(plants).values({
+        name: body.plantName,
+        legalName: body.legalBusinessName ?? null,
+        gstNo: body.gstin ?? null,
+        email: body.email ?? null,
+        address: body.address,
+        city: body.locality,
+        contactNumber: body.mobileNumber ?? null,
+        latitude: String(body.latitude),
+        longitude: String(body.longitude),
+        plantStatus: 'pending',
+        isActive: false,
+        locationVerified: false,
+        verified: false,
+        ownerName: body.contactPersonName ?? null,
+        networkStatus: 'pending',
+        showOnNetwork: false,
+        placeId: candidate.googlePlaceId,
+        deliveryRadiusKm: body.deliveryRadiusKm,
+        grades: body.availableGrades,
+      }).returning();
 
-    await pool.query(`
-      UPDATE plants SET
-        google_place_id = $2, locality = $3, district = $4, state = $5, postal_code = $6,
-        contact_person_name = $7, alternate_mobile_number = $8, capacity_m3_per_hour = $9,
-        minimum_order_m3 = $10, transit_mixer_count = $11, pump_available = $12,
-        operational_status = 'UNCONFIRMED', onboarding_status = 'NOT_INVITED',
-        publication_status = 'DRAFT', verification_level = 'GOOGLE_LISTED',
-        source = 'GOOGLE_PLACES', candidate_id = $13, approved_by_user_id = $14,
-        approved_at = now(), updated_at = now()
-      WHERE id = $1
-    `, [plant.id, candidate.googlePlaceId, body.locality, body.district, body.state, body.postalCode ?? null,
-      body.contactPersonName ?? null, body.alternateMobileNumber ?? null, body.capacityM3PerHour ?? null,
-      body.minimumOrderM3 ?? null, body.transitMixerCount ?? null, body.pumpAvailable ?? null, candidate.id, req.user!.id]);
+      await tx.execute(sql`
+        UPDATE plants SET
+          google_place_id = ${candidate.googlePlaceId}, locality = ${body.locality}, district = ${body.district},
+          state = ${body.state}, postal_code = ${body.postalCode ?? null},
+          contact_person_name = ${body.contactPersonName ?? null}, alternate_mobile_number = ${body.alternateMobileNumber ?? null},
+          capacity_m3_per_hour = ${body.capacityM3PerHour ?? null}, minimum_order_m3 = ${body.minimumOrderM3 ?? null},
+          transit_mixer_count = ${body.transitMixerCount ?? null}, pump_available = ${body.pumpAvailable ?? null},
+          operational_status = 'UNCONFIRMED', onboarding_status = 'NOT_INVITED',
+          publication_status = 'DRAFT', verification_level = 'GOOGLE_LISTED',
+          source = 'GOOGLE_PLACES', candidate_id = ${candidate.id}, approved_by_user_id = ${req.user!.id},
+          approved_at = now(), updated_at = now()
+        WHERE id = ${plant.id}
+      `);
 
-    await db.update(rmcPlantCandidates).set({
-      discoveryStatus: 'DISCOVERED', reviewedByUserId: req.user!.id, reviewedAt: new Date(), updatedAt: new Date(),
-    }).where(eq(rmcPlantCandidates.id, candidate.id));
-    await db.insert(rmcPlantStatusHistory).values({
-      plantId: plant.id,
-      changedByUserId: req.user!.id,
-      newOperationalStatus: 'UNCONFIRMED',
-      newPublicationStatus: 'DRAFT',
-      reason: 'Approved Google-listed candidate as a private draft',
+      await tx.update(rmcPlantCandidates).set({
+        discoveryStatus: 'DISCOVERED', reviewedByUserId: req.user!.id, reviewedAt: new Date(), updatedAt: new Date(),
+      }).where(eq(rmcPlantCandidates.id, candidate.id));
+      await tx.insert(rmcPlantStatusHistory).values({
+        plantId: plant.id,
+        changedByUserId: req.user!.id,
+        newOperationalStatus: 'UNCONFIRMED',
+        newPublicationStatus: 'DRAFT',
+        reason: 'Approved Google-listed candidate as a private draft',
+      });
+      return plant.id;
     });
-    res.status(201).json({ plantId: plant.id, publicationStatus: 'DRAFT', operationalStatus: 'UNCONFIRMED', onboardingStatus: 'NOT_INVITED' });
+    res.status(201).json({ plantId, publicationStatus: 'DRAFT', operationalStatus: 'UNCONFIRMED', onboardingStatus: 'NOT_INVITED' });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     res.status(409).json({ error: 'Could not approve candidate as a draft plant.', detail: message.slice(0, 300) });
@@ -557,6 +566,7 @@ publicRouter.get('/rmc-plants', async (req, res) => {
 });
 
 const claimSchema = z.object({
+  inviteToken: z.string().trim().min(1),
   applicantName: z.string().trim().min(1).max(160),
   mobile: z.string().trim().min(8).max(40),
   email: z.string().trim().email().nullable().optional(),
@@ -571,25 +581,62 @@ const claimSchema = z.object({
   deliveryRadiusKm: z.number().int().positive().max(250),
   authorityConfirmed: z.literal(true),
 });
+// Any authenticated user could otherwise POST here and seize an arbitrary
+// Google-listed plant (overwriting owner_user_id and every contact/legal
+// field an operator already curated) — so the caller must present the invite
+// token the admin-only send-onboarding-invite endpoint generated for THIS
+// plant. The invite consumption and the plant claim happen in one
+// transaction, atomically, so two concurrent claims (or a replayed token)
+// can't both succeed: only the first to land the UPDATE ... WHERE
+// owner_user_id IS NULL wins.
 publicRouter.post('/rmc-plants/:id/claim', requireAuth, async (req, res) => {
   const plantId = Number(req.params.id);
+  if (!Number.isInteger(plantId) || plantId <= 0) { res.status(400).json({ error: 'Invalid plant id.' }); return; }
   const parsed = claimSchema.safeParse(req.body ?? {});
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten().fieldErrors }); return; }
-  const plant = await pool.query(`SELECT id, publication_status, verification_level FROM plants WHERE id = $1`, [plantId]);
-  if (!plant.rowCount) { res.status(404).json({ error: 'Plant not found' }); return; }
-  if (plant.rows[0].verification_level !== 'GOOGLE_LISTED') { res.status(409).json({ error: 'Only Google-listed, unclaimed plants can be claimed.' }); return; }
   const body = parsed.data;
-  await pool.query(`
-    UPDATE plants SET owner_name = $2, contact_person_name = $2, contact_number = $3, email = $4,
-      legal_name = $5, gst_no = $6, address = $7, latitude = $8, longitude = $9,
-      capacity_m3_per_hour = $10, grades = $11, delivery_radius_km = $12,
-      onboarding_status = 'CLAIM_PENDING', publication_status = 'DRAFT', is_active = false,
-      owner_user_id = $13, updated_at = now()
-    WHERE id = $1
-  `, [plantId, body.applicantName, body.mobile, body.email ?? null, body.legalBusinessName,
-    body.gstin ?? null, body.plantAddress, body.latitude, body.longitude, body.capacityM3PerHour ?? null,
-    body.availableGrades, body.deliveryRadiusKm, req.user!.id]);
-  res.status(202).json({ ok: true, plantId, onboardingStatus: 'CLAIM_PENDING', message: 'Claim submitted for Super Admin review.' });
+  const tokenHash = createHash('sha256').update(body.inviteToken).digest('hex');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const invite = await client.query(`
+      UPDATE rmc_plant_onboarding_invites
+        SET invite_status = 'ACCEPTED', accepted_at = now(), updated_at = now()
+        WHERE plant_id = $1 AND invite_token_hash = $2 AND invite_status = 'INVITED' AND expires_at > now()
+        RETURNING id
+    `, [plantId, tokenHash]);
+    if (!invite.rowCount) {
+      await client.query('ROLLBACK');
+      res.status(403).json({ error: 'This invite link is invalid, expired, or already used.' });
+      return;
+    }
+
+    const result = await client.query(`
+      UPDATE plants SET owner_name = $2, contact_person_name = $2, contact_number = $3, email = $4,
+        legal_name = $5, gst_no = $6, address = $7, latitude = $8, longitude = $9,
+        capacity_m3_per_hour = $10, grades = $11, delivery_radius_km = $12,
+        onboarding_status = 'CLAIM_PENDING', publication_status = 'DRAFT', is_active = false,
+        owner_user_id = $13, updated_at = now()
+      WHERE id = $1 AND verification_level = 'GOOGLE_LISTED' AND owner_user_id IS NULL
+      RETURNING id
+    `, [plantId, body.applicantName, body.mobile, body.email ?? null, body.legalBusinessName,
+      body.gstin ?? null, body.plantAddress, body.latitude, body.longitude, body.capacityM3PerHour ?? null,
+      body.availableGrades, body.deliveryRadiusKm, req.user!.id]);
+    if (!result.rowCount) {
+      await client.query('ROLLBACK');
+      res.status(409).json({ error: 'This plant is not available to claim (not Google-listed, or already claimed).' });
+      return;
+    }
+
+    await client.query('COMMIT');
+    res.status(202).json({ ok: true, plantId, onboardingStatus: 'CLAIM_PENDING', message: 'Claim submitted for Super Admin review.' });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 });
 
 export { adminRouter as rmcDiscoveryAdminRoutes, publicRouter as rmcDiscoveryPublicRoutes };

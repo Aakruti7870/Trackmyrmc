@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# JavaScript / TypeScript build and test output
+dist/
+**/dist/
+coverage/
+**/coverage/
+*.tsbuildinfo
+.vite/
+.turbo/
+
+# Android / Gradle generated output
+**/.gradle/
+**/build/
+*.apk
+*.aab
+*.aar
+
+# Local caches and temporary files
+.cache/
+.tmp/
+tmp/
+temp/
+*.tmp
+*.swp
+*.log
+.DS_Store
+
+# Local configuration and secrets (examples remain tracked)
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.jks
+*.keystore
+*.p12
+*.pfx
+*service-account*.json
+google-services.json
+
+# Local brainstorming/mockup runtime
+.superpowers/brainstorm/
+artifacts/mockup-sandbox/node_modules/

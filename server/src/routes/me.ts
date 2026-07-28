@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { resolvedClientNameSql } from '../lib/customerIdentity.js';
+import { customerOrderEligibility, isPlantOrderEligible } from '../lib/orderEligibility.js';
 import { eq, desc, gte, lte, and, sql, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries, recurringOrders, plants, plantCustomers, auditLogs, tripSessions } from '../db/schema.js';
@@ -193,7 +195,7 @@ const challanSelect = {
   status: challans.status, notes: challans.notes, createdAt: challans.createdAt,
   orderId: challans.orderId, clientId: challans.clientId,
   siteId: challans.siteId, vehicleId: challans.vehicleId, driverId: challans.driverId,
-  clientName: clients.name,
+  clientName: resolvedClientNameSql(),
   siteName: sites.name,
   siteLat: sites.latitude,
   siteLng: sites.longitude,
@@ -288,7 +290,7 @@ router.get('/orders', requireRole('client'), async (req, res) => {
     clientId: orders.clientId, siteId: orders.siteId, plantId: orders.plantId,
     siteAddress: orders.siteAddress, latitude: orders.latitude,
     longitude: orders.longitude, placeId: orders.placeId,
-    clientName: clients.name, siteName: sites.name,
+    clientName: resolvedClientNameSql(), siteName: sql<string | null>`coalesce(${orders.siteName}, ${sites.name})`,
     plantName: plants.name, plantCode: plants.plantCode,
   }).from(orders)
     .leftJoin(clients, eq(orders.clientId, clients.id))
@@ -303,6 +305,8 @@ router.get('/orders', requireRole('client'), async (req, res) => {
 // caller's linked client and starts as 'pending' for staff to process — the
 // client can never set the client, status, or order number.
 router.post('/orders', requireRole('client'), async (req, res) => {
+  const eligibility = await customerOrderEligibility(req.user!.id);
+  if (!eligibility.eligible) { res.status(403).json({ error: eligibility.reason }); return; }
   const {
     plantId: bodyPlantId, grade, quantity, pumpRequired, pumpLineLength,
     deliveryDate, deliveryTime, notes, siteId,
@@ -327,8 +331,10 @@ router.post('/orders', requireRole('client'), async (req, res) => {
     if (!Number.isInteger(plantId) || plantId <= 0) { res.status(400).json({ error: 'Invalid plant.' }); return; }
     const [plant] = await db.select({
       id: plants.id, plantStatus: plants.plantStatus, isActive: plants.isActive, locationVerified: plants.locationVerified,
+      verified: plants.verified, subscriptionStatus: plants.subscriptionStatus,
+      networkStatus: plants.networkStatus, showOnNetwork: plants.showOnNetwork,
     }).from(plants).where(eq(plants.id, plantId));
-    if (!plant || plant.plantStatus !== 'approved' || !plant.isActive || !plant.locationVerified) {
+    if (!plant || !isPlantOrderEligible(plant)) {
       res.status(400).json({ error: 'This plant is not available for orders.' });
       return;
     }

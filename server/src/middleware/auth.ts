@@ -4,11 +4,17 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 
-const JWT_SECRET: string = process.env.JWT_SECRET ?? (() => {
-  throw new Error(
-    'JWT_SECRET environment variable is required. Set it to a long random string before starting the server.',
-  );
-})();
+// Resolve at the point authentication is actually used rather than at module
+// import time. This keeps the unauthenticated health endpoint available for
+// Cloud Run startup probes when a revision has a broken/missing secret binding,
+// while still failing closed for every token issue/verification operation.
+function jwtSecret(): string {
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required. Authentication is unavailable.');
+  }
+  return secret;
+}
 
 export interface AuthPayload {
   id: number;
@@ -44,11 +50,11 @@ declare global {
 }
 
 export function signToken(payload: AuthPayload, opts?: { expiresIn?: SignOptions['expiresIn'] }): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: opts?.expiresIn ?? CUSTOMER_TOKEN_TTL });
+  return jwt.sign(payload, jwtSecret(), { expiresIn: opts?.expiresIn ?? CUSTOMER_TOKEN_TTL });
 }
 
 export function verifyToken(token: string): AuthPayload {
-  return jwt.verify(token, JWT_SECRET) as AuthPayload;
+  return jwt.verify(token, jwtSecret()) as AuthPayload;
 }
 
 // Invalidate every other live session for an account by advancing its

@@ -734,14 +734,17 @@ function customerVisible(p: {
   isActive?: boolean | null;
   locationVerified?: boolean | null;
   verified?: boolean | null;
+  subscriptionStatus?: string | null;
 }): boolean {
-  if (p.showOnNetwork !== true) return false;
-  if (p.networkStatus === 'active') return true;
   return (
+    p.showOnNetwork === true &&
+    p.networkStatus === 'active' &&
     p.plantStatus === 'approved' &&
     p.isActive === true &&
     p.locationVerified === true &&
-    p.verified === true
+    p.verified === true &&
+    p.subscriptionStatus !== 'suspended' &&
+    p.subscriptionStatus !== 'cancelled'
   );
 }
 

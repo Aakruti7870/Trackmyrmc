@@ -286,11 +286,11 @@ function runFile(file, dbName) {
     let buf = '';
     child.stdout.on('data', (d) => { buf += d; });
     child.stderr.on('data', (d) => { buf += d; });
-    child.on('close', (code) => {
-      resolve({ code: code ?? 1, buf, ms: Date.now() - started });
+    child.on('close', (code, signal) => {
+      resolve({ code: code ?? 1, signal: signal ?? null, buf, ms: Date.now() - started });
     });
     child.on('error', (err) => {
-      resolve({ code: 1, buf: `failed to start: ${err.message}\n`, ms: Date.now() - started });
+      resolve({ code: 1, signal: null, buf: `failed to start: ${err.message}\n`, ms: Date.now() - started });
     });
   });
 }
@@ -305,20 +305,24 @@ function runWorker(index, dbName, queue, measured) {
     let worstCode = 0;
     let count = 0;
     let totalMs = 0;
+    const failures = [];
     const step = () => {
       const file = queue.shift(); // shift() is atomic between awaits (single-threaded)
       if (file === undefined) {
-        resolve({ code: worstCode, count, totalMs });
+        resolve({ code: worstCode, count, totalMs, failures });
         return;
       }
-      runFile(file, dbName).then(({ code, buf, ms }) => {
+      runFile(file, dbName).then(({ code, signal, buf, ms }) => {
         const rel = path.relative(serverDir, file);
         measured[rel] = ms;
         count += 1;
         totalMs += ms;
-        if (code !== 0) worstCode = 1;
+        if (code !== 0) {
+          worstCode = 1;
+          failures.push({ file: rel, code, signal });
+        }
         console.log(
-          `\n===== worker ${index + 1} — ${path.basename(file)} — exit ${code} — ${(ms / 1000).toFixed(1)}s =====`,
+          `\n===== worker ${index + 1} — ${path.basename(file)} — exit ${code}${signal ? ` (${signal})` : ''} — ${(ms / 1000).toFixed(1)}s =====`,
         );
         process.stdout.write(buf);
         step();
@@ -364,9 +368,38 @@ try {
     env: { ...baseEnv, DATABASE_URL: urlFor(templateName) },
     cwd: serverDir,
   });
+  let migrationsFailed = false;
+  if (push.status === 0) {
+    // The RMC discovery columns/tables and the KYC lifecycle enum rename are
+    // hand-run production migrations (see server/src/db/migrate-*.ts) — they
+    // are not part of the Drizzle-managed schema `drizzle-kit push` just
+    // applied, the same way they aren't picked up by a bare `db:push` in
+    // production. Apply them to the template here so every worker database
+    // (cloned from this template below) carries the same schema the app
+    // actually runs against; without this, any test touching those columns
+    // fails with "column ... does not exist" only under `pnpm test`, never
+    // under a plain `db:push`+manual-migrate local setup.
+    console.log('[test] Applying hand-run migrations to template database...');
+    const tsxBin = path.join(serverDir, 'node_modules', '.bin', 'tsx');
+    for (const script of ['src/db/migrate-rmc-discovery.ts', 'src/db/migrate-kyc-lifecycle.ts']) {
+      const migrate = spawnSync(tsxBin, [script], {
+        stdio: 'inherit',
+        env: { ...baseEnv, DATABASE_URL: urlFor(templateName) },
+        cwd: serverDir,
+      });
+      if (migrate.status !== 0) {
+        console.error(`[test] ${script} failed against the template database.`);
+        migrationsFailed = true;
+        exitCode = migrate.status ?? 1;
+        break;
+      }
+    }
+  }
   if (push.status !== 0) {
     console.error('[test] drizzle-kit push failed.');
     exitCode = push.status ?? 1;
+  } else if (migrationsFailed) {
+    // exitCode already set above.
   } else {
     const testFiles = findTests(path.join(serverDir, 'src')).sort();
     if (testFiles.length === 0) {
@@ -431,6 +464,16 @@ try {
         workerDbs.map((dbName, i) => runWorker(i, dbName, queue, measured)),
       );
       exitCode = results.every((r) => r.code === 0) ? 0 : 1;
+
+      const failures = results.flatMap((r) => r.failures);
+      if (failures.length > 0) {
+        console.error('\n[test] Failing test processes:');
+        for (const failure of failures) {
+          console.error(
+            `[test]   ${failure.file}: exit ${failure.code}${failure.signal ? ` (${failure.signal})` : ''}`,
+          );
+        }
+      }
 
       // 6. Persist timings for next run's ordering, and report the balance so the
       //    spread between the busiest and idlest worker is visible.

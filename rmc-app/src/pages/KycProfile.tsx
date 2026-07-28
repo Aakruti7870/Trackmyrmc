@@ -10,7 +10,7 @@ import {
 
 interface KycProfileData {
   id: number;
-  status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  status: 'pending' | 'submitted' | 'under_review' | 'verified' | 'rejected' | 'suspended' | 'expired' | 'revoked';
   legalName: string | null;
   gstNumber: string | null;
   panNumber: string | null;
@@ -85,7 +85,7 @@ export default function KycProfile() {
 
   useEffect(() => { load(); }, [load]);
 
-  const locked = profile?.status === 'approved';
+  const locked = profile?.status === 'verified';
 
   const saveProfile = async () => {
     setSaving(true);
@@ -196,7 +196,7 @@ export default function KycProfile() {
           padding: '10px 14px', borderRadius: 12, background: 'rgba(34,197,94,.1)',
           border: '1px solid rgba(34,197,94,.3)', color: 'var(--green)', fontSize: 13, marginBottom: 16,
         }}>
-          Your identity is verified{profile?.reviewedAt ? ` (approved ${fmtDate(profile.reviewedAt)})` : ''}. Contact an administrator to change these details.
+          Your identity is verified{profile?.reviewedAt ? ` (verified ${fmtDate(profile.reviewedAt)})` : ''}. Contact an administrator to change these details.
         </div>
       )}
 

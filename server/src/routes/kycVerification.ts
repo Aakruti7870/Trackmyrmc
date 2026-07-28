@@ -7,6 +7,7 @@ import { proofPhotoStore, isObjectStoragePath } from '../lib/proofPhoto.js';
 import { plantScope } from '../lib/tenancy.js';
 import { registerUploadedFileSafe, unregisterUploadedFilesSafe } from '../lib/uploadedFiles.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
+import { assertKycTransition, canTransitionKyc, isKycState, transitionRequiresReason, type KycState } from '../lib/kycStateMachine.js';
 
 // ============================================================================
 // KYC & Verification module. Additive on top of the legacy Aadhaar/DigiLocker
@@ -211,8 +212,8 @@ router.get('/me', async (req, res) => {
   res.json({ profile, documents: await docsForProfile(profile.id) });
 });
 
-// Create/update my profile fields. Allowed while draft/rejected (or submitted,
-// which drops it back to draft so the reviewer sees only final submissions).
+// Create/update my profile fields. Allowed while pending/rejected (or submitted,
+// which drops it back to pending so the reviewer sees only final submissions).
 router.put('/me', async (req, res) => {
   let fields: ReturnType<typeof parseProfileFields>;
   try {
@@ -223,14 +224,14 @@ router.put('/me', async (req, res) => {
   }
   const actor = req.user!;
   const [existing] = await db.select({ id: kycProfiles.id, status: kycProfiles.status }).from(kycProfiles).where(eq(kycProfiles.userId, actor.id));
-  if (existing && existing.status === 'approved') {
-    res.status(409).json({ error: 'An approved KYC profile can no longer be edited. Contact an administrator.' });
+  if (existing && existing.status === 'verified') {
+    res.status(409).json({ error: 'A verified KYC profile can no longer be edited. Contact an administrator.' });
     return;
   }
   if (existing) {
     const [row] = await db
       .update(kycProfiles)
-      .set({ ...fields, status: existing.status === 'submitted' ? 'draft' : existing.status, updatedAt: new Date() })
+      .set({ ...fields, status: existing.status === 'submitted' ? 'pending' : existing.status, updatedAt: new Date() })
       .where(eq(kycProfiles.id, existing.id))
       .returning();
     res.json(row);
@@ -248,8 +249,16 @@ router.post('/me/submit', async (req, res) => {
   const actor = req.user!;
   const [existing] = await db.select({ id: kycProfiles.id, status: kycProfiles.status, plantId: kycProfiles.plantId }).from(kycProfiles).where(eq(kycProfiles.userId, actor.id));
   if (!existing) { res.status(404).json({ error: 'Fill in your KYC details before submitting' }); return; }
-  if (existing.status === 'approved') { res.status(409).json({ error: 'Already approved' }); return; }
+  if (existing.status === 'verified') { res.status(409).json({ error: 'Already verified' }); return; }
   if (existing.status === 'submitted') { res.status(409).json({ error: 'Already submitted and awaiting review' }); return; }
+  // suspended/revoked/under_review have no subject-initiated path to
+  // 'submitted' (kycStateMachine.ts) — without this, a suspended or revoked
+  // subject could resubmit and re-enter review on their own, bypassing the
+  // reviewer-only recovery path those states are reserved for.
+  if (!canTransitionKyc(existing.status as KycState, 'submitted', 'subject')) {
+    res.status(409).json({ error: `Cannot submit from status "${existing.status}". Contact an administrator.` });
+    return;
+  }
   const [row] = await db
     .update(kycProfiles)
     .set({ status: 'submitted', submittedAt: new Date(), rejectionReason: null, updatedAt: new Date() })
@@ -274,8 +283,8 @@ router.post('/me/documents', async (req, res) => {
     return;
   }
   let [profile] = await db.select({ id: kycProfiles.id, status: kycProfiles.status }).from(kycProfiles).where(eq(kycProfiles.userId, actor.id));
-  if (profile && profile.status === 'approved') {
-    res.status(409).json({ error: 'An approved KYC profile can no longer be changed' });
+  if (profile && profile.status === 'verified') {
+    res.status(409).json({ error: 'A verified KYC profile can no longer be changed' });
     return;
   }
   if (!(await proofPhotoStore.verifyExists(objectPath))) {
@@ -298,7 +307,7 @@ router.post('/me/documents', async (req, res) => {
   res.status(201).json({ id: doc.id, docType: doc.docType, fileName: doc.fileName, expiryDate: doc.expiryDate, createdAt: doc.createdAt });
 });
 
-// Remove one of my documents (while not approved).
+// Remove one of my documents (while not verified).
 router.delete('/me/documents/:id', async (req, res) => {
   const actor = req.user!;
   const id = +req.params.id;
@@ -308,7 +317,7 @@ router.delete('/me/documents/:id', async (req, res) => {
     .innerJoin(kycProfiles, eq(kycDocuments.profileId, kycProfiles.id))
     .where(eq(kycDocuments.id, id));
   if (!row || row.userId !== actor.id) { res.status(404).json({ error: 'Not found' }); return; }
-  if (row.status === 'approved') { res.status(409).json({ error: 'An approved KYC profile can no longer be changed' }); return; }
+  if (row.status === 'verified') { res.status(409).json({ error: 'A verified KYC profile can no longer be changed' }); return; }
   await db.delete(kycDocuments).where(eq(kycDocuments.id, id));
   await proofPhotoStore.remove(row.objectPath).catch(() => {});
   await unregisterUploadedFilesSafe([row.objectPath]);
@@ -367,10 +376,10 @@ router.put('/vehicles/:vehicleId', requireRole(...VEHICLE_MANAGER_ROLES), async 
   }
   const [existing] = await db.select({ id: kycProfiles.id, status: kycProfiles.status }).from(kycProfiles).where(eq(kycProfiles.vehicleId, v.id));
   if (existing) {
-    if (existing.status === 'approved') { res.status(409).json({ error: 'An approved vehicle KYC can no longer be edited' }); return; }
+    if (existing.status === 'verified') { res.status(409).json({ error: 'A verified vehicle KYC can no longer be edited' }); return; }
     const [row] = await db
       .update(kycProfiles)
-      .set({ ...fields, status: existing.status === 'submitted' ? 'draft' : existing.status, updatedAt: new Date() })
+      .set({ ...fields, status: existing.status === 'submitted' ? 'pending' : existing.status, updatedAt: new Date() })
       .where(eq(kycProfiles.id, existing.id))
       .returning();
     res.json(row);
@@ -390,8 +399,12 @@ router.post('/vehicles/:vehicleId/submit', requireRole(...VEHICLE_MANAGER_ROLES)
   if (!v) { res.status(404).json({ error: 'Vehicle not found' }); return; }
   const [existing] = await db.select({ id: kycProfiles.id, status: kycProfiles.status }).from(kycProfiles).where(eq(kycProfiles.vehicleId, v.id));
   if (!existing) { res.status(404).json({ error: 'Fill in the vehicle KYC details before submitting' }); return; }
-  if (existing.status === 'approved') { res.status(409).json({ error: 'Already approved' }); return; }
+  if (existing.status === 'verified') { res.status(409).json({ error: 'Already verified' }); return; }
   if (existing.status === 'submitted') { res.status(409).json({ error: 'Already submitted and awaiting review' }); return; }
+  if (!canTransitionKyc(existing.status as KycState, 'submitted', 'subject')) {
+    res.status(409).json({ error: `Cannot submit from status "${existing.status}". Contact an administrator.` });
+    return;
+  }
   const [row] = await db
     .update(kycProfiles)
     .set({ status: 'submitted', submittedAt: new Date(), rejectionReason: null, updatedAt: new Date() })
@@ -418,7 +431,7 @@ router.post('/vehicles/:vehicleId/documents', requireRole(...VEHICLE_MANAGER_ROL
     return;
   }
   let [profile] = await db.select({ id: kycProfiles.id, status: kycProfiles.status }).from(kycProfiles).where(eq(kycProfiles.vehicleId, v.id));
-  if (profile && profile.status === 'approved') { res.status(409).json({ error: 'An approved vehicle KYC can no longer be changed' }); return; }
+  if (profile && profile.status === 'verified') { res.status(409).json({ error: 'A verified vehicle KYC can no longer be changed' }); return; }
   if (!(await proofPhotoStore.verifyExists(objectPath))) {
     res.status(400).json({ error: 'Document upload was not found in storage' });
     return;
@@ -450,7 +463,7 @@ router.get('/profiles', requireRole(...REVIEW_ROLES), async (req, res) => {
   const scope = plantScope(req.user!.plantId, kycProfiles.plantId);
   if (scope) filters.push(scope);
   const status = req.query.status;
-  if (status === 'draft' || status === 'submitted' || status === 'approved' || status === 'rejected') {
+  if (isKycState(status)) {
     filters.push(eq(kycProfiles.status, status));
   }
   const entityType = req.query.entityType;
@@ -516,7 +529,7 @@ router.get('/profiles/:id', requireRole(...REVIEW_ROLES), async (req, res) => {
 // Approve / reject a submitted profile.
 router.post('/profiles/:id/:decision(approve|reject)', requireRole(...REVIEW_ROLES), async (req, res) => {
   const id = +req.params.id;
-  const decision = req.params.decision === 'approve' ? 'approved' : 'rejected';
+  const decision = req.params.decision === 'approve' ? 'verified' : 'rejected';
   const actor = req.user!;
   const scope = plantScope(actor.plantId, kycProfiles.plantId);
   const idEq = eq(kycProfiles.id, id);
@@ -527,8 +540,8 @@ router.post('/profiles/:id/:decision(approve|reject)', requireRole(...REVIEW_ROL
   if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
   // Nobody reviews their own KYC — not even a platform admin.
   if (existing.userId === actor.id) { res.status(403).json({ error: 'You cannot review your own KYC profile' }); return; }
-  if (existing.status !== 'submitted') {
-    res.status(409).json({ error: 'Only a submitted profile can be reviewed' });
+  if (existing.status !== 'submitted' && existing.status !== 'under_review') {
+    res.status(409).json({ error: 'Only a submitted or under-review profile can be reviewed' });
     return;
   }
   const reason = cleanText(req.body?.reason, 'Reason');
@@ -536,26 +549,61 @@ router.post('/profiles/:id/:decision(approve|reject)', requireRole(...REVIEW_ROL
     res.status(400).json({ error: 'A rejection reason is required' });
     return;
   }
-  const [row] = await db
-    .update(kycProfiles)
-    .set({
-      status: decision,
-      reviewedBy: actor.id,
-      reviewedByName: actor.name,
-      reviewedAt: new Date(),
-      rejectionReason: decision === 'rejected' ? reason : null,
-      updatedAt: new Date(),
-    })
-    .where(eq(kycProfiles.id, id))
-    .returning();
+  const startedReview = existing.status === 'submitted';
+  const row = await db.transaction(async (tx) => {
+    if (existing.status === 'submitted') {
+      assertKycTransition('submitted', 'under_review', 'reviewer');
+      await tx.update(kycProfiles).set({ status: 'under_review', updatedAt: new Date() }).where(eq(kycProfiles.id, id));
+    }
+    assertKycTransition('under_review', decision, 'reviewer');
+    const [updated] = await tx.update(kycProfiles).set({
+        status: decision, reviewedBy: actor.id, reviewedByName: actor.name,
+        reviewedAt: new Date(), rejectionReason: decision === 'rejected' ? reason : null, updatedAt: new Date(),
+      }).where(eq(kycProfiles.id, id)).returning();
+    return updated;
+  });
+  if (startedReview) {
+    await writeAudit(actor, 'kyc.under_review', id, existing.userId, 'started reviewing the KYC profile');
+  }
   await writeAudit(
     actor,
-    decision === 'approved' ? 'kyc.approved' : 'kyc.rejected',
+    decision === 'verified' ? 'kyc.verified' : 'kyc.rejected',
     id,
     existing.userId,
-    decision === 'approved' ? 'approved the KYC profile' : `rejected the KYC profile: ${reason}`,
+    decision === 'verified' ? 'verified the KYC profile' : `rejected the KYC profile: ${reason}`,
   );
   await notifySubject({ id, userId: existing.userId, plantId: existing.plantId, status: decision });
+  res.json(row);
+});
+
+// Administrative lifecycle transitions. Backend policy is authoritative; the
+// UI cannot manufacture a verified/reactivated state.
+router.post('/profiles/:id/transition', requireRole(...REVIEW_ROLES), async (req, res) => {
+  const id = Number(req.params.id);
+  const to = req.body?.status;
+  const reason = cleanText(req.body?.reason, 'Reason');
+  if (!Number.isInteger(id) || id <= 0 || !isKycState(to)) {
+    res.status(400).json({ error: 'A valid profile id and KYC status are required' }); return;
+  }
+  const actor = req.user!;
+  const scope = plantScope(actor.plantId, kycProfiles.plantId);
+  const idEq = eq(kycProfiles.id, id);
+  const [existing] = await db.select({ status: kycProfiles.status, userId: kycProfiles.userId, plantId: kycProfiles.plantId })
+    .from(kycProfiles).where(scope ? and(idEq, scope) : idEq);
+  if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+  if (existing.userId === actor.id) { res.status(403).json({ error: 'You cannot transition your own KYC profile' }); return; }
+  try { assertKycTransition(existing.status as KycState, to, 'reviewer'); }
+  catch (error) { res.status(409).json({ error: error instanceof Error ? error.message : 'Invalid KYC transition' }); return; }
+  if (transitionRequiresReason(existing.status as KycState, to) && !reason) {
+    res.status(400).json({ error: 'A reason is required for this KYC transition' }); return;
+  }
+  const [row] = await db.update(kycProfiles).set({
+    status: to, reviewedBy: actor.id, reviewedByName: actor.name, reviewedAt: new Date(),
+    rejectionReason: to === 'rejected' || to === 'suspended' || to === 'revoked' ? reason : null,
+    updatedAt: new Date(),
+  }).where(eq(kycProfiles.id, id)).returning();
+  await writeAudit(actor, `kyc.${to}`, id, existing.userId, `${existing.status} -> ${to}: ${reason ?? 'no reason required'}`);
+  await notifySubject({ id, userId: existing.userId, plantId: existing.plantId, status: to });
   res.json(row);
 });
 
@@ -613,7 +661,10 @@ router.get('/badges', requireRole(...REVIEW_ROLES, 'supervisor', 'fleet_manager'
   const map: Record<number, string> = {};
   for (const r of rows) {
     const key = entity === 'vehicle' ? r.vehicleId : r.userId;
-    if (key != null) map[key] = r.status;
+    // 'verified' is the modern profile status; the client-facing badge still
+    // speaks the legacy 'approved' label (see VerifiedBadge.tsx), so normalize
+    // both to the one value consumers actually key their UI off of.
+    if (key != null) map[key] = r.status === 'verified' ? 'approved' : r.status;
   }
   res.json(map);
 });
