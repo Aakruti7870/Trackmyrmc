@@ -87,29 +87,31 @@ const platformStaffOnly = (req, res, next) => {
 // signed-in user (customers reach it via the post-login GPS discovery screen) may
 // query nearby plants; logged-out visitors cannot enumerate the directory.
 router.get('/nearby', requireAuth, async (req, res) => {
-    const lat = parseFloat(String(req.query.lat));
-    const lng = parseFloat(String(req.query.lng));
-    const radius = req.query.radius != null ? parseFloat(String(req.query.radius)) : 40;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        res.status(400).json({ error: 'lat and lng are required' });
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const radius = req.query.radius != null ? Number(req.query.radius) : 40;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+        lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        res.status(400).json({ error: 'Valid lat (-90 to 90) and lng (-180 to 180) are required' });
         return;
     }
     // Clamp to a sane ceiling: an unbounded radius would let a caller enumerate the
     // whole plant directory in one shot. 250km is the widest the UI offers.
     const MAX_RADIUS_KM = 250;
     const effRadius = Math.min(Number.isFinite(radius) && radius > 0 ? radius : 40, MAX_RADIUS_KM);
-    const rows = await db.select().from(plants);
-    // "GST & PAN Verified" trust badge: plants whose approved KYC profile carries
-    // both registrations. Public-safe — it exposes a boolean, never the documents.
-    const gstPanVerified = await getGstPanVerifiedPlantIds();
-    const nearby = rows
-        // Only plants the authority has marked active AND left visible on the network
-        // are shown to customers. Onboarding leads / hidden plants never appear.
-        .filter(customerVisible)
-        .map(p => {
-        const pLat = parseFloat(p.latitude);
-        const pLng = parseFloat(p.longitude);
-        return {
+    try {
+        const rows = await db.select().from(plants);
+        // "GST & PAN Verified" trust badge: plants whose approved KYC profile carries
+        // both registrations. Public-safe — it exposes a boolean, never the documents.
+        const gstPanVerified = await getGstPanVerifiedPlantIds();
+        const nearby = rows
+            // Only authority-approved, active, verified, customer-visible partners
+            // with valid coordinates may reach the customer response.
+            .filter(customerVisible)
+            .map(p => ({ p, pLat: Number(p.latitude), pLng: Number(p.longitude) }))
+            .filter(({ pLat, pLng }) => Number.isFinite(pLat) && Number.isFinite(pLng) &&
+            pLat >= -90 && pLat <= 90 && pLng >= -180 && pLng <= 180)
+            .map(({ p, pLat, pLng }) => ({
             id: p.id,
             name: p.name,
             address: p.address,
@@ -124,11 +126,51 @@ router.get('/nearby', requireAuth, async (req, res) => {
             openNow: isOpenNow(p.openTime, p.closeTime),
             gstPanVerified: gstPanVerified.has(p.id),
             distanceKm: Math.round(haversineKm(lat, lng, pLat, pLng) * 10) / 10,
-        };
-    })
-        .filter(p => p.distanceKm <= effRadius)
-        .sort((a, b) => a.distanceKm - b.distanceKm);
-    res.json(nearby);
+            // Carry promotion fields so the ranking step can evaluate them.
+            promotionActive: p.promotionActive,
+            promotionStart: p.promotionStart,
+            promotionEnd: p.promotionEnd,
+            promotionRadiusKm: p.promotionRadiusKm,
+            promotionPriorityRaw: p.promotionPriority,
+            promotionAdGlow: p.promotionAdGlow,
+        }))
+            .filter(p => Number.isFinite(p.distanceKm) && p.distanceKm <= effRadius)
+            .map(p => {
+            // Determine whether this plant has an active paid promotion that covers
+            // the customer's location. A sponsored plant must still pass every
+            // customerVisible() check (done above) — sponsorship only affects rank.
+            const now = Date.now();
+            const promoActive = p.promotionActive === true &&
+                p.promotionStart != null && new Date(p.promotionStart).getTime() <= now &&
+                p.promotionEnd != null && new Date(p.promotionEnd).getTime() > now &&
+                p.distanceKm <= (p.promotionRadiusKm ?? 20);
+            return {
+                ...p,
+                sponsored: promoActive,
+                promotionPriority: promoActive ? (p.promotionPriorityRaw ?? 0) : -Infinity,
+                adGlow: promoActive && p.promotionAdGlow !== false,
+            };
+        })
+            .sort((a, b) => {
+            // Sponsored plants first (higher priority = closer to top);
+            // within the same tier, sort by distance.
+            if (a.sponsored !== b.sponsored)
+                return a.sponsored ? -1 : 1;
+            if (a.sponsored && b.sponsored) {
+                const pDiff = b.promotionPriority - a.promotionPriority;
+                if (pDiff !== 0)
+                    return pDiff;
+            }
+            return a.distanceKm - b.distanceKm;
+        })
+            // Strip internal ranking fields before sending to client.
+            .map(({ promotionActive: _pa, promotionStart: _ps, promotionEnd: _pe, promotionRadiusKm: _pr, promotionPriorityRaw: _pp2, promotionAdGlow: _pag, promotionPriority: _pp, ...rest }) => rest);
+        res.status(200).json({ plants: nearby, count: nearby.length });
+    }
+    catch (error) {
+        console.error('[plants] nearby lookup failed:', error);
+        res.status(500).json({ error: 'Could not load nearby plants.' });
+    }
 });
 // Dashboard network map: every verified partner plant with the fields the map
 // popup needs (contact for call/WhatsApp, coordinates for directions, live
@@ -646,14 +688,14 @@ const NETWORK_STATUSES = ['pending', 'invited', 'verified', 'active'];
 // hasn't caught up yet — e.g. rows created by seed/import/direct insert before
 // the next boot backfill runs.
 function customerVisible(p) {
-    if (p.showOnNetwork !== true)
-        return false;
-    if (p.networkStatus === 'active')
-        return true;
-    return (p.plantStatus === 'approved' &&
+    return (p.showOnNetwork === true &&
+        p.networkStatus === 'active' &&
+        p.plantStatus === 'approved' &&
         p.isActive === true &&
         p.locationVerified === true &&
-        p.verified === true);
+        p.verified === true &&
+        p.subscriptionStatus !== 'suspended' &&
+        p.subscriptionStatus !== 'cancelled');
 }
 function parseBody(body) {
     const out = {};
@@ -715,6 +757,23 @@ function parseBody(body) {
         out.openTime = body.openTime === null ? null : String(body.openTime);
     if (body.closeTime !== undefined)
         out.closeTime = body.closeTime === null ? null : String(body.closeTime);
+    // ── Sponsored / paid-ad placement (platform-staff only; caller must check role) ──
+    if (body.promotionActive !== undefined)
+        out.promotionActive = Boolean(body.promotionActive);
+    if (body.promotionStart !== undefined) {
+        out.promotionStart = body.promotionStart === null || body.promotionStart === '' ? null : new Date(String(body.promotionStart));
+    }
+    if (body.promotionEnd !== undefined) {
+        out.promotionEnd = body.promotionEnd === null || body.promotionEnd === '' ? null : new Date(String(body.promotionEnd));
+    }
+    if (body.promotionRadiusKm !== undefined) {
+        out.promotionRadiusKm = Math.max(1, Math.min(250, Math.round(Number(body.promotionRadiusKm)) || 20));
+    }
+    if (body.promotionPriority !== undefined) {
+        out.promotionPriority = Math.max(0, Math.min(9999, Math.round(Number(body.promotionPriority)) || 0));
+    }
+    if (body.promotionAdGlow !== undefined)
+        out.promotionAdGlow = Boolean(body.promotionAdGlow);
     return out;
 }
 // Shared verify-time checks (GST format, placeId dupe, near-coordinate dupe)

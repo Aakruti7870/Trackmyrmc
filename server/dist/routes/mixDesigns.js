@@ -55,7 +55,11 @@ router.post('/', async (req, res) => {
             recipeCode: typeof recipeCode === 'string' && recipeCode.trim() ? recipeCode.trim() : null,
             materials,
             notes: typeof notes === 'string' && notes.trim() ? notes.trim() : null,
-        }).returning();
+        }).onConflictDoNothing().returning();
+        if (!row) {
+            res.status(409).json({ error: `A ${grade} mix design already exists for this plant` });
+            return;
+        }
         res.status(201).json(row);
     }
     catch (err) {
@@ -67,6 +71,11 @@ router.post('/', async (req, res) => {
     }
 });
 router.put('/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid mix design id' });
+        return;
+    }
     const { grade, recipeName, recipeCode, notes } = req.body;
     if (!validGrade(grade)) {
         res.status(400).json({ error: `Grade must be one of ${MIX_GRADES.join(', ')}` });
@@ -85,7 +94,7 @@ router.put('/:id', async (req, res) => {
         return;
     }
     const scope = plantScope(req.user.plantId, mixDesigns.plantId);
-    const idEq = eq(mixDesigns.id, +req.params.id);
+    const idEq = eq(mixDesigns.id, id);
     try {
         const [row] = await db.update(mixDesigns).set({
             grade,
@@ -110,8 +119,13 @@ router.put('/:id', async (req, res) => {
     }
 });
 router.delete('/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid mix design id' });
+        return;
+    }
     const scope = plantScope(req.user.plantId, mixDesigns.plantId);
-    const idEq = eq(mixDesigns.id, +req.params.id);
+    const idEq = eq(mixDesigns.id, id);
     const deleted = await db.delete(mixDesigns)
         .where(scope ? and(idEq, scope) : idEq)
         .returning({ id: mixDesigns.id });

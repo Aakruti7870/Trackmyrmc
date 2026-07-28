@@ -67,6 +67,11 @@ after(async () => {
     else
         process.env[FALLBACK_KEY] = prevFallbackKey;
     mock.reset();
+    // The last test leaves an onboarded plant fixture in the shared CI database;
+    // other test files (e.g. plants.discover.shared-store) run against the same
+    // DB and their onboarded-plant dedupe checks would otherwise pick it up.
+    await db.execute(sql `TRUNCATE TABLE users RESTART IDENTITY CASCADE`);
+    await db.execute(sql `TRUNCATE TABLE plants RESTART IDENTITY CASCADE`);
     await pool.end();
 });
 test('GET /plants/discover-suppliers rejects anonymous requests with 401', async () => {

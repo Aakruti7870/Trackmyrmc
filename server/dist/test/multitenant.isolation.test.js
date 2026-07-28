@@ -23,6 +23,9 @@ async function createPlant(overrides = {}) {
         plantStatus: 'approved',
         isActive: true,
         locationVerified: true,
+        verified: true,
+        networkStatus: 'active',
+        showOnNetwork: true,
         grades: ['M25', 'M30'],
         ...overrides,
     }).returning();
@@ -35,6 +38,7 @@ async function createUser(role, email, opts = {}) {
         isActive: true,
         plantId: opts.plantId ?? null,
         linkedClientId: opts.linkedClientId ?? null,
+        kycStatus: role === 'client' ? 'verified' : undefined,
     }).returning();
     return user;
 }

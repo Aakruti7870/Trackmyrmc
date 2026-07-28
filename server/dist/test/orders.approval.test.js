@@ -14,6 +14,7 @@ async function createUser(role, email, linkedClientId, plantId) {
     const [user] = await db.insert(users).values({
         name: `${role} user`, email, passwordHash, role: role,
         isActive: true, linkedClientId: linkedClientId ?? null, plantId: plantId ?? null,
+        kycStatus: role === 'client' ? 'verified' : undefined,
     }).returning();
     return user;
 }

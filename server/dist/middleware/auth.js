@@ -2,9 +2,17 @@ import jwt from 'jsonwebtoken';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
-const JWT_SECRET = process.env.JWT_SECRET ?? (() => {
-    throw new Error('JWT_SECRET environment variable is required. Set it to a long random string before starting the server.');
-})();
+// Resolve at the point authentication is actually used rather than at module
+// import time. This keeps the unauthenticated health endpoint available for
+// Cloud Run startup probes when a revision has a broken/missing secret binding,
+// while still failing closed for every token issue/verification operation.
+function jwtSecret() {
+    const secret = process.env.JWT_SECRET?.trim();
+    if (!secret) {
+        throw new Error('JWT_SECRET environment variable is required. Authentication is unavailable.');
+    }
+    return secret;
+}
 // Staff/owner/super-admin sessions are short-lived so an idle session lapses
 // (the frontend silently renews this token while the user is active and stops
 // renewing when idle → it expires → auto sign-out). Customer sessions keep the
@@ -12,10 +20,10 @@ const JWT_SECRET = process.env.JWT_SECRET ?? (() => {
 export const STAFF_TOKEN_TTL = '30m';
 export const CUSTOMER_TOKEN_TTL = '7d';
 export function signToken(payload, opts) {
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: opts?.expiresIn ?? CUSTOMER_TOKEN_TTL });
+    return jwt.sign(payload, jwtSecret(), { expiresIn: opts?.expiresIn ?? CUSTOMER_TOKEN_TTL });
 }
 export function verifyToken(token) {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, jwtSecret());
 }
 // Invalidate every other live session for an account by advancing its
 // session_version, then return the new value so the caller can embed it in the

@@ -2,7 +2,7 @@ import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import { hashPassword } from '../lib/password.js';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
 import { users, clients, sites } from '../db/schema.js';
@@ -13,11 +13,12 @@ async function createClient(name = 'Acme Co', phone = '1112223333') {
     const [row] = await db.insert(clients).values({ name, contactPerson: 'Jane', phone }).returning();
     return row;
 }
-async function createUser(email, linkedClientId) {
+async function createUser(email, linkedClientId, verified = true) {
     const passwordHash = await hashPassword(PASSWORD);
     const [user] = await db.insert(users).values({
         name: 'client user', email, passwordHash, role: 'client',
         isActive: true, linkedClientId: linkedClientId ?? null,
+        kycStatus: verified ? 'verified' : 'pending',
     }).returning();
     return user;
 }
@@ -40,6 +41,31 @@ test('creating a weekly recurring order sets a future next run date', async () =
     assert.equal(res.body.active, true);
     assert.match(res.body.nextRunDate, /^\d{4}-\d{2}-\d{2}$/);
     assert.equal(new Date(res.body.nextRunDate).getUTCDay(), 3);
+});
+test('unverified customer cannot create a recurring order schedule', async () => {
+    const client = await createClient();
+    const user = await createUser('rec-unverified@test.com', client.id, false);
+    const res = await request(app).post('/api/me/recurring').set('Authorization', `Bearer ${tokenFor(user)}`)
+        .send({ grade: 'M25', quantity: 8, frequency: 'weekly', anchor: 3 });
+    assert.equal(res.status, 403);
+    assert.equal(res.body.code, 'CUSTOMER_KYC_REQUIRED');
+});
+test('unverified customer can pause a schedule but cannot resume it', async () => {
+    const client = await createClient();
+    const user = await createUser('rec-pause@test.com', client.id);
+    const auth = `Bearer ${tokenFor(user)}`;
+    const created = await request(app).post('/api/me/recurring').set('Authorization', auth)
+        .send({ grade: 'M25', quantity: 8, frequency: 'weekly', anchor: 3 });
+    assert.equal(created.status, 201);
+    await db.update(users).set({ kycStatus: 'pending' }).where(eq(users.id, user.id));
+    const paused = await request(app).patch(`/api/me/recurring/${created.body.id}`)
+        .set('Authorization', auth).send({ active: false });
+    assert.equal(paused.status, 200);
+    assert.equal(paused.body.active, false);
+    const resumed = await request(app).patch(`/api/me/recurring/${created.body.id}`)
+        .set('Authorization', auth).send({ active: true });
+    assert.equal(resumed.status, 403);
+    assert.equal(resumed.body.code, 'CUSTOMER_KYC_REQUIRED');
 });
 test('invalid anchor for the frequency is rejected', async () => {
     const client = await createClient();

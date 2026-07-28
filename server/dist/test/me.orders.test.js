@@ -20,6 +20,9 @@ async function createUser(role, email, linkedClientId) {
     const [user] = await db.insert(users).values({
         name: `${role} user`, email, passwordHash, role: role,
         isActive: true, linkedClientId: linkedClientId ?? null,
+        // These tests exercise order parsing/scoping, not the KYC gate. Customer
+        // fixtures therefore represent already-verified customers.
+        kycStatus: role === 'client' ? 'verified' : undefined,
     }).returning();
     return user;
 }
