@@ -21,26 +21,26 @@ const SEMANTIC = {
   '--green': '#22c55e',
   '--green-dark': '#15803d',
   '--blue': '#38bdf8',
-  '--red': '#ef4444',
+  '--red': '#B94040',   // approved controlled error red
   '--orange': '#f59e0b',
 };
 
 // ─── Theme 1: Concrete Gold (Day / Light) ────────────────────────────────────
 // Flat white cards on a cool mint-white page, teal accent, Inter type.
 const CG_SURFACES = {
-  '--shadow-rgb': '18,33,29',
+  '--shadow-rgb': '31,31,30',
   '--glass-1': '#ffffff', '--glass-2': '#ffffff',
-  '--glass-border': 'rgba(18,33,29,0.10)', '--glass-hi': 'transparent', '--glass-blur': 'none',
-  '--sidebar-1': '#ffffff', '--sidebar-2': '#ffffff',
+  '--glass-border': 'rgba(214,214,210,0.8)', '--glass-hi': 'transparent', '--glass-blur': 'none',
+  '--sidebar-1': '#ffffff', '--sidebar-2': '#F5F5F3',
   '--header-bg': 'rgba(255,255,255,.92)', '--menu-bg': '#ffffff',
-  '--menu-hover': 'rgba(23,138,110,.08)', '--overlay': 'rgba(18,33,29,.32)',
-  '--chip-bg': '#f0f9f6', '--sheen': 'transparent',
+  '--menu-hover': 'rgba(112,116,57,.08)', '--overlay': 'rgba(31,31,30,.32)',
+  '--chip-bg': '#F0F2E4', '--sheen': 'transparent',
 };
 const CG_ACCENT = {
-  '--gold-hi': '#1a9678', '--gold-mid': '#178a6e', '--gold': '#178a6e', '--gold-dark': '#0f766e',
-  '--glow-1': 'rgba(23,138,110,.16)', '--glow-2': 'transparent',
-  '--gold-soft': '#e6f4ef', '--gold-tint': '#f0f9f6',
-  '--prompt-bg': '#eef8f4', '--prompt-border': 'rgba(23,138,110,0.18)', '--prompt-icon-bg': '#d7ece4',
+  '--gold-hi': '#9BA342', '--gold-mid': '#8B923F', '--gold': '#8B923F', '--gold-dark': '#707439',
+  '--glow-1': 'rgba(112,116,57,.16)', '--glow-2': 'transparent',
+  '--gold-soft': '#EEF0E2', '--gold-tint': '#F4F5E8',
+  '--prompt-bg': '#F2F3E7', '--prompt-border': 'rgba(112,116,57,0.18)', '--prompt-icon-bg': '#DDE0C4',
 };
 
 // ─── Theme 2: Trust Blue (Light, confidence-first) ───────────────────────────
@@ -66,18 +66,18 @@ const TB_ACCENT = {
 // Deep green-ink surfaces, light text, brighter teal accent for AA contrast.
 const IG_SURFACES = {
   '--shadow-rgb': '0,0,0',
-  '--glass-1': '#13221d', '--glass-2': '#101d18',
-  '--glass-border': 'rgba(234,244,240,0.09)', '--glass-hi': 'transparent', '--glass-blur': 'none',
-  '--sidebar-1': '#101d18', '--sidebar-2': '#0e1a16',
-  '--header-bg': 'rgba(12,23,19,.92)', '--menu-bg': '#13221d',
-  '--menu-hover': 'rgba(39,181,140,.12)', '--overlay': 'rgba(0,0,0,.55)',
-  '--chip-bg': '#16261f', '--sheen': 'transparent',
+  '--glass-1': '#1c1c1a', '--glass-2': '#181816',
+  '--glass-border': 'rgba(242,242,240,0.12)', '--glass-hi': 'transparent', '--glass-blur': 'none',
+  '--sidebar-1': '#191917', '--sidebar-2': '#141412',
+  '--header-bg': 'rgba(17,17,16,.94)', '--menu-bg': '#1c1c1a',
+  '--menu-hover': 'rgba(155,163,66,.10)', '--overlay': 'rgba(0,0,0,.58)',
+  '--chip-bg': '#242418', '--sheen': 'transparent',
 };
 const IG_ACCENT = {
-  '--gold-hi': '#33c39a', '--gold-mid': '#27b58c', '--gold': '#27b58c', '--gold-dark': '#1d9573',
-  '--glow-1': 'rgba(39,181,140,.22)', '--glow-2': 'transparent',
-  '--gold-soft': '#14352b', '--gold-tint': '#102a22',
-  '--prompt-bg': '#0f2620', '--prompt-border': 'rgba(39,181,140,0.28)', '--prompt-icon-bg': '#14352b',
+  '--gold-hi': '#AEBA47', '--gold-mid': '#9BA342', '--gold': '#9BA342', '--gold-dark': '#8B923F',
+  '--glow-1': 'rgba(155,163,66,.22)', '--glow-2': 'transparent',
+  '--gold-soft': '#2a2c1a', '--gold-tint': '#21231a',
+  '--prompt-bg': '#1e2016', '--prompt-border': 'rgba(155,163,66,0.28)', '--prompt-icon-bg': '#2e3020',
 };
 
 export const THEMES: Theme[] = [
@@ -88,9 +88,9 @@ export const THEMES: Theme[] = [
     fontName: 'Inter',
     font: "'Inter', system-ui, -apple-system, sans-serif",
     tokens: {
-      '--bg-top': '#f7faf8', '--bg': '#f4f7f5', '--bg-deep': '#e9f0ed',
-      '--panel': '#ffffff', '--panel2': '#f7faf8', '--surface': '#ffffff',
-      '--line': 'rgba(18,33,29,0.10)', '--text': '#12211d', '--muted': '#6b7c76',
+      '--bg-top': '#F5F5F3', '--bg': '#F2F2F0', '--bg-deep': '#E7E7E4',
+      '--panel': '#ffffff', '--panel2': '#F5F5F3', '--surface': '#ffffff',
+      '--line': 'rgba(214,214,210,0.8)', '--text': '#1F1F1E', '--muted': '#8A8A85',
       ...CG_ACCENT, ...SEMANTIC, ...CG_SURFACES,
     },
   },
@@ -114,9 +114,9 @@ export const THEMES: Theme[] = [
     fontName: 'Inter',
     font: "'Inter', system-ui, -apple-system, sans-serif",
     tokens: {
-      '--bg-top': '#10201b', '--bg': '#0c1713', '--bg-deep': '#091210',
-      '--panel': '#12211d', '--panel2': '#0f1c18', '--surface': '#12211d',
-      '--line': 'rgba(234,244,240,0.10)', '--text': '#eaf4f0', '--muted': '#9db3ab',
+      '--bg-top': '#141412', '--bg': '#111110', '--bg-deep': '#0c0c0b',
+      '--panel': '#1c1c1a', '--panel2': '#181816', '--surface': '#1c1c1a',
+      '--line': 'rgba(242,242,240,0.12)', '--text': '#F2F2F0', '--muted': '#8A8A85',
       ...IG_ACCENT, ...SEMANTIC, ...IG_SURFACES,
     },
   },

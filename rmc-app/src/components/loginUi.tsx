@@ -24,7 +24,7 @@ export function SubmitButton({ loading, label, icon }: { loading: boolean; label
       width: '100%', padding: '12px', borderRadius: 12,
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
       background: loading ? 'color-mix(in srgb, var(--gold) 40%, transparent)' : 'linear-gradient(135deg,var(--gold-hi),var(--gold-mid) 48%,var(--gold-dark))',
-      color: '#111827', fontWeight: 800, fontSize: 15,
+      color: '#ffffff', fontWeight: 800, fontSize: 15,
       boxShadow: '0 12px 30px color-mix(in srgb, var(--gold) 20%, transparent)',
       cursor: loading ? 'not-allowed' : 'pointer', border: 'none',
       transition: 'all .15s',

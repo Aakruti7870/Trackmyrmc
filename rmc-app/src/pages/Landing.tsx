@@ -44,7 +44,7 @@ const Label=({children,color=C.teal}:{children:React.ReactNode;color?:string})=>
 function Home(){
   const [word,setWord]=useState(0);
   const words=["Dispatch.","Freshness.","Fleet.","Output."];
-  const colors=[C.teal,"#16a34a","#2563eb","#d97706"];
+  const colors=[C.teal,"var(--gold-dark)","#C19B4D","var(--text)"];
   useEffect(()=>{const id=setInterval(()=>setWord(w=>(w+1)%4),2800);return()=>clearInterval(id);},[]);
   return(
     <div style={{position:"relative",width:"100%",height:"100%",display:"flex",alignItems:"center"}}>
@@ -73,7 +73,7 @@ function Home(){
           <button onClick={openLogin} style={{textAlign:"left",cursor:"pointer",background:"none",border:"none",padding:0,width:"100%",maxWidth:340}}>
             <Glass className="ck-signin-card" style={{padding:"26px 26px",display:"flex",flexDirection:"column",gap:18}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:46,height:46,borderRadius:13,background:"rgba(15,118,110,0.10)",border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:C.teal,flexShrink:0}}><LogIn size={22}/></div>
+                <div style={{width:46,height:46,borderRadius:13,background:"var(--gold-soft)",border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:C.teal,flexShrink:0}}><LogIn size={22}/></div>
                 <div>
                   <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.16em",color:C.teal,fontFamily:"'JetBrains Mono',monospace",marginBottom:4}}>NEXT</div>
                   <div style={{fontSize:18,fontWeight:800,color:C.text,fontFamily:"Inter,sans-serif",lineHeight:1.1}}>Sign in to continue</div>
