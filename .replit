@@ -96,6 +96,17 @@ author = "agent"
 task = "workflow.run"
 args = "Start application"
 
+[[workflows.workflow]]
+name = "Build AAB"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash /home/runner/workspace/scripts/build-aab.sh"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[ports]]
 localPort = 3001
 externalPort = 8008
