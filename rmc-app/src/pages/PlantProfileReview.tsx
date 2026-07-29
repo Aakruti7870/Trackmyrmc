@@ -43,26 +43,22 @@ export default function PlantProfileReview() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(() => Promise.all([
+    api.get<Plant[]>('/plants'),
+    api.get<PendingProfile[]>('/admin/plant-profiles/pending'),
+  ]).then(([plantRows, profileRows]) => {
     setError('');
-    try {
-      const [plantRows, profileRows] = await Promise.all([
-        api.get<Plant[]>('/plants'),
-        api.get<PendingProfile[]>('/admin/plant-profiles/pending'),
-      ]);
-      setPlants(plantRows);
-      setPending(profileRows);
-      if (selectedPlantId && !profileRows.some(row => row.plantId === selectedPlantId)) {
-        setSelectedPlantId(null);
-        setDetail(null);
-      }
-    } catch (caught) {
-      setError((caught as Error).message);
-    } finally {
-      setLoading(false);
+    setPlants(plantRows);
+    setPending(profileRows);
+    if (selectedPlantId && !profileRows.some(row => row.plantId === selectedPlantId)) {
+      setSelectedPlantId(null);
+      setDetail(null);
     }
-  }, [selectedPlantId]);
+  }).catch(caught => {
+    setError((caught as Error).message);
+  }).finally(() => {
+    setLoading(false);
+  }), [selectedPlantId]);
 
   useEffect(() => { void load(); }, [load]);
 

@@ -136,21 +136,17 @@ export default function RmcPlantNetwork() {
   const [starting, setStarting] = useState(false);
   const [selected, setSelected] = useState<Candidate | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [marketData, runData, dashData, candidateData, plantData] = await Promise.all([
-        api.get<MarketArea[]>('/super-admin/rmc-discovery/markets'),
-        api.get<ImportRun[]>('/super-admin/rmc-discovery/import-runs?limit=30'),
-        api.get<DashboardData>('/super-admin/rmc-discovery/dashboard'),
-        api.get<Candidate[]>('/super-admin/rmc-discovery/candidates?limit=100'),
-        api.get<NetworkPlant[]>('/super-admin/rmc-discovery/plants?limit=200'),
-      ]);
-      setMarkets(marketData); setRuns(runData); setDashboard(dashData); setCandidates(candidateData); setPlants(plantData);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Could not load RMC Plant Network', 'error');
-    } finally { setLoading(false); }
-  }, [showToast]);
+  const load = useCallback(() => Promise.all([
+    api.get<MarketArea[]>('/super-admin/rmc-discovery/markets'),
+    api.get<ImportRun[]>('/super-admin/rmc-discovery/import-runs?limit=30'),
+    api.get<DashboardData>('/super-admin/rmc-discovery/dashboard'),
+    api.get<Candidate[]>('/super-admin/rmc-discovery/candidates?limit=100'),
+    api.get<NetworkPlant[]>('/super-admin/rmc-discovery/plants?limit=200'),
+  ]).then(([marketData, runData, dashData, candidateData, plantData]) => {
+    setMarkets(marketData); setRuns(runData); setDashboard(dashData); setCandidates(candidateData); setPlants(plantData);
+  }).catch(error => {
+    showToast(error instanceof Error ? error.message : 'Could not load RMC Plant Network', 'error');
+  }).finally(() => { setLoading(false); }), [showToast]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {

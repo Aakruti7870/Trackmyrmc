@@ -33,7 +33,6 @@ describe('DeliveryHeader — Assistance placement', () => {
     const notification = screen.getByTestId('notification-icon');
 
     // DOCUMENT_POSITION_FOLLOWING (4) means `notification` comes after `assistance`.
-    // eslint-disable-next-line no-bitwise
     expect(assistance.compareDocumentPosition(notification) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

@@ -4,7 +4,7 @@ import { api } from '@/lib/api';
 import { BadgeCheck, Building2, CheckCircle2, FileCheck2, FlaskConical, Gauge, MapPin, ShieldCheck, Truck, WalletCards, Wrench } from 'lucide-react';
 
 type Certificate = { id: number; certificateName: string; certificateStatus: string; certificateNumber?: string | null; issuingAuthority?: string | null; issueDate?: string | null; expiryDate?: string | null; verificationStatus: string; documentUrl?: string | null };
-type Profile = Record<string, any>;
+type Profile = Record<string, unknown>;
 type Response = { plant: { id: number; name: string; address?: string | null; city?: string | null; profileVerified?: boolean }; profile: Profile | null; certificates: Certificate[]; message?: string; pendingChanges?: boolean };
 
 const label = (v: unknown) => v === true ? 'Available' : v === false ? 'Not Available' : 'Not Provided';
@@ -24,7 +24,7 @@ export default function PlantAbout() {
   const plantId = Number(params?.plantId);
   const [data, setData] = useState<Response | null>(null);
   const [error, setError] = useState('');
-  const load = () => { setError(''); api.get<Response>(`/plants/${plantId}/profile`).then(setData).catch(e => setError((e as Error).message)); };
+  const load = () => { api.get<Response>(`/plants/${plantId}/profile`).then(data => { setError(''); setData(data); }).catch(e => setError((e as Error).message)); };
   useEffect(load, [plantId]);
   const p = data?.profile;
   const certs = useMemo(() => [...(data?.certificates ?? [])].sort((a,b) => (a.verificationStatus === 'verified' ? -1 : 1) - (b.verificationStatus === 'verified' ? -1 : 1)), [data]);
@@ -67,6 +67,6 @@ export default function PlantAbout() {
     <section className="card" style={{ padding: 18 }}><h2 style={{ display: 'flex', gap: 8, alignItems: 'center' }}><BadgeCheck size={20}/>Certificates and Compliance</h2>
       {certs.length === 0 ? <p>No customer-visible certificates have been added.</p> : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 12 }}>{certs.map(c => <article key={c.id} style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 14, overflowWrap: 'anywhere' }}><strong>{c.certificateName}</strong><p>{c.verificationStatus === 'verified' ? 'Verified' : 'Declared by Plant'}</p><p>{c.expiryDate ? `Valid until ${c.expiryDate}` : 'Validity not provided'}</p>{c.documentUrl && <a className="btn" href={c.documentUrl} target="_blank" rel="noreferrer">View Document</a>}</article>)}</div>}
     </section>
-    {p.additionalInformation && <Section title="Additional Plant Information" icon={<CheckCircle2 size={20}/>} rows={[["Details", p.additionalInformation]]}/>} 
+    {!!p.additionalInformation && <Section title="Additional Plant Information" icon={<CheckCircle2 size={20}/>} rows={[["Details", String(p.additionalInformation)]]}/>} 
   </div>;
 }
