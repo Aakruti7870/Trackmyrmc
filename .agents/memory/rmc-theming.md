@@ -1,23 +1,32 @@
 ---
 name: RMC runtime theming
-description: How CONCRETE KING is themed — one universal teal Day/Night pair with clock-driven Auto mode, and the CSS-var override layers to keep in sync.
+description: How TrackMyRMC is themed — one universal teal Day/Night pair with clock-driven Auto mode, and the CSS-var override layers to keep in sync.
 ---
 
 # RMC theming (flat, token-driven; Day/Night + Auto)
 
-Themes are defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied inline to `documentElement` (inline wins over `index.css :root` fallbacks). ONE universal design, two modes: id `day` (cool mint page `#f4f7f5`, ink `#12211d`, muted `#6b7c76`, teal accent `#178a6e`, Inter) and id `night` (dark counterpart: bg `#0c1713`, panel `#12211d`, text `#eaf4f0`, brighter teal `#27b58c`). The old terracotta "Daylight" theme was REMOVED.
+Themes are defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied inline to `documentElement` (inline wins over `index.css :root` fallbacks). ONE universal design, two modes:
+- **Concrete Gold (Day / Light):** bg `#F4F7F5`, ink `#12211D`, muted `#6B7C76`, teal accent `--gold: #178A6E`, `--gold-hi: #1FA882`, `--gold-dark: #0E6650`.
+- **Infra Green (Night / Dark):** bg `#0C1713`, panel `#121F1B`, text `#EAF4F0`, brighter teal `--gold: #27B58C`, `--gold-hi: #34D19E`, `--gold-dark: #1FA882`.
 
-**No user-facing theme picker (July 2026):** the app is PERMANENTLY auto — THEME_MODES/ThemeSwitcher/persistMode/readStoredMode were removed; ThemeCtx is just `{theme, themes}`; module load deletes old localStorage mode keys and applies `resolveTheme('auto')` synchronously (no flash). Do not re-add a picker unless the user asks. Auto = `isNightNow()`: NOAA sunrise/sunset from coords in `rmc_nearby_location` localStorage (set by the Nearby screen), fallback 06:15/18:30 local. **Never prompt geolocation for theming** — privacy requirement; everything computes locally. ThemeProvider re-resolves every 60s + on visibilitychange while in auto.
+The old olive-gold palette (`#8B923F`/`#9BA342`) was replaced with the above teal palette. If stale olive hex appears in a grep, it must be updated.
+
+**Theme picker exists in ProfileSettings:** Users CAN explicitly select Concrete Gold / Trust Blue / Infra Green from their profile. Auto-mode (default) uses clock-driven concrete-gold Day / infra-green Night. Trust Blue (`#2563eb`) is the manually-selectable alternate light theme. The `readThemePreference` / `writeThemePreference` helpers persist the choice under `rmc-theme-pref-v2`.
+
+**No automatic theme-mode switcher in the header:** the old `ThemeSwitcher` UI was removed from the header chrome. ThemeCtx is `{theme, themes, preference, setPreference}`; module load applies `resolveTheme(readThemePreference())` synchronously (no flash). ThemeProvider re-resolves every 60s + on visibilitychange while in auto.
 
 **Accent tokens keep legacy `--gold*` names** (`--gold`, `--gold-hi/mid/dark`, soft tints `--gold-soft/-tint`, `--prompt-bg/-border/-icon-bg`) referenced all over. Don't rename — huge churn.
 
 **Override trap:** keep these IN SYNC when changing the accent or base palette:
-- `src/lib/theme.tsx` — token source of truth.
-- `src/index.css :root { ... }` — pre-hydration fallback baseline (kept = Day values).
-- `src/main.tsx` — Clerk `appearance.variables` are hardcoded hex (now light/teal `#178a6e`).
-- `src/pages/Landing.tsx` local `C` + `src/pages/Login.tsx` local `C` — now `var(--…)` references (theme-driven, flip with Night); `Landing.css .ck` no longer defines local palette vars (it inherits the global tokens — do NOT reintroduce a local `--gold/--bg` block there).
-- `rmc-app/index.html` `#ck-static-shell` — static pre-React shell still uses the OLD dark `#00C9A7` scheme (hardcoded inline hex); replaced instantly on React mount, retint by hand if it ever matters.
+- `src/lib/theme.tsx` — token source of truth (CG_ACCENT / IG_ACCENT / CG_SURFACES / IG_SURFACES).
+- `src/index.css :root { ... }` — pre-hydration Day fallback baseline.
+- `src/automatic-theme.css` — CSS data-theme attribute fallbacks for both themes.
+- `src/pages/ProfileSettings.tsx` opts[] — swatch hex values for the theme picker UI (update to match accent).
+- `src/main.tsx` — Clerk `appearance.variables` read `var(--gold)` from computedStyle dynamically; no hard hex to update.
+- `rmc-app/index.html` `#ck-static-shell` — static pre-React shell uses old hex (replaced instantly on React mount, retint by hand if it ever matters).
 
-**Theme reach:** ALL screens are token-driven now, including the public pages (Landing, Login, Privacy/Terms/DeleteAccount, SsoCallback, partner) and chrome (InstallAppBanner, notifications) — old dark-gradient leftovers were tokenized. deliveryKit + 8 role-home screens read `var(--...)` tokens (never raw hex) so they flip with Night. `GREEN/BLUE/RED` semantic hex stay stable across modes on purpose; per-role badge colors in Layout are semantic identities — do NOT recolor. Map-pin SVGs (raw HTML marker strings) are still hardcoded teal — known minor gap. `ChallanPrint.tsx` white is an intentional paper print view. NO background photos anywhere (flat design; login illustration is the one allowed image).
+**SplashScreen exception:** `SplashScreen.tsx` has a hardcoded white (`#FFFFFF`) background and uses dark hex (`#111110`, `#8A8A85`) for the wordmark and subtitle text — intentional, because `var(--text)` would flip to near-white in Night mode against the white splash bg. The brand mark gradient and progress bar DO use `var(--gold-hi)` / `var(--gold-dark)`.
 
-**How to apply:** after any palette change, `rg` `rmc-app/src` for stray old hexes (`#fdfbf7`, `#1c1917`, `#78716c`, `#0f766e`-as-primary) and run the `lint` + `build` + `test` workflows.
+**Theme reach:** ALL screens are token-driven, including public pages (Landing, Login, Privacy/Terms/DeleteAccount, SsoCallback, partner) and chrome. `ChallanPrint.tsx` white is an intentional paper print view. Map-pin SVGs are still hardcoded teal — known minor gap.
+
+**How to apply:** after any palette change, `rg rmc-app/src` for stray old hexes (`#8B923F`, `#9BA342`, `#707439`, `#F2F2F0`, `#1F1F1E`) and run the `lint` + `build` + `test` workflows.
