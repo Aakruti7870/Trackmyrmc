@@ -125,6 +125,17 @@ app.use('/api/public', rmcDiscoveryPublicRoutes);
 app.use('/api/events', eventsRoutes);
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
+// API requests must always return JSON. Without this guard, an unknown API route
+// can fall through to the production SPA and return index.html, which causes the
+// Android client to fail with: Unexpected token '<' ... is not valid JSON.
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    error: 'API route not found',
+    method: req.method,
+    path: req.originalUrl,
+  });
+});
+
 if (isProd) {
   const staticDir = path.resolve(__dirname, '../../rmc-app/dist');
   app.use(express.static(staticDir));
