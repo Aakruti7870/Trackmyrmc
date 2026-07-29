@@ -38,6 +38,7 @@ import trackingRoutes from './routes/tracking.js';
 import automationRoutes from './routes/automations.js';
 import kycRoutes from './routes/kyc.js';
 import kycVerificationRoutes from './routes/kycVerification.js';
+import widgetRoutes from './routes/widget.js';
 import expenseRoutes from './routes/expenses.js';
 import sosRoutes from './routes/sos.js';
 import { rmcDiscoveryAdminRoutes, rmcDiscoveryPublicRoutes } from './routes/rmcDiscovery.js';
@@ -121,6 +122,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/automations', automationRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/kyc-verification', kycVerificationRoutes);
+app.use('/api/widget', widgetRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/emergencies', sosRoutes);
 app.use('/api/track', trackingRoutes);
@@ -133,7 +135,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Da
 if (isProd) {
     const staticDir = path.resolve(__dirname, '../../rmc-app/dist');
     app.use(express.static(staticDir));
-    const SPA_ROUTES = new Set(['/', '/command', '/login', '/register', '/partner', '/privacy', '/terms', '/delete-account', '/set-password', '/forgot-password', '/sso-callback', '/kiosk', '/my-orders', '/nearby-plants', '/plants', '/plant/profile-management', '/admin/plant-profiles', '/admin/plant-promotions', '/rmc-plant-network', '/my-trips', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/mix-design', '/reports', '/freshness', '/forecast', '/shift-report', '/recurring', '/fuel-log', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/whatsapp', '/profile', '/live-drivers', '/home', '/expenses', '/expense-review', '/kyc', '/kyc-admin', '/sos', '/emergencies']);
+    const SPA_ROUTES = new Set(['/', '/command', '/login', '/register', '/partner', '/privacy', '/terms', '/delete-account', '/set-password', '/forgot-password', '/sso-callback', '/kiosk', '/my-orders', '/nearby-plants', '/plants', '/plant/profile-management', '/admin/plant-profiles', '/admin/plant-promotions', '/rmc-plant-network', '/my-trips', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/mix-design', '/reports', '/freshness', '/forecast', '/shift-report', '/recurring', '/fuel-log', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/whatsapp', '/profile', '/live-drivers', '/home', '/expenses', '/expense-review', '/kyc', '/kyc-admin', '/sos', '/emergencies', '/widget-settings']);
     const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/, /^\/track\/[^/]+$/, /^\/batch-sheets\/[^/]+\/print$/, /^\/plants\/[^/]+\/about$/];
     app.get('*', (req, res) => { const isSpaRoute = SPA_ROUTES.has(req.path) || SPA_PATTERNS.some(pattern => pattern.test(req.path)); res.status(isSpaRoute ? 200 : 404).sendFile(path.join(staticDir, 'index.html')); });
 }

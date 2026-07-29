@@ -18,6 +18,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- ── Main Activity ─────────────────────────────────────────────── -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
             android:name=".MainActivity"
@@ -31,12 +32,14 @@
             </intent-filter>
         </activity>
 
+        <!-- ── Live GPS tracking foreground service ──────────────────────── -->
         <service
             android:name=".TrackingLocationService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <!-- ── Legacy single-role widget (backward compat) ───────────────── -->
         <receiver
             android:name=".TrackMyRmcWidgetProvider"
             android:exported="true">
@@ -48,12 +51,76 @@
                 android:resource="@xml/trackmyrmc_widget_info" />
         </receiver>
 
+        <!-- ── Customer widget ────────────────────────────────────────────── -->
+        <!--
+          Shows the authenticated customer's active order status, plant, grade,
+          quantity, dispatch progress, and vehicle. Deep-links to /my-orders.
+          Sizes: compact (2×1), medium (4×2), expanded (4×4).
+          Lock-screen: widgetCategory includes keyguard (Android 4.2+).
+          Security: every tap re-enters the app which revalidates auth+role+order ownership.
+        -->
+        <receiver
+            android:name=".CustomerWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_customer_desc">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_customer_info" />
+        </receiver>
+
+        <!-- ── Driver widget ──────────────────────────────────────────────── -->
+        <!--
+          Shows ONLY the authenticated driver's own assigned challan, customer,
+          site, grade, quantity, vehicle, and trip status. Never exposes another
+          driver's data — the API endpoint requires driver role + scopes to the
+          caller's linked driver record.
+          Expanded size includes Start Trip, Navigate, Delivered action buttons
+          (deep links back into the app; authentication revalidated there).
+        -->
+        <receiver
+            android:name=".DriverWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_driver_desc">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_driver_info" />
+        </receiver>
+
+        <!-- ── Staff / Owner / Admin widget ──────────────────────────────── -->
+        <!--
+          Shows plant operations summary for the plants the logged-in user is
+          authorised to access (enforced server-side by plantScope). Admin users
+          with a null plantId get a global view; plant-scoped users see only their
+          own plant's data.
+        -->
+        <receiver
+            android:name=".StaffWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_staff_desc">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_staff_info" />
+        </receiver>
+
+        <!-- ── FileProvider (for image/file sharing) ──────────────────────── -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
-            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
         </provider>
+
     </application>
 </manifest>

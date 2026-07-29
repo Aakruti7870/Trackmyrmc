@@ -1,21 +1,21 @@
 export type Role = 'authority' | 'plant_owner' | 'admin' | 'supervisor' | 'dispatcher' | 'plant_operator' | 'accountant' | 'quality_engineer' | 'fleet_manager' | 'store_manager' | 'client' | 'driver';
 
-const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/plants', '/plant/profile-management', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/kyc', '/kyc-admin', '/profile'];
+const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/plants', '/plant/profile-management', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/kyc', '/kyc-admin', '/profile', '/widget-settings'];
 const AUTHORITY_REQUIRED_PATHS = ['/profile', '/command', '/rmc-plant-network', '/admin/plant-profiles', '/admin/plant-promotions'];
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   authority:      ['/command', '/whatsapp', '/kiosk', '/rmc-plant-network', '/admin/plant-profiles', '/admin/plant-promotions', ...ADMIN_PATHS],
   plant_owner:    ADMIN_PATHS,
   admin:          ['/whatsapp', ...ADMIN_PATHS],
-  supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/kyc', '/profile'],
-  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/kyc', '/profile'],
-  plant_operator: ['/', '/freshness', '/batch-report', '/batch-sheets', '/attendance', '/mix-design', '/shift-report', '/reports', '/kyc', '/profile'],
-  accountant:     ['/reports', '/challans', '/expense-review', '/kyc', '/profile'],
-  quality_engineer: ['/', '/batch-report', '/batch-sheets', '/mix-design', '/freshness', '/reports', '/attendance', '/kyc', '/profile'],
-  fleet_manager:  ['/', '/vehicles', '/drivers', '/dispatch', '/challans', '/fuel-log', '/expense-review', '/attendance', '/reports', '/kyc', '/profile'],
-  store_manager:  ['/', '/batch-report', '/batch-sheets', '/mix-design', '/attendance', '/reports', '/kyc', '/profile'],
-  client:         ['/my-orders', '/nearby-plants', '/plants', '/challans', '/kyc', '/profile'],
-  driver:         ['/home', '/my-trips', '/expenses', '/sos', '/attendance', '/challans', '/kyc', '/profile'],
+  supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/kyc', '/profile', '/widget-settings'],
+  dispatcher:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/kyc', '/profile', '/widget-settings'],
+  plant_operator: ['/', '/freshness', '/batch-report', '/batch-sheets', '/attendance', '/mix-design', '/shift-report', '/reports', '/kyc', '/profile', '/widget-settings'],
+  accountant:     ['/reports', '/challans', '/expense-review', '/kyc', '/profile', '/widget-settings'],
+  quality_engineer: ['/', '/batch-report', '/batch-sheets', '/mix-design', '/freshness', '/reports', '/attendance', '/kyc', '/profile', '/widget-settings'],
+  fleet_manager:  ['/', '/vehicles', '/drivers', '/dispatch', '/challans', '/fuel-log', '/expense-review', '/attendance', '/reports', '/kyc', '/profile', '/widget-settings'],
+  store_manager:  ['/', '/batch-report', '/batch-sheets', '/mix-design', '/attendance', '/reports', '/kyc', '/profile', '/widget-settings'],
+  client:         ['/my-orders', '/nearby-plants', '/plants', '/challans', '/kyc', '/profile', '/widget-settings'],
+  driver:         ['/home', '/my-trips', '/expenses', '/sos', '/attendance', '/challans', '/kyc', '/profile', '/widget-settings'],
 };
 
 export const ROLE_DEFAULT_PATH: Record<Role, string> = {

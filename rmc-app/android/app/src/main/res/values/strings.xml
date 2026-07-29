@@ -4,4 +4,22 @@
     <string name="title_activity_main">CONCRETE KING</string>
     <string name="package_name">com.trackmyrmc.concreteking</string>
     <string name="custom_url_scheme">com.trackmyrmc.concreteking</string>
+
+    <!-- Widget picker descriptions -->
+    <string name="widget_customer_desc">Shows your active concrete order status, plant, grade, quantity, and dispatch progress.</string>
+    <string name="widget_driver_desc">Shows your assigned delivery order, challan, vehicle, and quick-action buttons for trip management.</string>
+    <string name="widget_staff_desc">Shows plant operations summary: today\'s production, pending orders, transit mixers on route, and plant status.</string>
+
+    <!-- Widget action button labels -->
+    <string name="widget_start_trip">Start Trip</string>
+    <string name="widget_navigate">Navigate</string>
+    <string name="widget_delivered">Delivered</string>
+
+    <!-- Widget settings labels -->
+    <string name="widget_settings_title">Widget Settings</string>
+    <string name="widget_enabled">Enable widget</string>
+    <string name="widget_compact_mode">Compact mode</string>
+    <string name="widget_live_notification">Live notification fallback</string>
+    <string name="widget_refresh_now">Refresh now</string>
+    <string name="widget_reset">Reset widget</string>
 </resources>

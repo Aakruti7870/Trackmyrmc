@@ -60,6 +60,7 @@ const Emergencies = lazy(() => import('@/pages/Emergencies'));
 const BatchSheets = lazy(() => import('@/pages/BatchSheets'));
 const KycProfilePage = lazy(() => import('@/pages/KycProfile'));
 const KycAdmin = lazy(() => import('@/pages/KycAdmin'));
+const WidgetSettings = lazy(() => import('@/pages/WidgetSettings'));
 const BatchSheetPrint = lazy(() => import('@/pages/BatchSheetPrint'));
 
 const PageSpinner = <div style={{ minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)',color:'var(--muted)',fontSize:14 }}>Loading…</div>;
@@ -122,6 +123,7 @@ function ProtectedRoutes(){
     <Route path="/automations" component={()=> <GuardedRoute path="/automations" component={Automations}/>}/>
     <Route path="/whatsapp" component={()=> <GuardedRoute path="/whatsapp" component={WhatsAppChat}/>}/>
     <Route path="/profile" component={()=> <GuardedRoute path="/profile" component={ProfileSettings}/>}/>
+    <Route path="/widget-settings" component={()=> <GuardedRoute path="/widget-settings" component={WidgetSettings}/>}/>
     <Route path="/challans/:id/print" component={()=> <GuardedRoute path="/challans" component={ChallanPrint}/>}/>
     <Route><Redirect to={defaultPath(user.role)}/></Route>
   </Switch></Suspense></Layout></Route></Switch>;
