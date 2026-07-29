@@ -152,7 +152,7 @@ export default function RmcPlantNetwork() {
   useEffect(() => {
     const active = runs.find(r => r.status === 'QUEUED' || r.status === 'RUNNING');
     if (!active) return;
-    const timer = window.setInterval(() => void load(), 4000);
+    const timer = window.setInterval(() => { setLoading(true); void load(); }, 4000);
     return () => window.clearInterval(timer);
   }, [runs, load]);
 
@@ -228,7 +228,7 @@ export default function RmcPlantNetwork() {
     <div style={{ display: 'grid', gap: 16, maxWidth: 1500, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div><h1 style={{ margin: 0, fontSize: 24 }}>RMC Plant Network</h1><p style={{ margin: '5px 0 0', color: 'var(--muted)', fontSize: 13 }}>Discover → review → draft → onboard → verify → activate → publish</p></div>
-        <button onClick={() => void load()} style={{ ...input, width: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}><RefreshCw size={15} /> Refresh</button>
+        <button onClick={() => { setLoading(true); void load(); }} style={{ ...input, width: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}><RefreshCw size={15} /> Refresh</button>
       </div>
 
       <div style={{ ...card, padding: 6, display: 'flex', gap: 4, overflowX: 'auto' }}>

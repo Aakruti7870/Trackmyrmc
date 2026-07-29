@@ -101,11 +101,11 @@ after(async () => {
   await pool.end();
 });
 
-test('GET /kyc/status reports unverified + unconfigured for a fresh customer', async () => {
+test('GET /kyc/status reports not_started + unconfigured for a fresh customer', async () => {
   const cust = await createUser({ name: 'Cust', email: 'cust@test.com', role: 'client' });
   const res = await request(app).get('/api/kyc/status').set('Authorization', `Bearer ${tokenFor(cust)}`);
   assert.equal(res.status, 200);
-  assert.equal(res.body.status, 'unverified');
+  assert.equal(res.body.status, 'not_started'); // route maps internal 'unverified' → spec-aligned 'not_started'
   assert.equal(res.body.configured, false);
   assert.equal(res.body.maskedAadhaar, null);
 });

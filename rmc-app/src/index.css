@@ -21,49 +21,49 @@
   --radius-card: 18px;
 }
 
-/* ===== Theme tokens (swapped at runtime by ThemeProvider) — olive-gold Day baseline ===== */
+/* ===== Theme tokens (swapped at runtime by ThemeProvider) — teal Day baseline ===== */
 :root {
-  --bg-top: #F5F5F3;
-  --bg: #F2F2F0;
-  --bg-deep: #E7E7E4;
+  --bg-top: #F4F7F5;
+  --bg: #F1F5F3;
+  --bg-deep: #E3EBE7;
   --panel: #ffffff;
-  --panel2: #F5F5F3;
+  --panel2: #F3F7F5;
   --surface: #ffffff;
-  --line: rgba(214,214,210,0.8);
-  --text: #1F1F1E;
-  --muted: #8A8A85;
-  --gold-hi: #9BA342;
-  --gold-mid: #8B923F;
-  --gold: #8B923F;
-  --gold-dark: #707439;
+  --line: rgba(23,138,110,0.14);
+  --text: #12211D;
+  --muted: #6B7C76;
+  --gold-hi: #1FA882;
+  --gold-mid: #178A6E;
+  --gold: #178A6E;
+  --gold-dark: #0E6650;
   --green: #22c55e;
   --green-dark: #15803d;
   --blue: #38bdf8;
   --red: #B94040;
   --orange: #f59e0b;
-  --glow-1: rgba(112,116,57,.16);
+  --glow-1: rgba(23,138,110,.16);
   --glow-2: transparent;
-  --gold-soft: #EEF0E2;
-  --gold-tint: #F4F5E8;
-  --prompt-bg: #F2F3E7;
-  --prompt-border: rgba(112,116,57,0.18);
-  --prompt-icon-bg: #DDE0C4;
+  --gold-soft: #E0F5EF;
+  --gold-tint: #EFF9F6;
+  --prompt-bg: #E8F7F2;
+  --prompt-border: rgba(23,138,110,0.18);
+  --prompt-icon-bg: #B8E6D8;
   --font-app: 'Inter', system-ui, -apple-system, sans-serif;
 
   /* flat surface kit */
-  --shadow-rgb: 31,31,30;
+  --shadow-rgb: 18,33,29;
   --glass-1: #ffffff;
-  --glass-2: #ffffff;
-  --glass-border: rgba(214,214,210,0.8);
+  --glass-2: #F3F7F5;
+  --glass-border: rgba(23,138,110,0.14);
   --glass-hi: transparent;
   --glass-blur: none;
   --sidebar-1: #ffffff;
-  --sidebar-2: #F5F5F3;
-  --header-bg: rgba(255,255,255,0.92);
+  --sidebar-2: #F3F7F5;
+  --header-bg: rgba(255,255,255,0.94);
   --menu-bg: #ffffff;
-  --menu-hover: rgba(112,116,57,0.08);
-  --overlay: rgba(31,31,30,0.32);
-  --chip-bg: #F0F2E4;
+  --menu-hover: rgba(23,138,110,0.08);
+  --overlay: rgba(18,33,29,0.32);
+  --chip-bg: #E3F3EE;
   --sheen: transparent;
 
   /* TrackMyRMC brand token aliases — approved colour system */
@@ -79,14 +79,14 @@
   --tm-border-dark: var(--glass-border);
   --tm-green: var(--gold-mid);
   --tm-green-dark: var(--gold-dark);
-  --tm-green-hover: #5F632F;
+  --tm-green-hover: #0E6650;
   --tm-green-soft: var(--gold-soft);
   --tm-gold: #C19B4D;
   --tm-gold-hover: #A9843E;
   --tm-gold-soft: #F4EBD8;
   --tm-footer: #111110;
   --tm-error: var(--red);
-  --tm-success: #667534;
+  --tm-success: #178A6E;
   --tm-shadow-sm: 0 4px 14px rgba(8,8,8,0.05);
   --tm-shadow-md: 0 12px 30px rgba(8,8,8,0.07);
   --tm-shadow-lg: 0 24px 60px rgba(8,8,8,0.10);
@@ -232,7 +232,7 @@ button { cursor: pointer; border: 0; }
   right: 52px; bottom: 54px;
   width: 112px; height: 44px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #9BA342, #707439);
+  background: linear-gradient(135deg, var(--gold-hi), var(--gold-dark));
   transform: translateZ(96px);
   box-shadow: 0 18px 34px rgba(0,0,0,.42);
 }

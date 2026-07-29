@@ -131,7 +131,7 @@ export default function PlantProfileReview() {
   return <div style={{ display: 'grid', gap: 16, paddingBottom: 28 }}>
     <header className="card" style={{ padding: 20, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
       <div><h1 style={{ margin: 0, display: 'flex', gap: 8, alignItems: 'center' }}><BadgeCheck />Plant Profile Reviews</h1><p style={{ marginBottom: 0 }}>Super Admin verification for About Plant capability claims and customer-visible certificates.</p></div>
-      <button className="btn" onClick={() => void load()} disabled={loading}><RefreshCw size={16} />Refresh</button>
+      <button className="btn" onClick={() => { setLoading(true); void load(); }} disabled={loading}><RefreshCw size={16} />Refresh</button>
     </header>
 
     {error && <div className="card" style={{ padding: 14, color: 'var(--red)' }}>{error}</div>}

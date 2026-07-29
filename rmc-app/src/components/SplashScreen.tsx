@@ -97,9 +97,9 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         <div style={{
           width: 60, height: 60,
           borderRadius: 17,
-          background: 'linear-gradient(145deg, #2E9D6A 0%, #1B5E3F 100%)',
+          background: 'linear-gradient(145deg, var(--gold-hi) 0%, var(--gold-dark) 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 6px 28px rgba(30,94,63,0.26), 0 2px 8px rgba(30,94,63,0.18)',
+          boxShadow: '0 6px 28px var(--glow-1), 0 2px 8px rgba(0,0,0,0.10)',
         }}>
           {/* Concrete mixer truck silhouette — brand mark */}
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
@@ -144,7 +144,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
           fontSize: 12,
           fontWeight: 500,
           letterSpacing: '0.18em',
-          color: '#2E9D6A',
+          color: 'var(--gold)',
           fontFamily: '"Inter", system-ui, sans-serif',
           textTransform: 'uppercase',
           textAlign: 'center',
@@ -213,7 +213,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
           <div style={{
             position: 'absolute',
             inset: 0,
-            background: 'linear-gradient(90deg, #2E9D6A, #1B5E3F)',
+            background: 'linear-gradient(90deg, var(--gold-hi), var(--gold-dark))',
             transformOrigin: 'left center',
             transform: `scaleX(${progress / 100})`,
             transition: prefersReduced ? 'none' : 'transform 0.08s linear',

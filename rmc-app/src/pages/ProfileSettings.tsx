@@ -310,10 +310,10 @@ function ThemePickerCard() {
     : 'Sunrise & sunset · location needed';
 
   const opts: Opt[] = [
-    { id: 'auto',          label: 'Auto',          tagline: autoTagline,   swatch: 'linear-gradient(135deg,#8B923F 50%,#111110 50%)' },
-    { id: 'concrete-gold', label: 'Concrete Gold', tagline: 'Light · olive', swatch: '#8B923F' },
+    { id: 'auto',          label: 'Auto',          tagline: autoTagline,   swatch: 'linear-gradient(135deg,#178A6E 50%,#0C1713 50%)' },
+    { id: 'concrete-gold', label: 'Concrete Gold', tagline: 'Light · teal',  swatch: '#178A6E' },
     { id: 'trust-blue',    label: 'Trust Blue',    tagline: 'Light · blue',  swatch: '#2563eb' },
-    { id: 'infra-green',   label: 'Infra Green',   tagline: 'Dark · night',  swatch: '#111110' },
+    { id: 'infra-green',   label: 'Infra Green',   tagline: 'Dark · night',  swatch: '#0C1713' },
   ];
 
   return (

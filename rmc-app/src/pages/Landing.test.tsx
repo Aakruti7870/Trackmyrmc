@@ -1,73 +1,52 @@
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Router } from 'wouter';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { Route, Router } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import Landing from '@/pages/Landing';
+
+// Mock SplashScreen to avoid animation timers and image loads.
+// The mock exposes an onDone trigger via a "Continue" button.
+vi.mock('@/components/SplashScreen', () => ({
+  default: ({ onDone }: { onDone: () => void }) => (
+    <div data-testid="splash-screen">
+      <button onClick={onDone}>Continue</button>
+    </div>
+  ),
+}));
 
 function renderAt(path = '/') {
   const { hook } = memoryLocation({ path, record: true });
   render(
     <Router hook={hook}>
-      <Landing />
+      <Route path="/"><Landing /></Route>
+      <Route path="/login"><div data-testid="login-page" /></Route>
     </Router>,
   );
 }
 
-describe('Landing home page', () => {
-  beforeEach(() => {
-    // Mark the splash as already seen so we land directly on Screen 2.
-    sessionStorage.setItem('trackmyrmc.splash.v1.seen', '1');
-  });
-
+describe('Landing', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     sessionStorage.clear();
-    localStorage.clear();
   });
 
-  it('renders the brand name and tagline', () => {
+  it('shows the SplashScreen when the splash has not yet been seen', () => {
+    // sessionStorage is clear → hasSeenSplash() returns false
     renderAt();
-    expect(screen.getByText(/trackmy/i)).toBeInTheDocument();
-    expect(screen.getByText(/moving concrete/i)).toBeInTheDocument();
+    expect(screen.getByTestId('splash-screen')).toBeInTheDocument();
   });
 
-  it('shows the login headline copy', () => {
+  it('redirects straight to /login when splash was already seen this session', async () => {
+    sessionStorage.setItem('trackmyrmc.splash.v1.seen', '1');
     renderAt();
-    expect(screen.getByText(/ready mix concrete/i)).toBeInTheDocument();
-    expect(screen.getByText(/on time, every time/i)).toBeInTheDocument();
+    // Splash must not appear — we went straight to /login
+    expect(screen.queryByTestId('splash-screen')).not.toBeInTheDocument();
+    expect(await screen.findByTestId('login-page')).toBeInTheDocument();
   });
 
-  it('shows the three role tabs', () => {
+  it('navigates to /login when SplashScreen signals it is done', async () => {
     renderAt();
-    expect(screen.getByRole('button', { name: /^customer$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^staff$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^partner$/i })).toBeInTheDocument();
-  });
-
-  it('renders the phone OTP entry form by default (Customer tab)', () => {
-    renderAt();
-    expect(screen.getByPlaceholderText(/98765/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /get otp/i })).toBeInTheDocument();
-  });
-
-  it('routes to /login on valid 10-digit phone submit', async () => {
-    const user = userEvent.setup();
-    const pushSpy = vi.spyOn(window.history, 'pushState');
-    renderAt();
-
-    await user.type(screen.getByPlaceholderText(/98765/), '9876543210');
-    await user.click(screen.getByRole('button', { name: /get otp/i }));
-    expect(pushSpy).toHaveBeenCalledWith({}, '', expect.stringContaining('/login'));
-  });
-
-  it('routes to /login?staff=1 from the Staff tab', async () => {
-    const user = userEvent.setup();
-    const pushSpy = vi.spyOn(window.history, 'pushState');
-    renderAt();
-
-    await user.click(screen.getByRole('button', { name: /^staff$/i }));
-    await user.click(screen.getByRole('button', { name: /staff login with email/i }));
-    expect(pushSpy).toHaveBeenCalledWith({}, '', '/login?staff=1');
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    expect(await screen.findByTestId('login-page')).toBeInTheDocument();
   });
 });
