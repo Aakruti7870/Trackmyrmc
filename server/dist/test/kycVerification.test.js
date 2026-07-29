@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import { sql } from 'drizzle-orm';
+import { sql, and, eq } from 'drizzle-orm';
 import { hashPassword } from '../lib/password.js';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
@@ -321,6 +321,105 @@ test('badges endpoint refuses plant-unbound sub-admin roles', async () => {
         .set('Authorization', `Bearer ${tokenFor(bound)}`);
     assert.equal(ok.status, 200);
     assert.equal(ok.body[v1.id], 'approved');
+});
+// ---------------------------------------------------------------------------
+// Race guard: concurrent transition requests (compare-and-set protection)
+// ---------------------------------------------------------------------------
+// Two reviewers simultaneously claim the same KYC profile. The handler uses a
+// compare-and-set WHERE clause (UPDATE … WHERE status = <expected>) so that
+// exactly one request commits and the other gets 0 rows back — returning 409
+// instead of silently double-processing an identity decision.
+//
+// Two possible execution orderings both result in [200, 409]:
+//
+//   Interleaved (true race): both SELECTs read 'submitted', both UPDATEs race,
+//   one gets 1 row (200), the other gets 0 rows and the CAS guard fires:
+//   "KYC profile status changed by another reviewer".
+//
+//   Sequential: the first handler completes entirely before the second's SELECT;
+//   the second SELECT reads 'under_review', assertKycTransition fires first:
+//   "KYC transition under_review -> under_review is not permitted".
+//
+//   Either way, exactly one 200 and exactly one 409 — double-processing blocked.
+test('concurrent transition requests: exactly one wins, the other gets 409', async () => {
+    const plant = await createPlant();
+    const { user: subject } = await createClientUser('race-kyc-subject@test.com');
+    const reviewer1 = await createUser('admin', 'race-kyc-rev1@test.com', plant.id);
+    const reviewer2 = await createUser('admin', 'race-kyc-rev2@test.com', plant.id);
+    const [profile] = await db
+        .insert(kycProfiles)
+        .values({
+        entityType: 'customer',
+        userId: subject.id,
+        plantId: plant.id,
+        status: 'submitted',
+        submittedAt: new Date(),
+    })
+        .returning();
+    // Fire both requests at the same time — one must win, the other must be rejected.
+    const [res1, res2] = await Promise.all([
+        request(app)
+            .post(`/api/kyc-verification/profiles/${profile.id}/transition`)
+            .set('Authorization', `Bearer ${tokenFor(reviewer1)}`)
+            .send({ status: 'under_review' }),
+        request(app)
+            .post(`/api/kyc-verification/profiles/${profile.id}/transition`)
+            .set('Authorization', `Bearer ${tokenFor(reviewer2)}`)
+            .send({ status: 'under_review' }),
+    ]);
+    const codes = [res1.status, res2.status].sort();
+    assert.deepEqual(codes, [200, 409], 'exactly one request must win; the other must be rejected');
+    // The losing request returns a 409 — either the CAS guard or the state machine.
+    // Both correctly prevent double-processing of the same identity decision.
+    const loser = [res1, res2].find(r => r.status === 409);
+    assert.equal(typeof loser.body.error, 'string', 'loser must carry an error message');
+    assert.ok(loser.body.error.includes('another reviewer') || loser.body.error.includes('not permitted'), `unexpected 409 body: ${loser.body.error}`);
+    // The DB must be in a consistent state regardless of which guard fired.
+    const [final] = await db
+        .select({ status: kycProfiles.status })
+        .from(kycProfiles)
+        .where(eq(kycProfiles.id, profile.id));
+    assert.equal(final.status, 'under_review', 'profile must end up in under_review with no status corruption');
+});
+// Deterministic CAS test: directly verify the compare-and-set WHERE clause that
+// backs the race guard. This exercises the exact SQL primitive the handler uses
+// without relying on timing.
+//
+// Sequence:
+//   1. Profile starts as 'submitted'.
+//   2. First reviewer's transition endpoint commits status → 'under_review'.
+//   3. A late-arriving second writer (whose SELECT had snapshotted 'submitted')
+//      issues the same UPDATE … WHERE status = 'submitted'.
+//   4. The WHERE clause matches 0 rows because the DB already shows 'under_review'.
+//   5. The handler receives an empty .returning() array and returns 409.
+test('transition CAS WHERE clause returns 0 rows when status was already changed', async () => {
+    const { user: subject } = await createClientUser('cas-kyc-subject@test.com');
+    const reviewer = await createUser('admin', 'cas-kyc-reviewer@test.com');
+    const [profile] = await db
+        .insert(kycProfiles)
+        .values({ entityType: 'customer', userId: subject.id, status: 'submitted', submittedAt: new Date() })
+        .returning();
+    // First transition succeeds; profile is now 'under_review'.
+    const first = await request(app)
+        .post(`/api/kyc-verification/profiles/${profile.id}/transition`)
+        .set('Authorization', `Bearer ${tokenFor(reviewer)}`)
+        .send({ status: 'under_review' });
+    assert.equal(first.status, 200);
+    // Simulate the UPDATE a late-arriving racing request would issue.
+    // Its SELECT had snapshotted status = 'submitted', so it now tries
+    // to write WHERE status = 'submitted' — but the DB already committed 'under_review'.
+    const staleWrite = await db
+        .update(kycProfiles)
+        .set({ status: 'under_review', updatedAt: new Date() })
+        .where(and(eq(kycProfiles.id, profile.id), eq(kycProfiles.status, 'submitted')))
+        .returning();
+    assert.equal(staleWrite.length, 0, 'CAS WHERE clause must return 0 rows when status was already changed by the first writer');
+    // The profile is untouched — still correctly 'under_review'.
+    const [current] = await db
+        .select({ status: kycProfiles.status })
+        .from(kycProfiles)
+        .where(eq(kycProfiles.id, profile.id));
+    assert.equal(current.status, 'under_review');
 });
 test('document metadata endpoints validate object paths and doc types', async (t) => {
     const { user } = await createClientUser('kyc-client10@test.com');

@@ -401,9 +401,13 @@ try {
   } else if (migrationsFailed) {
     // exitCode already set above.
   } else {
-    const testFiles = findTests(path.join(serverDir, 'src')).sort();
+    const filterPattern = process.env.TEST_PATTERN || '';
+    const allTestFiles = findTests(path.join(serverDir, 'src')).sort();
+    const testFiles = filterPattern
+      ? allTestFiles.filter(f => f.includes(filterPattern))
+      : allTestFiles;
     if (testFiles.length === 0) {
-      console.error('[test] No test files found.');
+      console.error('[test] No test files found' + (filterPattern ? ` matching TEST_PATTERN="${filterPattern}"` : '') + '.');
       exitCode = 1;
     } else {
       // 2. Decide worker count.
