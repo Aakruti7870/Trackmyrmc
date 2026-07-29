@@ -377,35 +377,22 @@ export default function Login() {
           <span style={{ width: 68 }} aria-hidden />
         </div>
 
-        {/* Hero — real plant photograph with dark brand overlay.
-            Replaces the 3-D isometric illustration; flex:1 keeps the auth
-            card pinned to the bottom without the page ever scrolling. */}
+        {/* Hero — fleet imagery, fits fully within the rounded card */}
         <div style={{
           margin: '12px 16px 0', borderRadius: 26, overflow: 'hidden',
           flex: 1, minHeight: 80, position: 'relative',
-          background: '#0A1F14',
+          background: '#FFFFFF',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <img
-            src="/login-scene.jpg"
-            alt="Ready Mix Concrete batching plant"
+            src="/login-scene.png"
+            alt="TrackMyRMC fleet — mixer truck and concrete pump"
             style={{
               width: '100%', height: '100%', minHeight: 0,
-              objectFit: 'cover', objectPosition: 'center 60%',
+              objectFit: 'contain', objectPosition: 'center center',
               display: 'block',
             }}
           />
-          {/* Top vignette — keeps the nav bar readable */}
-          <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0, height: '35%',
-            background: 'linear-gradient(to bottom, rgba(10,31,20,0.55), transparent)',
-            pointerEvents: 'none',
-          }} />
-          {/* Bottom vignette — bleeds into the auth card below */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0, height: '45%',
-            background: 'linear-gradient(to bottom, transparent, rgba(10,31,20,0.72))',
-            pointerEvents: 'none',
-          }} />
         </div>
 
         {/* Auth card — heading, door tabs and the sign-in form in ONE card */}
