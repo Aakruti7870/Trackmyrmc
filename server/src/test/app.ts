@@ -36,6 +36,7 @@ import kycRoutes from '../routes/kyc.js';
 import kycVerificationRoutes from '../routes/kycVerification.js';
 import expenseRoutes from '../routes/expenses.js';
 import emergencyRoutes from '../routes/sos.js';
+import widgetRoutes from '../routes/widget.js';
 import { rmcDiscoveryAdminRoutes, rmcDiscoveryPublicRoutes } from '../routes/rmcDiscovery.js';
 import rmcDiscoveryGuards from '../routes/rmcDiscoveryGuards.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -93,6 +94,7 @@ export function buildTestApp(): Express {
   app.use('/api/kyc-verification', kycVerificationRoutes);
   app.use('/api/expenses', expenseRoutes);
   app.use('/api/emergencies', emergencyRoutes);
+  app.use('/api/widget', widgetRoutes);
   app.use('/api/super-admin/rmc-discovery', rmcDiscoveryGuards);
   app.use('/api/super-admin/rmc-discovery', rmcDiscoveryAdminRoutes);
   app.use('/api/public', rmcDiscoveryPublicRoutes);
