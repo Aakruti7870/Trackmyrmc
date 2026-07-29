@@ -2,12 +2,12 @@
 # deploy to Cloud Run. Run with:
 #
 #   gcloud builds submit --config cloudbuild.yaml \
-#     --substitutions=_REGION=asia-south1,_REPO=cloud-run-source-deploy,_IMAGE=trackmyrmc/rackmyrmc,_SERVICE=rackmyrmc,_CLOUDSQL_INSTANCE=trackmyrmc-production:asia-south1:trackmyrmc-prod-db
+#     --substitutions=_REGION=asia-south1,_REPO=cloud-run-source-deploy,_IMAGE=trackmyrmc/trackmyrmc,_SERVICE=trackmyrmc,_CLOUDSQL_INSTANCE=trackmyrmc-production:asia-south1:trackmyrmc-prod-db
 #
 # The image path (repo + image name + tag) is identical across the build, push,
 # and deploy steps:
 #   ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:${COMMIT_SHA}
-# e.g. asia-south1-docker.pkg.dev/trackmyrmc-production/cloud-run-source-deploy/trackmyrmc/rackmyrmc:<commit-sha>
+# e.g. asia-south1-docker.pkg.dev/trackmyrmc-production/cloud-run-source-deploy/trackmyrmc/trackmyrmc:<commit-sha>
 #
 # Secrets are injected from Secret Manager at runtime via --set-secrets (see the
 # deploy step below and deploy/GCLOUD_DEPLOY.md) so they are never baked into the
@@ -30,8 +30,8 @@
 substitutions:
   _REGION: "asia-south1"
   _REPO: "cloud-run-source-deploy"
-  _IMAGE: "trackmyrmc/rackmyrmc"
-  _SERVICE: "rackmyrmc"
+  _IMAGE: "trackmyrmc/trackmyrmc"
+  _SERVICE: "trackmyrmc"
   _CLOUDSQL_INSTANCE: "trackmyrmc-production:asia-south1:trackmyrmc-prod-db"
 
 images:
@@ -58,7 +58,6 @@ steps:
   #    - timeout=3600 supports long-lived SSE connections.
   #    - add-cloudsql-instances mounts the Cloud SQL Unix socket at /cloudsql/<inst>.
   #    - All secrets come from Secret Manager via --set-secrets (never baked in).
-  #      To add more later, create the secret and append KEY=NAME:latest to that arg.
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: gcloud
     args:
