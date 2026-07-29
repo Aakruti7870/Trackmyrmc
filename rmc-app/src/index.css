@@ -503,6 +503,55 @@ html, body {
   .dash-actions { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
+/* ===== Bottom-nav / dropdown z-index contract =========================
+   Fixed chrome: header z-index 60, bottom-nav z-index 55.
+   Page content that "floats" (custom selects, date pickers, autocomplete
+   panels, context menus, tooltips, small action sheets) MUST render above
+   the bottom-nav. Assign z-index 66+ so it clears both bars cleanly.
+   Full-screen overlays (modals, drawers, alerts) use z-index 200+.
+   ===================================================================== */
+
+/* Page-level floating panels — custom dropdowns, filters, date pickers. */
+.page-popup,
+.dropdown-panel,
+.date-popup,
+.select-panel,
+.autocomplete-panel,
+.filter-popup,
+.context-menu { z-index: 66; position: relative; }
+
+/* React-portal overlays — full-screen modals and alert dialogs. */
+.modal-overlay,
+.drawer-overlay,
+.alert-overlay { z-index: 200; }
+
+/* Bottom-nav never hides behind page content — the nav itself is at 55;
+   any element that accidentally ends up in the same stacking context and
+   overlaps the nav area gets pointer-events off to avoid mis-taps. */
+#delivery-bottom-nav { isolation: isolate; }
+
+/* ===== Touch & scroll quality for Android WebView =====================
+   - touch-action: manipulation  → removes 300 ms tap delay on all
+     interactive elements without disabling pinch-zoom.
+   - overscroll-behavior-y: contain  → stops the whole-page bounce that
+     can lock scroll on Android 9/10 WebViews inside scroll sub-containers.
+   - -webkit-overflow-scrolling: touch  → smooth momentum scroll on iOS.
+   ===================================================================== */
+button,
+a,
+[role="button"],
+input,
+select,
+textarea,
+label { touch-action: manipulation; }
+
+.scroll-y,
+[data-scroll],
+#app-main {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ===== Global mobile guards — keep every page inside the viewport ===== */
 /* Media never wider than its container (logos/proof photos/charts). */
 #app-main img, #app-main video, #app-main canvas { max-width: 100%; }

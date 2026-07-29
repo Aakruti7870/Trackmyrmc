@@ -492,7 +492,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           borderTop: '1px solid var(--line)',
           borderTopLeftRadius: 20, borderTopRightRadius: 20,
           padding: '10px 14px',
-          paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
           display: 'flex', flexDirection: 'column',
           overflowY: 'auto', WebkitOverflowScrolling: 'touch',
           transform: mobileOpen ? 'translateY(0)' : 'translateY(110%)',
