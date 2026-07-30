@@ -2,10 +2,10 @@
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/account-home/DeliveryStyle.tsx": () => import("../components/mockups/account-home/DeliveryStyle.tsx"),
-  "./components/mockups/admin-home/DeliveryStyle.tsx": () => import("../components/mockups/admin-home/DeliveryStyle.tsx"),
   "./components/mockups/app-directions/AuroraGlass.tsx": () => import("../components/mockups/app-directions/AuroraGlass.tsx"),
   "./components/mockups/app-directions/Blueprint.tsx": () => import("../components/mockups/app-directions/Blueprint.tsx"),
   "./components/mockups/app-directions/Daylight.tsx": () => import("../components/mockups/app-directions/Daylight.tsx"),
+  "./components/mockups/admin-home/DeliveryStyle.tsx": () => import("../components/mockups/admin-home/DeliveryStyle.tsx"),
   "./components/mockups/applied-theme/Day.tsx": () => import("../components/mockups/applied-theme/Day.tsx"),
   "./components/mockups/applied-theme/Night.tsx": () => import("../components/mockups/applied-theme/Night.tsx"),
   "./components/mockups/ck-landing/Landing.tsx": () => import("../components/mockups/ck-landing/Landing.tsx"),
@@ -26,6 +26,7 @@ export const modules: ModuleMap = {
   "./components/mockups/dispatcher-home/DeliveryStyle.tsx": () => import("../components/mockups/dispatcher-home/DeliveryStyle.tsx"),
   "./components/mockups/kyc-verification/Admin.tsx": () => import("../components/mockups/kyc-verification/Admin.tsx"),
   "./components/mockups/kyc-verification/Profile.tsx": () => import("../components/mockups/kyc-verification/Profile.tsx"),
+  "./components/mockups/driver-home/DeliveryStyle.tsx": () => import("../components/mockups/driver-home/DeliveryStyle.tsx"),
   "./components/mockups/login-screens/DarkPremium.tsx": () => import("../components/mockups/login-screens/DarkPremium.tsx"),
   "./components/mockups/login-screens/FintechClean.tsx": () => import("../components/mockups/login-screens/FintechClean.tsx"),
   "./components/mockups/login-screens/GradientVibrant.tsx": () => import("../components/mockups/login-screens/GradientVibrant.tsx"),
@@ -37,7 +38,6 @@ export const modules: ModuleMap = {
   "./components/mockups/login-screens/SplitBrand.tsx": () => import("../components/mockups/login-screens/SplitBrand.tsx"),
   "./components/mockups/login-screens/TrustSocialProof.tsx": () => import("../components/mockups/login-screens/TrustSocialProof.tsx"),
   "./components/mockups/login-screens/Workforce.tsx": () => import("../components/mockups/login-screens/Workforce.tsx"),
-  "./components/mockups/driver-home/DeliveryStyle.tsx": () => import("../components/mockups/driver-home/DeliveryStyle.tsx"),
   "./components/mockups/nearby-redesign/CompactSmartList.tsx": () => import("../components/mockups/nearby-redesign/CompactSmartList.tsx"),
   "./components/mockups/nearby-redesign/FeedFilter.tsx": () => import("../components/mockups/nearby-redesign/FeedFilter.tsx"),
   "./components/mockups/nearby-redesign/MapFirstDiscovery.tsx": () => import("../components/mockups/nearby-redesign/MapFirstDiscovery.tsx"),
@@ -50,6 +50,6 @@ export const modules: ModuleMap = {
   "./components/mockups/rmc-dashboard/CommandCenter.tsx": () => import("../components/mockups/rmc-dashboard/CommandCenter.tsx"),
   "./components/mockups/rmc-dashboard/ExceptionFirst.tsx": () => import("../components/mockups/rmc-dashboard/ExceptionFirst.tsx"),
   "./components/mockups/rmc-dashboard/ShiftHandover.tsx": () => import("../components/mockups/rmc-dashboard/ShiftHandover.tsx"),
-  "./components/mockups/supervisor-home/DeliveryStyle.tsx": () => import("../components/mockups/supervisor-home/DeliveryStyle.tsx"),
-  "./components/mockups/superadmin/PlatformControlCenter.tsx": () => import("../components/mockups/superadmin/PlatformControlCenter.tsx")
+  "./components/mockups/superadmin/PlatformControlCenter.tsx": () => import("../components/mockups/superadmin/PlatformControlCenter.tsx"),
+  "./components/mockups/supervisor-home/DeliveryStyle.tsx": () => import("../components/mockups/supervisor-home/DeliveryStyle.tsx")
 };

@@ -1,5 +1,5 @@
 import { Router, type RequestHandler } from 'express';
-import { eq, and, isNull, sql, inArray, ne } from 'drizzle-orm';
+import { eq, and, isNull, sql, inArray, ne, or, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { plants, users, auditLogs, plantInvites, passwordSetupTokens, rateCards } from '../db/schema.js';
@@ -730,6 +730,35 @@ router.patch('/invites/:id', ADMIN, platformStaffOnly, async (req, res) => {
     .returning();
   if (!row) { res.status(404).json({ error: 'Invite not found' }); return; }
   res.json(row);
+});
+
+// Super Admin promotions dashboard: every plant that has any promotion data set
+// (active flag OR at least one date). Returns only promotion-relevant columns —
+// no billing internals, no PII. Authority + platform-staff only.
+router.get('/promotions', requireRole('authority'), platformStaffOnly, async (_req, res) => {
+  const rows = await db.select({
+    id: plants.id,
+    name: plants.name,
+    city: plants.city,
+    promotionActive: plants.promotionActive,
+    promotionStart: plants.promotionStart,
+    promotionEnd: plants.promotionEnd,
+    promotionRadiusKm: plants.promotionRadiusKm,
+    promotionPriority: plants.promotionPriority,
+    promotionAdGlow: plants.promotionAdGlow,
+  }).from(plants)
+    .where(
+      or(
+        eq(plants.promotionActive, true),
+        isNotNull(plants.promotionStart),
+        isNotNull(plants.promotionEnd),
+      ),
+    )
+    .orderBy(
+      sql`${plants.promotionActive} DESC`,
+      sql`${plants.promotionEnd} DESC NULLS LAST`,
+    );
+  res.json(rows);
 });
 
 router.get('/', ADMIN, platformStaffOnly, async (_req, res) => {

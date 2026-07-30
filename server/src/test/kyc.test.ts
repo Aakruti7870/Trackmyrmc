@@ -228,3 +228,56 @@ test('GET /kyc/callback rejects a missing or unknown ref', async () => {
   assert.equal((await request(app).get('/api/kyc/callback')).status, 400);
   assert.equal((await request(app).get('/api/kyc/callback?ref=does-not-exist')).status, 404);
 });
+
+// ── Task #8: displayName update after DigiLocker verification ─────────────────
+
+test('GET /kyc/callback replaces auto-generated "Customer ####" displayName with verified legal name', async () => {
+  // Seed a customer whose name is still the auto-generated placeholder.
+  const cust = await createUser({ name: 'Customer 9999', email: 'cust@test.com', role: 'client' });
+  await configureKyc();
+  stubSandbox({ aadhaar: () => ({ status: 200, body: { data: {
+    masked_aadhaar: 'XXXXXXXX5678', name: 'Priya Sharma',
+    date_of_birth: '1992-03-15', gender: 'F',
+  } } }) });
+
+  // Start a KYC session (creates the pending kycVerifications row).
+  const startRes = await request(app).post('/api/kyc/start').set('Authorization', `Bearer ${tokenFor(cust)}`).send({});
+  assert.equal(startRes.status, 200, 'session should open successfully');
+  const [pending] = await db.select().from(kycVerifications);
+
+  // Fire the aggregator callback.
+  const cb = await request(app).get(`/api/kyc/callback?ref=${pending.providerRef}`);
+  assert.equal(cb.status, 200);
+  assert.match(cb.text, /verified/i);
+
+  // kycStatus must transition to 'verified'.
+  const [user] = await db.select().from(users).where(eq(users.id, cust.id));
+  assert.equal(user.kycStatus, 'verified', 'kycStatus should be verified');
+
+  // The "Customer ####" placeholder must be replaced by the legal name from DigiLocker.
+  assert.equal(user.name, 'Priya Sharma', 'displayName should be updated to the verified legal name');
+
+  // GET /kyc/status must expose the legal name via verifiedLegalName.
+  const status = await request(app).get('/api/kyc/status').set('Authorization', `Bearer ${tokenFor(cust)}`);
+  assert.equal(status.body.status, 'verified');
+  assert.equal(status.body.verifiedLegalName, 'Priya Sharma', 'verifiedLegalName must match the legal name from DigiLocker');
+});
+
+test('GET /kyc/callback does NOT overwrite a custom displayName — only "Customer ####" placeholders are replaced', async () => {
+  // A customer who already set their own name before KYC should keep it after verification.
+  const cust = await createUser({ name: 'Ravi Kumar', email: 'ravi@test.com', role: 'client' });
+  await configureKyc();
+  stubSandbox({ aadhaar: () => ({ status: 200, body: { data: {
+    masked_aadhaar: 'XXXXXXXX1111', name: 'Ravi Kumar Official',
+    date_of_birth: '1985-06-10', gender: 'M',
+  } } }) });
+
+  await request(app).post('/api/kyc/start').set('Authorization', `Bearer ${tokenFor(cust)}`).send({});
+  const [pending] = await db.select().from(kycVerifications);
+  await request(app).get(`/api/kyc/callback?ref=${pending.providerRef}`);
+
+  const [user] = await db.select().from(users).where(eq(users.id, cust.id));
+  assert.equal(user.kycStatus, 'verified');
+  // Custom name must be preserved — only the auto-generated pattern is replaced.
+  assert.equal(user.name, 'Ravi Kumar', 'custom displayName should not be overwritten by the DigiLocker legal name');
+});

@@ -57,6 +57,35 @@ interface Plant {
   promotionAdGlow?: boolean;
 }
 
+// Minimal shape returned by GET /plants/promotions — promotion-only columns.
+// `computedStatus` is enriched client-side inside the loadPromotions callback
+// (not during render, so Date.now() stays out of the render path).
+interface PromotionRow {
+  id: number;
+  name: string;
+  city: string | null;
+  promotionActive: boolean;
+  promotionStart: string | null;
+  promotionEnd: string | null;
+  promotionRadiusKm: number;
+  promotionPriority: number;
+  promotionAdGlow: boolean;
+  computedStatus: 'ACTIVE' | 'UPCOMING' | 'STALE' | 'ENDED';
+}
+
+// Pure helper — takes `now` as a parameter so it can be called from any context.
+function computePromoStatus(
+  row: Omit<PromotionRow, 'computedStatus'>,
+  now: number,
+): PromotionRow['computedStatus'] {
+  if (!row.promotionActive) return 'ENDED';
+  const end = row.promotionEnd ? new Date(row.promotionEnd).getTime() : null;
+  const start = row.promotionStart ? new Date(row.promotionStart).getTime() : null;
+  if (end && end <= now) return 'STALE';
+  if (start && start > now) return 'UPCOMING';
+  return 'ACTIVE';
+}
+
 // Per-plant ₹/m³ rate per concrete grade.
 interface RateCard {
   id: number;
@@ -222,7 +251,7 @@ export default function Plants() {
   // authoritative hard stop on save.
   const [dupeNearby, setDupeNearby] = useState<NearbyDupe | null>(null);
   const [dupeDismissed, setDupeDismissed] = useState(false);
-  const [tab, setTab] = useState<'leads' | 'verified' | 'invites' | 'discover'>('leads');
+  const [tab, setTab] = useState<'leads' | 'verified' | 'invites' | 'discover' | 'promotions'>('leads');
   // Customer-submitted onboarding requests for discovered plants.
   const [invites, setInvites] = useState<PlantInvite[] | null>(null);
   const [invitesError, setInvitesError] = useState('');
@@ -230,6 +259,9 @@ export default function Plants() {
   // Live "unread" marker: bumped when a new request streams in via SSE while the
   // admin is not looking at the Onboarding-requests tab. Cleared on tab open.
   const [unseenInvites, setUnseenInvites] = useState(0);
+  // Promotions dashboard state — lazy-loaded the first time the tab is opened.
+  const [promotions, setPromotions] = useState<PromotionRow[] | null>(null);
+  const [promotionsError, setPromotionsError] = useState('');
   const { subscribe } = useSSE();
   // Owner-provisioning modal state.
   const [ownerFor, setOwnerFor] = useState<Plant | null>(null);
@@ -269,7 +301,25 @@ export default function Plants() {
       .then(rows => { setInvites(rows); setInvitesError(''); })
       .catch(e => { setInvitesError((e as Error).message); setInvites([]); });
   }
+  function loadPromotions() {
+    // Date.now() is called inside the .then() callback — not during render —
+    // so the react-hooks/purity rule is not triggered.
+    api.get<Omit<PromotionRow, 'computedStatus'>[]>('/plants/promotions')
+      .then(rows => {
+        const now = Date.now();
+        setPromotions(rows.map(r => ({ ...r, computedStatus: computePromoStatus(r, now) })));
+        setPromotionsError('');
+      })
+      .catch(e => { setPromotionsError((e as Error).message); setPromotions([]); });
+  }
   useEffect(() => { load(); loadInvites(); }, []);
+  // Reload promotions every time Super Admin opens the tab (keep data live).
+  // loadPromotions is a stable closure and doesn't call setState synchronously —
+  // all state updates happen in .then()/.catch() callbacks, satisfying the purity rule.
+  useEffect(() => {
+    if (tab !== 'promotions' || !isSuperAdmin) return;
+    loadPromotions();
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced near-duplicate check: as the map pin is dropped/dragged while the
   // form is open, ask the server which verified plants sit within 0.3 km and warn
@@ -646,6 +696,16 @@ export default function Plants() {
     catch (err) { setError((err as Error).message); }
   }
 
+  async function deactivatePromotion(id: number) {
+    setPromotionsError('');
+    try {
+      await api.put(`/plants/${id}`, { promotionActive: false });
+      loadPromotions();
+    } catch (err) {
+      setPromotionsError((err as Error).message || 'Could not deactivate the promotion.');
+    }
+  }
+
   const leads = useMemo(() => (plants ?? []).filter(isLead), [plants]);
   const verified = useMemo(() => (plants ?? []).filter(p => !isLead(p)), [plants]);
   const visible = tab === 'verified' ? verified : leads;
@@ -694,6 +754,14 @@ export default function Plants() {
                 <Compass size={14} /> Discover suppliers
               </button>
             )}
+            {isSuperAdmin && (
+              <button onClick={() => setTab('promotions')} style={{ ...tabBtn(tab === 'promotions', 'var(--gold)'), position: 'relative' }}>
+                <Sparkles size={14} /> Promotions
+                {promotions != null && promotions.some(r => r.computedStatus === 'STALE') && (
+                  <span style={{ ...countPill, background: 'color-mix(in srgb, #ef4444 20%, transparent)', color: '#ef4444' }}>!</span>
+                )}
+              </button>
+            )}
             {tab === 'leads' && (
               <button
                 onClick={() => setShowImport(v => !v)}
@@ -716,7 +784,15 @@ export default function Plants() {
             />
           )}
 
-          {tab === 'discover' && isSuperAdmin ? (
+          {tab === 'promotions' && isSuperAdmin ? (
+            <PromotionsPanel
+              promotions={promotions}
+              error={promotionsError}
+              onDeactivate={deactivatePromotion}
+              onEdit={p => { const full = (plants ?? []).find(x => x.id === p.id); if (full) openEdit(full); }}
+              onRefresh={loadPromotions}
+            />
+          ) : tab === 'discover' && isSuperAdmin ? (
             <SupplierDiscoveryMap />
           ) : tab === 'invites' ? (
             <InvitesPanel
@@ -1359,6 +1435,121 @@ function InvitesPanel({ invites, error, busyId, onOnboard, onSetStatus }: {
                       <Sprout size={13} /> Restore
                     </button>
                   )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PromotionsPanel({ promotions, error, onDeactivate, onEdit, onRefresh }: {
+  promotions: PromotionRow[] | null;
+  error: string;
+  onDeactivate: (id: number) => void;
+  onEdit: (p: PromotionRow) => void;
+  onRefresh: () => void;
+}) {
+  // computedStatus was set by loadPromotions in the .then() callback — Date.now()
+  // never runs during render, so react-hooks/purity is satisfied.
+  const STATUS_COLOR: Record<PromotionRow['computedStatus'], string> = {
+    ACTIVE: 'var(--green)',
+    UPCOMING: 'var(--blue)',
+    STALE: '#ef4444',
+    ENDED: 'var(--muted)',
+  };
+
+  function fmtDate(d: string | null) {
+    if (!d) return '—';
+    return new Date(d).toLocaleString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true,
+    });
+  }
+
+  const staleCount = (promotions ?? []).filter(r => r.computedStatus === 'STALE').length;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
+          All plants with active or scheduled sponsored placements. Plants marked{' '}
+          <span style={{ color: '#ef4444', fontWeight: 700 }}>STALE</span> have{' '}
+          <span style={{ fontWeight: 700 }}>promotionActive still on</span> even though their window has expired — deactivate them.
+        </p>
+        <button onClick={onRefresh} style={ghostBtn} title="Refresh the promotions list">
+          <Sparkles size={14} /> Refresh
+        </button>
+      </div>
+
+      {staleCount > 0 && (
+        <div style={{ ...softCard, borderColor: 'color-mix(in srgb, #ef4444 45%, transparent)', background: 'color-mix(in srgb, #ef4444 6%, var(--chip-bg))', color: '#ef4444', marginBottom: 14, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+          <span><strong>{staleCount} promotion{staleCount > 1 ? 's' : ''}</strong> {staleCount > 1 ? 'are' : 'is'} still active but the window has already expired. Deactivate {staleCount > 1 ? 'them' : 'it'} to stop unintended boosting.</span>
+        </div>
+      )}
+
+      {error && <div style={{ ...softCard, borderColor: 'color-mix(in srgb, var(--red) 45%, transparent)', color: 'var(--red)', marginBottom: 12, fontSize: 13.5 }}>{error}</div>}
+
+      {promotions == null ? (
+        <div style={{ color: 'var(--muted)', padding: 30 }}>Loading…</div>
+      ) : promotions.length === 0 ? (
+        <div style={{ ...softCard, textAlign: 'center', color: 'var(--muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 32 }}>
+          <Sparkles size={26} style={{ color: 'var(--muted)' }} />
+          No plants have active or scheduled promotions yet. Edit a plant and set its promotion window to get started.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {promotions.map(row => {
+            const status = row.computedStatus;
+            const statusColor = STATUS_COLOR[status];
+            const isStale = status === 'STALE';
+            return (
+              <div key={row.id} style={{
+                ...softCard,
+                display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between',
+                borderColor: isStale
+                  ? 'color-mix(in srgb, #ef4444 45%, transparent)'
+                  : status === 'ACTIVE'
+                    ? 'color-mix(in srgb, var(--green) 35%, transparent)'
+                    : 'var(--line)',
+                background: isStale ? 'color-mix(in srgb, #ef4444 5%, var(--chip-bg))' : 'var(--chip-bg)',
+              }}>
+                <div style={{ minWidth: 220, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--text)' }}>{row.name}</span>
+                    {row.city && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{row.city}</span>}
+                    <span style={badge(statusColor)}>
+                      {isStale && <AlertTriangle size={10} />}
+                      {status}
+                    </span>
+                    {isStale && (
+                      <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700 }}>window expired — still active</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 5, display: 'flex', flexWrap: 'wrap', columnGap: 18, rowGap: 3 }}>
+                    <span>📅 {fmtDate(row.promotionStart)} → {fmtDate(row.promotionEnd)}</span>
+                    <span>📍 {row.promotionRadiusKm} km radius</span>
+                    <span>⭐ Priority {row.promotionPriority}</span>
+                    {row.promotionAdGlow && <span style={{ color: 'var(--gold)' }}>✦ Ad glow on</span>}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {row.promotionActive && (
+                    <button
+                      onClick={() => onDeactivate(row.id)}
+                      style={{ ...chip(true, '#ef4444'), fontSize: 12 }}
+                      title="Turn off this promotion immediately"
+                    >
+                      <X size={13} /> Deactivate
+                    </button>
+                  )}
+                  <button onClick={() => onEdit(row)} style={iconBtn} title="Edit plant promotion settings">
+                    <Pencil size={15} />
+                  </button>
                 </div>
               </div>
             );

@@ -25,12 +25,12 @@ waitForPort = 5000
 name = "test"
 author = "agent"
 
+[workflows.workflow.metadata]
+isValidation = true
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd server && pnpm test && cd ../rmc-app && pnpm test"
-
-[workflows.workflow.metadata]
-isValidation = true
 
 [[workflows.workflow]]
 name = "build"
@@ -95,6 +95,10 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Start application"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "test"
 
 [[workflows.workflow]]
 name = "Build AAB"

@@ -10,6 +10,18 @@ echo "JAVA_HOME: $JAVA_HOME"
 echo "ANDROID_HOME: $ANDROID_HOME"
 java -version 2>&1
 
+# Build frontend with capacitor mode (sets VITE_API_BASE_URL from .env.capacitor)
+# and sync assets into the Android project. Must run before Gradle so the bundle
+# always has the correct production API URL — skipping this step leaves
+# VITE_API_BASE_URL empty, which causes the WebView to return HTML for every
+# API call (Capacitor local server serves index.html for unknown paths).
+echo ""
+echo "=== Building frontend (capacitor mode) + syncing to Android ==="
+cd /home/runner/workspace/rmc-app
+pnpm build:native
+npx cap sync android
+cd /home/runner/workspace
+
 # Re-install Android SDK if not present (does NOT survive container reboots)
 if [ ! -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
   echo "=== Installing Android SDK ==="
