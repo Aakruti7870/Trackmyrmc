@@ -21,17 +21,17 @@
   --radius-card: 18px;
 }
 
-/* ===== Theme tokens (swapped at runtime by ThemeProvider) — warm cream baseline ===== */
+/* ===== Theme tokens (swapped at runtime by ThemeProvider) — clean professional baseline ===== */
 :root {
-  --bg-top: #F0ECDA;
-  --bg: #EAE5CF;
-  --bg-deep: #DDD8C0;
+  --bg-top: #F4F5F7;
+  --bg: #F0F2F5;
+  --bg-deep: #E4E7EB;
   --panel: #ffffff;
-  --panel2: #F7F4E8;
+  --panel2: #F8F9FA;
   --surface: #ffffff;
-  --line: rgba(27,61,41,0.14);
-  --text: #1A2A14;
-  --muted: #6A7B5E;
+  --line: rgba(0,0,0,0.10);
+  --text: #111827;
+  --muted: #6B7280;
   --gold-hi: #E8A820;
   --gold-mid: #D4941A;
   --gold: #D4941A;
@@ -51,14 +51,14 @@
   --font-app: 'Inter', system-ui, -apple-system, sans-serif;
 
   /* flat surface kit */
-  --shadow-rgb: 18,42,24;
+  --shadow-rgb: 0,0,0;
   --glass-1: #ffffff;
-  --glass-2: #F7F4E8;
-  --glass-border: rgba(27,61,41,0.14);
+  --glass-2: #F8F9FA;
+  --glass-border: rgba(0,0,0,0.10);
   --glass-hi: transparent;
   --glass-blur: none;
   --sidebar-1: #ffffff;
-  --sidebar-2: #F0ECDA;
+  --sidebar-2: #F0F2F5;
   --header-bg: rgba(27,61,41,0.97);
   --header-text: #ffffff;
   --header-muted: rgba(255,255,255,0.65);
@@ -66,9 +66,9 @@
   --header-surface: rgba(255,255,255,0.12);
   --header-border: rgba(255,255,255,0.15);
   --menu-bg: #ffffff;
-  --menu-hover: rgba(27,61,41,0.08);
-  --overlay: rgba(18,42,24,0.32);
-  --chip-bg: #E0EDD8;
+  --menu-hover: rgba(0,0,0,0.06);
+  --overlay: rgba(0,0,0,0.30);
+  --chip-bg: #E9ECEF;
   --sheen: transparent;
 
   /* TrackMyRMC brand token aliases — approved colour system */
@@ -115,6 +115,10 @@ html, body {
   max-width: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   font-family: var(--font-app);
@@ -122,6 +126,7 @@ body {
   color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
   transition: background .4s ease, color .25s ease;
 }
 

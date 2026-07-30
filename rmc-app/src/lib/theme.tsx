@@ -42,13 +42,13 @@ const HEADER_TOKENS = {
 // Both share the same warm-cream palette so the app looks identical day or night.
 // Warm cream page, white cards, forest-green header bar, amber accent.
 const SHARED_SURFACES = {
-  '--shadow-rgb': '18,42,24',
-  '--glass-1': '#ffffff', '--glass-2': '#F7F4E8',
-  '--glass-border': 'rgba(27,61,41,0.14)', '--glass-hi': 'transparent', '--glass-blur': 'none',
-  '--sidebar-1': '#ffffff', '--sidebar-2': '#F0ECDA',
+  '--shadow-rgb': '0,0,0',
+  '--glass-1': '#ffffff', '--glass-2': '#F8F9FA',
+  '--glass-border': 'rgba(0,0,0,0.10)', '--glass-hi': 'transparent', '--glass-blur': 'none',
+  '--sidebar-1': '#ffffff', '--sidebar-2': '#F0F2F5',
   '--menu-bg': '#ffffff',
-  '--menu-hover': 'rgba(27,61,41,0.08)', '--overlay': 'rgba(18,42,24,0.32)',
-  '--chip-bg': '#E0EDD8', '--sheen': 'transparent',
+  '--menu-hover': 'rgba(0,0,0,0.06)', '--overlay': 'rgba(0,0,0,0.30)',
+  '--chip-bg': '#E9ECEF', '--sheen': 'transparent',
   ...HEADER_TOKENS,
 };
 const SHARED_ACCENT = {
@@ -59,9 +59,9 @@ const SHARED_ACCENT = {
 };
 
 const SHARED_TOKENS = {
-  '--bg-top': '#F0ECDA', '--bg': '#EAE5CF', '--bg-deep': '#DDD8C0',
-  '--panel': '#ffffff', '--panel2': '#F7F4E8', '--surface': '#ffffff',
-  '--line': 'rgba(27,61,41,0.14)', '--text': '#1A2A14', '--muted': '#6A7B5E',
+  '--bg-top': '#F4F5F7', '--bg': '#F0F2F5', '--bg-deep': '#E4E7EB',
+  '--panel': '#ffffff', '--panel2': '#F8F9FA', '--surface': '#ffffff',
+  '--line': 'rgba(0,0,0,0.10)', '--text': '#111827', '--muted': '#6B7280',
   ...SHARED_ACCENT, ...SEMANTIC, ...SHARED_SURFACES,
 };
 

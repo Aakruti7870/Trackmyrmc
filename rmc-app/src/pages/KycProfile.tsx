@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'wouter';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
 import { SUPPORT_WHATSAPP_URL } from '@/lib/brand';
 import {
@@ -357,6 +357,33 @@ function ErrorScreen({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+// ─── Screen: role not eligible for personal KYC ───────────────────────────────
+
+function RoleBlockedScreen() {
+  const [, go] = useLocation();
+  return (
+    <KycCard>
+      <div style={{ textAlign: 'center', paddingTop: 8 }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%', margin: '0 auto 14px',
+          background: 'rgba(212,148,26,.10)', border: '1px solid rgba(212,148,26,.30)',
+          display: 'grid', placeItems: 'center',
+        }}>
+          <ShieldCheck size={28} style={{ color: 'var(--gold)' }} />
+        </div>
+        <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', margin: '0 0 8px' }}>
+          KYC Not Required
+        </h2>
+        <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.65, margin: 0 }}>
+          Personal identity verification (DigiLocker / Aadhaar eKYC) is only required
+          for customer accounts placing orders. Your staff account does not need this step.
+        </p>
+      </div>
+      <SecondaryBtn onClick={() => go('/home')}>Back to Home</SecondaryBtn>
+    </KycCard>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function KycProfile() {
@@ -366,6 +393,7 @@ export default function KycProfile() {
   const [starting, setStarting] = useState(false);
   const [kyc, setKyc] = useState<KycState | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [roleBlocked, setRoleBlocked] = useState(false);
 
   // Low-level data fetch — returns a Promise without touching state directly.
   // All callers apply their own setState in .then/.catch chains so state
@@ -375,8 +403,11 @@ export default function KycProfile() {
   // Mount: load status once via promise chain
   useEffect(() => {
     getStatus()
-      .then(data => { setKyc(data); setFetchError(null); })
-      .catch((e: unknown) => setFetchError(e instanceof Error ? e.message : 'Network error'))
+      .then(data => { setKyc(data); setFetchError(null); setRoleBlocked(false); })
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 403) { setRoleBlocked(true); }
+        else { setFetchError(e instanceof Error ? e.message : 'Network error'); }
+      })
       .finally(() => setLoading(false));
   }, [getStatus]);
 
@@ -411,8 +442,11 @@ export default function KycProfile() {
   const handleCheck = useCallback(() => {
     setChecking(true);
     getStatus()
-      .then(data => { setKyc(data); setFetchError(null); })
-      .catch((e: unknown) => setFetchError(e instanceof Error ? e.message : 'Network error'))
+      .then(data => { setKyc(data); setFetchError(null); setRoleBlocked(false); })
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 403) { setRoleBlocked(true); }
+        else { setFetchError(e instanceof Error ? e.message : 'Network error'); }
+      })
       .finally(() => setChecking(false));
   }, [getStatus]);
 
@@ -420,9 +454,13 @@ export default function KycProfile() {
   const handleRetry = useCallback(() => {
     setLoading(true);
     setFetchError(null);
+    setRoleBlocked(false);
     getStatus()
-      .then(data => { setKyc(data); setFetchError(null); })
-      .catch((e: unknown) => setFetchError(e instanceof Error ? e.message : 'Network error'))
+      .then(data => { setKyc(data); setFetchError(null); setRoleBlocked(false); })
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 403) { setRoleBlocked(true); }
+        else { setFetchError(e instanceof Error ? e.message : 'Network error'); }
+      })
       .finally(() => setLoading(false));
   }, [getStatus]);
 
@@ -455,6 +493,16 @@ export default function KycProfile() {
           style={{ color: 'var(--gold)', display: 'block', margin: '0 auto 14px' }}
         />
         <div style={{ fontSize: 14 }}>Checking your KYC status…</div>
+      </div>
+    );
+  }
+
+  // ─── Role not eligible ───────────────────────────────────────────────────────
+  if (roleBlocked) {
+    return (
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: '24px 16px' }}>
+        <PageHead status={null} />
+        <RoleBlockedScreen />
       </div>
     );
   }
