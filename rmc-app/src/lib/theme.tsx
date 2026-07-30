@@ -14,7 +14,7 @@ export interface Theme {
  * - 'auto'         → follow the device clock (sunrise/sunset): concrete-gold by day, infra-green by night.
  * - 'concrete-gold' / 'trust-blue' / 'infra-green' → explicit user-selected theme, persisted.
  */
-export type ThemeMode = 'auto' | 'concrete-gold' | 'trust-blue' | 'infra-green';
+export type ThemeMode = 'auto' | 'concrete-gold' | 'infra-green';
 
 /* Semantic colors stay stable across all themes so status meaning never shifts. */
 const SEMANTIC = {
@@ -25,106 +25,71 @@ const SEMANTIC = {
   '--orange': '#f59e0b',
 };
 
-// ─── Theme 1: Concrete Gold (Day / Light) ────────────────────────────────────
-// Flat white cards on a cool mint-white page, deep teal accent, Inter type.
-const CG_SURFACES = {
-  '--shadow-rgb': '18,33,29',
-  '--glass-1': '#ffffff', '--glass-2': '#ffffff',
-  '--glass-border': 'rgba(23,138,110,0.14)', '--glass-hi': 'transparent', '--glass-blur': 'none',
-  '--sidebar-1': '#ffffff', '--sidebar-2': '#F3F7F5',
-  '--header-bg': 'rgba(255,255,255,.94)', '--menu-bg': '#ffffff',
-  '--menu-hover': 'rgba(23,138,110,.08)', '--overlay': 'rgba(18,33,29,.32)',
-  '--chip-bg': '#E3F3EE', '--sheen': 'transparent',
-};
-const CG_ACCENT = {
-  '--gold-hi': '#1FA882', '--gold-mid': '#178A6E', '--gold': '#178A6E', '--gold-dark': '#0E6650',
-  '--glow-1': 'rgba(23,138,110,.16)', '--glow-2': 'transparent',
-  '--gold-soft': '#E0F5EF', '--gold-tint': '#EFF9F6',
-  '--prompt-bg': '#E8F7F2', '--prompt-border': 'rgba(23,138,110,0.18)', '--prompt-icon-bg': '#B8E6D8',
+// ─── Shared header tokens — dark forest-green bar, amber accent, white ink ────
+// Applied via CSS-var scoping on the mobile header element so every child
+// component (NotificationBell, AiHeaderButton, etc.) inherits header colours
+// without per-component changes.
+const HEADER_TOKENS = {
+  '--header-bg': 'rgba(27,61,41,0.97)',
+  '--header-text': '#ffffff',
+  '--header-muted': 'rgba(255,255,255,0.65)',
+  '--header-accent': '#D4941A',
+  '--header-surface': 'rgba(255,255,255,0.12)',
+  '--header-border': 'rgba(255,255,255,0.15)',
 };
 
-// ─── Theme 2: Trust Blue (Light, confidence-first) ───────────────────────────
-// Clean white cards on a very light blue-grey page, strong blue accent.
-// Designed for customers who want a more "banking / trusted service" feel.
-const TB_SURFACES = {
-  '--shadow-rgb': '15,23,42',
-  '--glass-1': '#ffffff', '--glass-2': '#f8faff',
-  '--glass-border': 'rgba(15,23,42,0.10)', '--glass-hi': 'transparent', '--glass-blur': 'none',
-  '--sidebar-1': '#ffffff', '--sidebar-2': '#f8faff',
-  '--header-bg': 'rgba(255,255,255,.94)', '--menu-bg': '#ffffff',
-  '--menu-hover': 'rgba(37,99,235,.07)', '--overlay': 'rgba(15,23,42,.32)',
-  '--chip-bg': '#eff6ff', '--sheen': 'transparent',
+// ─── Theme 1 & 2: Concrete Gold (Day) / Infra Green (Night) ──────────────────
+// Both share the same warm-cream palette so the app looks identical day or night.
+// Warm cream page, white cards, forest-green header bar, amber accent.
+const SHARED_SURFACES = {
+  '--shadow-rgb': '18,42,24',
+  '--glass-1': '#ffffff', '--glass-2': '#F7F4E8',
+  '--glass-border': 'rgba(27,61,41,0.14)', '--glass-hi': 'transparent', '--glass-blur': 'none',
+  '--sidebar-1': '#ffffff', '--sidebar-2': '#F0ECDA',
+  '--menu-bg': '#ffffff',
+  '--menu-hover': 'rgba(27,61,41,0.08)', '--overlay': 'rgba(18,42,24,0.32)',
+  '--chip-bg': '#E0EDD8', '--sheen': 'transparent',
+  ...HEADER_TOKENS,
 };
-const TB_ACCENT = {
-  '--gold-hi': '#3b82f6', '--gold-mid': '#2563eb', '--gold': '#2563eb', '--gold-dark': '#1d4ed8',
-  '--glow-1': 'rgba(37,99,235,.14)', '--glow-2': 'transparent',
-  '--gold-soft': '#dbeafe', '--gold-tint': '#eff6ff',
-  '--prompt-bg': '#eff6ff', '--prompt-border': 'rgba(37,99,235,0.18)', '--prompt-icon-bg': '#bfdbfe',
+const SHARED_ACCENT = {
+  '--gold-hi': '#E8A820', '--gold-mid': '#D4941A', '--gold': '#D4941A', '--gold-dark': '#9B6610',
+  '--glow-1': 'rgba(212,148,26,0.16)', '--glow-2': 'transparent',
+  '--gold-soft': '#FFF0CC', '--gold-tint': '#FFF8E6',
+  '--prompt-bg': '#FFF3D0', '--prompt-border': 'rgba(212,148,26,0.20)', '--prompt-icon-bg': '#FFE0A0',
 };
 
-// ─── Theme 3: Infra Green (Night / Dark) ─────────────────────────────────────
-// Deep green-ink surfaces, light text, brighter teal accent for AA contrast.
-const IG_SURFACES = {
-  '--shadow-rgb': '0,0,0',
-  '--glass-1': '#121f1b', '--glass-2': '#0e1916',
-  '--glass-border': 'rgba(39,181,140,0.14)', '--glass-hi': 'transparent', '--glass-blur': 'none',
-  '--sidebar-1': '#101c18', '--sidebar-2': '#0C1713',
-  '--header-bg': 'rgba(11,19,16,.96)', '--menu-bg': '#121f1b',
-  '--menu-hover': 'rgba(39,181,140,.10)', '--overlay': 'rgba(0,0,0,.62)',
-  '--chip-bg': '#132920', '--sheen': 'transparent',
-};
-const IG_ACCENT = {
-  '--gold-hi': '#34D19E', '--gold-mid': '#27B58C', '--gold': '#27B58C', '--gold-dark': '#1FA882',
-  '--glow-1': 'rgba(39,181,140,.22)', '--glow-2': 'transparent',
-  '--gold-soft': '#0D2A22', '--gold-tint': '#091E18',
-  '--prompt-bg': '#0F2F26', '--prompt-border': 'rgba(39,181,140,0.28)', '--prompt-icon-bg': '#1A4A3A',
+const SHARED_TOKENS = {
+  '--bg-top': '#F0ECDA', '--bg': '#EAE5CF', '--bg-deep': '#DDD8C0',
+  '--panel': '#ffffff', '--panel2': '#F7F4E8', '--surface': '#ffffff',
+  '--line': 'rgba(27,61,41,0.14)', '--text': '#1A2A14', '--muted': '#6A7B5E',
+  ...SHARED_ACCENT, ...SEMANTIC, ...SHARED_SURFACES,
 };
 
 export const THEMES: Theme[] = [
   {
     id: 'concrete-gold',
     name: 'Concrete Gold',
-    tagline: 'Light · teal',
+    tagline: 'Light · day',
     fontName: 'Inter',
     font: "'Inter', system-ui, -apple-system, sans-serif",
-    tokens: {
-      '--bg-top': '#F4F7F5', '--bg': '#F1F5F3', '--bg-deep': '#E3EBE7',
-      '--panel': '#ffffff', '--panel2': '#F3F7F5', '--surface': '#ffffff',
-      '--line': 'rgba(23,138,110,0.14)', '--text': '#12211D', '--muted': '#6B7C76',
-      ...CG_ACCENT, ...SEMANTIC, ...CG_SURFACES,
-    },
-  },
-  {
-    id: 'trust-blue',
-    name: 'Trust Blue',
-    tagline: 'Light · blue',
-    fontName: 'Inter',
-    font: "'Inter', system-ui, -apple-system, sans-serif",
-    tokens: {
-      '--bg-top': '#f0f7ff', '--bg': '#f0f4fa', '--bg-deep': '#e1eaf7',
-      '--panel': '#ffffff', '--panel2': '#f8faff', '--surface': '#ffffff',
-      '--line': 'rgba(15,23,42,0.10)', '--text': '#0f172a', '--muted': '#64748b',
-      ...TB_ACCENT, ...SEMANTIC, ...TB_SURFACES,
-    },
+    tokens: SHARED_TOKENS,
   },
   {
     id: 'infra-green',
     name: 'Infra Green',
-    tagline: 'Dark · night',
+    tagline: 'Light · night',
     fontName: 'Inter',
     font: "'Inter', system-ui, -apple-system, sans-serif",
-    tokens: {
-      '--bg-top': '#0F1B17', '--bg': '#0C1713', '--bg-deep': '#091410',
-      '--panel': '#121f1b', '--panel2': '#0e1916', '--surface': '#121f1b',
-      '--line': 'rgba(39,181,140,0.14)', '--text': '#EAF4F0', '--muted': '#7BA898',
-      ...IG_ACCENT, ...SEMANTIC, ...IG_SURFACES,
-    },
+    tokens: SHARED_TOKENS,
   },
 ];
 
-// Legacy id aliases — 'day' → 'concrete-gold', 'night' → 'infra-green'.
-// Stored preferences written by older builds are silently remapped.
-const LEGACY_ID_MAP: Record<string, string> = { day: 'concrete-gold', night: 'infra-green' };
+// Legacy id aliases — old ids are silently remapped on load.
+const LEGACY_ID_MAP: Record<string, string> = {
+  day: 'concrete-gold',
+  night: 'infra-green',
+  'trust-blue': 'concrete-gold', // trust-blue removed; fall back to concrete-gold
+};
 
 const FONT_URLS: Record<string, string> = {
   Inter: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap',
@@ -137,7 +102,8 @@ export function applyTheme(theme: Theme) {
   root.style.setProperty('--font-app', theme.font);
   // Sync the native color-scheme so the browser/WebView renders scrollbars,
   // inputs and status-bar contrast correctly.
-  root.style.colorScheme = theme.id === 'infra-green' ? 'dark' : 'light';
+  // Both themes use a light background; always signal light to the WebView/browser.
+  root.style.colorScheme = 'light';
 }
 
 export function loadThemeFont(fontName: string) {

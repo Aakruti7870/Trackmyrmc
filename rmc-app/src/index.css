@@ -21,49 +21,54 @@
   --radius-card: 18px;
 }
 
-/* ===== Theme tokens (swapped at runtime by ThemeProvider) — teal Day baseline ===== */
+/* ===== Theme tokens (swapped at runtime by ThemeProvider) — warm cream baseline ===== */
 :root {
-  --bg-top: #F4F7F5;
-  --bg: #F1F5F3;
-  --bg-deep: #E3EBE7;
+  --bg-top: #F0ECDA;
+  --bg: #EAE5CF;
+  --bg-deep: #DDD8C0;
   --panel: #ffffff;
-  --panel2: #F3F7F5;
+  --panel2: #F7F4E8;
   --surface: #ffffff;
-  --line: rgba(23,138,110,0.14);
-  --text: #12211D;
-  --muted: #6B7C76;
-  --gold-hi: #1FA882;
-  --gold-mid: #178A6E;
-  --gold: #178A6E;
-  --gold-dark: #0E6650;
+  --line: rgba(27,61,41,0.14);
+  --text: #1A2A14;
+  --muted: #6A7B5E;
+  --gold-hi: #E8A820;
+  --gold-mid: #D4941A;
+  --gold: #D4941A;
+  --gold-dark: #9B6610;
   --green: #22c55e;
   --green-dark: #15803d;
   --blue: #38bdf8;
   --red: #B94040;
   --orange: #f59e0b;
-  --glow-1: rgba(23,138,110,.16);
+  --glow-1: rgba(212,148,26,0.16);
   --glow-2: transparent;
-  --gold-soft: #E0F5EF;
-  --gold-tint: #EFF9F6;
-  --prompt-bg: #E8F7F2;
-  --prompt-border: rgba(23,138,110,0.18);
-  --prompt-icon-bg: #B8E6D8;
+  --gold-soft: #FFF0CC;
+  --gold-tint: #FFF8E6;
+  --prompt-bg: #FFF3D0;
+  --prompt-border: rgba(212,148,26,0.20);
+  --prompt-icon-bg: #FFE0A0;
   --font-app: 'Inter', system-ui, -apple-system, sans-serif;
 
   /* flat surface kit */
-  --shadow-rgb: 18,33,29;
+  --shadow-rgb: 18,42,24;
   --glass-1: #ffffff;
-  --glass-2: #F3F7F5;
-  --glass-border: rgba(23,138,110,0.14);
+  --glass-2: #F7F4E8;
+  --glass-border: rgba(27,61,41,0.14);
   --glass-hi: transparent;
   --glass-blur: none;
   --sidebar-1: #ffffff;
-  --sidebar-2: #F3F7F5;
-  --header-bg: rgba(255,255,255,0.94);
+  --sidebar-2: #F0ECDA;
+  --header-bg: rgba(27,61,41,0.97);
+  --header-text: #ffffff;
+  --header-muted: rgba(255,255,255,0.65);
+  --header-accent: #D4941A;
+  --header-surface: rgba(255,255,255,0.12);
+  --header-border: rgba(255,255,255,0.15);
   --menu-bg: #ffffff;
-  --menu-hover: rgba(23,138,110,0.08);
-  --overlay: rgba(18,33,29,0.32);
-  --chip-bg: #E3F3EE;
+  --menu-hover: rgba(27,61,41,0.08);
+  --overlay: rgba(18,42,24,0.32);
+  --chip-bg: #E0EDD8;
   --sheen: transparent;
 
   /* TrackMyRMC brand token aliases — approved colour system */

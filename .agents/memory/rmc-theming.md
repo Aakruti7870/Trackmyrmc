@@ -1,32 +1,58 @@
 ---
 name: RMC runtime theming
-description: How TrackMyRMC is themed — one universal teal Day/Night pair with clock-driven Auto mode, and the CSS-var override layers to keep in sync.
+description: How TrackMyRMC is themed — one warm-cream palette for both Day and Night, dark forest-green header bar, amber accent.
 ---
 
-# RMC theming (flat, token-driven; Day/Night + Auto)
+# RMC theming (warm-cream + forest-green; same look day and night)
 
-Themes are defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied inline to `documentElement` (inline wins over `index.css :root` fallbacks). ONE universal design, two modes:
-- **Concrete Gold (Day / Light):** bg `#F4F7F5`, ink `#12211D`, muted `#6B7C76`, teal accent `--gold: #178A6E`, `--gold-hi: #1FA882`, `--gold-dark: #0E6650`.
-- **Infra Green (Night / Dark):** bg `#0C1713`, panel `#121F1B`, text `#EAF4F0`, brighter teal `--gold: #27B58C`, `--gold-hi: #34D19E`, `--gold-dark: #1FA882`.
+Themes are defined in `rmc-app/src/lib/theme.tsx` as CSS-var tokens applied inline to `documentElement`.
+ONE universal palette, two mode IDs (concrete-gold = day, infra-green = night) that now share identical colours.
 
-The old olive-gold palette (`#8B923F`/`#9BA342`) was replaced with the above teal palette. If stale olive hex appears in a grep, it must be updated.
+## Palette (both concrete-gold and infra-green)
+- **Body bg:** `#F0ECDA` (warm cream)
+- **Panel/surface:** `#FFFFFF` (white cards)
+- **Text:** `#1A2A14` (deep forest green-black)
+- **Muted:** `#6A7B5E`
+- **Accent (--gold):** `#D4941A` (golden amber — replaces old teal everywhere)
+- **Gold-hi/mid:** `#E8A820` / `#D4941A`
+- **Header bg:** `rgba(27,61,41,0.97)` (dark forest green)
+- **Header text:** `#FFFFFF`
+- **Header accent:** `#D4941A` (amber logo badge)
 
-**Theme picker exists in ProfileSettings:** Users CAN explicitly select Concrete Gold / Trust Blue / Infra Green from their profile. Auto-mode (default) uses clock-driven concrete-gold Day / infra-green Night. Trust Blue (`#2563eb`) is the manually-selectable alternate light theme. The `readThemePreference` / `writeThemePreference` helpers persist the choice under `rmc-theme-pref-v2`.
+## Header CSS-var scoping pattern
+`DeliveryMobileChrome.tsx` — the mobile header div overrides CSS custom properties in its own inline style so ALL child components (NotificationBell, AiHeaderButton, etc.) inherit header-appropriate colours without per-component changes:
+```tsx
+style={{
+  background: 'var(--header-bg)',
+  '--text': 'var(--header-text)',
+  '--muted': 'var(--header-muted)',
+  '--gold': 'var(--header-accent)',
+  '--surface': 'var(--header-surface)',
+  '--line': 'var(--header-border)',
+} as CSSProperties}
+```
+The bottom nav keeps `var(--surface)` (white) — only the top header gets the dark green.
 
-**No automatic theme-mode switcher in the header:** the old `ThemeSwitcher` UI was removed from the header chrome. ThemeCtx is `{theme, themes, preference, setPreference}`; module load applies `resolveTheme(readThemePreference())` synchronously (no flash). ThemeProvider re-resolves every 60s + on visibilitychange while in auto.
+## New header tokens (in every theme + :root fallback + automatic-theme.css)
+- `--header-bg` / `--header-text` / `--header-muted`
+- `--header-accent` / `--header-surface` / `--header-border`
 
-**Accent tokens keep legacy `--gold*` names** (`--gold`, `--gold-hi/mid/dark`, soft tints `--gold-soft/-tint`, `--prompt-bg/-border/-icon-bg`) referenced all over. Don't rename — huge churn.
+## Trust Blue removed
+Trust Blue was the third theme and has been removed from THEMES[] and the ProfileSettings picker.
+`LEGACY_ID_MAP` maps stored `'trust-blue'` pref → `'concrete-gold'` for graceful migration.
+`ThemeMode` type no longer includes `'trust-blue'`.
 
-**Override trap:** keep these IN SYNC when changing the accent or base palette:
-- `src/lib/theme.tsx` — token source of truth (CG_ACCENT / IG_ACCENT / CG_SURFACES / IG_SURFACES).
-- `src/index.css :root { ... }` — pre-hydration Day fallback baseline.
-- `src/automatic-theme.css` — CSS data-theme attribute fallbacks for both themes.
-- `src/pages/ProfileSettings.tsx` opts[] — swatch hex values for the theme picker UI (update to match accent).
-- `src/main.tsx` — Clerk `appearance.variables` read `var(--gold)` from computedStyle dynamically; no hard hex to update.
-- `rmc-app/index.html` `#ck-static-shell` — static pre-React shell uses old hex (replaced instantly on React mount, retint by hand if it ever matters).
+## Day/night look
+Both themes intentionally share the same warm-cream palette — `resolveTheme` still returns
+`concrete-gold` by day and `infra-green` by night (logic unchanged, autoTheme.test.ts passes),
+but since both token sets are identical the user sees the same light appearance around the clock.
+`applyTheme` always sets `colorScheme = 'light'` (both themes are light-background).
 
-**SplashScreen exception:** `SplashScreen.tsx` has a hardcoded white (`#FFFFFF`) background and uses dark hex (`#111110`, `#8A8A85`) for the wordmark and subtitle text — intentional, because `var(--text)` would flip to near-white in Night mode against the white splash bg. The brand mark gradient and progress bar DO use `var(--gold-hi)` / `var(--gold-dark)`.
+## Override trap — keep IN SYNC when changing colours
+- `src/lib/theme.tsx` — SHARED_TOKENS / HEADER_TOKENS (source of truth)
+- `src/automatic-theme.css` — `:root` + `:root[data-theme='concrete-gold']` + `:root[data-theme='infra-green']`
+- `src/index.css :root` — pre-hydration fallback baseline
+- `src/pages/ProfileSettings.tsx` opts[] — swatch hex values for the theme picker
+- `src/components/DeliveryMobileChrome.tsx` — header CSS-var scope (no hard-coded hex, all via tokens)
 
-**Theme reach:** ALL screens are token-driven, including public pages (Landing, Login, Privacy/Terms/DeleteAccount, SsoCallback, partner) and chrome. `ChallanPrint.tsx` white is an intentional paper print view. Map-pin SVGs are still hardcoded teal — known minor gap.
-
-**How to apply:** after any palette change, `rg rmc-app/src` for stray old hexes (`#8B923F`, `#9BA342`, `#707439`, `#F2F2F0`, `#1F1F1E`) and run the `lint` + `build` + `test` workflows.
+**How to apply:** after any palette change, `rg rmc-app/src` for stray old hexes (`#178A6E`, `#12211D`, `#0C1713`, `#EAF4F0`) and run the `lint` + `build` + `test` workflows.

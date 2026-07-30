@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'wouter';
-import type { ElementType } from 'react';
+import type { CSSProperties, ElementType } from 'react';
 import {
   Home, ClipboardList, MapPin, Menu, Route, CalendarClock, Timer,
   BarChart3, Truck, Factory, MessageCircle, Wallet, User, Siren, Plus,
@@ -104,13 +104,21 @@ export function DeliveryHeader({ onProfile }: { onProfile: () => void }) {
       <div
         id="delivery-mobile-header"
         style={{
-          display: 'none', background: SURFACE, borderBottom: `1px solid ${LINE}`,
+          display: 'none', background: 'var(--header-bg)',
+          borderBottom: '1px solid var(--header-border)',
+          // Scope CSS vars so every child component (NotificationBell, AiHeaderButton, etc.)
+          // inherits header-appropriate colours without per-component changes.
+          '--text': 'var(--header-text)',
+          '--muted': 'var(--header-muted)',
+          '--gold': 'var(--header-accent)',
+          '--surface': 'var(--header-surface)',
+          '--line': 'var(--header-border)',
           padding: '8px 16px', paddingTop: 'calc(8px + env(safe-area-inset-top, 0px))',
           alignItems: 'center', justifyContent: 'space-between',
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60,
           height: 'calc(52px + env(safe-area-inset-top, 0px))',
           boxShadow: '0 2px 12px rgba(var(--shadow-rgb),.14)',
-        }}
+        } as CSSProperties}
       >
         <div className="flex items-center gap-2" style={{ minWidth: 0, overflow: 'hidden' }}>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: TEAL, flexShrink: 0 }}>

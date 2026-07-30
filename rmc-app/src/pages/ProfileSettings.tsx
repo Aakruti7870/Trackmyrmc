@@ -272,8 +272,8 @@ function SmtpTextField({
 }
 
 // ─── Theme picker card ─────────────────────────────────────────────────────
-// Three selectable themes: Concrete Gold (light), Trust Blue (light), Infra Green (dark).
-// Auto mode switches concrete-gold ↔ infra-green at the exact local sunrise/sunset.
+// Two modes: Concrete Gold (day) and Infra Green (night) — same warm-cream palette.
+// Auto mode follows sunrise/sunset; both look identical day or night.
 function ThemePickerCard() {
   const { themes, preference, setPreference } = useTheme();
   void themes;
@@ -310,10 +310,9 @@ function ThemePickerCard() {
     : 'Sunrise & sunset · location needed';
 
   const opts: Opt[] = [
-    { id: 'auto',          label: 'Auto',          tagline: autoTagline,   swatch: 'linear-gradient(135deg,#178A6E 50%,#0C1713 50%)' },
-    { id: 'concrete-gold', label: 'Concrete Gold', tagline: 'Light · teal',  swatch: '#178A6E' },
-    { id: 'trust-blue',    label: 'Trust Blue',    tagline: 'Light · blue',  swatch: '#2563eb' },
-    { id: 'infra-green',   label: 'Infra Green',   tagline: 'Dark · night',  swatch: '#0C1713' },
+    { id: 'auto',          label: 'Auto',          tagline: autoTagline,      swatch: 'linear-gradient(135deg,#1B3D29 50%,#D4941A 50%)' },
+    { id: 'concrete-gold', label: 'Concrete Gold', tagline: 'Warm cream · day',   swatch: '#1B3D29' },
+    { id: 'infra-green',   label: 'Infra Green',   tagline: 'Warm cream · night', swatch: '#D4941A' },
   ];
 
   return (
