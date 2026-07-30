@@ -16,6 +16,8 @@ coverage/
 **/build/
 *.apk
 *.aab
+# Allow signed release bundles in the releases/ folder
+!releases/*.aab
 *.aar
 
 # Local caches and temporary files
