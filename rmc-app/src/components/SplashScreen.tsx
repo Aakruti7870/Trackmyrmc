@@ -166,7 +166,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         animation: prefersReduced ? 'none' : 'spSceneIn 0.75s cubic-bezier(0.22,1,0.36,1) both 0.2s',
       }}>
         <img
-          src="/splash-fleet.png"
+          src="/splash-fleet.jpg"
           alt="RMC fleet — cement plant, mixer truck and pickup"
           style={{
             width: '100%',

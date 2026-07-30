@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, isNotNull, lt, max, ne, notLike, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, isNotNull, lt, lte, max, ne, notLike, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import {
   auditLogs,
@@ -17,6 +17,7 @@ import {
   vehicles,
   whatsappMessages,
 } from '../db/schema.js';
+import { plantPromotions } from '../db/plantProfileSchema.js';
 import {
   type AutomationName,
   type AutomationConfig,
@@ -730,6 +731,70 @@ export async function runCleanup(snapshot: AutomationSettingsSnapshot, now = new
   const total = Object.values(result).reduce((a, b) => a + b, 0);
   if (total > 0) console.log('[automation] cleanup purged:', JSON.stringify(result));
   return result;
+}
+
+// ---- checkExpiredPromotions -------------------------------------------------------------------
+// Finds promotions whose end_at has passed while still isActive=true and sends
+// an email alert to all Super Admin (authority, isActive=true) users. Runs as a
+// standalone exported function so it can be called from the scheduler and from
+// tests independently of the full automation tick.
+export async function checkExpiredPromotions(now = new Date()): Promise<number> {
+  // Find promotions that are still marked active but whose window has expired.
+  const expired = await db
+    .select({
+      id: plantPromotions.id,
+      plantId: plantPromotions.plantId,
+      startAt: plantPromotions.startAt,
+      endAt: plantPromotions.endAt,
+      priorityRank: plantPromotions.priorityRank,
+    })
+    .from(plantPromotions)
+    .where(and(eq(plantPromotions.isActive, true), lte(plantPromotions.endAt, now)));
+
+  if (expired.length === 0) return 0;
+
+  // Resolve plant names for the alert bodies.
+  const plantIds = [...new Set(expired.map(e => e.plantId))];
+  const plantRows = await db
+    .select({ id: plants.id, name: plants.name })
+    .from(plants)
+    .where(inArray(plants.id, plantIds));
+  const plantNameMap = new Map(plantRows.map(p => [p.id, p.name]));
+
+  // Resolve authority email recipients.
+  const authorityUsers = await db
+    .select({ email: users.email, name: users.name })
+    .from(users)
+    .where(and(eq(users.role, 'authority'), eq(users.isActive, true), isNull(users.deletedAt)));
+
+  const toEmails = authorityUsers.map(u => u.email).filter(Boolean) as string[];
+  if (toEmails.length === 0) {
+    console.warn('[promotion] expired promotions found but no active authority users to notify');
+    return expired.length;
+  }
+
+  // Send one combined alert listing all expired promotions.
+  const lines: string[] = [
+    `${expired.length} paid promotion${expired.length === 1 ? '' : 's'} expired without being deactivated:`,
+    ...expired.map(e => {
+      const name = plantNameMap.get(e.plantId) ?? `Plant #${e.plantId}`;
+      const end = new Date(e.endAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+      return `• ${name} (Promotion #${e.id}) — ended ${end} IST`;
+    }),
+    'Please review and deactivate these promotions from the Paid Plant Ads dashboard.',
+  ];
+
+  await sendAutomationEmail({
+    to: toEmails,
+    subject: `⚠️ ${expired.length} Paid Ad${expired.length === 1 ? '' : 's'} expired without deactivation`,
+    heading: 'Expired Paid Plant Ads',
+    lines,
+    ctaUrl: `${appBaseUrl() ?? ''}/admin/plant-promotions`,
+    ctaLabel: 'Open Paid Plant Ads',
+  });
+
+  console.log(`[promotion] sent expired-promotion alert for ${expired.length} promotion(s) to ${toEmails.length} authority user(s)`);
+  return expired.length;
 }
 
 // ---- Tick runner ------------------------------------------------------------------------------

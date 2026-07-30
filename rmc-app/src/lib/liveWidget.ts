@@ -137,6 +137,33 @@ export async function clearAllWidgetData() {
 }
 
 /**
+ * Resets the driver widget to a blank/logged-out state without erasing the auth
+ * token. Use this when a new driver logs in on a shared device so the widget does
+ * not briefly show the previous driver's trip.
+ */
+export async function clearDriverWidget() {
+  if (!liveWidgetAvailable()) return;
+  await NativeLiveWidget.setWidgetData({
+    role:     'driver',
+    title:    'Driver Duty',
+    line1:    '',
+    line2:    '',
+    line3:    '',
+    deepLink: '/my-trips',
+    // Explicitly blank all structured driver fields.
+    orderNo:      '',
+    challanNo:    '',
+    customerName: '',
+    siteName:     '',
+    grade:        '',
+    quantity:     '',
+    vehicleNo:    '',
+    tripStatus:   '',
+    updatedAt:    '',
+  });
+}
+
+/**
  * Call when the server signals that the account is suspended.
  * Immediately stops serving live data; the widget shows the suspension banner.
  */

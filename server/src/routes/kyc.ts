@@ -114,12 +114,20 @@ router.get('/callback', async (req, res) => {
         // legal name from DigiLocker. Only overwrites if the name still matches
         // the seeded pattern — a customer who already set a custom name keeps it.
         if (result.fullName) {
-          await tx.update(users)
-            .set({ name: result.fullName })
-            .where(and(
-              eq(users.id, row.userId),
-              sql`${users.name} ~* ${'^customer\\s+\\d+$'}`,
-            ));
+          try {
+            await tx.update(users)
+              .set({ name: result.fullName })
+              .where(and(
+                eq(users.id, row.userId),
+                sql`${users.name} ~* ${'^customer\\s+\\d+$'}`,
+              ));
+          } catch (nameErr) {
+            // The name update is best-effort. Log the warning and continue —
+            // KYC verification still succeeds. The /status endpoint derives
+            // nameUpdateFailed:true from the DB state (placeholder name remains)
+            // so the client can prompt the user to update in Profile settings.
+            console.warn('[kyc] name update failed (KYC still succeeds):', nameErr);
+          }
         }
       });
       sendPage(res, 200, 'success', 'Your Aadhaar identity has been verified.');
@@ -152,11 +160,39 @@ router.use(requireAuth);
 // Current customer's KYC state. `configured` tells the UI whether DigiLocker is
 // available. `status` uses the spec-aligned enum value (not_started instead of
 // the internal 'unverified') so callers don't need to know internal enum names.
+//
+// Task #9: If the latest attempt is 'pending' but its expiresAt has passed (the
+// user never returned to trigger the callback — phone died, app closed, etc.),
+// atomically transition it to 'failed' here so the user sees a retryable state
+// instead of being stuck in 'pending' forever.
 router.get('/status', requireRole('client'), async (req, res) => {
   const actor = req.user!;
   const config = await getKycConfig();
+
+  // Auto-expire any pending attempt that has passed its window. We do this
+  // atomically with a single UPDATE … WHERE status='pending' AND expires_at < now()
+  // RETURNING so concurrent /status calls cannot double-expire.
+  const [expired] = await db
+    .update(kycVerifications)
+    .set({ status: 'failed', error: 'session expired', completedAt: new Date() })
+    .where(and(
+      eq(kycVerifications.userId, actor.id),
+      eq(kycVerifications.status, 'pending'),
+      sql`${kycVerifications.expiresAt} < now()`,
+    ))
+    .returning({ id: kycVerifications.id });
+
+  // If we just expired a pending attempt, also flip the user badge to 'failed'
+  // (but never downgrade a previously verified user).
+  if (expired) {
+    await db
+      .update(users)
+      .set({ kycStatus: 'failed' })
+      .where(and(eq(users.id, actor.id), eq(users.kycStatus, 'pending')));
+  }
+
   const [user] = await db
-    .select({ kycStatus: users.kycStatus, kycVerifiedAt: users.kycVerifiedAt })
+    .select({ kycStatus: users.kycStatus, kycVerifiedAt: users.kycVerifiedAt, name: users.name })
     .from(users)
     .where(eq(users.id, actor.id));
   const [latest] = await db
@@ -174,6 +210,15 @@ router.get('/status', requireRole('client'), async (req, res) => {
   // Map internal 'unverified' → 'not_started' so the frontend uses the spec-aligned enum.
   const status = rawStatus === 'unverified' ? 'not_started' : rawStatus;
 
+  // Task #22: Detect whether a best-effort name update silently failed. This
+  // happens when KYC is verified, the aggregator returned a fullName, but the
+  // user's display name still matches the auto-generated placeholder pattern —
+  // indicating the UPDATE to users.name was blocked (e.g. by a constraint).
+  const nameUpdateFailed =
+    rawStatus === 'verified' &&
+    !!latest?.fullName &&
+    /^customer\s+\d+$/i.test(user?.name ?? '');
+
   res.json({
     success: true,
     configured: config.configured,
@@ -183,6 +228,7 @@ router.get('/status', requireRole('client'), async (req, res) => {
     verifiedAt: user?.kycVerifiedAt ?? null,
     provider: latest?.provider ?? null,
     maskedAadhaar: latest?.maskedAadhaar ?? null,
+    nameUpdateFailed,
   });
 });
 

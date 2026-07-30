@@ -58,7 +58,7 @@ import { ensureMasterAccounts } from './lib/masterAccounts.js';
 import { ensureReviewDemoAccount } from './lib/staffAuth.js';
 import { syncSmtpFromEnv } from './lib/smtpRecovery.js';
 import { ensurePlantDirectory, backfillNetworkStatus } from './lib/plantDirectory.js';
-import { tickAutomations } from './lib/automationJobs.js';
+import { tickAutomations, checkExpiredPromotions } from './lib/automationJobs.js';
 import { resumeQueuedRmcImportRuns } from './lib/rmcDiscoveryRunner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -168,5 +168,6 @@ app.listen(PORT, '0.0.0.0', () => {
   void tickDiscoveryCleanup(); setInterval(() => void tickDiscoveryCleanup(), 60 * 60 * 1000);
   tickKycExpiryAlerts().catch(error => console.error('KYC expiry tick failed', error)); setInterval(() => tickKycExpiryAlerts().catch(error => console.error('KYC expiry tick failed', error)), 6 * 60 * 60 * 1000);
   tickAutomations().catch(error => console.error('Automation tick failed', error)); setInterval(() => tickAutomations().catch(error => console.error('Automation tick failed', error)), 5 * 60 * 1000);
+  checkExpiredPromotions().catch(error => console.error('Expired promotions check failed', error)); setInterval(() => checkExpiredPromotions().catch(error => console.error('Expired promotions check failed', error)), 6 * 60 * 60 * 1000);
 });
 export default app;

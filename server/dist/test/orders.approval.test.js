@@ -206,3 +206,37 @@ test("a platform (null-plant) admin can approve any plant's order", async () => 
     assert.equal(res.status, 200);
     assert.equal(res.body.status, 'approved');
 });
+test('concurrent approve calls: only one succeeds, second gets 409', async () => {
+    const client = await createClient();
+    const admin = await createUser('admin', 'concurrent-approve@test.com');
+    const [ord] = await db.insert(orders).values({
+        orderNo: 'ORD-CC1', clientId: client.id, grade: 'M25', quantity: '10.00',
+        status: 'pending_approval',
+    }).returning();
+    const adminAuth = `Bearer ${tokenFor(admin)}`;
+    const [res1, res2] = await Promise.all([
+        request(app).post(`/api/orders/${ord.id}/approve`).set('Authorization', adminAuth).send({}),
+        request(app).post(`/api/orders/${ord.id}/approve`).set('Authorization', adminAuth).send({}),
+    ]);
+    const statuses = [res1.status, res2.status].sort();
+    assert.deepEqual(statuses, [200, 409], 'exactly one should succeed and one should get 409');
+    const [final] = await db.select({ status: orders.status }).from(orders).where(eq(orders.id, ord.id));
+    assert.equal(final.status, 'approved', 'order must end up approved exactly once');
+});
+test('concurrent reject calls: only one succeeds, second gets 409', async () => {
+    const client = await createClient();
+    const admin = await createUser('admin', 'concurrent-reject@test.com');
+    const [ord] = await db.insert(orders).values({
+        orderNo: 'ORD-CC2', clientId: client.id, grade: 'M25', quantity: '10.00',
+        status: 'pending_approval',
+    }).returning();
+    const adminAuth = `Bearer ${tokenFor(admin)}`;
+    const [res1, res2] = await Promise.all([
+        request(app).post(`/api/orders/${ord.id}/reject`).set('Authorization', adminAuth).send({ reason: 'Out of zone' }),
+        request(app).post(`/api/orders/${ord.id}/reject`).set('Authorization', adminAuth).send({ reason: 'Out of zone' }),
+    ]);
+    const statuses = [res1.status, res2.status].sort();
+    assert.deepEqual(statuses, [200, 409], 'exactly one should succeed and one should get 409');
+    const [final] = await db.select({ status: orders.status }).from(orders).where(eq(orders.id, ord.id));
+    assert.equal(final.status, 'rejected', 'order must end up rejected exactly once');
+});

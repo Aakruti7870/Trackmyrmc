@@ -33,8 +33,8 @@ describe('Android release metadata — v1.20 / versionCode 21', () => {
     expect(() => readFileSync(resolve(wfDir, 'android-v1.17-build.yml'), 'utf8')).toThrow();
   });
 
-  it('the signed release workflow uploads a v1.18 / vc19-named artifact', () => {
+  it('the signed release workflow uploads a v1.19 / vc20-named artifact', () => {
     const signed = readFileSync(resolve(repoRoot, '.github/workflows/android-signed-release.yml'), 'utf8');
-    expect(signed).toContain('TrackMyRMC-v1.18-vc19-signed-play-console');
+    expect(signed).toContain('TrackMyRMC-v1.19-vc20-signed-play-console');
   });
 });

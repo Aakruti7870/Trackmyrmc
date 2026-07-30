@@ -20,6 +20,7 @@ interface KycState {
   verifiedAt: string | null;
   provider: string | null;
   maskedAadhaar: string | null;
+  nameUpdateFailed: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -379,12 +380,23 @@ export default function KycProfile() {
       .finally(() => setLoading(false));
   }, [getStatus]);
 
-  // Auto-refresh when the user returns from the DigiLocker external browser
+  // Auto-refresh when the user returns from the DigiLocker external browser.
+  // Task #22: if the server reports nameUpdateFailed, show a toast so the user
+  // knows they should update their display name in Profile settings.
   useEffect(() => {
     function onVisible() {
       if (document.visibilityState !== 'visible') return;
       getStatus()
-        .then(data => { setKyc(data); setFetchError(null); })
+        .then(data => {
+          setKyc(data);
+          setFetchError(null);
+          if (data.nameUpdateFailed) {
+            showToast(
+              'Your identity is verified! Please update your display name in Profile settings.',
+              'info',
+            );
+          }
+        })
         .catch(() => { /* keep showing the last known state on background refresh */ });
     }
     document.addEventListener('visibilitychange', onVisible);
@@ -393,7 +405,7 @@ export default function KycProfile() {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
-  }, [getStatus]);
+  }, [getStatus, showToast]);
 
   // "Check Status" button — explicit manual refresh
   const handleCheck = useCallback(() => {

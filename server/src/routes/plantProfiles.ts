@@ -108,4 +108,35 @@ router.post('/admin/plant-promotions/:promotionId/activate',requireAuth,requireR
 router.post('/admin/plant-promotions/:promotionId/pause',requireAuth,requireRole('authority'),async(req,res)=>{const id=paramId(req.params.promotionId);if(!id)return res.status(400).json({error:'Invalid promotion id'});const [row]=await db.update(plantPromotions).set({isActive:false,updatedBy:req.user!.id,updatedAt:new Date()}).where(eq(plantPromotions.id,id)).returning();if(!row)return res.status(404).json({error:'Paid Ad not found'});return res.json(row);});
 router.post('/admin/plant-promotions/:promotionId/suspend',requireAuth,requireRole('authority'),async(req,res)=>{const id=paramId(req.params.promotionId);if(!id)return res.status(400).json({error:'Invalid promotion id'});const [row]=await db.update(plantPromotions).set({isActive:false,suspendedAt:new Date(),suspensionReason:cleanText(req.body.reason),updatedBy:req.user!.id,updatedAt:new Date()}).where(eq(plantPromotions.id,id)).returning();if(!row)return res.status(404).json({error:'Paid Ad not found'});return res.json(row);});
 
+// Plant owner can read their own plant's current promotion window.
+router.get('/plant-promotions/window', requireAuth, requireRole('plant_owner'), async (req, res) => {
+  if (req.user!.plantId == null) return res.status(403).json({ error: 'Not authorized: unbound account cannot access promotion window' });
+  const plantId = req.user!.plantId;
+  const [row] = await db.select({ id: plantPromotions.id, startAt: plantPromotions.startAt, endAt: plantPromotions.endAt, isActive: plantPromotions.isActive, paymentStatus: plantPromotions.paymentStatus }).from(plantPromotions).where(eq(plantPromotions.plantId, plantId)).limit(1);
+  if (!row) return res.status(404).json({ error: 'No promotion found for your plant' });
+  return res.json(row);
+});
+
+// Plant owner can update their own plant's promotion window (dates only).
+// They can NOT activate, pause, or suspend — only set start/end times.
+const promotionWindowInput = z.object({
+  startAt: z.coerce.date(),
+  endAt: z.coerce.date(),
+}).refine(v => v.endAt > v.startAt, { message: 'endAt must be after startAt' });
+
+router.put('/plant-promotions/window', requireAuth, requireRole('plant_owner'), async (req, res) => {
+  // Only plant-scoped (bound) plant owners may call this.
+  if (req.user!.plantId == null) return res.status(403).json({ error: 'Not authorized: unbound account cannot manage a promotion window' });
+  const plantId = req.user!.plantId;
+  const parsed = promotionWindowInput.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { startAt, endAt } = parsed.data;
+  // Find the promotion for this plant.
+  const [existing] = await db.select().from(plantPromotions).where(eq(plantPromotions.plantId, plantId)).limit(1);
+  if (!existing) return res.status(404).json({ error: 'No promotion found for your plant' });
+  const [row] = await db.update(plantPromotions).set({ startAt, endAt, updatedBy: req.user!.id, updatedAt: new Date() }).where(and(eq(plantPromotions.id, existing.id), eq(plantPromotions.plantId, plantId))).returning();
+  if (!row) return res.status(404).json({ error: 'Promotion not found' });
+  return res.json(row);
+});
+
 export default router;

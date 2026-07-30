@@ -208,6 +208,13 @@ router.get('/plant',
   async (req, res) => {
     const plantId = req.user!.plantId;
 
+    // An unbound authority (plantId = null) has no plant scope — block access so
+    // they cannot see aggregated data for every plant via the widget endpoint.
+    if (plantId == null) {
+      res.status(403).json({ error: 'Widget data is not available for unbound accounts.' });
+      return;
+    }
+
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 

@@ -5,13 +5,90 @@ import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
 import {
   IndianRupee, TrendingUp, Clock, Users, Building2, ClipboardList, Truck,
-  Wallet, BarChart3, FileText, Layers, CalendarCheck, User, Radio,
+  Wallet, BarChart3, FileText, Layers, CalendarCheck, User, Radio, Sparkles,
 } from 'lucide-react';
 import {
   Screen, SectionHead, StatCard, QuickAction, QuickGrid, ListRow,
 } from './deliveryKit';
 import { greeting, firstNameOf, fmtRs } from './format';
 import PendingExpensesCard from './PendingExpensesCard';
+
+function toLocalDatetimeValue(d: Date): string {
+  // Returns 'YYYY-MM-DDTHH:MM' for <input type="datetime-local">
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function PromotionWindow() {
+  const [startAt, setStartAt] = useState('');
+  const [endAt, setEndAt] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+
+  // Load existing promotion window on mount.
+  useEffect(() => {
+    api.get<{ startAt?: string; endAt?: string }>('/plant-promotions/window')
+      .then(data => {
+        if (data.startAt) setStartAt(toLocalDatetimeValue(new Date(data.startAt)));
+        if (data.endAt) setEndAt(toLocalDatetimeValue(new Date(data.endAt)));
+      })
+      .catch(() => {/* no existing promotion – start blank */});
+  }, []);
+
+  const save = async () => {
+    setError(''); setNotice('');
+    if (!startAt || !endAt) { setError('Both start and end dates are required.'); return; }
+    const start = new Date(startAt);
+    const end = new Date(endAt);
+    if (end <= start) { setError('End date must be after start date.'); return; }
+    setSaving(true);
+    try {
+      await api.put('/plant-promotions/window', { startAt: start.toISOString(), endAt: end.toISOString() });
+      setNotice('Promotion window saved.');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ background: 'var(--card)', borderRadius: 12, padding: 16, display: 'grid', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Sparkles size={16} style={{ color: 'var(--yellow, #f7c948)' }} />
+        <span style={{ fontWeight: 700, fontSize: 14 }}>Promotion Window</span>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
+        Set the start and end dates for your plant's paid promotion window.
+        Only Super Admin can activate or deactivate the promotion.
+      </p>
+      {error && <div style={{ fontSize: 13, color: 'var(--red)' }}>{error}</div>}
+      {notice && <div style={{ fontSize: 13, color: 'var(--green)' }}>{notice}</div>}
+      <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>
+        Start
+        <input
+          className="input"
+          type="datetime-local"
+          value={startAt}
+          onChange={e => setStartAt(e.target.value)}
+        />
+      </label>
+      <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>
+        End
+        <input
+          className="input"
+          type="datetime-local"
+          value={endAt}
+          onChange={e => setEndAt(e.target.value)}
+        />
+      </label>
+      <button className="btn primary" onClick={save} disabled={saving} style={{ fontSize: 13 }}>
+        {saving ? 'Saving…' : 'Save Promotion Window'}
+      </button>
+    </div>
+  );
+}
 
 export default function OwnerHome() {
   const { user } = useAuth();
@@ -73,6 +150,9 @@ export default function OwnerHome() {
           </div>
         </>
       )}
+
+      <SectionHead title="Promotion Window" />
+      <PromotionWindow />
 
       <SectionHead title="Quick Actions" />
       <QuickGrid cols={4}>

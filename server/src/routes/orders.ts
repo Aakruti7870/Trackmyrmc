@@ -139,8 +139,16 @@ router.post('/:id/approve', async (req, res) => {
   if (prev.status !== 'pending_approval') {
     res.status(409).json({ error: 'Only an order awaiting approval can be approved.' }); return;
   }
+  // Compare-and-set: include the expected status in the WHERE clause so that if
+  // a concurrent reviewer already processed this order, the UPDATE matches zero
+  // rows and we return 409 instead of silently double-processing.
+  const scope = plantScope(req.user!.plantId, orders.plantId);
   const [row] = await db.update(orders).set({ status: 'approved', rejectionReason: null })
-    .where(and(eq(orders.id, id), plantScope(req.user!.plantId, orders.plantId))).returning();
+    .where(and(eq(orders.id, id), eq(orders.status, 'pending_approval'), ...(scope ? [scope] : []))).returning();
+  if (!row) {
+    res.status(409).json({ error: 'Order was already processed by another reviewer — please reload and try again.' });
+    return;
+  }
   emitSSEEvent('order.updated', row, { clientId: row.clientId });
   void notifyOrderDecision(row.id, 'approved');
   res.json(row);
@@ -158,8 +166,16 @@ router.post('/:id/reject', async (req, res) => {
   if (prev.status !== 'pending_approval') {
     res.status(409).json({ error: 'Only an order awaiting approval can be rejected.' }); return;
   }
+  // Compare-and-set: include the expected status in the WHERE clause so that if
+  // a concurrent reviewer already processed this order, the UPDATE matches zero
+  // rows and we return 409 instead of silently double-processing.
+  const scope = plantScope(req.user!.plantId, orders.plantId);
   const [row] = await db.update(orders).set({ status: 'rejected', rejectionReason: reason })
-    .where(and(eq(orders.id, id), plantScope(req.user!.plantId, orders.plantId))).returning();
+    .where(and(eq(orders.id, id), eq(orders.status, 'pending_approval'), ...(scope ? [scope] : []))).returning();
+  if (!row) {
+    res.status(409).json({ error: 'Order was already processed by another reviewer — please reload and try again.' });
+    return;
+  }
   emitSSEEvent('order.updated', row, { clientId: row.clientId });
   void notifyOrderDecision(row.id, 'rejected');
   res.json(row);

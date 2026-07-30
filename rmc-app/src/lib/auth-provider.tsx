@@ -1,9 +1,9 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { api, type User } from './api';
+import { api, API_ORIGIN, type User } from './api';
 import { AuthContext } from './auth';
 import { clerkSignOutIfEnabled } from './clerk';
 import NativeRuntimeSync from '@/components/NativeRuntimeSync';
-import { stopCheckedInTracking } from './liveWidget';
+import { stopCheckedInTracking, setWidgetAuthToken, clearAllWidgetData } from './liveWidget';
 import { resolveCustomerDisplayName, type CustomerIdentityLike } from './customerIdentity';
 
 const IDLE_LOGOUT_MS = 30 * 60 * 1000;
@@ -89,14 +89,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email, password, ...(plantCode ? { plantCode } : {}),
     });
     const normalizedUser = normalizeAuthenticatedUser(data.user);
+    // Clear any stale widget data from a previous user before storing new credentials.
+    try { await clearAllWidgetData(); } catch { /* no-op on web */ }
     localStorage.setItem('rmc_token', data.token);
     localStorage.setItem('rmc_user', JSON.stringify(normalizedUser));
     setUser(normalizedUser);
+    // Persist auth token in native SharedPreferences so widget background refresh works.
+    try {
+      await setWidgetAuthToken(
+        data.token,
+        API_ORIGIN,
+        normalizedUser.role,
+        String(normalizedUser.id),
+      );
+    } catch { /* no-op on web */ }
     return normalizedUser;
   }
 
   function logout() {
     void stopCheckedInTracking();
+    // Clear widget data and auth token immediately so no stale data persists.
+    try { void clearAllWidgetData(); } catch { /* no-op on web */ }
     localStorage.removeItem('rmc_token');
     localStorage.removeItem('rmc_user');
     sessionStorage.removeItem('rmc_ai_session');

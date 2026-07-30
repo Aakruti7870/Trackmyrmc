@@ -281,3 +281,116 @@ test('GET /kyc/callback does NOT overwrite a custom displayName — only "Custom
   // Custom name must be preserved — only the auto-generated pattern is replaced.
   assert.equal(user.name, 'Ravi Kumar', 'custom displayName should not be overwritten by the DigiLocker legal name');
 });
+
+// ── Task #9: auto-expire pending attempts in /status ─────────────────────────
+
+test('GET /kyc/status auto-expires a pending attempt that is past its expiry window', async () => {
+  const cust = await createUser({ name: 'Customer 5678', email: 'expiry@test.com', role: 'client' });
+  await configureKyc();
+
+  // Seed a pending attempt with expiresAt already in the past (1 hour ago).
+  await db.insert(kycVerifications).values({
+    userId: cust.id,
+    provider: 'sandbox',
+    providerRef: 'expired-ref-001',
+    providerTxnId: 'txn-expired',
+    status: 'pending',
+    expiresAt: new Date(Date.now() - 60 * 60 * 1000), // 1 hour ago
+  });
+  // Also flip the user badge to 'pending' (as /start would have done).
+  await db.update(users).set({ kycStatus: 'pending' }).where(eq(users.id, cust.id));
+
+  // Calling /status should auto-expire the stale attempt and return 'failed'.
+  const res = await request(app)
+    .get('/api/kyc/status')
+    .set('Authorization', `Bearer ${tokenFor(cust)}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, 'failed', 'expired pending attempt should be surfaced as failed');
+
+  // Verify the DB row was actually transitioned.
+  const [row] = await db.select().from(kycVerifications).where(eq(kycVerifications.providerRef, 'expired-ref-001'));
+  assert.equal(row.status, 'failed', 'kycVerifications row status should be failed');
+  assert.ok(row.completedAt, 'completedAt should be set on expiry');
+
+  // User badge should also be updated.
+  const [user] = await db.select().from(users).where(eq(users.id, cust.id));
+  assert.equal(user.kycStatus, 'failed', 'users.kycStatus badge should be flipped to failed');
+});
+
+test('GET /kyc/status does NOT expire a pending attempt that is still within its window', async () => {
+  const cust = await createUser({ name: 'Customer 9012', email: 'active@test.com', role: 'client' });
+  await configureKyc();
+
+  // Seed a pending attempt that expires 10 minutes from now (still valid).
+  await db.insert(kycVerifications).values({
+    userId: cust.id,
+    provider: 'sandbox',
+    providerRef: 'active-ref-002',
+    providerTxnId: 'txn-active',
+    status: 'pending',
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 min from now
+  });
+  await db.update(users).set({ kycStatus: 'pending' }).where(eq(users.id, cust.id));
+
+  const res = await request(app)
+    .get('/api/kyc/status')
+    .set('Authorization', `Bearer ${tokenFor(cust)}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, 'pending', 'still-valid pending attempt should remain pending');
+
+  const [row] = await db.select().from(kycVerifications).where(eq(kycVerifications.providerRef, 'active-ref-002'));
+  assert.equal(row.status, 'pending', 'row status should still be pending');
+});
+
+// ── Task #22: nameUpdateFailed field in /status ───────────────────────────────
+
+test('GET /kyc/status returns nameUpdateFailed:false on normal verified flow', async () => {
+  const cust = await createUser({ name: 'Customer 3456', email: 'namefail@test.com', role: 'client' });
+  await configureKyc();
+  stubSandbox({ aadhaar: () => ({ status: 200, body: { data: {
+    masked_aadhaar: 'XXXXXXXX7890', name: 'Anil Sharma',
+    date_of_birth: '1988-04-20', gender: 'M',
+  } } }) });
+
+  await request(app).post('/api/kyc/start').set('Authorization', `Bearer ${tokenFor(cust)}`).send({});
+  const [pending] = await db.select().from(kycVerifications);
+  await request(app).get(`/api/kyc/callback?ref=${pending.providerRef}`);
+
+  // Name was placeholder → should have been updated → nameUpdateFailed should be false.
+  const res = await request(app)
+    .get('/api/kyc/status')
+    .set('Authorization', `Bearer ${tokenFor(cust)}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, 'verified');
+  assert.equal(res.body.nameUpdateFailed, false, 'nameUpdateFailed should be false when name was updated successfully');
+
+  // Verify the name was actually replaced.
+  const [user] = await db.select().from(users).where(eq(users.id, cust.id));
+  assert.equal(user.name, 'Anil Sharma', 'name should be updated to verified legal name');
+});
+
+test('GET /kyc/status returns nameUpdateFailed:true when name update is blocked (placeholder remains)', async () => {
+  const cust = await createUser({ name: 'Customer 1111', email: 'blocked@test.com', role: 'client' });
+  await configureKyc();
+  stubSandbox({ aadhaar: () => ({ status: 200, body: { data: {
+    masked_aadhaar: 'XXXXXXXX2222', name: 'Blocked Name',
+    date_of_birth: '1990-07-10', gender: 'F',
+  } } }) });
+
+  await request(app).post('/api/kyc/start').set('Authorization', `Bearer ${tokenFor(cust)}`).send({});
+  const [pending] = await db.select().from(kycVerifications);
+  await request(app).get(`/api/kyc/callback?ref=${pending.providerRef}`);
+
+  // Simulate the failure: manually reset the name back to the placeholder pattern
+  // to mimic what would happen if the UPDATE to users.name was blocked by a
+  // constraint or other error during the transaction.
+  await db.update(users).set({ name: 'Customer 1111' }).where(eq(users.id, cust.id));
+
+  const res = await request(app)
+    .get('/api/kyc/status')
+    .set('Authorization', `Bearer ${tokenFor(cust)}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, 'verified');
+  assert.equal(res.body.nameUpdateFailed, true,
+    'nameUpdateFailed should be true when verified but name is still a placeholder');
+});

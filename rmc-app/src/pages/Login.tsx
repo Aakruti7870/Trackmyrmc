@@ -385,7 +385,7 @@ export default function Login() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <img
-            src="/login-scene.png"
+            src="/login-scene.jpg"
             alt="TrackMyRMC fleet — mixer truck and concrete pump"
             style={{
               width: '100%', height: '100%', minHeight: 0,

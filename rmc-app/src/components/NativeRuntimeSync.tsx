@@ -8,6 +8,7 @@ import {
   startCheckedInTracking,
   stopCheckedInTracking,
   updateLiveWidget,
+  clearDriverWidget,
 } from '@/lib/liveWidget';
 
 type AttendanceStatus = { checkedIn: boolean };
@@ -50,6 +51,8 @@ function activeOrder(rows: Order[]): Order | undefined {
 export default function NativeRuntimeSync() {
   const { user } = useAuth();
   const gpsStarted = useRef(false);
+  // Track the last synced user ID to detect a device hand-off (Driver A → Driver B).
+  const lastUserId = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -152,6 +155,14 @@ export default function NativeRuntimeSync() {
 
     async function syncAll() {
       if (!user) return;
+
+      // On a shared device, if a different user has logged in, clear the driver
+      // widget before the first sync so the previous driver's trip is never shown.
+      if (lastUserId.current !== null && lastUserId.current !== user.id) {
+        try { await clearDriverWidget(); } catch { /* no-op on web */ }
+      }
+      lastUserId.current = user.id;
+
       await syncAttendance();
       try {
         if (DRIVER_ROLES.has(user.role)) await syncDriver();
@@ -168,6 +179,7 @@ export default function NativeRuntimeSync() {
     } else {
       void stopCheckedInTracking();
       gpsStarted.current = false;
+      lastUserId.current = null;
     }
 
     return () => {
