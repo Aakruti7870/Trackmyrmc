@@ -47,9 +47,9 @@ export const modules: ModuleMap = {
   "./components/mockups/redesign/DaylightGlass.tsx": () => import("../components/mockups/redesign/DaylightGlass.tsx"),
   "./components/mockups/redesign/DaylightOps.tsx": () => import("../components/mockups/redesign/DaylightOps.tsx"),
   "./components/mockups/redesign/IndustrialSteel.tsx": () => import("../components/mockups/redesign/IndustrialSteel.tsx"),
+  "./components/mockups/superadmin/PlatformControlCenter.tsx": () => import("../components/mockups/superadmin/PlatformControlCenter.tsx"),
+  "./components/mockups/supervisor-home/DeliveryStyle.tsx": () => import("../components/mockups/supervisor-home/DeliveryStyle.tsx"),
   "./components/mockups/rmc-dashboard/CommandCenter.tsx": () => import("../components/mockups/rmc-dashboard/CommandCenter.tsx"),
   "./components/mockups/rmc-dashboard/ExceptionFirst.tsx": () => import("../components/mockups/rmc-dashboard/ExceptionFirst.tsx"),
-  "./components/mockups/rmc-dashboard/ShiftHandover.tsx": () => import("../components/mockups/rmc-dashboard/ShiftHandover.tsx"),
-  "./components/mockups/superadmin/PlatformControlCenter.tsx": () => import("../components/mockups/superadmin/PlatformControlCenter.tsx"),
-  "./components/mockups/supervisor-home/DeliveryStyle.tsx": () => import("../components/mockups/supervisor-home/DeliveryStyle.tsx")
+  "./components/mockups/rmc-dashboard/ShiftHandover.tsx": () => import("../components/mockups/rmc-dashboard/ShiftHandover.tsx")
 };
