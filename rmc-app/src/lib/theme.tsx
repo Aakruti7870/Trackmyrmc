@@ -10,11 +10,11 @@ export interface Theme {
 }
 
 /**
- * Theme mode.
- * - 'auto'         → follow the device clock (sunrise/sunset): concrete-gold by day, infra-green by night.
- * - 'concrete-gold' / 'trust-blue' / 'infra-green' → explicit user-selected theme, persisted.
+ * Theme mode — always 'auto'.
+ * Switches concrete-gold (day) ↔ infra-green (night) at the exact local
+ * sunrise/sunset. Users cannot change the theme manually.
  */
-export type ThemeMode = 'auto' | 'concrete-gold' | 'infra-green';
+export type ThemeMode = 'auto';
 
 /* Semantic colors stay stable across all themes so status meaning never shifts. */
 const SEMANTIC = {
@@ -65,22 +65,54 @@ const SHARED_TOKENS = {
   ...SHARED_ACCENT, ...SEMANTIC, ...SHARED_SURFACES,
 };
 
+// ─── Night (dark) theme tokens — infra-green ─────────────────────────────────
+const NIGHT_HEADER_TOKENS = {
+  '--header-bg': 'rgba(5,10,7,0.97)',
+  '--header-text': '#ffffff',
+  '--header-muted': 'rgba(255,255,255,0.50)',
+  '--header-accent': '#FCD34D',
+  '--header-surface': 'rgba(255,255,255,0.08)',
+  '--header-border': 'rgba(255,255,255,0.10)',
+};
+const NIGHT_SURFACES = {
+  '--shadow-rgb': '5,10,20',
+  '--glass-1': '#111827', '--glass-2': '#0F1620',
+  '--glass-border': 'rgba(232,238,247,0.09)', '--glass-hi': 'transparent', '--glass-blur': 'none',
+  '--sidebar-1': '#111827', '--sidebar-2': '#0D1421',
+  '--menu-bg': '#111827',
+  '--menu-hover': 'rgba(232,238,247,0.07)', '--overlay': 'rgba(5,10,20,0.70)',
+  '--chip-bg': '#1E2B3F', '--sheen': 'transparent',
+  ...NIGHT_HEADER_TOKENS,
+};
+const NIGHT_ACCENT = {
+  '--gold-hi': '#FCD34D', '--gold-mid': '#FBBF24', '--gold': '#FBBF24', '--gold-dark': '#F59E0B',
+  '--glow-1': 'rgba(251,191,36,0.20)', '--glow-2': 'transparent',
+  '--gold-soft': 'rgba(251,191,36,0.12)', '--gold-tint': 'rgba(251,191,36,0.06)',
+  '--prompt-bg': 'rgba(251,191,36,0.08)', '--prompt-border': 'rgba(251,191,36,0.22)', '--prompt-icon-bg': 'rgba(251,191,36,0.18)',
+};
+const NIGHT_TOKENS = {
+  '--bg-top': '#0D1421', '--bg': '#0A0F1C', '--bg-deep': '#060A12',
+  '--panel': '#111827', '--panel2': '#0F1620', '--surface': '#141D2E',
+  '--line': 'rgba(232,238,247,0.09)', '--text': '#E8EEF7', '--muted': '#7A8BA8',
+  ...NIGHT_ACCENT, ...SEMANTIC, ...NIGHT_SURFACES,
+};
+
 export const THEMES: Theme[] = [
   {
     id: 'concrete-gold',
-    name: 'Concrete Gold',
-    tagline: 'Light · day',
+    name: 'Day',
+    tagline: 'Light · sunrise to sunset',
     fontName: 'Inter',
     font: "'Inter', system-ui, -apple-system, sans-serif",
     tokens: SHARED_TOKENS,
   },
   {
     id: 'infra-green',
-    name: 'Infra Green',
-    tagline: 'Light · night',
+    name: 'Night',
+    tagline: 'Dark · sunset to sunrise',
     fontName: 'Inter',
     font: "'Inter', system-ui, -apple-system, sans-serif",
-    tokens: SHARED_TOKENS,
+    tokens: NIGHT_TOKENS,
   },
 ];
 
@@ -100,10 +132,8 @@ export function applyTheme(theme: Theme) {
   const root = document.documentElement;
   for (const [k, v] of Object.entries(theme.tokens)) root.style.setProperty(k, v);
   root.style.setProperty('--font-app', theme.font);
-  // Sync the native color-scheme so the browser/WebView renders scrollbars,
-  // inputs and status-bar contrast correctly.
-  // Both themes use a light background; always signal light to the WebView/browser.
-  root.style.colorScheme = 'light';
+  // Sync native color-scheme so scrollbars, inputs and status-bar contrast are correct.
+  root.style.colorScheme = theme.id === 'infra-green' ? 'dark' : 'light';
 }
 
 export function loadThemeFont(fontName: string) {
@@ -201,25 +231,15 @@ const PREF_KEY = 'rmc-theme-pref-v2';
 const LEGACY_MODE_KEY = 'rmc-theme-mode-v1';
 const LEGACY_THEME_KEY = 'rmc-theme-v2';
 
+// Theme is always auto — clear any legacy stored preference on load.
 export function readThemePreference(): ThemeMode {
-  try {
-    const raw = localStorage.getItem(PREF_KEY);
-    if (!raw) return 'auto';
-    const mapped = LEGACY_ID_MAP[raw] ?? raw;
-    if (mapped === 'auto' || THEMES.some(t => t.id === mapped)) return mapped as ThemeMode;
-  } catch { /* ignore */ }
+  try { localStorage.removeItem(PREF_KEY); } catch { /* ignore */ }
   return 'auto';
 }
 
-export function writeThemePreference(mode: ThemeMode) {
-  try {
-    if (mode === 'auto') {
-      localStorage.removeItem(PREF_KEY);
-    } else {
-      localStorage.setItem(PREF_KEY, mode);
-    }
-  } catch { /* ignore */ }
-}
+// No-op — theme cannot be changed by the user.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function writeThemePreference(_mode: ThemeMode) { /* locked to auto */ }
 
 export function resolveTheme(mode: ThemeMode, now: Date = new Date()): Theme {
   let id: string;

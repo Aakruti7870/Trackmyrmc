@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import {
   THEMES, ThemeContext, initialTheme, initialPreference,
-  applyTheme, loadThemeFont, resolveTheme, writeThemePreference,
+  applyTheme, loadThemeFont, resolveTheme,
   sunTimes, THEME_GEO_KEY,
   type Theme, type ThemeMode,
 } from './theme';
@@ -65,7 +65,7 @@ function msUntilNextCrossing(lat: number, lng: number, now = new Date()): number
  * display setting, not session data.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreferenceState] = useState<ThemeMode>(initialPreference);
+  const [preference] = useState<ThemeMode>(initialPreference);
   const [theme, setThemeState]           = useState<Theme>(initialTheme);
   const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -147,15 +147,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     };
   }, [preference, applyResolved]);
 
-  /* ── Exposed setter ─────────────────────────────────────────────────── */
-  const setPreference = useCallback((mode: ThemeMode) => {
-    writeThemePreference(mode);
-    setPreferenceState(mode);
-    const next = resolveTheme(mode);
-    applyTheme(next);
-    loadThemeFont(next.fontName);
-    setThemeState(next);
-  }, []);
+  /* ── Exposed setter — no-op: theme is always auto ───────────────────── */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const setPreference = useCallback((_mode: ThemeMode) => { /* locked to auto */ }, []);
 
   return (
     <ThemeContext.Provider value={{ theme, themes: THEMES, preference, setPreference }}>
