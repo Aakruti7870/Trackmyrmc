@@ -3,12 +3,12 @@ import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
 import {
-  ArrowRight, ArrowLeft, Mail, Lock, Eye, EyeOff,
+  Truck, ArrowRight, ArrowLeft, Mail, Lock, Eye, EyeOff,
   KeyRound, ShieldCheck, MessageCircle,
 } from 'lucide-react';
 import OtpInput from '@/components/OtpInput';
 import { defaultPath } from '@/lib/permissions';
-import { ConcreteKingLogo, BrandCredits } from '@/components/BrandLogo';
+import { BrandCredits } from '@/components/BrandLogo';
 import { SUPPORT_WHATSAPP_URL } from '@/lib/brand';
 
 // Theme-driven palette — reads the app-wide Day/Night tokens so the auth
@@ -360,7 +360,13 @@ export default function Login() {
           </button>
           <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <ConcreteKingLogo size={36} />
+              <div style={{
+                width: 36, height: 36, borderRadius: 11, background: C.teal,
+                display: 'grid', placeItems: 'center',
+                boxShadow: '0 8px 18px rgba(23,138,110,0.32)',
+              }}>
+                <Truck size={19} color="#fff" strokeWidth={2.2} />
+              </div>
               <span style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-0.5px' }}>
                 <span style={{ color: 'var(--text)' }}>TrackMy</span>
                 <span style={{ color: C.teal }}>RMC</span>
