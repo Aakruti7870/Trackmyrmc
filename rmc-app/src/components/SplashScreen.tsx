@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { markSplashSeen } from '@/lib/onboarding';
+import { ConcreteKingLogo } from '@/components/BrandLogo';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Professional splash screen
@@ -93,37 +94,13 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         flexShrink: 0,
         animation: prefersReduced ? 'none' : 'spHeaderIn 0.55s cubic-bezier(0.22,1,0.36,1) both 0.05s',
       }}>
-        {/* Hexagonal brand mark */}
+        {/* Brand mark — the official Concrete King crown, matching the sidebar, login, and PWA icons */}
         <div style={{
-          width: 60, height: 60,
-          borderRadius: 17,
-          background: 'linear-gradient(145deg, var(--gold-hi) 0%, var(--gold-dark) 100%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'grid', placeItems: 'center',
           boxShadow: '0 6px 28px var(--glow-1), 0 2px 8px rgba(0,0,0,0.10)',
+          borderRadius: 17,
         }}>
-          {/* Concrete mixer truck silhouette — brand mark */}
-          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
-            {/* Drum */}
-            <ellipse cx="18" cy="20" rx="9" ry="8" fill="white" opacity="0.15"/>
-            <path d="M9 20 Q9 13 18 13 Q27 13 27 20 Q27 27 18 27 Q9 27 9 20Z"
-              fill="white" opacity="0.22"/>
-            {/* Spiral stripe */}
-            <path d="M11 17 Q14 14 18 15 Q22 16 24 20 Q22 24 18 24 Q14 24 12 21"
-              stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-            {/* Truck cab */}
-            <rect x="24" y="17" width="7" height="8" rx="1.5" fill="white" opacity="0.92"/>
-            <path d="M31 18 L34 18 L35 21 L31 21Z" fill="white" opacity="0.82"/>
-            {/* Wheels */}
-            <circle cx="13" cy="28" r="3" fill="white" opacity="0.85"/>
-            <circle cx="13" cy="28" r="1.4" fill="rgba(30,94,63,0.7)"/>
-            <circle cx="26" cy="28" r="3" fill="white" opacity="0.85"/>
-            <circle cx="26" cy="28" r="1.4" fill="rgba(30,94,63,0.7)"/>
-            <circle cx="32" cy="28" r="2.2" fill="white" opacity="0.85"/>
-            <circle cx="32" cy="28" r="1" fill="rgba(30,94,63,0.7)"/>
-            {/* Location pin */}
-            <circle cx="18" cy="6" r="3" fill="white" opacity="0.9"/>
-            <path d="M18 9 L18 12" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.8"/>
-          </svg>
+          <ConcreteKingLogo size={60} />
         </div>
 
         {/* Wordmark */}
