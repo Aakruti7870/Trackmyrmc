@@ -64,7 +64,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
       onClick={dismiss}
       style={{
         position: 'fixed', inset: 0, zIndex: 500,
-        background: '#FFFFFF',
+        background: '#08111f',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -131,7 +131,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
           fontSize: 'clamp(28px, 7.5vw, 38px)',
           fontWeight: 900,
           letterSpacing: '0.11em',
-          color: '#111110',
+          color: '#FFFFFF',
           fontFamily: '"Inter", "Arial Black", system-ui, sans-serif',
           lineHeight: 1,
           textAlign: 'center',
@@ -194,7 +194,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         <div style={{
           fontSize: 13.5,
           fontWeight: 500,
-          color: '#8A8A85',
+          color: 'rgba(255,255,255,0.50)',
           fontFamily: '"Inter", system-ui, sans-serif',
           letterSpacing: '0.01em',
           textAlign: 'center',
@@ -206,7 +206,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         <div style={{
           width: '100%',
           height: 3,
-          background: '#F0F0EE',
+          background: 'rgba(255,255,255,0.10)',
           position: 'relative',
           overflow: 'hidden',
         }}>
