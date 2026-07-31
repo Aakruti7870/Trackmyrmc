@@ -65,7 +65,9 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
       onClick={dismiss}
       style={{
         position: 'fixed', inset: 0, zIndex: 500,
-        background: '#FFFFFF',
+        // Dark ambient scene (matches the native Capacitor splash background
+        // #08111f) with the fleet photo presented on its own light card below.
+        background: 'radial-gradient(120% 90% at 50% 0%, #16233a 0%, #0d1420 55%, #05090f 100%)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -108,7 +110,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
           fontSize: 'clamp(28px, 7.5vw, 38px)',
           fontWeight: 900,
           letterSpacing: '0.11em',
-          color: '#111110',
+          color: '#F5F6F8',
           fontFamily: '"Inter", "Arial Black", system-ui, sans-serif',
           lineHeight: 1,
           textAlign: 'center',
@@ -130,7 +132,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      {/* ── Fleet 3D scene ───────────────────────────────────────────────── */}
+      {/* ── Fleet 3D scene — presented as a light card on the dark backdrop ── */}
       <div style={{
         flex: 1,
         width: '100%',
@@ -139,21 +141,33 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
-        padding: '4px 0 0',
+        padding: '4px 16px 0',
         animation: prefersReduced ? 'none' : 'spSceneIn 0.75s cubic-bezier(0.22,1,0.36,1) both 0.2s',
       }}>
-        <img
-          src="/splash-fleet.jpg"
-          alt="RMC fleet — cement plant, mixer truck and pickup"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain',
-            objectPosition: 'center bottom',
-            display: 'block',
-          }}
-          draggable={false}
-        />
+        <div style={{
+          width: '100%',
+          maxHeight: '100%',
+          aspectRatio: '1080 / 820',
+          borderRadius: 24,
+          background: '#FFFFFF',
+          boxShadow: '0 20px 48px rgba(0,0,0,0.35)',
+          overflow: 'hidden',
+        }}>
+          <img
+            src="/splash-fleet.jpg"
+            alt="RMC fleet — cement plant, mixer truck and pickup"
+            style={{
+              width: '100%',
+              height: '100%',
+              // Crops the flat gap and the baked-in caption strip the source
+              // photo has above/below the trucks, so the card frames just the fleet.
+              objectFit: 'cover',
+              objectPosition: 'center 32%',
+              display: 'block',
+            }}
+            draggable={false}
+          />
+        </div>
       </div>
 
       {/* ── Footer: tagline + progress bar ───────────────────────────────── */}
@@ -171,7 +185,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         <div style={{
           fontSize: 13.5,
           fontWeight: 500,
-          color: '#8A8A85',
+          color: 'rgba(245,246,248,0.55)',
           fontFamily: '"Inter", system-ui, sans-serif',
           letterSpacing: '0.01em',
           textAlign: 'center',
@@ -183,7 +197,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         <div style={{
           width: '100%',
           height: 3,
-          background: '#F0F0EE',
+          background: 'rgba(245,246,248,0.14)',
           position: 'relative',
           overflow: 'hidden',
         }}>
