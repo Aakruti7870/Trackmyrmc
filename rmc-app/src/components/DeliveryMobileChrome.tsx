@@ -10,6 +10,7 @@ import { canAccess } from '@/lib/permissions';
 import NotificationBell from '@/components/NotificationBell';
 import { AiHeaderButton } from '@/components/ai/AIHelpAgent';
 import NewWidgetMenu from '@/components/NewWidgetMenu';
+import { ConcreteKingLogo } from '@/components/BrandLogo';
 
 // Theme tokens (Concrete Gold by day, Infra Green by night — see automatic-theme.css).
 // No hard-coded brand colours here so this chrome follows the automatic theme.
@@ -121,8 +122,8 @@ export function DeliveryHeader({ onProfile }: { onProfile: () => void }) {
         } as CSSProperties}
       >
         <div className="flex items-center gap-2" style={{ minWidth: 0, overflow: 'hidden' }}>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: TEAL, flexShrink: 0 }}>
-            <Truck className="h-5 w-5 text-white" strokeWidth={2.2} />
+          <div style={{ flexShrink: 0 }}>
+            <ConcreteKingLogo size={32} />
           </div>
           <span className="text-[19px] font-extrabold tracking-tight" style={{ color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             Track<span style={{ color: TEAL }}>My</span>RMC
