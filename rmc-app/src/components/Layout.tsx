@@ -452,14 +452,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isHome = location === '/home';
 
   return (
-    <div className={isDriver ? 'role-driver' : undefined} style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className={isDriver ? 'role-driver' : undefined} style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <CommandPalette />
       <AIHelpAgent />
       {/* Mobile header — unified delivery-style chrome for every role on phones
           (and at all widths for drivers, who have no desktop sidebar). */}
       <DeliveryHeader onProfile={() => setMobileOpen(o => !o)} />
 
-      <div style={{ display: 'flex', flex: 1 }}>
+      <div style={{ display: 'flex', flex: '1 1 0', minHeight: 0 }}>
         {/* Desktop sidebar — every non-driver role. Drivers get the bottom tab
             bar at all widths instead (no sidebar at any width). */}
         {!isDriver && (
@@ -468,7 +468,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             background: 'linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2))',
             backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)',
             borderRight: '1px solid var(--line)', padding: '18px 14px',
-            position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
+            height: '100%', overflowY: 'auto',
             display: 'flex', flexDirection: 'column',
           }}>
             {SidebarContent()}
@@ -504,7 +504,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {SidebarContent({ mobile: true })}
         </div>
 
-        <main id="app-main" className={`${isDriver ? 'has-bottom-nav' : 'has-bottom-nav-mobile'}${isHome ? ' home-full-bleed' : ''}`} style={{ flex: 1, padding: isHome ? 0 : '22px', minWidth: 0, overflowX: 'hidden' }}>
+        <main id="app-main" className={`${isDriver ? 'has-bottom-nav' : 'has-bottom-nav-mobile'}${isHome ? ' home-full-bleed' : ''}`} style={{ flex: '1 1 0', minHeight: 0, padding: isHome ? 0 : '22px', minWidth: 0, overflowX: 'hidden', overflowY: 'auto', WebkitOverflowScrolling: 'touch' as never }}>
           {children}
         </main>
       </div>

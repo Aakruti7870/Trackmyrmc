@@ -5,15 +5,25 @@
   --bottom-content-clearance: calc(var(--bottom-nav-height) + var(--bottom-safe-area) + 16px);
 }
 
+/* Root stack — every level must have a fixed height so #app-main can own
+   the ONLY vertical scroll container in the authenticated layout.
+   min-height alone lets these grow with content, which pushes scroll
+   back to the window — where Android WebView silently ignores it. */
 html,
 body,
 #root {
-  min-height: 100vh;
-  min-height: 100dvh;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 #app-main {
   min-height: 0;
+  /* THE scroll container for authenticated pages */
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   overscroll-behavior-y: contain;
   scroll-padding-bottom: var(--bottom-content-clearance);
 }

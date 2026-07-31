@@ -131,21 +131,16 @@ body {
   font-family: var(--font-app);
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
+  /* No min-height here — layout-fixes.css sets html/body/#root to height:100%
+     so the authenticated app shell owns the scroll container, not the window. */
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   transition: background .4s ease, color .25s ease;
 }
 
 #root {
-  min-height: 100vh;
-}
-
-/* Prefer the dynamic viewport height where supported so full-height screens
-   fit under mobile browser chrome (address bar) instead of clipping the
-   bottom. Falls back to 100vh (fine in the native WebView, which has no chrome). */
-@supports (min-height: 100dvh) {
-  body, #root { min-height: 100dvh; }
+  /* height and overflow are controlled by layout-fixes.css so the app shell
+     is the one scroll container; do not set min-height here. */
 }
 
 input, select, textarea, button {

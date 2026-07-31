@@ -134,11 +134,15 @@ export default function DeliveryLocationPicker({
   const revAbort = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Lock the page behind the overlay from scrolling while it's open.
+  // Lock the scroll container (#app-main) while the picker overlay is open.
+  // Body is already overflow:hidden in the app shell; locking #app-main prevents
+  // the underlying page from scrolling behind the full-screen picker.
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    const el = document.getElementById('app-main');
+    if (!el) return;
+    const prev = el.style.overflowY;
+    el.style.overflowY = 'hidden';
+    return () => { el.style.overflowY = prev; };
   }, []);
 
   useEffect(() => () => { predAbort.current?.abort(); revAbort.current?.abort(); }, []);
