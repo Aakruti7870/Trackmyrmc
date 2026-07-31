@@ -1,0 +1,14 @@
+# Excluded from Replit deployment image — not needed to serve the web app.
+
+# Android project + build artifacts (only used by the Build AAB workflow)
+rmc-app/android/
+
+# Release artifacts (AAB / Android Studio ZIP)
+releases/
+
+# Development uploads / design assets
+attached_assets/
+
+# Editor and OS noise
+.DS_Store
+*.swp
