@@ -271,12 +271,12 @@ function SmtpTextField({
   );
 }
 
-// ─── Theme picker card ─────────────────────────────────────────────────────
-// Two modes: Concrete Gold (day) and Infra Green (night) — same warm-cream palette.
-// Auto mode follows sunrise/sunset; both look identical day or night.
+// ─── Theme status card ─────────────────────────────────────────────────────
+// Fully automatic — Concrete Gold by day, Infra Green by night, switching
+// exactly at local sunrise/sunset. Informational only: no manual override,
+// by design, so the app always reflects the real time of day.
 function ThemePickerCard() {
-  const { themes, preference, setPreference } = useTheme();
-  void themes;
+  const { theme } = useTheme();
 
   // Read stored geo and compute today's sun times for the info line.
   type SunInfo = { rise: string; set: string; hasGeo: boolean };
@@ -297,27 +297,12 @@ function ThemePickerCard() {
   }, []);
 
   // Derive sun times directly — no state needed since getSunInfo only reads
-  // localStorage synchronously; useMemo avoids the setState-in-effect lint error.
-  const sunInfo = useMemo<SunInfo>(
-    () => getSunInfo(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [getSunInfo, preference], // re-compute when pref switches to 'auto'
-  );
-
-  type Opt = { id: string; label: string; tagline: string; swatch: string };
-  const autoTagline = sunInfo.hasGeo
-    ? `☀\ufe0e ${sunInfo.rise}  ·  ☾\ufe0e ${sunInfo.set}`
-    : 'Sunrise & sunset · location needed';
-
-  const opts: Opt[] = [
-    { id: 'auto',          label: 'Auto',          tagline: autoTagline,      swatch: 'linear-gradient(135deg,#1B3D29 50%,#D4941A 50%)' },
-    { id: 'concrete-gold', label: 'Concrete Gold', tagline: 'Warm cream · day',   swatch: '#1B3D29' },
-    { id: 'infra-green',   label: 'Infra Green',   tagline: 'Warm cream · night', swatch: '#D4941A' },
-  ];
+  // localStorage synchronously.
+  const sunInfo = useMemo<SunInfo>(() => getSunInfo(), [getSunInfo]);
 
   return (
     <div style={{ background: 'var(--panel)', borderRadius: 16, border: '1px solid var(--line)', padding: '20px 18px', marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <div style={{
           width: 32, height: 32, borderRadius: 10, flexShrink: 0,
           background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.25)',
@@ -327,52 +312,19 @@ function ThemePickerCard() {
         </div>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Appearance</div>
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Choose an app theme · saved across sessions</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatic — {theme.name} right now</div>
         </div>
       </div>
 
-      {/* Auto-mode info banner */}
-      {preference === 'auto' && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
-          background: 'var(--gold-tint)', border: '1px solid var(--gold-soft)',
-          borderRadius: 10, padding: '8px 12px', fontSize: 12, color: 'var(--muted)',
-        }}>
-          <MapPin size={12} style={{ color: 'var(--gold)', flexShrink: 0 }} />
-          {sunInfo.hasGeo
-            ? <>Theme switches automatically at <strong style={{ color: 'var(--text)' }}>sunrise {sunInfo.rise}</strong> and <strong style={{ color: 'var(--text)' }}>sunset {sunInfo.set}</strong></>
-            : <>Allow location access for precise sunrise/sunset times (current fallback: 06:15 / 18:30)</>}
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
-        {opts.map(opt => {
-          const active = preference === opt.id;
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setPreference(opt.id as import('@/lib/theme').ThemeMode)}
-              aria-pressed={active}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
-                padding: '12px 12px 10px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
-                background: active ? 'color-mix(in srgb,var(--gold) 10%,var(--panel))' : 'var(--chip-bg)',
-                border: `2px solid ${active ? 'var(--gold)' : 'var(--line)'}`,
-                transition: 'border-color .15s, background .15s',
-              }}
-            >
-              <span style={{
-                width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-                background: opt.swatch,
-                boxShadow: active ? '0 0 0 3px color-mix(in srgb,var(--gold) 30%,transparent)' : 'none',
-                display: 'block', transition: 'box-shadow .15s',
-              }} />
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', lineHeight: 1.2 }}>{opt.label}</span>
-              <span style={{ fontSize: 10.5, color: 'var(--muted)', lineHeight: 1.3 }}>{opt.tagline}</span>
-            </button>
-          );
-        })}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: 'var(--gold-tint)', border: '1px solid var(--gold-soft)',
+        borderRadius: 10, padding: '8px 12px', fontSize: 12, color: 'var(--muted)',
+      }}>
+        <MapPin size={12} style={{ color: 'var(--gold)', flexShrink: 0 }} />
+        {sunInfo.hasGeo
+          ? <>Concrete Gold by day, Infra Green by night — switches at <strong style={{ color: 'var(--text)' }}>sunrise {sunInfo.rise}</strong> and <strong style={{ color: 'var(--text)' }}>sunset {sunInfo.set}</strong></>
+          : <>Concrete Gold by day, Infra Green by night — allow location access for precise sunrise/sunset (current fallback: 06:15 / 18:30)</>}
       </div>
     </div>
   );

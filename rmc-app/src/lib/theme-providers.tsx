@@ -50,19 +50,13 @@ function msUntilNextCrossing(lat: number, lng: number, now = new Date()): number
 /* ─── ThemeProvider ──────────────────────────────────────────────────────── */
 
 /**
- * ThemeProvider — three modes:
- *
- * 1. **'auto'** (default) — switches concrete-gold ↔ infra-green at the exact
- *    local sunrise/sunset computed via NOAA. Requests `navigator.geolocation`
- *    once per session; stores coords in `rmc-theme-geo`; falls back to 06:15 /
- *    18:30 if permission is denied. Re-arms a precise setTimeout at each
- *    crossing plus a 60-second polling fallback.
- * 2. **'concrete-gold'** — user-pinned light theme (olive/gold).
- * 3. **'trust-blue'**    — user-pinned light/blue theme.
- * 4. **'infra-green'**   — user-pinned dark theme.
- *
- * The preference persists in `localStorage` and survives logout — it is a
- * display setting, not session data.
+ * ThemeProvider — always **'auto'**: switches Concrete Gold ↔ Infra Green at
+ * the exact local sunrise/sunset computed via NOAA. Requests
+ * `navigator.geolocation` once per session; stores coords in
+ * `rmc-theme-geo`; falls back to 06:15 / 18:30 if permission is denied.
+ * Re-arms a precise setTimeout at each crossing plus a 60-second polling
+ * fallback. There is deliberately no in-app way to pin a fixed theme — the
+ * app always reflects the real time of day.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemeMode>(initialPreference);
@@ -147,15 +141,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     };
   }, [preference, applyResolved]);
 
-  /* ── Exposed setter ─────────────────────────────────────────────────── */
-  const setPreference = useCallback((mode: ThemeMode) => {
-    writeThemePreference(mode);
-    setPreferenceState(mode);
-    const next = resolveTheme(mode);
-    applyTheme(next);
-    loadThemeFont(next.fontName);
-    setThemeState(next);
-  }, []);
+  /* ── Exposed setter ───────────────────────────────────────────────────
+     No in-app option changes the theme — it is always automatic. This is
+     kept only so ThemeCtx has a stable shape; it deliberately ignores
+     `mode` and re-asserts 'auto' rather than pinning anything. */
+  const setPreference = useCallback((_mode: ThemeMode) => {
+    writeThemePreference('auto');
+    setPreferenceState('auto');
+    applyResolved('auto');
+  }, [applyResolved]);
 
   return (
     <ThemeContext.Provider value={{ theme, themes: THEMES, preference, setPreference }}>
