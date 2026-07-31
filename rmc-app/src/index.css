@@ -109,9 +109,16 @@
 /* Mobile screen-fit safety net: never let a stray wide element create a
    horizontal scrollbar (the classic "whole app is zoomed out / doesn't fit"
    symptom on phones). Wide content (tables etc.) must scroll inside its own
-   overflow container, not blow out the page width. */
-html, body {
+   overflow container, not blow out the page width.
+   NOTE: overflow-x:hidden must NOT be applied to <body> — on Android WebView /
+   Chrome it promotes body into its own scroll container, silently swallowing
+   all vertical-scroll events and making pages non-scrollable. html alone is
+   sufficient to clip stray overflow without affecting native body scroll. */
+html {
   overflow-x: hidden;
+  max-width: 100%;
+}
+body {
   max-width: 100%;
 }
 

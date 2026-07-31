@@ -16,13 +16,13 @@ describe('automatic theme — no Trust Blue', () => {
   });
 });
 
-describe('Android release metadata — v1.24 / versionCode 25', () => {
-  it('build.gradle declares versionCode 25 and versionName "1.24"', () => {
+describe('Android release metadata — v1.25 / versionCode 26', () => {
+  it('build.gradle declares versionCode 26 and versionName "1.25"', () => {
     const gradle = readFileSync(resolve(rmcAppRoot, 'android/app/build.gradle'), 'utf8');
-    expect(gradle).toMatch(/versionCode\s+25\b/);
-    expect(gradle).toMatch(/versionName\s+"1\.24"/);
-    expect(gradle).not.toMatch(/versionCode\s+23\b/);
-    expect(gradle).not.toMatch(/versionName\s+"1\.23"/);
+    expect(gradle).toMatch(/versionCode\s+26\b/);
+    expect(gradle).toMatch(/versionName\s+"1\.25"/);
+    expect(gradle).not.toMatch(/versionCode\s+24\b/);
+    expect(gradle).not.toMatch(/versionName\s+"1\.24"/);
   });
 
   it('the v1.18 GitHub Actions build workflow exists and no v1.17 workflow remains', () => {

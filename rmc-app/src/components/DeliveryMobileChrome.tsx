@@ -223,7 +223,15 @@ export function DeliveryBottomNav({ onMore, onNavigate }: { onMore: () => void; 
       }}
     >
       {left.map((t, i) => <Slot key={`l${i}`} tab={t} location={location} onMore={onMore} onNavigate={() => onNavigate?.()} />)}
-      {showNew && <div style={{ transform: 'translateY(-4px)' }}><NewWidgetMenu role={user.role} onNavigate={() => onNavigate?.()} /></div>}
+      {/* flex:'1 1 0' gives the center slot equal width to each tab so the
+          absolute FAB button sits precisely in the middle without bleeding
+          into adjacent slots. position:relative makes the nav the containing
+          block for the absolute button (nav is position:fixed). */}
+      {showNew && (
+        <div style={{ flex: '1 1 0', position: 'relative', minWidth: 0 }}>
+          <NewWidgetMenu role={user.role} onNavigate={() => onNavigate?.()} />
+        </div>
+      )}
       {centerFab && FabIcon && (
         <div className="flex flex-col items-center" style={{ transform: 'translateY(-4px)' }}>
           <button
