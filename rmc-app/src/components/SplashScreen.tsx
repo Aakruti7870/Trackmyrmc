@@ -65,13 +65,6 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
       style={{
         position: 'fixed', inset: 0, zIndex: 500,
         background: '#08111f',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        /* safe areas */
-        paddingTop:    'max(env(safe-area-inset-top, 0px), 0px)',
-        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)',
-        /* fade out */
         opacity:    out ? 0 : 1,
         transition: out && !prefersReduced
           ? `opacity ${FADE_MS}ms cubic-bezier(0.4,0,0.2,1)`
@@ -80,47 +73,61 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         overflow: 'hidden',
       }}
     >
+      {/* ── Full-bleed fleet background ───────────────────────────────────── */}
+      <img
+        src="/splash-fleet.jpg"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center bottom',
+          opacity: 0.60,
+        }}
+      />
 
-      {/* ── Brand header ─────────────────────────────────────────────────── */}
+      {/* ── Gradient overlay — top heavy so brand text is always readable ── */}
       <div style={{
-        width: '100%',
-        paddingTop: 'max(env(safe-area-inset-top, 0px), 52px)',
-        paddingBottom: 8,
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(to bottom, rgba(8,17,31,0.92) 0%, rgba(8,17,31,0.45) 45%, rgba(8,17,31,0.80) 100%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* ── Centered brand identity ───────────────────────────────────────── */}
+      <div style={{
+        position: 'absolute', inset: 0,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 10,
-        flexShrink: 0,
-        animation: prefersReduced ? 'none' : 'spHeaderIn 0.55s cubic-bezier(0.22,1,0.36,1) both 0.05s',
+        justifyContent: 'center',
+        paddingTop: 'max(env(safe-area-inset-top, 0px), 0px)',
+        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 48px)',
+        gap: 14,
+        animation: prefersReduced ? 'none' : 'spBrandIn 0.6s cubic-bezier(0.22,1,0.36,1) both 0.05s',
       }}>
-        {/* Hexagonal brand mark */}
+        {/* App icon */}
         <div style={{
-          width: 60, height: 60,
-          borderRadius: 17,
-          background: 'linear-gradient(145deg, var(--gold-hi) 0%, var(--gold-dark) 100%)',
+          width: 72, height: 72,
+          borderRadius: 20,
+          background: 'linear-gradient(145deg, #FBBF24 0%, #D97706 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 6px 28px var(--glow-1), 0 2px 8px rgba(0,0,0,0.10)',
+          boxShadow: '0 8px 32px rgba(251,191,36,0.35), 0 2px 8px rgba(0,0,0,0.30)',
         }}>
-          {/* Concrete mixer truck silhouette — brand mark */}
-          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
-            {/* Drum */}
+          <svg width="42" height="42" viewBox="0 0 36 36" fill="none" aria-hidden="true">
             <ellipse cx="18" cy="20" rx="9" ry="8" fill="white" opacity="0.15"/>
-            <path d="M9 20 Q9 13 18 13 Q27 13 27 20 Q27 27 18 27 Q9 27 9 20Z"
-              fill="white" opacity="0.22"/>
-            {/* Spiral stripe */}
+            <path d="M9 20 Q9 13 18 13 Q27 13 27 20 Q27 27 18 27 Q9 27 9 20Z" fill="white" opacity="0.22"/>
             <path d="M11 17 Q14 14 18 15 Q22 16 24 20 Q22 24 18 24 Q14 24 12 21"
-              stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-            {/* Truck cab */}
+              stroke="rgba(255,255,255,0.75)" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
             <rect x="24" y="17" width="7" height="8" rx="1.5" fill="white" opacity="0.92"/>
             <path d="M31 18 L34 18 L35 21 L31 21Z" fill="white" opacity="0.82"/>
-            {/* Wheels */}
             <circle cx="13" cy="28" r="3" fill="white" opacity="0.85"/>
-            <circle cx="13" cy="28" r="1.4" fill="rgba(30,94,63,0.7)"/>
+            <circle cx="13" cy="28" r="1.4" fill="rgba(8,17,31,0.7)"/>
             <circle cx="26" cy="28" r="3" fill="white" opacity="0.85"/>
-            <circle cx="26" cy="28" r="1.4" fill="rgba(30,94,63,0.7)"/>
+            <circle cx="26" cy="28" r="1.4" fill="rgba(8,17,31,0.7)"/>
             <circle cx="32" cy="28" r="2.2" fill="white" opacity="0.85"/>
-            <circle cx="32" cy="28" r="1" fill="rgba(30,94,63,0.7)"/>
-            {/* Location pin */}
+            <circle cx="32" cy="28" r="1" fill="rgba(8,17,31,0.7)"/>
             <circle cx="18" cy="6" r="3" fill="white" opacity="0.9"/>
             <path d="M18 9 L18 12" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.8"/>
           </svg>
@@ -128,92 +135,48 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
 
         {/* Wordmark */}
         <div style={{
-          fontSize: 'clamp(28px, 7.5vw, 38px)',
+          fontSize: 'clamp(30px, 8vw, 40px)',
           fontWeight: 900,
-          letterSpacing: '0.11em',
+          letterSpacing: '0.10em',
           color: '#FFFFFF',
           fontFamily: '"Inter", "Arial Black", system-ui, sans-serif',
           lineHeight: 1,
           textAlign: 'center',
+          textShadow: '0 2px 12px rgba(0,0,0,0.40)',
         }}>
           TRACKMYRMC
         </div>
 
-        {/* Subtitle */}
+        {/* Tagline */}
         <div style={{
-          fontSize: 12,
+          fontSize: 11.5,
           fontWeight: 500,
-          letterSpacing: '0.18em',
-          color: 'var(--gold)',
+          letterSpacing: '0.20em',
+          color: '#FBBF24',
           fontFamily: '"Inter", system-ui, sans-serif',
           textTransform: 'uppercase',
           textAlign: 'center',
+          opacity: 0.90,
         }}>
           Ready Mix Concrete Platform
         </div>
       </div>
 
-      {/* ── Fleet 3D scene ───────────────────────────────────────────────── */}
+      {/* ── Bottom progress bar ───────────────────────────────────────────── */}
       <div style={{
-        flex: 1,
-        width: '100%',
-        minHeight: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-        padding: '4px 0 0',
-        animation: prefersReduced ? 'none' : 'spSceneIn 0.75s cubic-bezier(0.22,1,0.36,1) both 0.2s',
-      }}>
-        <img
-          src="/splash-fleet.jpg"
-          alt="RMC fleet — cement plant, mixer truck and pickup"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain',
-            objectPosition: 'center bottom',
-            display: 'block',
-          }}
-          draggable={false}
-        />
-      </div>
-
-      {/* ── Footer: tagline + progress bar ───────────────────────────────── */}
-      <div style={{
-        width: '100%',
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 14,
-        padding: '10px 0',
-        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 14px)',
-        animation: prefersReduced ? 'none' : 'spTaglineIn 0.55s cubic-bezier(0.22,1,0.36,1) both 0.5s',
+        position: 'absolute',
+        bottom: 0, left: 0, right: 0,
+        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)',
       }}>
         <div style={{
-          fontSize: 13.5,
-          fontWeight: 500,
-          color: 'rgba(255,255,255,0.50)',
-          fontFamily: '"Inter", system-ui, sans-serif',
-          letterSpacing: '0.01em',
-          textAlign: 'center',
-        }}>
-          Do more with TrackMyRMC
-        </div>
-
-        {/* Progress bar track */}
-        <div style={{
-          width: '100%',
           height: 3,
-          background: 'rgba(255,255,255,0.10)',
+          background: 'rgba(255,255,255,0.12)',
           position: 'relative',
           overflow: 'hidden',
         }}>
           <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(90deg, var(--gold-hi), var(--gold-dark))',
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(90deg, #FBBF24, #F59E0B)',
             transformOrigin: 'left center',
             transform: `scaleX(${progress / 100})`,
             transition: prefersReduced ? 'none' : 'transform 0.08s linear',
@@ -223,17 +186,9 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
       </div>
 
       <style>{`
-        @keyframes spHeaderIn {
-          from { opacity:0; transform:translateY(-18px) }
-          to   { opacity:1; transform:translateY(0) }
-        }
-        @keyframes spSceneIn {
-          from { opacity:0; transform:scale(0.97) }
-          to   { opacity:1; transform:scale(1) }
-        }
-        @keyframes spTaglineIn {
-          from { opacity:0; transform:translateY(14px) }
-          to   { opacity:1; transform:translateY(0) }
+        @keyframes spBrandIn {
+          from { opacity:0; transform:translateY(10px) scale(0.97) }
+          to   { opacity:1; transform:translateY(0) scale(1) }
         }
       `}</style>
     </div>
