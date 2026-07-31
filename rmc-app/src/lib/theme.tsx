@@ -25,43 +25,43 @@ const SEMANTIC = {
   '--orange': '#f59e0b',
 };
 
-// ─── Shared header tokens — dark forest-green bar, amber accent, white ink ────
+// ─── Shared header tokens — deep midnight forest bar, clean amber accent ────
 // Applied via CSS-var scoping on the mobile header element so every child
 // component (NotificationBell, AiHeaderButton, etc.) inherits header colours
 // without per-component changes.
 const HEADER_TOKENS = {
-  '--header-bg': 'rgba(27,61,41,0.97)',
+  '--header-bg': 'rgba(10,28,18,0.97)',
   '--header-text': '#ffffff',
-  '--header-muted': 'rgba(255,255,255,0.65)',
-  '--header-accent': '#D4941A',
-  '--header-surface': 'rgba(255,255,255,0.12)',
-  '--header-border': 'rgba(255,255,255,0.15)',
+  '--header-muted': 'rgba(255,255,255,0.58)',
+  '--header-accent': '#FBBF24',
+  '--header-surface': 'rgba(255,255,255,0.10)',
+  '--header-border': 'rgba(255,255,255,0.12)',
 };
 
 // ─── Theme 1 & 2: Concrete Gold (Day) / Infra Green (Night) ──────────────────
-// Both share the same warm-cream palette so the app looks identical day or night.
-// Warm cream page, white cards, forest-green header bar, amber accent.
+// Midnight Forest + Clean Amber: cool Slate backgrounds, vibrant amber accent,
+// deep near-black-green header for a polished professional look.
 const SHARED_SURFACES = {
-  '--shadow-rgb': '0,0,0',
-  '--glass-1': '#ffffff', '--glass-2': '#F8F9FA',
-  '--glass-border': 'rgba(0,0,0,0.10)', '--glass-hi': 'transparent', '--glass-blur': 'none',
-  '--sidebar-1': '#ffffff', '--sidebar-2': '#F0F2F5',
+  '--shadow-rgb': '13,20,33',
+  '--glass-1': '#ffffff', '--glass-2': '#F5F8FC',
+  '--glass-border': 'rgba(13,20,33,0.09)', '--glass-hi': 'transparent', '--glass-blur': 'none',
+  '--sidebar-1': '#ffffff', '--sidebar-2': '#F0F4F8',
   '--menu-bg': '#ffffff',
-  '--menu-hover': 'rgba(0,0,0,0.06)', '--overlay': 'rgba(0,0,0,0.30)',
-  '--chip-bg': '#E9ECEF', '--sheen': 'transparent',
+  '--menu-hover': 'rgba(13,20,33,0.05)', '--overlay': 'rgba(13,20,33,0.32)',
+  '--chip-bg': '#E4EBF5', '--sheen': 'transparent',
   ...HEADER_TOKENS,
 };
 const SHARED_ACCENT = {
-  '--gold-hi': '#E8A820', '--gold-mid': '#D4941A', '--gold': '#D4941A', '--gold-dark': '#9B6610',
-  '--glow-1': 'rgba(212,148,26,0.16)', '--glow-2': 'transparent',
-  '--gold-soft': '#FFF0CC', '--gold-tint': '#FFF8E6',
-  '--prompt-bg': '#FFF3D0', '--prompt-border': 'rgba(212,148,26,0.20)', '--prompt-icon-bg': '#FFE0A0',
+  '--gold-hi': '#FBBF24', '--gold-mid': '#F59E0B', '--gold': '#F59E0B', '--gold-dark': '#D97706',
+  '--glow-1': 'rgba(245,158,11,0.16)', '--glow-2': 'transparent',
+  '--gold-soft': '#FEF3C7', '--gold-tint': '#FFFBEB',
+  '--prompt-bg': '#FEFCE8', '--prompt-border': 'rgba(245,158,11,0.22)', '--prompt-icon-bg': '#FDE68A',
 };
 
 const SHARED_TOKENS = {
-  '--bg-top': '#F4F5F7', '--bg': '#F0F2F5', '--bg-deep': '#E4E7EB',
-  '--panel': '#ffffff', '--panel2': '#F8F9FA', '--surface': '#ffffff',
-  '--line': 'rgba(0,0,0,0.10)', '--text': '#111827', '--muted': '#6B7280',
+  '--bg-top': '#F0F4F8', '--bg': '#EEF2F7', '--bg-deep': '#DCE4EE',
+  '--panel': '#ffffff', '--panel2': '#F5F8FC', '--surface': '#ffffff',
+  '--line': 'rgba(13,20,33,0.09)', '--text': '#0D1421', '--muted': '#4B5568',
   ...SHARED_ACCENT, ...SEMANTIC, ...SHARED_SURFACES,
 };
 

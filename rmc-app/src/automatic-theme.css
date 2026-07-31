@@ -1,97 +1,97 @@
-/* Automatic visual modes — warm-cream body, forest-green header, amber accent.
-   Both concrete-gold (day) and infra-green (night) share the same light palette
-   so the app looks identical regardless of time-of-day. */
+/* Automatic visual modes — Midnight Forest + Clean Amber.
+   Both concrete-gold (day) and infra-green (night) share the same Slate
+   palette so the app looks identical regardless of time-of-day. */
 :root,
 :root[data-theme='concrete-gold'] {
-  --bg-top: #F0ECDA;
-  --bg: #EAE5CF;
-  --bg-deep: #DDD8C0;
+  --bg-top: #F0F4F8;
+  --bg: #EEF2F7;
+  --bg-deep: #DCE4EE;
   --panel: #ffffff;
-  --panel2: #F7F4E8;
+  --panel2: #F5F8FC;
   --surface: #ffffff;
-  --line: rgba(27, 61, 41, 0.14);
-  --text: #1A2A14;
-  --muted: #6A7B5E;
-  --gold-hi: #E8A820;
-  --gold-mid: #D4941A;
-  --gold: #D4941A;
-  --gold-dark: #9B6610;
+  --line: rgba(13, 20, 33, 0.09);
+  --text: #0D1421;
+  --muted: #4B5568;
+  --gold-hi: #FBBF24;
+  --gold-mid: #F59E0B;
+  --gold: #F59E0B;
+  --gold-dark: #D97706;
   --green: #22c55e;
   --green-dark: #15803d;
   --blue: #2a83d6;
   --red: #B94040;
-  --orange: #c98300;
-  --glow-1: rgba(212, 148, 26, 0.16);
+  --orange: #f59e0b;
+  --glow-1: rgba(245, 158, 11, 0.16);
   --glow-2: transparent;
-  --gold-soft: #FFF0CC;
-  --gold-tint: #FFF8E6;
-  --prompt-bg: #FFF3D0;
-  --prompt-border: rgba(212, 148, 26, 0.20);
-  --prompt-icon-bg: #FFE0A0;
-  --shadow-rgb: 18, 42, 24;
+  --gold-soft: #FEF3C7;
+  --gold-tint: #FFFBEB;
+  --prompt-bg: #FEFCE8;
+  --prompt-border: rgba(245, 158, 11, 0.22);
+  --prompt-icon-bg: #FDE68A;
+  --shadow-rgb: 13, 20, 33;
   --glass-1: #ffffff;
-  --glass-2: #F7F4E8;
-  --glass-border: rgba(27, 61, 41, 0.14);
+  --glass-2: #F5F8FC;
+  --glass-border: rgba(13, 20, 33, 0.09);
   --glass-hi: transparent;
   --sidebar-1: #ffffff;
-  --sidebar-2: #F0ECDA;
-  --header-bg: rgba(27, 61, 41, 0.97);
+  --sidebar-2: #F0F4F8;
+  --header-bg: rgba(10, 28, 18, 0.97);
   --header-text: #ffffff;
-  --header-muted: rgba(255, 255, 255, 0.65);
-  --header-accent: #D4941A;
-  --header-surface: rgba(255, 255, 255, 0.12);
-  --header-border: rgba(255, 255, 255, 0.15);
+  --header-muted: rgba(255, 255, 255, 0.58);
+  --header-accent: #FBBF24;
+  --header-surface: rgba(255, 255, 255, 0.10);
+  --header-border: rgba(255, 255, 255, 0.12);
   --menu-bg: #ffffff;
-  --menu-hover: rgba(27, 61, 41, 0.08);
-  --overlay: rgba(18, 42, 24, 0.32);
-  --chip-bg: #E0EDD8;
+  --menu-hover: rgba(13, 20, 33, 0.05);
+  --overlay: rgba(13, 20, 33, 0.32);
+  --chip-bg: #E4EBF5;
   --sheen: transparent;
 }
 
-/* Night mode uses the same light palette — identical look day and night. */
+/* Night mode uses the same palette — identical look day and night. */
 :root[data-theme='infra-green'] {
-  --bg-top: #F0ECDA;
-  --bg: #EAE5CF;
-  --bg-deep: #DDD8C0;
+  --bg-top: #F0F4F8;
+  --bg: #EEF2F7;
+  --bg-deep: #DCE4EE;
   --panel: #ffffff;
-  --panel2: #F7F4E8;
+  --panel2: #F5F8FC;
   --surface: #ffffff;
-  --line: rgba(27, 61, 41, 0.14);
-  --text: #1A2A14;
-  --muted: #6A7B5E;
-  --gold-hi: #E8A820;
-  --gold-mid: #D4941A;
-  --gold: #D4941A;
-  --gold-dark: #9B6610;
+  --line: rgba(13, 20, 33, 0.09);
+  --text: #0D1421;
+  --muted: #4B5568;
+  --gold-hi: #FBBF24;
+  --gold-mid: #F59E0B;
+  --gold: #F59E0B;
+  --gold-dark: #D97706;
   --green: #22c55e;
   --green-dark: #15803d;
   --blue: #2a83d6;
   --red: #B94040;
-  --orange: #c98300;
-  --glow-1: rgba(212, 148, 26, 0.16);
+  --orange: #f59e0b;
+  --glow-1: rgba(245, 158, 11, 0.16);
   --glow-2: transparent;
-  --gold-soft: #FFF0CC;
-  --gold-tint: #FFF8E6;
-  --prompt-bg: #FFF3D0;
-  --prompt-border: rgba(212, 148, 26, 0.20);
-  --prompt-icon-bg: #FFE0A0;
-  --shadow-rgb: 18, 42, 24;
+  --gold-soft: #FEF3C7;
+  --gold-tint: #FFFBEB;
+  --prompt-bg: #FEFCE8;
+  --prompt-border: rgba(245, 158, 11, 0.22);
+  --prompt-icon-bg: #FDE68A;
+  --shadow-rgb: 13, 20, 33;
   --glass-1: #ffffff;
-  --glass-2: #F7F4E8;
-  --glass-border: rgba(27, 61, 41, 0.14);
+  --glass-2: #F5F8FC;
+  --glass-border: rgba(13, 20, 33, 0.09);
   --glass-hi: transparent;
   --sidebar-1: #ffffff;
-  --sidebar-2: #F0ECDA;
-  --header-bg: rgba(27, 61, 41, 0.97);
+  --sidebar-2: #F0F4F8;
+  --header-bg: rgba(10, 28, 18, 0.97);
   --header-text: #ffffff;
-  --header-muted: rgba(255, 255, 255, 0.65);
-  --header-accent: #D4941A;
-  --header-surface: rgba(255, 255, 255, 0.12);
-  --header-border: rgba(255, 255, 255, 0.15);
+  --header-muted: rgba(255, 255, 255, 0.58);
+  --header-accent: #FBBF24;
+  --header-surface: rgba(255, 255, 255, 0.10);
+  --header-border: rgba(255, 255, 255, 0.12);
   --menu-bg: #ffffff;
-  --menu-hover: rgba(27, 61, 41, 0.08);
-  --overlay: rgba(18, 42, 24, 0.32);
-  --chip-bg: #E0EDD8;
+  --menu-hover: rgba(13, 20, 33, 0.05);
+  --overlay: rgba(13, 20, 33, 0.32);
+  --chip-bg: #E4EBF5;
   --sheen: transparent;
 }
 

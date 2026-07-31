@@ -21,57 +21,61 @@
   --radius-card: 18px;
 }
 
-/* ===== Theme tokens (swapped at runtime by ThemeProvider) — clean professional baseline ===== */
+/* ===== Theme tokens (swapped at runtime by ThemeProvider) — Midnight Forest + Clean Amber ===== */
 :root {
-  --bg-top: #F4F5F7;
-  --bg: #F0F2F5;
-  --bg-deep: #E4E7EB;
+  /* Backgrounds — cool Slate tones, cleaner than warm gray */
+  --bg-top: #F0F4F8;
+  --bg: #EEF2F7;
+  --bg-deep: #DCE4EE;
   --panel: #ffffff;
-  --panel2: #F8F9FA;
+  --panel2: #F5F8FC;
   --surface: #ffffff;
-  --line: rgba(0,0,0,0.10);
-  --text: #111827;
-  --muted: #6B7280;
-  --gold-hi: #E8A820;
-  --gold-mid: #D4941A;
-  --gold: #D4941A;
-  --gold-dark: #9B6610;
+  --line: rgba(13,20,33,0.09);
+  /* Typography — deeper contrast */
+  --text: #0D1421;
+  --muted: #4B5568;
+  /* Accent — vibrant Clean Amber replacing dusty gold */
+  --gold-hi: #FBBF24;
+  --gold-mid: #F59E0B;
+  --gold: #F59E0B;
+  --gold-dark: #D97706;
   --green: #22c55e;
   --green-dark: #15803d;
   --blue: #38bdf8;
   --red: #B94040;
   --orange: #f59e0b;
-  --glow-1: rgba(212,148,26,0.16);
+  --glow-1: rgba(245,158,11,0.16);
   --glow-2: transparent;
-  --gold-soft: #FFF0CC;
-  --gold-tint: #FFF8E6;
-  --prompt-bg: #FFF3D0;
-  --prompt-border: rgba(212,148,26,0.20);
-  --prompt-icon-bg: #FFE0A0;
+  --gold-soft: #FEF3C7;
+  --gold-tint: #FFFBEB;
+  --prompt-bg: #FEFCE8;
+  --prompt-border: rgba(245,158,11,0.22);
+  --prompt-icon-bg: #FDE68A;
   --font-app: 'Inter', system-ui, -apple-system, sans-serif;
 
-  /* flat surface kit */
-  --shadow-rgb: 0,0,0;
+  /* Surface kit */
+  --shadow-rgb: 13,20,33;
   --glass-1: #ffffff;
-  --glass-2: #F8F9FA;
-  --glass-border: rgba(0,0,0,0.10);
+  --glass-2: #F5F8FC;
+  --glass-border: rgba(13,20,33,0.09);
   --glass-hi: transparent;
   --glass-blur: none;
   --sidebar-1: #ffffff;
-  --sidebar-2: #F0F2F5;
-  --header-bg: rgba(27,61,41,0.97);
+  --sidebar-2: #F0F4F8;
+  /* Header — deep midnight forest, near-black green, more premium */
+  --header-bg: rgba(10,28,18,0.97);
   --header-text: #ffffff;
-  --header-muted: rgba(255,255,255,0.65);
-  --header-accent: #D4941A;
-  --header-surface: rgba(255,255,255,0.12);
-  --header-border: rgba(255,255,255,0.15);
+  --header-muted: rgba(255,255,255,0.58);
+  --header-accent: #FBBF24;
+  --header-surface: rgba(255,255,255,0.10);
+  --header-border: rgba(255,255,255,0.12);
   --menu-bg: #ffffff;
-  --menu-hover: rgba(0,0,0,0.06);
-  --overlay: rgba(0,0,0,0.30);
-  --chip-bg: #E9ECEF;
+  --menu-hover: rgba(13,20,33,0.05);
+  --overlay: rgba(13,20,33,0.32);
+  --chip-bg: #E4EBF5;
   --sheen: transparent;
 
-  /* TrackMyRMC brand token aliases — approved colour system */
+  /* TrackMyRMC brand token aliases */
   --tm-background: var(--bg);
   --tm-surface: var(--surface);
   --tm-surface-secondary: var(--bg-deep);
@@ -79,22 +83,22 @@
   --tm-charcoal: var(--text);
   --tm-text-primary: var(--text);
   --tm-text-secondary: var(--muted);
-  --tm-text-muted: #8A8A85;
+  --tm-text-muted: #7A8499;
   --tm-border: var(--line);
   --tm-border-dark: var(--glass-border);
   --tm-green: var(--gold-mid);
   --tm-green-dark: var(--gold-dark);
   --tm-green-hover: #0E6650;
   --tm-green-soft: var(--gold-soft);
-  --tm-gold: #C19B4D;
-  --tm-gold-hover: #A9843E;
-  --tm-gold-soft: #F4EBD8;
-  --tm-footer: #111110;
+  --tm-gold: #D97706;
+  --tm-gold-hover: #B45309;
+  --tm-gold-soft: #FEF3C7;
+  --tm-footer: #0D1421;
   --tm-error: var(--red);
-  --tm-success: #178A6E;
-  --tm-shadow-sm: 0 4px 14px rgba(8,8,8,0.05);
-  --tm-shadow-md: 0 12px 30px rgba(8,8,8,0.07);
-  --tm-shadow-lg: 0 24px 60px rgba(8,8,8,0.10);
+  --tm-success: #059669;
+  --tm-shadow-sm: 0 2px 8px rgba(13,20,33,0.06);
+  --tm-shadow-md: 0 8px 24px rgba(13,20,33,0.08);
+  --tm-shadow-lg: 0 20px 50px rgba(13,20,33,0.11);
   --tm-radius-sm: 8px;
   --tm-radius-md: 14px;
   --tm-radius-lg: 22px;
