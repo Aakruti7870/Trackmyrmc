@@ -51,6 +51,19 @@ jobs:
         working-directory: rmc-app
         run: pnpm install --frozen-lockfile
 
+      - name: Validate release metadata and source
+        working-directory: rmc-app
+        run: |
+          set -euo pipefail
+          node -e "const p=require('./package.json'); if(p.version!=='1.26.0') throw new Error('Expected package version 1.26.0')"
+          grep -Eq 'versionCode[[:space:]]+27\b' android/app/build.gradle
+          grep -Eq 'versionName[[:space:]]+\"1\.26\"' android/app/build.gradle
+          grep -Eq '\"@capacitor/android\":[[:space:]]*\"\^7\.6\.7\"' package.json
+          grep -Eq '\"@capacitor/core\":[[:space:]]*\"\^7\.6\.7\"' package.json
+          grep -Eq '\"@capacitor/cli\":[[:space:]]*\"\^7\.6\.7\"' package.json
+          pnpm lint
+          pnpm test
+
       - name: Build web assets and sync Capacitor
         working-directory: rmc-app
         env:

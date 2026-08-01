@@ -210,7 +210,8 @@ export function readThemePreference(): ThemeMode {
   return 'auto';
 }
 
-export function writeThemePreference(_mode: ThemeMode) {
+export function writeThemePreference(mode: ThemeMode) {
+  void mode;
   try { localStorage.removeItem(PREF_KEY); } catch { /* ignore */ }
 }
 
