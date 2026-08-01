@@ -2,12 +2,6 @@ name: Android Signed Play Release
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - release/android-v1.26-vc27-build
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: read
