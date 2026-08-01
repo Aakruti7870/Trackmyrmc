@@ -45,3 +45,11 @@ google-services.json
 # Local brainstorming/mockup runtime
 .superpowers/brainstorm/
 artifacts/mockup-sandbox/node_modules/
+
+# Chat/agent upload scratch space — not part of the shipped app, never re-add
+attached_assets/
+
+# Ad-hoc export/build bundles — keep only the current release in releases/,
+# don't let stray zips pile up at the repo root or in dist/
+/*.zip
+dist/*.zip

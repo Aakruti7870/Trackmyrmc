@@ -201,24 +201,17 @@ const PREF_KEY = 'rmc-theme-pref-v2';
 const LEGACY_MODE_KEY = 'rmc-theme-mode-v1';
 const LEGACY_THEME_KEY = 'rmc-theme-v2';
 
+// The app is always automatic — Concrete Gold by day, Infra Green by night,
+// following real sunrise/sunset with no in-app override. Any theme pinned by
+// an older app version (back when a manual picker existed) is cleared here so
+// upgrading users snap back to auto too.
 export function readThemePreference(): ThemeMode {
-  try {
-    const raw = localStorage.getItem(PREF_KEY);
-    if (!raw) return 'auto';
-    const mapped = LEGACY_ID_MAP[raw] ?? raw;
-    if (mapped === 'auto' || THEMES.some(t => t.id === mapped)) return mapped as ThemeMode;
-  } catch { /* ignore */ }
+  try { localStorage.removeItem(PREF_KEY); } catch { /* ignore */ }
   return 'auto';
 }
 
-export function writeThemePreference(mode: ThemeMode) {
-  try {
-    if (mode === 'auto') {
-      localStorage.removeItem(PREF_KEY);
-    } else {
-      localStorage.setItem(PREF_KEY, mode);
-    }
-  } catch { /* ignore */ }
+export function writeThemePreference(_mode: ThemeMode) {
+  try { localStorage.removeItem(PREF_KEY); } catch { /* ignore */ }
 }
 
 export function resolveTheme(mode: ThemeMode, now: Date = new Date()): Theme {
