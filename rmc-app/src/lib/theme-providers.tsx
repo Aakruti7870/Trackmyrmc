@@ -145,7 +145,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
      No in-app option changes the theme — it is always automatic. This is
      kept only so ThemeCtx has a stable shape; it deliberately ignores
      `mode` and re-asserts 'auto' rather than pinning anything. */
-  const setPreference = useCallback((_mode: ThemeMode) => {
+  const setPreference = useCallback((mode: ThemeMode) => {
+    void mode;
     writeThemePreference('auto');
     setPreferenceState('auto');
     applyResolved('auto');
