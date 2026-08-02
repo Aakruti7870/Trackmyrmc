@@ -16,25 +16,29 @@ describe('automatic theme — no Trust Blue', () => {
   });
 });
 
-describe('Android release metadata — v1.25 / versionCode 26', () => {
-  it('build.gradle declares versionCode 26 and versionName "1.25"', () => {
+describe('Android release metadata — v1.26 / versionCode 27', () => {
+  it('build.gradle declares versionCode 27 and versionName "1.26"', () => {
     const gradle = readFileSync(resolve(rmcAppRoot, 'android/app/build.gradle'), 'utf8');
-    expect(gradle).toMatch(/versionCode\s+26\b/);
-    expect(gradle).toMatch(/versionName\s+"1\.25"/);
-    expect(gradle).not.toMatch(/versionCode\s+24\b/);
-    expect(gradle).not.toMatch(/versionName\s+"1\.24"/);
+    expect(gradle).toMatch(/versionCode\s+27\b/);
+    expect(gradle).toMatch(/versionName\s+"1\.26"/);
+    expect(gradle).not.toMatch(/versionCode\s+26\b/);
+    expect(gradle).not.toMatch(/versionName\s+"1\.25"/);
   });
 
-  it('the v1.18 GitHub Actions build workflow exists and no v1.17 workflow remains', () => {
+  it('rmc-app/package.json version matches the Android release', () => {
+    const pkg = JSON.parse(readFileSync(resolve(rmcAppRoot, 'package.json'), 'utf8'));
+    expect(pkg.version).toBe('1.26.0');
+  });
+
+  it('one-off per-version build workflows are retired in favor of the general signed-release workflow', () => {
     const wfDir = resolve(repoRoot, '.github/workflows');
-    const v18 = readFileSync(resolve(wfDir, 'android-v1.18-build.yml'), 'utf8');
-    expect(v18).toContain('Android v1.18 Build');
-    expect(v18).toContain('TrackMyRMC-v1.18-vc19-unsigned');
-    expect(() => readFileSync(resolve(wfDir, 'android-v1.17-build.yml'), 'utf8')).toThrow();
+    for (const stale of ['android-v1.17-build.yml', 'android-v1.18-build.yml', 'android-v1.19-build.yml']) {
+      expect(() => readFileSync(resolve(wfDir, stale), 'utf8')).toThrow();
+    }
   });
 
-  it('the signed release workflow uploads a v1.19 / vc20-named artifact', () => {
+  it('the signed release workflow uploads a v1.26 / vc27-named artifact', () => {
     const signed = readFileSync(resolve(repoRoot, '.github/workflows/android-signed-release.yml'), 'utf8');
-    expect(signed).toContain('TrackMyRMC-v1.19-vc20-signed-play-console');
+    expect(signed).toContain('TrackMyRMC-v1.26-vc27-signed-play-console');
   });
 });

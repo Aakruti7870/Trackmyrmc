@@ -231,15 +231,19 @@ const PREF_KEY = 'rmc-theme-pref-v2';
 const LEGACY_MODE_KEY = 'rmc-theme-mode-v1';
 const LEGACY_THEME_KEY = 'rmc-theme-v2';
 
-// Theme is always auto — clear any legacy stored preference on load.
+// The app is always automatic — Concrete Gold by day, Infra Green by night,
+// following real sunrise/sunset with no in-app override. Any theme pinned by
+// an older app version (back when a manual picker existed) is cleared here so
+// upgrading users snap back to auto too.
 export function readThemePreference(): ThemeMode {
   try { localStorage.removeItem(PREF_KEY); } catch { /* ignore */ }
   return 'auto';
 }
 
-// No-op — theme cannot be changed by the user.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function writeThemePreference(_mode: ThemeMode) { /* locked to auto */ }
+export function writeThemePreference(mode: ThemeMode) {
+  void mode;
+  try { localStorage.removeItem(PREF_KEY); } catch { /* ignore */ }
+}
 
 export function resolveTheme(mode: ThemeMode, now: Date = new Date()): Theme {
   let id: string;

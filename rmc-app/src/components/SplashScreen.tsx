@@ -42,7 +42,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
     }
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []); // run once on mount
+  }, [prefersReduced]);
 
   // Auto-dismiss
   useEffect(() => {

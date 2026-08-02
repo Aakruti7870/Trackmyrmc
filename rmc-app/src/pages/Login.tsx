@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { api, type User } from '@/lib/api';
+import { isGcipEnabled, gcipSendOtp, gcipVerifyOtp, gcipReset } from '@/lib/firebase';
 import {
   ArrowRight, ArrowLeft, Mail, Lock, Eye, EyeOff,
   KeyRound, ShieldCheck, MessageCircle,
@@ -235,9 +236,22 @@ export default function Login() {
     setError('');
   }
 
-  // ---- Customer phone flow (unchanged endpoints) ----------------------------
+  // ---- Customer phone flow --------------------------------------------------
+  // When GCIP (Google Cloud Identity Platform) credentials are configured the
+  // Firebase SDK handles OTP delivery client-side; the server only verifies
+  // the resulting Firebase ID token. Without GCIP the existing Twilio/WhatsApp
+  // flow is used unchanged.
 
   async function sendPhoneOtpCore() {
+    if (isGcipEnabled()) {
+      // GCIP path: Firebase sends the SMS directly via Google Cloud.
+      await gcipSendOtp(`+91${phone}`, 'gcip-recaptcha-container');
+      setDevCode(null);
+      setCode('');
+      setOtpStep('code');
+      return;
+    }
+    // Legacy path: Twilio / WhatsApp delivery via our server.
     const res = await api.post<{ ok: boolean; channel: string; devMode: boolean; devCode?: string }>(
       '/auth/otp/send', { phone },
     );
@@ -277,9 +291,17 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const data = await api.post<{ token: string; user: User }>(
-        '/auth/otp/verify', { phone, code: c },
-      );
+      let data: { token: string; user: User };
+      if (isGcipEnabled()) {
+        // GCIP path: confirm OTP with Firebase, then exchange ID token for JWT.
+        const idToken = await gcipVerifyOtp(c);
+        data = await api.post<{ token: string; user: User }>('/auth/gcip/verify', { idToken });
+      } else {
+        // Legacy path: server verifies the OTP directly.
+        data = await api.post<{ token: string; user: User }>(
+          '/auth/otp/verify', { phone, code: c },
+        );
+      }
       updateUser(data.user, data.token);
       // Route by role: a driver whose number is on file lands on the driver
       // dashboard (/my-trips), a customer on /nearby-plants, etc.
@@ -296,6 +318,7 @@ export default function Login() {
     setCode('');
     setDevCode(null);
     setError('');
+    if (isGcipEnabled()) gcipReset();
   }
 
   // ---- Segmented door tabs (Customer / Staff / Partner) ---------------------
@@ -607,6 +630,8 @@ export default function Login() {
           </div>
         </div>
       </div>
+      {/* Hidden reCAPTCHA mount-point for GCIP invisible verifier */}
+      <div id="gcip-recaptcha-container" style={{ display: 'none' }} />
     </div>
   );
 }

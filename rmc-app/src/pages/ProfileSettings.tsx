@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2, ShieldCheck } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { KeyRound, Eye, EyeOff, CheckCircle, XCircle, User as UserIcon, Mail, Send, History, Lock, Unlock, RefreshCw, PlugZap, Target, Timer, Fuel, ImageUp, MessageCircle, MapPin, Percent, Inbox, Share2, ShieldCheck, Palette } from 'lucide-react';
+import { useTheme, sunTimes, THEME_GEO_KEY } from '@/lib/theme';
 import { api, aiApi, type FuelSettings, type ProofPhotoRetryResult, type StuckProofPhotosResponse, type WhatsAppRetry, type WhatsAppRetriesResponse, type WhatsAppForceRetryResult, type PlantDirectoryEntry, type SocialLinks } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -270,7 +271,61 @@ function SmtpTextField({
   );
 }
 
-// Theme is always auto (sunrise/sunset) — no picker needed.
+// ─── Theme status card ─────────────────────────────────────────────────────
+// Fully automatic — Concrete Gold by day, Infra Green by night, switching
+// exactly at local sunrise/sunset. Informational only: no manual override,
+// by design, so the app always reflects the real time of day.
+function ThemePickerCard() {
+  const { theme } = useTheme();
+
+  type SunInfo = { rise: string; set: string; hasGeo: boolean };
+  const getSunInfo = useCallback((): SunInfo => {
+    for (const key of [THEME_GEO_KEY, 'rmc_nearby_location']) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const c = JSON.parse(raw) as { lat?: unknown; lng?: unknown };
+        if (typeof c.lat !== 'number' || typeof c.lng !== 'number') continue;
+        const t = sunTimes(new Date(), c.lat, c.lng);
+        if (!t) continue;
+        const fmt = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return { rise: fmt(t.sunrise), set: fmt(t.sunset), hasGeo: true };
+      } catch { /* ignore */ }
+    }
+    return { rise: '06:15', set: '18:30', hasGeo: false };
+  }, []);
+
+  const sunInfo = useMemo<SunInfo>(() => getSunInfo(), [getSunInfo]);
+
+  return (
+    <div style={{ background: 'var(--panel)', borderRadius: 16, border: '1px solid var(--line)', padding: '20px 18px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+          background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.25)',
+          display: 'grid', placeItems: 'center',
+        }}>
+          <Palette size={15} style={{ color: 'var(--orange)' }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Appearance</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Automatic — {theme.name} right now</div>
+        </div>
+      </div>
+
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: 'var(--gold-tint)', border: '1px solid var(--gold-soft)',
+        borderRadius: 10, padding: '8px 12px', fontSize: 12, color: 'var(--muted)',
+      }}>
+        <MapPin size={12} style={{ color: 'var(--gold)', flexShrink: 0 }} />
+        {sunInfo.hasGeo
+          ? <>Concrete Gold by day, Infra Green by night — switches at <strong style={{ color: 'var(--text)' }}>sunrise {sunInfo.rise}</strong> and <strong style={{ color: 'var(--text)' }}>sunset {sunInfo.set}</strong></>
+          : <>Concrete Gold by day, Infra Green by night — allow location access for precise sunrise/sunset (current fallback: 06:15 / 18:30)</>}
+      </div>
+    </div>
+  );
+}
 
 export default function ProfileSettings() {
   const { user, updateUser, logout } = useAuth();

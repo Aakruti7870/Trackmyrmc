@@ -30,17 +30,20 @@ vi.mock('@capacitor/core', () => ({
   Capacitor: {
     getPlatform: () => 'android',
   },
-  registerPlugin: (_name: string) => ({
-    setWidgetData: mockSetWidgetData,
-    setAuthToken: vi.fn().mockResolvedValue(undefined),
-    clearWidgetData: vi.fn().mockResolvedValue(undefined),
-    setSuspendedState: vi.fn().mockResolvedValue(undefined),
-    setWidgetMode: vi.fn().mockResolvedValue(undefined),
-    startTracking: vi.fn().mockResolvedValue(undefined),
-    stopTracking: vi.fn().mockResolvedValue(undefined),
-    getTrackingState: vi.fn().mockResolvedValue({ active: false, latitude: '0', longitude: '0', accuracy: 0, lastLocationAt: 0 }),
-    requestPermissions: vi.fn().mockResolvedValue(undefined),
-  }),
+  registerPlugin: (name: string) => {
+    void name;
+    return {
+      setWidgetData: mockSetWidgetData,
+      setAuthToken: vi.fn().mockResolvedValue(undefined),
+      clearWidgetData: vi.fn().mockResolvedValue(undefined),
+      setSuspendedState: vi.fn().mockResolvedValue(undefined),
+      setWidgetMode: vi.fn().mockResolvedValue(undefined),
+      startTracking: vi.fn().mockResolvedValue(undefined),
+      stopTracking: vi.fn().mockResolvedValue(undefined),
+      getTrackingState: vi.fn().mockResolvedValue({ active: false, latitude: '0', longitude: '0', accuracy: 0, lastLocationAt: 0 }),
+      requestPermissions: vi.fn().mockResolvedValue(undefined),
+    };
+  },
 }));
 
 // Import after mocks
