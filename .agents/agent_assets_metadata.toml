@@ -683,3 +683,10 @@ id = "Tm5i9jekA-ojuEeXXorB8"
 uri = "file://releases/app-release-v1.20-vc21-signed.aab"
 type = "unspecified"
 title = "TrackMyRMC v1.20 (vc21) — Signed AAB"
+
+[[outputs]]
+id = "OQKP4BsyrQHRFKnwzp-_G"
+uri = "file://releases/app-release-v1.27-vc28-signed.aab"
+type = "unspecified"
+title = "TrackMyRMC v1.27 (versionCode 28) — Signed AAB"
+description = "Android App Bundle ready for Play Console upload. Includes: new dark splash screen, all amber icons removed, TrackMyRMC branding throughout, Delete Account link on login footer."
