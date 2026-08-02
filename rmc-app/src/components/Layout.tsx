@@ -18,7 +18,7 @@ import CommandPalette from '@/components/CommandPalette';
 import NotificationBell from '@/components/NotificationBell';
 import AIHelpAgent, { AiHeaderButton } from '@/components/ai/AIHelpAgent';
 import InstallAppButton from '@/components/InstallAppButton';
-import { ConcreteKingLogo, BrandCredits } from '@/components/BrandLogo';
+import { BrandCredits } from '@/components/BrandLogo';
 import { DeliveryHeader, DeliveryBottomNav } from '@/components/DeliveryMobileChrome';
 
 const ALL_NAV_ITEMS = [
@@ -291,21 +291,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           carries the brand there, so we don't repeat the Concrete King mark). */}
       <div style={{ marginBottom: mobile ? 14 : 28 }}>
         {!mobile && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ marginBottom: 8 }}>
             <div style={{
-              flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 14,
-              boxShadow: '0 18px 38px color-mix(in srgb, var(--gold) 28%, transparent)',
-            }}>
-              <ConcreteKingLogo size={44} />
-            </div>
-            <div>
-              <div style={{
-                fontSize: 11, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase',
-                background: 'linear-gradient(90deg,var(--gold-hi),var(--gold),var(--text))',
-                WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
-              }}>{PLATFORM_NAME}</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Command Center</div>
-            </div>
+              fontSize: 11, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase',
+              background: 'linear-gradient(90deg,var(--gold-hi),var(--gold),var(--text))',
+              WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
+            }}>{PLATFORM_NAME}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Command Center</div>
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>

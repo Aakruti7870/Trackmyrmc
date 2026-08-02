@@ -1,6 +1,5 @@
 import { useLocation } from 'wouter';
 import { ArrowLeft, UserX } from 'lucide-react';
-import logoKing from '@/assets/logo-king.png';
 
 const MAIL = 'support@goldetech.com';
 const PHONE = '+91 74982 86760';
@@ -34,18 +33,10 @@ export default function DeleteAccount() {
           padding: '26px 0', gap: 16, flexWrap: 'wrap',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center', overflow: 'hidden',
-              background: 'var(--chip-bg)',
-              border: '1px solid var(--glass-border, rgba(212,175,55,.2))',
-              boxShadow: '0 0 24px -8px var(--glow-1, rgba(212,175,55,.5))',
-            }}>
-              <img src={logoKing} alt="CONCRETE KING" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            </div>
             <div style={{ lineHeight: 1 }}>
               <div style={{ fontWeight: 800, letterSpacing: 0.5, fontSize: 18 }}>
-                <span style={{ color: 'var(--text)' }}>CONCRETE </span>
-                <span style={{ color: 'var(--gold, #178a6e)' }}>KING</span>
+                <span style={{ color: 'var(--text)' }}>TrackMy</span>
+                <span style={{ color: 'var(--gold, #178a6e)' }}>RMC</span>
               </div>
               <div style={{ fontSize: 9.5, color: 'var(--muted, #8aa0bd)', letterSpacing: 2, marginTop: 4, textTransform: 'uppercase' }}>
                 Powered by GOLD-e Tech
@@ -79,13 +70,13 @@ export default function DeleteAccount() {
             </h1>
           </div>
           <p style={{ color: 'var(--muted, #8aa0bd)', fontSize: 14, marginTop: 12, marginBottom: 0 }}>
-            How to delete your CONCRETE KING / TrackMyRMC account and what happens to your data.
+            How to delete your TrackMyRMC account and what happens to your data.
           </p>
         </div>
 
         <Section title="Delete your account from the app or website">
           <ol style={{ margin: 0, paddingLeft: 22 }}>
-            <li>Sign in to the CONCRETE KING app or at trackmyrmc.com.</li>
+            <li>Sign in to the TrackMyRMC app or at trackmyrmc.com.</li>
             <li>Open the menu and go to <strong style={{ color: 'var(--text)' }}>Account Settings</strong>.</li>
             <li>Scroll down to the <strong style={{ color: 'var(--red, #ef4444)' }}>Danger Zone</strong> section.</li>
             <li>Tap <strong style={{ color: 'var(--text)' }}>Delete my account…</strong>, type <strong>DELETE</strong> to confirm, then tap <strong style={{ color: 'var(--text)' }}>Permanently delete account</strong>.</li>

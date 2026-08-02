@@ -1,6 +1,5 @@
 import { useLocation } from 'wouter';
 import { ArrowLeft, FileText } from 'lucide-react';
-import logoKing from '@/assets/logo-king.png';
 import { SUPPORT_EMAIL, SUPPORT_PHONE } from '@/lib/brand';
 import SocialLinksBar from '@/components/SocialLinksBar';
 
@@ -32,18 +31,10 @@ export default function Terms() {
           padding: '26px 0', gap: 16, flexWrap: 'wrap',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center', overflow: 'hidden',
-              background: 'var(--chip-bg)',
-              border: '1px solid var(--glass-border, rgba(212,175,55,.2))',
-              boxShadow: '0 0 24px -8px var(--glow-1, rgba(212,175,55,.5))',
-            }}>
-              <img src={logoKing} alt="CONCRETE KING" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            </div>
             <div style={{ lineHeight: 1 }}>
               <div style={{ fontWeight: 800, letterSpacing: 0.5, fontSize: 18 }}>
-                <span style={{ color: 'var(--text)' }}>CONCRETE </span>
-                <span style={{ color: 'var(--gold, #178a6e)' }}>KING</span>
+                <span style={{ color: 'var(--text)' }}>TrackMy</span>
+                <span style={{ color: 'var(--gold, #178a6e)' }}>RMC</span>
               </div>
               <div style={{ fontSize: 9.5, color: 'var(--muted, #8aa0bd)', letterSpacing: 2, marginTop: 4, textTransform: 'uppercase' }}>
                 Powered by GOLD-e Tech
@@ -83,7 +74,7 @@ export default function Terms() {
 
         {/* intro */}
         <p style={{ color: 'var(--muted, #8aa0bd)', fontSize: 15, lineHeight: 1.7, marginTop: 26 }}>
-          These Terms of Service ("Terms") govern your access to and use of CONCRETE KING (operated by
+          These Terms of Service ("Terms") govern your access to and use of TrackMyRMC (operated by
           GOLD-e Tech, the "Company", "we", "us"), a Ready-Mix Concrete (RMC) marketplace and
           plant-management platform at{' '}
           <span style={{ color: 'var(--gold, #178a6e)' }}>trackmyrmc.com</span>. By creating an account
@@ -109,7 +100,7 @@ export default function Terms() {
 
         <Section title="3. Orders, Dispatch & Delivery">
           <p style={{ margin: 0 }}>
-            CONCRETE KING connects customers with RMC plants and provides tools to place, dispatch, and
+            TrackMyRMC connects customers with RMC plants and provides tools to place, dispatch, and
             track orders. The supplying plant is responsible for the concrete supplied, its grade and
             quality, pricing, taxes, and fulfilment. Quantities, rates, and delivery times shown are
             indicative and confirmed by the plant on each order.
@@ -203,7 +194,7 @@ export default function Terms() {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
             <SocialLinksBar compact center />
           </div>
-          © {new Date().getFullYear()} CONCRETE KING · Powered by GOLD-e Tech
+          © {new Date().getFullYear()} TrackMyRMC · Powered by GOLD-e Tech
         </footer>
       </div>
     </div>

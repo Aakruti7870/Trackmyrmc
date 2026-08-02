@@ -1,6 +1,5 @@
 import { useLocation } from 'wouter';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
-import logoKing from '@/assets/logo-king.png';
 import SocialLinksBar from '@/components/SocialLinksBar';
 
 const MAIL = 'support@goldetech.com';
@@ -33,18 +32,10 @@ export default function Privacy() {
           padding: '26px 0', gap: 16, flexWrap: 'wrap',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center', overflow: 'hidden',
-              background: 'var(--chip-bg)',
-              border: '1px solid var(--glass-border, rgba(212,175,55,.2))',
-              boxShadow: '0 0 24px -8px var(--glow-1, rgba(212,175,55,.5))',
-            }}>
-              <img src={logoKing} alt="CONCRETE KING" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            </div>
             <div style={{ lineHeight: 1 }}>
               <div style={{ fontWeight: 800, letterSpacing: 0.5, fontSize: 18 }}>
-                <span style={{ color: 'var(--text)' }}>CONCRETE </span>
-                <span style={{ color: 'var(--gold, #178a6e)' }}>KING</span>
+                <span style={{ color: 'var(--text)' }}>TrackMy</span>
+                <span style={{ color: 'var(--gold, #178a6e)' }}>RMC</span>
               </div>
               <div style={{ fontSize: 9.5, color: 'var(--muted, #8aa0bd)', letterSpacing: 2, marginTop: 4, textTransform: 'uppercase' }}>
                 Powered by GOLD-e Tech
@@ -84,7 +75,7 @@ export default function Privacy() {
 
         {/* intro */}
         <p style={{ color: 'var(--muted, #8aa0bd)', fontSize: 15, lineHeight: 1.7, marginTop: 26 }}>
-          CONCRETE KING (operated by GOLD-e Tech, the "Company", "we", "us") provides a Ready-Mix
+          TrackMyRMC (operated by GOLD-e Tech, the "Company", "we", "us") provides a Ready-Mix
           Concrete (RMC) marketplace and plant-management platform at{' '}
           <span style={{ color: 'var(--gold, #178a6e)' }}>trackmyrmc.com</span>. This Privacy Policy
           explains what information we collect, how we use it, and the choices you have. By using our
@@ -201,7 +192,7 @@ export default function Privacy() {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
             <SocialLinksBar compact center />
           </div>
-          © {new Date().getFullYear()} CONCRETE KING · Powered by GOLD-e Tech
+          © {new Date().getFullYear()} TrackMyRMC · Powered by GOLD-e Tech
         </footer>
       </div>
     </div>

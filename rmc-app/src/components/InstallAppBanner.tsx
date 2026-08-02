@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Download, X, Share, Plus, MoreVertical } from 'lucide-react';
-import logoKing from '@/assets/logo-king.png';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -76,14 +75,8 @@ export default function InstallAppBanner() {
         background: 'var(--menu-bg)',
         border: '1px solid var(--line)', boxShadow: '0 18px 44px -18px rgba(var(--shadow-rgb),.45)',
       }}>
-        <span style={{
-          width: 42, height: 42, flexShrink: 0, borderRadius: 12, display: 'grid', placeItems: 'center', overflow: 'hidden',
-          background: 'var(--chip-bg)', border: '1px solid var(--line)',
-        }}>
-          <img src={logoKing} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-        </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--text)' }}>Install CONCRETE KING</div>
+          <div style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--text)' }}>Install TrackMyRMC</div>
           <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.4 }}>
             One-tap access, full-screen, faster loading.
           </div>
