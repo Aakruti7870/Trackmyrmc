@@ -57,6 +57,7 @@ import { cleanupExpiredCache } from './lib/places.js';
 import { ensureMasterAccounts } from './lib/masterAccounts.js';
 import { ensureReviewDemoAccount } from './lib/staffAuth.js';
 import { syncSmtpFromEnv } from './lib/smtpRecovery.js';
+import { syncKycFromEnv } from './lib/kycEnvSync.js';
 import { ensurePlantDirectory, backfillNetworkStatus } from './lib/plantDirectory.js';
 import { tickAutomations, checkExpiredPromotions } from './lib/automationJobs.js';
 import { resumeQueuedRmcImportRuns } from './lib/rmcDiscoveryRunner.js';
@@ -159,6 +160,7 @@ let discoveryCleanupRunning = false;
 async function tickDiscoveryCleanup() { if (discoveryCleanupRunning) return; discoveryCleanupRunning = true; try { await Promise.all([cleanupExpiredRateLimits(), cleanupExpiredCache()]); } catch (error) { console.error('Discovery cleanup tick failed', error); } finally { discoveryCleanupRunning = false; } }
 
 await Promise.race([syncSmtpFromEnv(), new Promise(resolve => setTimeout(resolve, 10_000))]).catch(error => console.error('syncSmtpFromEnv failed', error));
+await Promise.race([syncKycFromEnv(), new Promise(resolve => setTimeout(resolve, 10_000))]).catch(error => console.error('syncKycFromEnv failed', error));
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`TrackMyRMC API running on port ${PORT}`);
   ensureMasterAccounts().catch(error => console.error('ensureMasterAccounts failed', error));
