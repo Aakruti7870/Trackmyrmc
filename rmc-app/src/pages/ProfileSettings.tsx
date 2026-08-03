@@ -1697,6 +1697,9 @@ export default function ProfileSettings() {
         </p>
       </div>
 
+      {/* Appearance — auto day/night info */}
+      <ThemePickerCard />
+
       {/* Profile card */}
       <div style={{ ...card, marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>

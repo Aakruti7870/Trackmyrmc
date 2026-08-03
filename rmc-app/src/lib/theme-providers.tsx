@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import {
   THEMES, ThemeContext, initialTheme, initialPreference,
-  applyTheme, loadThemeFont, resolveTheme,
+  applyTheme, loadThemeFont, resolveTheme, writeThemePreference,
   sunTimes, THEME_GEO_KEY,
   type Theme, type ThemeMode,
 } from './theme';
@@ -59,7 +59,7 @@ function msUntilNextCrossing(lat: number, lng: number, now = new Date()): number
  * app always reflects the real time of day.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [preference] = useState<ThemeMode>(initialPreference);
+  const [preference, setPreferenceState] = useState<ThemeMode>(initialPreference);
   const [theme, setThemeState]           = useState<Theme>(initialTheme);
   const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
