@@ -695,5 +695,5 @@ description = "Android App Bundle ready for Play Console upload. Includes: new d
 id = "agDHEnp4_H4GiyZhDWFlX"
 uri = "file://releases/app-release-v1.28-vc29-signed.aab"
 type = "unspecified"
-title = "TrackMyRMC v1.28 (versionCode 29) — Signed AAB"
-description = "Merged all branches + GCIP phone auth added + all fixes. Ready for Play Console upload."
+title = "app-release-v1.28-vc29-signed.aab"
+description = "Signed release AAB — v1.28, versionCode 29. Click to download, then upload to Play Console."
