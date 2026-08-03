@@ -22,19 +22,23 @@ pnpm build:native
 npx cap sync android
 cd /home/runner/workspace
 
-# Re-install Android SDK if not present (does NOT survive container reboots)
+# Install cmdline-tools if missing (does NOT survive container reboots)
 if [ ! -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-  echo "=== Installing Android SDK ==="
+  echo "=== Installing Android SDK cmdline-tools ==="
   mkdir -p $ANDROID_HOME/cmdline-tools
   cd /tmp
   curl -sO "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
   unzip -q commandlinetools-linux-11076708_latest.zip -d $ANDROID_HOME/cmdline-tools/
   mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
-  yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses >/dev/null 2>&1 || true
-  sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
-    2>&1 | grep -E "^Downloading|^Installing|done" | head -10
-  echo "=== SDK installed ==="
+  echo "=== cmdline-tools installed ==="
 fi
+
+# Always ensure required SDK packages are present (API 36 target + build-tools)
+echo "=== Ensuring SDK packages for API 36 ==="
+yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses >/dev/null 2>&1 || true
+sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-36" "build-tools;35.0.0" \
+  2>&1 | grep -E "^Downloading|^Installing|done" | head -10
+echo "=== SDK packages ready ==="
 
 # Decode keystore from Replit Secret
 echo "=== Decoding keystore ==="

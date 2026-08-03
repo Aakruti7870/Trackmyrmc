@@ -16,6 +16,13 @@ on:
 permissions:
   contents: write
 
+env:
+  RELEASE_VERSION: "1.32"
+  RELEASE_CODE: "33"
+  PACKAGE_VERSION: "1.32.0"
+  RELEASE_AAB: "releases/app-release-v1.32-vc33-signed.aab"
+  ARTIFACT_NAME: "TrackMyRMC-v1.32-vc33-signed-play-console"
+
 jobs:
   build-signed-aab:
     runs-on: ubuntu-latest
@@ -36,7 +43,7 @@ jobs:
           --health-retries 10
 
     steps:
-      - name: Checkout
+      - name: Checkout current production code
         uses: actions/checkout@v4
 
       - name: Validate signing secrets
@@ -44,7 +51,7 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_ALIAS: ${{ secretss.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
@@ -69,7 +76,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
           cache: gradle
 
       - name: Setup Android SDK tools
@@ -97,7 +104,17 @@ jobs:
           pnpm build
           pnpm test
 
-      - name: Validate release metadata and policy source
+      - name: Validate account deletion backend
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://trackmyrmc:trackmyrmc_test@localhost:5432/trackmyrmc
+          NODE_ENV: test
+        run: |
+          set -euo pipefail
+          pnpm build
+          pnpm test
+
+      - name: Validate v1.32 release metadata and app source
         working-directory: rmc-app
         run: |
           set -euo pipefail
@@ -119,18 +136,20 @@ jobs:
           pnpm lint
           pnpm test
 
-      - name: Build web assets and sync Capacitor
+      - name: Build current web assets and sync Capacitor
         working-directory: rmc-app
         env:
           VITE_API_BASE_URL: https://trackmyrmc.com
-          VITE_DISABLE_PWA: '1'
+          VITE_DISABLE_PWA: "1"
         run: |
+          set -euo pipefail
           pnpm build:native
           pnpm exec cap sync android
 
       - name: Build release AAB
         working-directory: rmc-app/android
         run: |
+          set -euo pipefail
           chmod +x gradlew
           ./gradlew clean bundleRelease --stacktrace
 
@@ -178,7 +197,7 @@ jobs:
             -digestalg SHA-256 \
             "$SOURCE_AAB" "$ANDROID_KEY_ALIAS"
           jarsigner -verify -verbose -certs "$SOURCE_AAB"
-          mkdir -p "$RELEASE_DIR"
+          mkdir -p "$(dirname "$RELEASE_AAB")"
           cp "$SOURCE_AAB" "$RELEASE_AAB"
           sha256sum "$RELEASE_AAB" | tee "$RELEASE_AAB.sha256"
 
@@ -203,7 +222,6 @@ jobs:
           retention-days: 3
 
       - name: Commit verified signed AAB to repository
-        if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

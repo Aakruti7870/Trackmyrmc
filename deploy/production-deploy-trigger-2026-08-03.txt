@@ -1,0 +1,4 @@
+Triggered production deployment for TrackMyRMC on 2026-08-03 after correcting the Cloud Build substitution formatting.
+Target project: trackmyrmc-production
+Target region: asia-south1
+Target Cloud Run service: trackmyrmc

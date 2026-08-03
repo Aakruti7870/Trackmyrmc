@@ -10,9 +10,11 @@
 **/dist
 rmc-app/dev-dist
 
-# Native Android project + release zips (not part of the server/web deploy)
+# Native Android project + release zips/AABs (not part of the server/web deploy)
 rmc-app/android
+releases
 *.zip
+*.aab
 
 # Database export artifacts (imported into Cloud SQL out-of-band, not into the build)
 deploy/db-export
