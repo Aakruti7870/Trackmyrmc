@@ -57,6 +57,7 @@ import { cleanupExpiredCache } from './lib/places.js';
 import { ensureMasterAccounts } from './lib/masterAccounts.js';
 import { ensureReviewDemoAccount } from './lib/staffAuth.js';
 import { syncSmtpFromEnv } from './lib/smtpRecovery.js';
+import { syncKycFromEnv } from './lib/kycEnvSync.js';
 import { ensurePlantDirectory, backfillNetworkStatus } from './lib/plantDirectory.js';
 import { tickAutomations, checkExpiredPromotions } from './lib/automationJobs.js';
 import { resumeQueuedRmcImportRuns } from './lib/rmcDiscoveryRunner.js';
@@ -144,7 +145,7 @@ app.use('/api', (req, res) => {
 if (isProd) {
   const staticDir = path.resolve(__dirname, '../../rmc-app/dist');
   app.use(express.static(staticDir));
-  const SPA_ROUTES = new Set(['/', '/command', '/login', '/register', '/partner', '/privacy', '/terms', '/delete-account', '/set-password', '/forgot-password', '/sso-callback', '/kiosk', '/my-orders', '/nearby-plants', '/plants', '/plant/profile-management', '/admin/plant-profiles', '/admin/plant-promotions', '/rmc-plant-network', '/my-trips', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/mix-design', '/reports', '/freshness', '/forecast', '/shift-report', '/recurring', '/fuel-log', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/whatsapp', '/profile', '/live-drivers', '/home', '/expenses', '/expense-review', '/kyc', '/kyc-admin', '/sos', '/emergencies', '/widget-settings']);
+  const SPA_ROUTES = new Set(['/', '/command', '/login', '/register', '/partner', '/privacy', '/terms', '/delete-account', '/set-password', '/forgot-password', '/sso-callback', '/kiosk', '/my-orders', '/nearby-plants', '/plants', '/plant/profile-management', '/admin/plant-profiles', '/admin/plant-promotions', '/admin/account-deletion-requests', '/rmc-plant-network', '/my-trips', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/mix-design', '/reports', '/freshness', '/forecast', '/shift-report', '/recurring', '/fuel-log', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/whatsapp', '/profile', '/live-drivers', '/home', '/expenses', '/expense-review', '/kyc', '/kyc-admin', '/sos', '/emergencies', '/widget-settings']);
   const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/, /^\/track\/[^/]+$/, /^\/batch-sheets\/[^/]+\/print$/, /^\/plants\/[^/]+\/about$/];
   app.get('*', (req, res) => { const isSpaRoute = SPA_ROUTES.has(req.path) || SPA_PATTERNS.some(pattern => pattern.test(req.path)); res.status(isSpaRoute ? 200 : 404).sendFile(path.join(staticDir, 'index.html')); });
 }
@@ -159,6 +160,7 @@ let discoveryCleanupRunning = false;
 async function tickDiscoveryCleanup() { if (discoveryCleanupRunning) return; discoveryCleanupRunning = true; try { await Promise.all([cleanupExpiredRateLimits(), cleanupExpiredCache()]); } catch (error) { console.error('Discovery cleanup tick failed', error); } finally { discoveryCleanupRunning = false; } }
 
 await Promise.race([syncSmtpFromEnv(), new Promise(resolve => setTimeout(resolve, 10_000))]).catch(error => console.error('syncSmtpFromEnv failed', error));
+await Promise.race([syncKycFromEnv(), new Promise(resolve => setTimeout(resolve, 10_000))]).catch(error => console.error('syncKycFromEnv failed', error));
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`TrackMyRMC API running on port ${PORT}`);
   ensureMasterAccounts().catch(error => console.error('ensureMasterAccounts failed', error));

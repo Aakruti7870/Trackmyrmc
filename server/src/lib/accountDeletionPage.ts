@@ -1,28 +1,218 @@
 export function accountDeletionPage(): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Concrete King – Account and Data Deletion</title>
-<meta name="description" content="Request deletion of your Concrete King account and associated personal data.">
+<title>Concrete King – Account Deletion</title>
+<meta name="description" content="Delete your Concrete King account and personal data.">
 <style>
-:root{color-scheme:light;--ink:#172033;--muted:#526078;--brand:#08785f;--line:#dce4e8;--bg:#f4f8f7;--danger:#b42318}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}.wrap{width:min(880px,calc(100% - 32px));margin:auto;padding:28px 0 64px}.brand{font-weight:900;letter-spacing:.04em;color:var(--brand)}main{background:#fff;border:1px solid var(--line);border-radius:18px;padding:clamp(22px,5vw,46px);box-shadow:0 18px 50px rgba(23,32,51,.08)}h1{font-size:clamp(28px,5vw,42px);line-height:1.14;margin:8px 0 16px}h2{font-size:21px;margin:32px 0 10px}.identity{background:#eef8f5;border-left:4px solid var(--brand);padding:16px 18px;border-radius:8px}.identity strong{display:block}.muted{color:var(--muted)}label{display:block;font-weight:700;margin:16px 0 6px}input,textarea{width:100%;font:inherit;padding:12px;border:1px solid #aebbc5;border-radius:8px}textarea{min-height:100px;resize:vertical}.check{display:flex;gap:10px;align-items:flex-start;font-weight:600}.check input{width:20px;height:20px;margin-top:3px}button{width:100%;min-height:50px;border:0;border-radius:9px;background:var(--brand);color:#fff;font-weight:900;font-size:15px;margin-top:20px;cursor:pointer}button:disabled{opacity:.6;cursor:wait}.notice{margin-top:18px;padding:15px;border-radius:8px;display:none}.ok{display:block;background:#eaf8ef;color:#176b36}.error{display:block;background:#fff0ee;color:var(--danger)}a{color:var(--brand)}footer{text-align:center;color:var(--muted);margin-top:20px;font-size:14px}@media(max-width:520px){.wrap{width:min(100% - 20px,880px);padding-top:10px}main{border-radius:12px;padding:20px}}
-</style></head><body><div class="wrap"><main>
-<div class="brand">CONCRETE KING · Powered by TrackMyRMC</div>
-<h1>Concrete King – Account and Data Deletion</h1>
-<div class="identity"><strong>Google Play application:</strong>Concrete King | Ready-Mix Concrete Tracking &amp; RMC Plant Discovery<br><br><strong>Package name:</strong>com.trackmyrmc.concreteking<br><br><strong>Powered by TrackMyRMC</strong></div>
-<p>Registered users can use this official page to request deletion of their Concrete King account and associated personal data without signing in. We may contact you to verify that you own the account.</p>
-<h2>What will be deleted</h2><p class="muted">Eligible profile information, registered mobile number and email address, saved delivery addresses, profile image, authentication information, active sessions, refresh tokens, device tokens, non-essential location information, and other account-linked personal information will be deleted or anonymized.</p>
-<h2>Records we may retain</h2><p class="muted">Orders, invoices, delivery challans, payments, tax records, security logs and fraud-prevention or regulatory records may be retained for the period required by applicable law. Unnecessary personal information is removed from retained business records. Access is restricted and retained data is deleted or anonymized when the applicable legal retention period ends.</p>
-<h2>Request account deletion</h2>
-<form id="deletion-form" novalidate>
-<label for="fullName">Full name</label><input id="fullName" name="fullName" maxlength="120" autocomplete="name" required>
-<label for="mobile">Registered mobile number</label><input id="mobile" name="mobile" maxlength="30" inputmode="tel" autocomplete="tel" required>
-<label for="email">Registered email address <span class="muted">(optional)</span></label><input id="email" name="email" maxlength="254" type="email" autocomplete="email">
-<label for="reason">Reason for deletion <span class="muted">(optional)</span></label><textarea id="reason" name="reason" maxlength="1000"></textarea>
-<label class="check"><input id="confirmed" name="confirmed" type="checkbox" required><span>I confirm that I want to delete my Concrete King account and associated personal data.</span></label>
-<button type="submit">REQUEST ACCOUNT DELETION</button><div id="notice" class="notice" role="status" aria-live="polite"></div>
-</form>
-<p class="muted">Need help? Email <a href="mailto:support@goldetech.com">support@goldetech.com</a>. Read our <a href="/privacy">Privacy Policy</a>.</p>
-</main><footer>Concrete King · com.trackmyrmc.concreteking · Powered by TrackMyRMC</footer></div>
-<script>document.getElementById('deletion-form').addEventListener('submit',async function(e){e.preventDefault();const f=e.currentTarget,n=document.getElementById('notice'),b=f.querySelector('button');n.className='notice';n.textContent='';if(!f.reportValidity())return;b.disabled=true;try{const r=await fetch('/api/account-deletion-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fullName:f.fullName.value,mobile:f.mobile.value,email:f.email.value,reason:f.reason.value,confirmed:f.confirmed.checked})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to register the request.');n.className='notice ok';n.textContent='Deletion request received. Your request has been registered successfully. We may contact you to verify account ownership. Eligible account and personal data will be deleted within 7 working days. Records required for legal, tax, transaction, fraud-prevention or regulatory purposes may be retained for the legally required period.';f.reset()}catch(x){n.className='notice error';n.textContent=x.message||'Unable to register the request.'}finally{b.disabled=false}});</script>
+:root{color-scheme:light;--ink:#172033;--muted:#526078;--brand:#08785f;--danger:#b42318;--line:#dce4e8;--bg:#f0f6f4}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+.wrap{width:min(680px,calc(100%-32px));margin:auto;padding:32px 0 80px}
+.logo{font-weight:900;letter-spacing:.08em;font-size:18px}
+.logo span{color:var(--brand)}
+.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:clamp(24px,5vw,44px);box-shadow:0 20px 60px rgba(23,32,51,.07);margin-top:28px}
+h1{font-size:clamp(22px,5vw,32px);font-weight:800;line-height:1.2;margin-bottom:16px}
+h2{font-size:18px;font-weight:700;margin:0 0 10px}
+p{color:var(--muted);font-size:15px;line-height:1.7}
+label{display:block;font-weight:700;font-size:14px;margin-bottom:6px;color:var(--ink)}
+input[type=text],input[type=tel]{width:100%;padding:14px 16px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:16px;color:var(--ink);background:#fafcfb;transition:border .15s}
+input[type=text]:focus,input[type=tel]:focus{outline:none;border-color:var(--brand)}
+.btn{display:block;width:100%;min-height:52px;border:0;border-radius:12px;font:inherit;font-weight:800;font-size:15px;cursor:pointer;transition:opacity .15s,background .15s}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-brand{background:var(--brand);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line);font-size:14px;min-height:42px}
+.step{display:flex;gap:14px;align-items:flex-start;margin:20px 0}
+.step-num{width:30px;height:30px;border-radius:50%;background:var(--danger);color:#fff;font-weight:800;font-size:13px;display:grid;place-items:center;flex-shrink:0;margin-top:2px}
+.step-body{flex:1;min-width:0}
+.notice{margin-top:10px;padding:12px 14px;border-radius:9px;font-size:14px;display:none}
+.notice.show{display:block}
+.ok{background:#eaf8ef;color:#176b36}
+.err{background:#fff0ee;color:var(--danger)}
+.info{background:#eff6ff;color:#1e40af}
+.otp-input{font-size:28px;font-weight:800;letter-spacing:8px;text-align:center;max-width:180px}
+.confirm-input{font-size:16px;font-weight:800;letter-spacing:3px;max-width:200px}
+.success-box{text-align:center;padding:32px 20px}
+.success-box .icon{font-size:48px;margin-bottom:12px}
+.divider{border:0;border-top:1px solid var(--line);margin:28px 0}
+.detail-section{margin-top:24px}
+.detail-section h2{color:var(--muted);font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.detail-section p{font-size:14px}
+a{color:var(--brand)}
+footer{text-align:center;color:var(--muted);margin-top:24px;font-size:13px}
+@media(max-width:480px){.wrap{padding-top:16px}.card{border-radius:14px;padding:20px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div class="logo">CONCRETE <span>KING</span></div>
+    <a href="/" style="font-size:14px;color:var(--muted);text-decoration:none">← Back to home</a>
+  </div>
+
+  <div class="card">
+    <h1>Delete Your Account</h1>
+    <p>Enter the mobile number registered to your Concrete King account. We'll send a one-time code to verify it's you, then permanently delete your account and personal data.</p>
+
+    <!-- ── Main flow ───────────────────────────────────── -->
+    <div id="flow">
+
+      <!-- Step 1: Phone input -->
+      <div class="step" id="s1">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <label for="phone-input">Registered mobile number</label>
+          <input id="phone-input" type="tel" placeholder="+91 98765 43210" autocomplete="tel"
+            oninput="clearNotice('s1-notice')" style="margin-bottom:10px">
+          <div id="s1-notice" class="notice"></div>
+          <button class="btn btn-brand" style="margin-top:4px" onclick="sendOtp()" id="send-btn">Send verification code</button>
+        </div>
+      </div>
+
+      <!-- Step 2: OTP (hidden until step 1 done) -->
+      <div class="step" id="s2" style="display:none">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <label for="otp-input">6-digit verification code</label>
+          <p style="font-size:13px;margin-bottom:10px">Sent to the number you entered. Check WhatsApp or SMS.</p>
+          <input id="otp-input" type="text" class="otp-input" inputmode="numeric" maxlength="6"
+            placeholder="——————" autocomplete="one-time-code" oninput="updateDeleteBtn()">
+          <button class="btn btn-ghost" style="margin-top:10px;width:auto;padding:0 16px" onclick="sendOtp()">Resend code</button>
+          <div id="s2-notice" class="notice"></div>
+        </div>
+      </div>
+
+      <!-- Step 3: Confirm (hidden until step 1 done) -->
+      <div class="step" id="s3" style="display:none">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <label for="confirm-input">Type <strong>DELETE</strong> to confirm</label>
+          <p style="font-size:13px;margin-bottom:10px">This action is permanent and cannot be undone.</p>
+          <input id="confirm-input" type="text" class="confirm-input" placeholder="DELETE"
+            autocomplete="off" oninput="updateDeleteBtn()">
+        </div>
+      </div>
+
+      <!-- Delete button (hidden until step 1 done) -->
+      <div id="delete-row" style="display:none;margin-top:20px">
+        <button class="btn btn-danger" id="delete-btn" disabled onclick="doDelete()">DELETE MY ACCOUNT PERMANENTLY</button>
+        <div id="delete-notice" class="notice"></div>
+      </div>
+
+    </div><!-- /flow -->
+
+    <!-- ── Success state (replaces flow) ──────────────── -->
+    <div id="success" style="display:none" class="success-box">
+      <div class="icon">✓</div>
+      <h2 style="font-size:22px;margin-bottom:8px">Account deleted</h2>
+      <p>Your Concrete King account and eligible personal data have been permanently removed. You'll be redirected shortly.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Info sections (always visible) -->
+    <div class="detail-section">
+      <h2>What gets deleted</h2>
+      <p>Profile, mobile number, email, saved addresses, authentication credentials, active sessions, push subscriptions, and all other personal data linked to your account.</p>
+    </div>
+    <div class="detail-section">
+      <h2>What may be retained</h2>
+      <p>Delivery records, challans, invoices, tax and payment records, and security/audit logs may be retained where required by law. Personal data is removed from those records and deleted or anonymised once the retention period ends. See the <a href="/privacy">Privacy Policy</a>.</p>
+    </div>
+    <div class="detail-section">
+      <h2>Can't access your number?</h2>
+      <p>Email <a href="mailto:support@goldetech.com">support@goldetech.com</a> with your registered details and we'll process the request within 7 working days after verifying ownership.</p>
+    </div>
+
+  </div><!-- /card -->
+
+  <footer>Concrete King · com.trackmyrmc.concreteking · Powered by TrackMyRMC</footer>
+</div>
+
+<script>
+var phoneUsed = '';
+
+function setNotice(id, cls, msg) {
+  var el = document.getElementById(id);
+  el.className = 'notice show ' + cls;
+  el.textContent = msg;
+}
+function clearNotice(id) {
+  var el = document.getElementById(id);
+  el.className = 'notice';
+  el.textContent = '';
+}
+
+function sendOtp() {
+  var phone = document.getElementById('phone-input').value.trim();
+  if (!phone) { setNotice('s1-notice', 'err', 'Enter your registered mobile number.'); return; }
+  var btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  clearNotice('s1-notice');
+  clearNotice('s2-notice');
+  fetch('/api/account-deletion-requests/phone-otp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: phone })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+  .then(function(res){
+    btn.disabled = false;
+    btn.textContent = 'Resend code';
+    if (!res.ok) { setNotice('s1-notice', 'err', res.d.error || 'Could not send code. Check your number and try again.'); return; }
+    phoneUsed = phone;
+    // show steps 2 & 3
+    document.getElementById('s2').style.display = 'flex';
+    document.getElementById('s3').style.display = 'flex';
+    document.getElementById('delete-row').style.display = 'block';
+    setNotice('s2-notice', 'info', 'Code sent! Check WhatsApp or SMS.');
+    if (res.d.devCode) { document.getElementById('otp-input').value = res.d.devCode; updateDeleteBtn(); }
+    document.getElementById('otp-input').focus();
+  })
+  .catch(function(){ btn.disabled = false; btn.textContent = 'Resend code'; setNotice('s1-notice', 'err', 'Network error. Please try again.'); });
+}
+
+function updateDeleteBtn() {
+  var otp = (document.getElementById('otp-input').value || '').trim();
+  var conf = (document.getElementById('confirm-input').value || '').trim();
+  document.getElementById('delete-btn').disabled = !(otp.length === 6 && /^\\d{6}$/.test(otp) && conf === 'DELETE');
+}
+
+function doDelete() {
+  var otp = (document.getElementById('otp-input').value || '').trim();
+  var conf = (document.getElementById('confirm-input').value || '').trim();
+  if (!phoneUsed || otp.length !== 6 || conf !== 'DELETE') return;
+  var btn = document.getElementById('delete-btn');
+  btn.disabled = true;
+  btn.textContent = 'Deleting…';
+  clearNotice('delete-notice');
+  fetch('/api/account-deletion-requests/phone-complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: phoneUsed, otp: otp, confirmed: true })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+  .then(function(res){
+    if (!res.ok) {
+      btn.disabled = false;
+      btn.textContent = 'DELETE MY ACCOUNT PERMANENTLY';
+      setNotice('delete-notice', 'err', res.d.error || 'Deletion failed. Please try again.');
+      return;
+    }
+    // Clear any local session and show success
+    try { localStorage.clear(); } catch(e) {}
+    document.getElementById('flow').style.display = 'none';
+    document.getElementById('success').style.display = 'block';
+    setTimeout(function(){ window.location.href = '/'; }, 5000);
+  })
+  .catch(function(){
+    btn.disabled = false;
+    btn.textContent = 'DELETE MY ACCOUNT PERMANENTLY';
+    setNotice('delete-notice', 'err', 'Network error. Please check your connection and try again.');
+  });
+}
+</script>
 </body></html>`;
 }
