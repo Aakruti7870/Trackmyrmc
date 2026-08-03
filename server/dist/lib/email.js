@@ -68,6 +68,23 @@ async function createTransporter() {
     const cfg = await getSmtpConfig();
     return transporterFor(cfg);
 }
+export async function sendAccountDeletionEmail(to, kind, details) {
+    const cfg = await getSmtpConfig();
+    const transporter = transporterFor(cfg);
+    if (!transporter || !to)
+        return false;
+    const text = kind === 'user'
+        ? `Deletion request received. Request #${details.requestId} has been registered successfully. We may contact you to verify account ownership. Eligible account and personal data will be deleted within 7 working days. Records required by law may be retained for the legally required period.`
+        : `A new Concrete King account deletion request (#${details.requestId}) requires review. Requester: ${details.name}; mobile: ${details.mobile ?? 'not supplied'}; email: ${details.email ?? 'not supplied'}.`;
+    try {
+        await transporter.sendMail({ from: cfg.from || cfg.user || undefined, to, subject: kind === 'user' ? 'Concrete King deletion request received' : 'New Concrete King account deletion request', text });
+        return true;
+    }
+    catch (error) {
+        console.error('Account deletion email could not be sent', error instanceof Error ? error.message : 'SMTP error');
+        return false;
+    }
+}
 // Verify that the given SMTP values can actually connect/authenticate, without
 // persisting anything. Each override is merged over the effective config so a
 // blank field (e.g. an unchanged password) falls back to the stored value.

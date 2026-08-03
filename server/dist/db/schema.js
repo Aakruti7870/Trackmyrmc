@@ -126,6 +126,25 @@ export const users = pgTable('users', {
         .on(t.phone)
         .where(sql `${t.deletedAt} IS NULL AND ${t.phone} IS NOT NULL`),
 ]);
+export const accountDeletionRequests = pgTable('account_deletion_requests', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+    fullName: text('full_name').notNull(),
+    mobile: text('mobile'),
+    email: text('email'),
+    reason: text('reason'),
+    status: text('status').notNull().default('pending_verification'),
+    rejectionReason: text('rejection_reason'),
+    requestedAt: timestamp('requested_at').defaultNow().notNull(),
+    verifiedAt: timestamp('verified_at'),
+    completedAt: timestamp('completed_at'),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+    index('account_deletion_requests_user_idx').on(t.userId),
+    uniqueIndex('account_deletion_requests_active_user_unique')
+        .on(t.userId)
+        .where(sql `${t.userId} IS NOT NULL AND ${t.status} NOT IN ('completed', 'rejected')`),
+]);
 // Audit trail of Aadhaar KYC (DigiLocker) attempts. One row per verification
 // session so an async consent flow can be correlated back on the callback by
 // providerRef. We persist ONLY the aggregator-masked Aadhaar (never the full

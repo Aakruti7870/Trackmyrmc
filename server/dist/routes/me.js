@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { resolvedClientNameSql } from '../lib/customerIdentity.js';
 import { customerOrderEligibility, isPlantOrderEligible } from '../lib/orderEligibility.js';
-import { eq, desc, gte, lte, and, sql, inArray, isNull } from 'drizzle-orm';
+import { eq, desc, gte, lte, and, sql, inArray } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries, recurringOrders, plants, plantCustomers, auditLogs, tripSessions } from '../db/schema.js';
-import { requireAuth, requireRole, bumpSessionVersion } from '../middleware/auth.js';
+import { users, clients, orders, challans, challanProofPhotos, sites, vehicles, drivers, ledgerEntries, recurringOrders, plants, plantCustomers, tripSessions } from '../db/schema.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { emitSSEEvent } from '../lib/sseEmitter.js';
 import { proofPhotoStore } from '../lib/proofPhoto.js';
 import { nextOrderNo } from '../lib/orderNo.js';
@@ -967,44 +967,9 @@ router.delete('/recurring/:id', requireRole('client'), async (req, res) => {
     res.status(204).end();
 });
 // ── Self-service account deletion ─────────────────────────────────────────
-// Google Play requires that any app allowing account creation lets users
-// delete their own account from inside the app. This soft-deletes the caller
-// (same lifecycle as an admin delete: deletedAt + isActive=false, restorable
-// by an admin), which immediately invalidates every outstanding token because
-// requireAuth rejects inactive/deleted accounts. Guards: platform master
-// (authority) accounts cannot self-delete, and the last remaining active
-// admin cannot self-delete (system lockout).
-router.delete('/account', async (req, res) => {
-    const actor = req.user;
-    if (actor.role === 'authority') {
-        res.status(403).json({ error: 'Super Admin accounts cannot be deleted from the app. Contact support.' });
-        return;
-    }
-    if (actor.role === 'admin') {
-        // Count only admins that could actually still sign in (not soft-deleted
-        // AND active) — a suspended admin can't run the system, so it must not
-        // satisfy the lockout guard.
-        const [{ count: activeAdmins }] = await db.select({
-            count: sql `count(*)::int`,
-        }).from(users).where(and(eq(users.role, 'admin'), isNull(users.deletedAt), eq(users.isActive, true)));
-        if (activeAdmins <= 1) {
-            res.status(400).json({ error: 'Cannot delete the last remaining admin account. Create another admin first.' });
-            return;
-        }
-    }
-    await db.insert(auditLogs).values({
-        actorId: actor.id,
-        actorName: actor.name,
-        action: 'user.self_deleted',
-        targetUserId: actor.id,
-        targetUserEmail: actor.email,
-        detail: 'Account deleted by the user (self-service)',
-    });
-    await db.update(users)
-        .set({ deletedAt: new Date(), isActive: false })
-        .where(eq(users.id, actor.id));
-    // Staff tokens embed a sessionVersion; bump it so they die immediately too.
-    await bumpSessionVersion(actor.id);
-    res.json({ ok: true });
+// Retired insecure pre-OTP endpoint. Keep an explicit response rather than a
+// 404 so older clients cannot accidentally bypass the verified deletion flow.
+router.delete('/account', (_req, res) => {
+    res.status(410).json({ error: 'This deletion method has been retired. Update Concrete King and use Account Settings → Delete Account with OTP verification.' });
 });
 export default router;

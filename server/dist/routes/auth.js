@@ -17,6 +17,7 @@ import { peekInviteToken, redeemInviteToken, createInviteToken } from '../lib/in
 import { sendPasswordResetEmail } from '../lib/email.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { normalizePhone, isOtpDeliveryConfigured, sendOtp, verifyOtp } from '../lib/otp.js';
+import { isGcipConfigured, verifyGcipToken } from '../lib/gcip.js';
 import { isSubscriptionBlocking, subscriptionBlockMessage } from '../lib/subscription.js';
 import { isPasswordLoginEnabledForRole } from '../lib/staffPasswordLogin.js';
 const router = Router();
@@ -877,6 +878,77 @@ router.post('/otp/verify', otpVerifyLimiter, async (req, res) => {
     res.json({
         ok: true,
         token,
+        user: {
+            id: user.id, name: user.name, email: user.email, role: user.role,
+            phone: user.phone,
+            plantId: user.plantId,
+            linkedClientId: user.linkedClientId,
+            linkedDriverId: user.linkedDriverId,
+        },
+    });
+});
+// --- GCIP (Google Cloud Identity Platform) phone auth -----------------------
+// The client uses Firebase SDK to send/verify the OTP entirely client-side,
+// then sends the resulting Firebase ID token here for server-side validation.
+// Falls back gracefully: if GCIP is not configured the endpoint returns 503.
+router.post('/gcip/verify', otpVerifyLimiter, async (req, res) => {
+    if (!isGcipConfigured()) {
+        res.status(503).json({ error: 'GCIP is not configured on this server.' });
+        return;
+    }
+    const { idToken } = req.body;
+    if (typeof idToken !== 'string' || !idToken) {
+        res.status(400).json({ error: 'idToken is required.' });
+        return;
+    }
+    const gcip = await verifyGcipToken(idToken);
+    if (!gcip) {
+        res.status(400).json({ error: 'Invalid or expired Firebase token.' });
+        return;
+    }
+    const phone = gcip.phoneNumber;
+    // Driver-first: same resolution logic as /otp/verify.
+    const driverRes = await resolveDriverByPhone(phone);
+    if (driverRes.kind === 'error') {
+        res.status(driverRes.status).json({ error: driverRes.error });
+        return;
+    }
+    if (driverRes.kind === 'match') {
+        const { user } = driverRes;
+        const token = signToken({
+            id: user.id, email: user.email, role: user.role, name: user.name,
+            plantId: user.plantId,
+            linkedClientId: user.linkedClientId,
+            linkedDriverId: user.linkedDriverId,
+        });
+        res.json({
+            ok: true, token,
+            user: {
+                id: user.id, name: user.name, email: user.email, role: user.role,
+                phone: user.phone,
+                plantId: driverRes.plantId,
+                linkedClientId: user.linkedClientId,
+                linkedDriverId: driverRes.driverId,
+                truckId: driverRes.truckId,
+                truckNo: driverRes.truckNo,
+            },
+        });
+        return;
+    }
+    const resolved = await resolveCustomerByPhone(phone, undefined);
+    if (!resolved.ok) {
+        res.status(resolved.status).json({ error: resolved.error });
+        return;
+    }
+    const { user } = resolved;
+    const token = signToken({
+        id: user.id, email: user.email, role: user.role, name: user.name,
+        plantId: user.plantId,
+        linkedClientId: user.linkedClientId,
+        linkedDriverId: user.linkedDriverId,
+    });
+    res.json({
+        ok: true, token,
         user: {
             id: user.id, name: user.name, email: user.email, role: user.role,
             phone: user.phone,
