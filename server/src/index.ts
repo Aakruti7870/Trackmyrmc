@@ -60,6 +60,8 @@ import { syncSmtpFromEnv } from './lib/smtpRecovery.js';
 import { ensurePlantDirectory, backfillNetworkStatus } from './lib/plantDirectory.js';
 import { tickAutomations, checkExpiredPromotions } from './lib/automationJobs.js';
 import { resumeQueuedRmcImportRuns } from './lib/rmcDiscoveryRunner.js';
+import accountDeletionRoutes from './routes/accountDeletion.js';
+import { accountDeletionPage } from './lib/accountDeletionPage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
@@ -74,6 +76,14 @@ if (process.env.REPLIT_DEV_DOMAIN) STATIC_ALLOWED_ORIGINS.add(`https://${process
 function isAllowedOrigin(origin: string): boolean { if (STATIC_ALLOWED_ORIGINS.has(origin)) return true; try { const host = new URL(origin).hostname; return host.endsWith('.replit.app') || host.endsWith('.replit.dev') || host.endsWith('.repl.co'); } catch { return false; } }
 app.use(cors({ origin(origin, callback) { if (!origin || isAllowedOrigin(origin)) return callback(null, true); callback(null, false); }, credentials: true }));
 app.use(express.json({ limit: '12mb', verify: (req, _res, buffer) => { (req as express.Request & { rawBody?: Buffer }).rawBody = buffer; } }));
+
+// Keep the legacy URL functional, but serve the same backend-rendered form as
+// the canonical Play URL so stale SPA bundles cannot call retired API routes.
+app.get(['/account-deletion', '/delete-account'], (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.status(200).type('html').send(accountDeletionPage());
+});
+app.use('/api/account-deletion-requests', accountDeletionRoutes);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/clients', clientRoutes);

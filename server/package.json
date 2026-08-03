@@ -15,7 +15,8 @@
     "db:migrate-rmc-discovery": "tsx src/db/migrate-rmc-discovery.ts",
     "db:migrate-kyc-lifecycle": "tsx src/db/migrate-kyc-lifecycle.ts",
     "db:migrate-sponsored-plants": "tsx src/db/migrate-sponsored-plants.ts",
-    "test": "node scripts/test.mjs"
+    "db:migrate-account-deletion": "tsx src/db/migrate-account-deletion.ts",
+    "test": "node --experimental-test-module-mocks scripts/test.mjs"
   },
   "dependencies": {
     "@clerk/backend": "^3.6.1",

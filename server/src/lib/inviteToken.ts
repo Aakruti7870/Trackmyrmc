@@ -128,7 +128,7 @@ export async function redeemInviteToken(
       .where(eq(passwordSetupTokens.id, row.id));
 
     // Invites activate the account; resets leave isActive untouched.
-    const set = kind === 'invite' ? { passwordHash, isActive: true } : { passwordHash };
+    const set = kind === 'invite' ? { passwordHash, isActive: true, deletedAt: null } : { passwordHash };
     const [user] = await tx
       .update(users)
       .set(set)
