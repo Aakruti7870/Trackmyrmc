@@ -58,7 +58,7 @@ function PhoneDeleteFlow() {
     try {
       await api.post('/account-deletion-requests/phone-complete', { phone: phone.trim(), otp, confirmed: true as const });
       setStep('done');
-      try { localStorage.clear(); } catch {}
+      try { localStorage.clear(); } catch (_) { /* ignore */ }
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : 'Deletion failed. Please try again.');
       setBusy(false);
