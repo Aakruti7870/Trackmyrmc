@@ -16,18 +16,18 @@ describe('automatic theme — no Trust Blue', () => {
   });
 });
 
-describe('Android release metadata — v1.29 / versionCode 30', () => {
-  it('build.gradle declares versionCode 30 and versionName "1.29"', () => {
+describe('Android release metadata — v1.32 / versionCode 33', () => {
+  it('build.gradle declares versionCode 33 and versionName "1.32"', () => {
     const gradle = readFileSync(resolve(rmcAppRoot, 'android/app/build.gradle'), 'utf8');
-    expect(gradle).toMatch(/versionCode\s+30\b/);
-    expect(gradle).toMatch(/versionName\s+"1\.29"/);
-    expect(gradle).not.toMatch(/versionCode\s+29\b/);
-    expect(gradle).not.toMatch(/versionName\s+"1\.28"/);
+    expect(gradle).toMatch(/versionCode\s+33\b/);
+    expect(gradle).toMatch(/versionName\s+"1\.32"/);
+    expect(gradle).not.toMatch(/versionCode\s+30\b/);
+    expect(gradle).not.toMatch(/versionName\s+"1\.29"/);
   });
 
   it('rmc-app/package.json version matches the Android release', () => {
     const pkg = JSON.parse(readFileSync(resolve(rmcAppRoot, 'package.json'), 'utf8'));
-    expect(pkg.version).toBe('1.29.0');
+    expect(pkg.version).toBe('1.32.0');
   });
 
   it('one-off per-version build workflows are retired in favor of the general signed-release workflow', () => {
@@ -37,8 +37,8 @@ describe('Android release metadata — v1.29 / versionCode 30', () => {
     }
   });
 
-  it('the signed release workflow uploads a v1.29 / vc30-named artifact', () => {
+  it('the signed release workflow uploads a v1.32 / vc33-named artifact', () => {
     const signed = readFileSync(resolve(repoRoot, '.github/workflows/android-signed-release.yml'), 'utf8');
-    expect(signed).toContain('TrackMyRMC-v1.29-vc30-signed-play-console');
+    expect(signed).toContain('TrackMyRMC-v1.32-vc33-signed-play-console');
   });
 });

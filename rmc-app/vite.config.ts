@@ -134,6 +134,9 @@ export default defineConfig(({ mode }) => {
       '@': path.resolve(__dirname, './src'),
     },
   },
+  ssr: {
+    noExternal: ['react-leaflet', 'leaflet'],
+  },
   build: {
     rollupOptions: {
       input: {

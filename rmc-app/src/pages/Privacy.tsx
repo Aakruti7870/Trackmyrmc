@@ -309,7 +309,7 @@ export default function Privacy() {
           <p style={{ marginTop: 0 }}>
             Users can initiate deletion from <strong style={strong}>Account Settings → Danger Zone</strong>
             inside the app. Users who cannot access the app can use the public{' '}
-            <a href="/delete-account" style={link}>CONCRETE KING Account Deletion Request page</a>.
+            <a href="/account-deletion" style={link}>CONCRETE KING Account Deletion Request page</a>.
           </p>
           <p style={{ marginBottom: 0 }}>
             The deletion page identifies the Google Play app, package ID, available request methods,
@@ -328,7 +328,7 @@ export default function Privacy() {
           <p style={{ marginBottom: 0 }}>
             To submit a privacy request, email{' '}
             <a href={`mailto:${MAIL}`} style={link}>{MAIL}</a> or use our{' '}
-            <a href="/delete-account" style={link}>account-deletion page</a>.
+            <a href="/account-deletion" style={link}>account-deletion page</a>.
           </p>
         </Section>
 
