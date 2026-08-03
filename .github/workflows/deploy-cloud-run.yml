@@ -57,4 +57,5 @@ jobs:
               _REPO=${{ env.ARTIFACT_REPO }},\
               _IMAGE=${{ env.IMAGE_NAME }},\
               _SERVICE=${{ env.CLOUD_RUN_SERVICE }},\
-              _CLOUDSQL_INSTANCE=${{ env.CLOUDSQL_INSTANCE }}"
+              _CLOUDSQL_INSTANCE=${{ env.CLOUDSQL_INSTANCE }},\
+              COMMIT_SHA=${{ github.sha }}"
