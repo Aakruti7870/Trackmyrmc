@@ -11,6 +11,7 @@ let behavior: 'success' | 'throw' = 'success';
 
 mock.module('../lib/email.js', {
   namedExports: {
+    sendAccountDeletionEmail: async () => true,
     sendDeliveryNotificationEmail: async (email: string, name: string, details: Record<string, unknown>) => {
       if (behavior === 'throw') throw new Error('SMTP down (stubbed)');
       sent.push({ email, name, details });

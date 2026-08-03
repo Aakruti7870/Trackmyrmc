@@ -78,7 +78,12 @@ function isAllowedOrigin(origin: string): boolean { if (STATIC_ALLOWED_ORIGINS.h
 app.use(cors({ origin(origin, callback) { if (!origin || isAllowedOrigin(origin)) return callback(null, true); callback(null, false); }, credentials: true }));
 app.use(express.json({ limit: '12mb', verify: (req, _res, buffer) => { (req as express.Request & { rawBody?: Buffer }).rawBody = buffer; } }));
 
-app.get('/account-deletion', (_req, res) => res.status(200).type('html').send(accountDeletionPage()));
+// Keep the legacy URL functional, but serve the same backend-rendered form as
+// the canonical Play URL so stale SPA bundles cannot call retired API routes.
+app.get(['/account-deletion', '/delete-account'], (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.status(200).type('html').send(accountDeletionPage());
+});
 app.use('/api/account-deletion-requests', accountDeletionRoutes);
 
 app.use('/api/auth', authRoutes);

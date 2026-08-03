@@ -22,8 +22,18 @@ test('public account deletion page returns 200 without authentication and contai
   const response = await request(app).get('/account-deletion');
   assert.equal(response.status, 200);
   assert.match(response.headers['content-type'], /html/);
+  assert.equal(response.headers['cache-control'], 'no-store');
   assert.match(response.text, /Concrete King \| Ready-Mix Concrete Tracking &amp; RMC Plant Discovery/);
   assert.match(response.text, /com\.trackmyrmc\.concreteking/);
+  assert.match(response.text, /REQUEST ACCOUNT DELETION/);
+});
+
+test('legacy deletion URL serves the canonical server-rendered form', async () => {
+  const response = await request(app).get('/delete-account');
+  assert.equal(response.status, 200);
+  assert.match(response.headers['content-type'], /html/);
+  assert.equal(response.headers['cache-control'], 'no-store');
+  assert.match(response.text, /Concrete King – Account and Data Deletion/);
   assert.match(response.text, /REQUEST ACCOUNT DELETION/);
 });
 

@@ -7,68 +7,11 @@ on:
       - main
     paths:
       - .github/release-v1.32.trigger
-
-permissions:
-  contents: write
-
-env:
-  RELEASE_VERSION: "1.32"
-  RELEASE_CODE: "33"
-  PACKAGE_VERSION: "1.32.0"
-  RELEASE_AAB: "releases/app-release-v1.32-vc33-signed.aab"
-  ARTIFACT_NAME: "TrackMyRMC-v1.32-vc33-signed-play-console"
-
-jobs:
-  build-signed-aab:
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: trackmyrmc
-          POSTGRES_PASSWORD: trackmyrmc_test
-          POSTGRES_DB: trackmyrmc
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U trackmyrmc -d trackmyrmc"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: trackmyrmc
-          POSTGRES_PASSWORD: trackmyrmc_test
-          POSTGRES_DB: trackmyrmc
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U trackmyrmc -d trackmyrmc"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    steps:
-      - name: Checkout current production code
-        uses: actions/checkout@v4
-
-      - name: Validate signing secrets
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secretname: Android Signed Play Release
-
-on:
-  workflow_dispatch:
-  push:
+  pull_request:
     branches:
       - main
     paths:
-      - .github/release-v1.32.trigger
+      - .github/release-v1.32-pr.trigger
 
 permissions:
   contents: write
@@ -99,26 +42,12 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: trackmyrmc
-          POSTGRES_PASSWORD: trackmyrmc_test
-          POSTGRES_DB: trackmyrmc
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U trackmyrmc -d trackmyrmc"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
     steps:
       - name: Checkout current production code
         uses: actions/checkout@v4
 
       - name: Validate signing secrets
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -175,6 +104,16 @@ jobs:
           pnpm build
           pnpm test
 
+      - name: Validate account deletion backend
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://trackmyrmc:trackmyrmc_test@localhost:5432/trackmyrmc
+          NODE_ENV: test
+        run: |
+          set -euo pipefail
+          pnpm build
+          pnpm test
+
       - name: Validate v1.32 release metadata and app source
         working-directory: rmc-app
         run: |
@@ -215,6 +154,7 @@ jobs:
           ./gradlew clean bundleRelease --stacktrace
 
       - name: Decode upload keystore
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -224,6 +164,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/trackmyrmc-upload.p12"
 
       - name: Verify keystore and alias
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -235,7 +176,8 @@ jobs:
             -storepass "$ANDROID_KEYSTORE_PASSWORD" \
             -alias "$ANDROID_KEY_ALIAS" >/dev/null
 
-      - name: Sign and verify v1.32 AAB
+      - name: Sign and verify release AAB
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -260,6 +202,7 @@ jobs:
           sha256sum "$RELEASE_AAB" | tee "$RELEASE_AAB.sha256"
 
       - name: Upload Play Console artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: TrackMyRMC-v1.32-vc33-signed-play-console
@@ -268,6 +211,15 @@ jobs:
             releases/app-release-v1.32-vc33-signed.aab.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload unsigned PR validation artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrackMyRMC-v1.32-vc33-unsigned-pr-validation
+          path: rmc-app/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Commit verified signed AAB to repository
         run: |

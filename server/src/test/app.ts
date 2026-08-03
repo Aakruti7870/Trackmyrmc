@@ -55,7 +55,10 @@ export function buildTestApp(): Express {
       (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
     },
   }));
-  app.get('/account-deletion', (_req, res) => res.status(200).type('html').send(accountDeletionPage()));
+  app.get(['/account-deletion', '/delete-account'], (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.status(200).type('html').send(accountDeletionPage());
+  });
   app.use('/api/account-deletion-requests', accountDeletionRoutes);
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);

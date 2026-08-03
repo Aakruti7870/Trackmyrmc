@@ -1,1 +1,4 @@
-Build signed Android App Bundle v1.32 (versionCode 33) from the current main branch and production-ready source.
+release=account-deletion-policy
+versionName=1.32
+versionCode=31
+artifact=app-release-v1.32-vc33-signed.aab

@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.32 — 2026-08-03
+
+### Fixed
+- Reject authentication for permanently deleted accounts and clear the deletion marker only during explicit invite reactivation.
+- Enable Node's test module mocking flag throughout the server test runner.
+- Bundle Leaflet dependencies during Vite SSR builds.
+
+### Changed
+- Android `versionCode` bumped **31 → 33** and `versionName` bumped **1.30 → 1.32**.
+- Signed Play release workflow and artifact names now target v1.32 (version code 33).
+
 ## v1.30 — 2026-08-03
 
 ### Added
