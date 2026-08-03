@@ -28,7 +28,6 @@ function PhoneDeleteFlow() {
   const [otp, setOtp] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
-  const [otpError, setOtpError] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [otpInfo, setOtpInfo] = useState('');
