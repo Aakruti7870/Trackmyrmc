@@ -41,6 +41,8 @@ import { rmcDiscoveryAdminRoutes, rmcDiscoveryPublicRoutes } from '../routes/rmc
 import rmcDiscoveryGuards from '../routes/rmcDiscoveryGuards.js';
 import { requireAuth } from '../middleware/auth.js';
 import { allowRecurringPauseOrRequireVerifiedKyc, requireVerifiedCustomerKyc } from '../middleware/customerOrderKycGate.js';
+import accountDeletionRoutes from '../routes/accountDeletion.js';
+import { accountDeletionPage } from '../lib/accountDeletionPage.js';
 
 // Builds a minimal Express app wired with only the routes exercised by the
 // automated tests. This avoids importing the production entrypoint (which calls
@@ -53,6 +55,11 @@ export function buildTestApp(): Express {
       (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
     },
   }));
+  app.get(['/account-deletion', '/delete-account'], (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.status(200).type('html').send(accountDeletionPage());
+  });
+  app.use('/api/account-deletion-requests', accountDeletionRoutes);
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/user-management', userManagementRoutes);

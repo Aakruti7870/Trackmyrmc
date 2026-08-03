@@ -18,6 +18,7 @@ let ownerInviteCalls: Array<{ email: string; name: string }> = [];
 let inviteEmailResult = true;
 mock.module('../lib/email.js', {
   namedExports: {
+    sendAccountDeletionEmail: async () => true,
     sendWelcomeEmail: async () => true,
     sendPasswordResetEmail: async () => true,
     sendLoginCodeEmail: async () => true,

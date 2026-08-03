@@ -134,6 +134,12 @@ export default defineConfig(({ mode }) => {
       '@': path.resolve(__dirname, './src'),
     },
   },
+  ssr: {
+    noExternal: ['react-leaflet', 'leaflet'],
+  },
+  define: {
+    'process.env': {},
+  },
   build: {
     rollupOptions: {
       input: {

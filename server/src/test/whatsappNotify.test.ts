@@ -39,6 +39,7 @@ let emailsSent: { kind: 'delivery' | 'order'; to: string }[] = [];
 
 mock.module('../lib/email.js', {
   namedExports: {
+    sendAccountDeletionEmail: async () => true,
     sendDeliveryNotificationEmail: async (to: string) => {
       emailsSent.push({ kind: 'delivery', to });
       return true;

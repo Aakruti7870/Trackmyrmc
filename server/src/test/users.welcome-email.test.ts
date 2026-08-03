@@ -24,6 +24,7 @@ let welcomeCalls: Array<{ email: string; name: string; role: string }> = [];
 // are never invoked by these tests.
 mock.module('../lib/email.js', {
   namedExports: {
+    sendAccountDeletionEmail: async () => true,
     sendWelcomeEmail: async (email: string, name: string, role: string) => {
       welcomeCalls.push({ email, name, role });
       if (emailBehavior === 'throw') {

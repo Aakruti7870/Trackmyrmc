@@ -22,6 +22,7 @@ mock.module('../lib/email.js', {
       inviteCalls.push({ emails, plantName: details.plantName });
       return true;
     },
+    sendAccountDeletionEmail: async () => true,
     sendWelcomeEmail: async () => true,
     sendOwnerInviteEmail: async () => true,
     sendPasswordResetEmail: async () => true,

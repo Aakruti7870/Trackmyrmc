@@ -6,12 +6,12 @@ on:
     branches:
       - main
     paths:
-      - .github/release-v1.29.trigger
+      - .github/release-v1.32.trigger
   pull_request:
     branches:
       - main
     paths:
-      - .github/release-v1.29-pr.trigger
+      - .github/release-v1.32-pr.trigger
 
 permissions:
   contents: write
@@ -20,12 +20,27 @@ jobs:
   build-signed-aab:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trackmyrmc
+          POSTGRES_PASSWORD: trackmyrmc_test
+          POSTGRES_DB: trackmyrmc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trackmyrmc -d trackmyrmc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Validate signing secrets
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -66,22 +81,36 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Install Android app dependencies
-        working-directory: rmc-app
-        run: pnpm install --frozen-lockfile
+      - name: Install application dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir server install --frozen-lockfile
+          pnpm --dir rmc-app install --frozen-lockfile
+
+      - name: Validate account deletion backend
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://trackmyrmc:trackmyrmc_test@localhost:5432/trackmyrmc
+          NODE_ENV: test
+        run: |
+          set -euo pipefail
+          pnpm build
+          pnpm test
 
       - name: Validate release metadata and policy source
         working-directory: rmc-app
         run: |
           set -euo pipefail
-          node -e "const p=require('./package.json'); if(p.version!=='1.29.0') throw new Error('Expected package version 1.29.0')"
-          grep -Eq 'versionCode[[:space:]]+30\b' android/app/build.gradle
-          grep -Eq 'versionName[[:space:]]+\"1\.29\"' android/app/build.gradle
+          node -e "const p=require('./package.json'); if(p.version!=='1.32.0') throw new Error('Expected package version 1.32.0')"
+          grep -Eq 'versionCode[[:space:]]+33\b' android/app/build.gradle
+          grep -Eq 'versionName[[:space:]]+\"1\.32\"' android/app/build.gradle
           grep -Eq 'compileSdkVersion[[:space:]]*=[[:space:]]*36\b' android/variables.gradle
           grep -Eq 'targetSdkVersion[[:space:]]*=[[:space:]]*36\b' android/variables.gradle
           grep -Eq "com.android.tools.build:gradle:8\.10\.1" android/build.gradle
-          grep -Fq "CONCRETE KING" src/pages/DeleteAccount.tsx
-          grep -Fq "com.trackmyrmc.concreteking" src/pages/DeleteAccount.tsx
+          grep -Fq "Concrete King – Account and Data Deletion" ../server/src/lib/accountDeletionPage.ts
+          grep -Fq "Concrete King | Ready-Mix Concrete Tracking &amp; RMC Plant Discovery" ../server/src/lib/accountDeletionPage.ts
+          grep -Fq "com.trackmyrmc.concreteking" ../server/src/lib/accountDeletionPage.ts
+          grep -Fq "REQUEST ACCOUNT DELETION" ../server/src/lib/accountDeletionPage.ts
           grep -Fq "CONCRETE KING" src/pages/Privacy.tsx
           grep -Fq "com.trackmyrmc.concreteking" src/pages/Privacy.tsx
           grep -Eq '\"@capacitor/android\":[[:space:]]*\"\^7\.6\.7\"' package.json
@@ -106,6 +135,7 @@ jobs:
           ./gradlew clean bundleRelease --stacktrace
 
       - name: Decode upload keystore
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -115,6 +145,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/trackmyrmc-upload.p12"
 
       - name: Verify keystore and alias
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -127,6 +158,7 @@ jobs:
             -alias "$ANDROID_KEY_ALIAS" >/dev/null
 
       - name: Sign and verify release AAB
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -135,7 +167,7 @@ jobs:
           set -euo pipefail
           SOURCE_AAB="rmc-app/android/app/build/outputs/bundle/release/app-release.aab"
           RELEASE_DIR="releases"
-          RELEASE_AAB="$RELEASE_DIR/app-release-v1.29-vc30-signed.aab"
+          RELEASE_AAB="$RELEASE_DIR/app-release-v1.32-vc33-signed.aab"
           test -s "$SOURCE_AAB"
           jarsigner \
             -keystore "$RUNNER_TEMP/trackmyrmc-upload.p12" \
@@ -151,14 +183,24 @@ jobs:
           sha256sum "$RELEASE_AAB" | tee "$RELEASE_AAB.sha256"
 
       - name: Upload Play Console artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: TrackMyRMC-v1.29-vc30-signed-play-console
+          name: TrackMyRMC-v1.32-vc33-signed-play-console
           path: |
-            releases/app-release-v1.29-vc30-signed.aab
-            releases/app-release-v1.29-vc30-signed.aab.sha256
+            releases/app-release-v1.32-vc33-signed.aab
+            releases/app-release-v1.32-vc33-signed.aab.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload unsigned PR validation artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrackMyRMC-v1.32-vc33-unsigned-pr-validation
+          path: rmc-app/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Commit verified signed AAB to repository
         if: github.event_name != 'pull_request'
@@ -166,8 +208,8 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add releases/app-release-v1.29-vc30-signed.aab releases/app-release-v1.29-vc30-signed.aab.sha256
-          git commit -m "release(android): add signed v1.29 vc30 AAB"
+          git add releases/app-release-v1.32-vc33-signed.aab releases/app-release-v1.32-vc33-signed.aab.sha256
+          git commit -m "release(android): add signed v1.32 vc33 AAB"
           git push
 
       - name: Remove signing material

@@ -11,7 +11,7 @@ import { users, auditLogs, clients, drivers, staffOtpCodes } from '../db/schema.
 import { signToken } from '../middleware/auth.js';
 import { hashOtpCode } from '../lib/otp.js';
 
-type Role = 'admin' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
+type Role = 'admin' | 'authority' | 'dispatcher' | 'plant_operator' | 'client' | 'driver';
 
 let app: Express;
 
@@ -221,15 +221,10 @@ test('guard: an admin cannot delete their own account', async () => {
 });
 
 test('guard: cannot delete the last remaining admin', async () => {
-  // The route checks self-delete before the last-admin guard, so to reach the
-  // guard the actor must be an admin that is NOT counted among active admins.
-  // We do that with an actor whose deletedAt is set (excluded from the count)
-  // but whose isActive is still true (so requireAuth accepts it). A token is
-  // signed directly because /auth/login rejects soft-deleted accounts.
-  const actor = await createUser({
-    name: 'Ghost Admin', email: 'ghost@test.com', role: 'admin',
-    isActive: true, deletedAt: new Date(),
-  });
+  // An active authority can administer users without adding another account
+  // to the admin count, allowing the last-admin guard to be exercised without
+  // authenticating as a deleted account.
+  const actor = await createUser({ name: 'Authority', email: 'authority@test.com', role: 'authority' });
   const soleAdmin = await createUser({ name: 'Sole Admin', email: 'sole@test.com', role: 'admin' });
   const token = tokenFor(actor);
 
@@ -923,21 +918,22 @@ test('permanent: returns 404 for a non-deleted user, an already-purged id, and a
 });
 
 test('permanent guard: cannot purge the last admin when no other admin record remains', async () => {
-  // The only admin in the system, soft-deleted. Purging it would leave no admin
-  // record at all (active or restorable), so the guard must block it.
-  const actor = await createUser({
+  const actor = await createUser({ name: 'Authority', email: 'authority@test.com', role: 'authority' });
+  // The only admin is soft-deleted. Purging it would leave no admin record at
+  // all (active or restorable), so the guard must block it.
+  const target = await createUser({
     name: 'Ghost Admin', email: 'ghost@test.com', role: 'admin',
-    isActive: true, deletedAt: new Date(),
+    deletedAt: new Date(),
   });
   const token = tokenFor(actor);
 
   const res = await request(app)
-    .delete(`/api/users/${actor.id}/permanent`)
+    .delete(`/api/users/${target.id}/permanent`)
     .set('Authorization', `Bearer ${token}`);
   assert.equal(res.status, 400);
   assert.match(res.body.error, /last admin/i);
 
-  const rows = await db.select().from(users).where(eq(users.id, actor.id));
+  const rows = await db.select().from(users).where(eq(users.id, target.id));
   assert.equal(rows.length, 1, 'the last admin must not be purged');
 });
 
@@ -1140,12 +1136,12 @@ test('purge-all guard: a soft-deleted admin is purged when an active admin remai
 });
 
 test('purge-all guard: the last admin in the trash is skipped to keep one admin alive', async () => {
-  // Actor is itself a soft-deleted admin (excluded from /auth/login but valid for
-  // requireAuth) and is the ONLY admin. Bulk purge must keep one admin: the actor
-  // (lowest id) is purged-eligible but the guard stops the final admin removal.
-  const actor = await createUser({
+  const actor = await createUser({ name: 'Authority', email: 'authority@test.com', role: 'authority' });
+  // The soft-deleted admin is the ONLY admin. Bulk purge must keep that record
+  // while allowing an authenticated authority to purge the non-admin account.
+  const ghostAdmin = await createUser({
     name: 'Ghost Admin', email: 'ghost@test.com', role: 'admin',
-    isActive: true, deletedAt: new Date(),
+    deletedAt: new Date(),
   });
   const goneUser = await createUser({ name: 'Gone User', email: 'user@test.com', role: 'dispatcher', deletedAt: new Date() });
   const token = tokenFor(actor);
@@ -1161,14 +1157,15 @@ test('purge-all guard: the last admin in the trash is skipped to keep one admin 
   // The non-admin is gone; the sole admin survives.
   const goneRows = await db.select().from(users).where(eq(users.id, goneUser.id));
   assert.equal(goneRows.length, 0, 'the deleted non-admin is removed');
-  const adminRows = await db.select().from(users).where(eq(users.id, actor.id));
+  const adminRows = await db.select().from(users).where(eq(users.id, ghostAdmin.id));
   assert.equal(adminRows.length, 1, 'the last admin record is preserved');
 });
 
 test('purge-all guard: among several deleted admins and no active admin, exactly one is kept', async () => {
-  const actor = await createUser({
+  const actor = await createUser({ name: 'Authority', email: 'authority@test.com', role: 'authority' });
+  await createUser({
     name: 'Ghost Admin', email: 'ghost@test.com', role: 'admin',
-    isActive: true, deletedAt: new Date(),
+    deletedAt: new Date(),
   });
   const spareAdmin = await createUser({ name: 'Spare Admin', email: 'spare@test.com', role: 'admin', deletedAt: new Date() });
   const token = tokenFor(actor);
@@ -1233,9 +1230,10 @@ test('purge-all selective: ignores ids that are not soft-deleted', async () => {
 });
 
 test('purge-all selective: the last-admin guard still applies to a selection', async () => {
-  const actor = await createUser({
+  const actor = await createUser({ name: 'Authority', email: 'authority@test.com', role: 'authority' });
+  const ghostAdmin = await createUser({
     name: 'Ghost Admin', email: 'ghost@test.com', role: 'admin',
-    isActive: true, deletedAt: new Date(),
+    deletedAt: new Date(),
   });
   const goneUser = await createUser({ name: 'Gone User', email: 'user@test.com', role: 'dispatcher', deletedAt: new Date() });
   const token = tokenFor(actor);
@@ -1243,13 +1241,13 @@ test('purge-all selective: the last-admin guard still applies to a selection', a
   const res = await request(app)
     .delete('/api/users/purge-all')
     .set('Authorization', `Bearer ${token}`)
-    .send({ ids: [actor.id, goneUser.id] });
+    .send({ ids: [ghostAdmin.id, goneUser.id] });
   assert.equal(res.status, 200);
   assert.equal(res.body.purged, 1, 'only the non-admin in the selection is purged');
   assert.equal(res.body.skipped, 1, 'the sole admin is skipped even when explicitly selected');
   assert.equal(res.body.skippedAdmins[0].email, 'ghost@test.com');
 
-  const adminRows = await db.select().from(users).where(eq(users.id, actor.id));
+  const adminRows = await db.select().from(users).where(eq(users.id, ghostAdmin.id));
   assert.equal(adminRows.length, 1, 'the last admin record is preserved');
 });
 

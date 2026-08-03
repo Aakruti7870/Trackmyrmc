@@ -109,6 +109,7 @@ export default function Login() {
   const { updateUser } = useAuth();
   const [, setLoc] = useLocation();
   const search = useSearch();
+  const accountDeleted = new URLSearchParams(search).get('accountDeleted') === '1';
 
   // 'phone' is the default — most customers have no email. Arriving via the
   // landing "Staff Login" door (/login?staff=1) opens the staff path directly.
@@ -411,6 +412,9 @@ export default function Login() {
 
         {/* Auth card — heading, door tabs and the sign-in form in ONE card */}
         <div style={{ margin: '12px 16px 0', padding: '18px 18px', borderRadius: 24, flexShrink: 0, ...surfaceCard }}>
+          {accountDeleted && <div role="status" style={{ padding: 12, marginBottom: 14, borderRadius: 10, background: '#eaf8ef', color: '#176b36', fontSize: 13, fontWeight: 700 }}>
+            Your Concrete King account and eligible personal data have been deleted successfully. You have been signed out.
+          </div>}
           {isEntryStep && (
             <>
               <h1 style={heading}>
@@ -623,7 +627,7 @@ export default function Login() {
             <MessageCircle size={13} /> Need help? Chat with support
           </a>
           <p style={{ margin: '6px 0 0', fontSize: 12, color: C.faint, lineHeight: 1.55 }}>
-            <button type="button" onClick={() => setLoc('/delete-account')} style={{ ...textLink, fontSize: 12 }}>Delete Account</button>
+            <button type="button" onClick={() => setLoc('/account-deletion')} style={{ ...textLink, fontSize: 12 }}>Delete Account</button>
           </p>
           <div style={{ marginTop: 8 }}>
             <BrandCredits oneRow />
