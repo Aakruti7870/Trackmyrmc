@@ -52,10 +52,4 @@ jobs:
           gcloud builds submit \
             --config cloudbuild.yaml \
             --project "${{ secrets.GCP_PROJECT }}" \
-            --substitutions \
-              "_REGION=${{ env.GCP_REGION }},\
-              _REPO=${{ env.ARTIFACT_REPO }},\
-              _IMAGE=${{ env.IMAGE_NAME }},\
-              _SERVICE=${{ env.CLOUD_RUN_SERVICE }},\
-              _CLOUDSQL_INSTANCE=${{ env.CLOUDSQL_INSTANCE }},\
-              COMMIT_SHA=${{ github.sha }}"
+            --substitutions "_REGION=${{ env.GCP_REGION }},_REPO=${{ env.ARTIFACT_REPO }},_IMAGE=${{ env.IMAGE_NAME }},_SERVICE=${{ env.CLOUD_RUN_SERVICE }},_CLOUDSQL_INSTANCE=${{ env.CLOUDSQL_INSTANCE }},COMMIT_SHA=${{ github.sha }}"
