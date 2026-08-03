@@ -9,7 +9,7 @@ export default function AccountDeletionAdmin() {
   const [rows,setRows] = useState<RequestRow[]>([]);
   const [error,setError] = useState('');
   const load = () => api.get<RequestRow[]>('/account-deletion-requests/admin').then(setRows).catch(e=>setError(e instanceof Error?e.message:'Unable to load requests.'));
-  useEffect(load,[]);
+  useEffect(() => { void load(); },[]);
   async function update(row:RequestRow,status:string) {
     const rejectionReason = status === 'rejected' ? window.prompt('Rejection reason (required):')?.trim() : undefined;
     if (status === 'rejected' && !rejectionReason) return;
