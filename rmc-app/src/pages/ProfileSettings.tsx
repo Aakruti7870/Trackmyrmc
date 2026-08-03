@@ -337,6 +337,8 @@ export default function ProfileSettings() {
 
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteOtp, setDeleteOtp] = useState('');
+  const [deleteOtpSent, setDeleteOtpSent] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [showDeleteZone, setShowDeleteZone] = useState(false);
 
@@ -1672,18 +1674,31 @@ export default function ProfileSettings() {
   }
 
   async function handleDeleteAccount() {
-    if (deleteConfirmText !== 'DELETE') return;
+    if (deleteConfirmText !== 'DELETE' || !/^\d{6}$/.test(deleteOtp)) return;
     setDeleteBusy(true);
     setDeleteError('');
     try {
-      await api.delete('/me/account');
-      showToast('Your account has been deleted.', 'success');
+      await api.post('/account-deletion-requests/complete', { otp: deleteOtp, confirmed: true });
       logout();
+      window.location.assign('/login?accountDeleted=1');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete account';
       setDeleteError(msg);
       setDeleteBusy(false);
     }
+  }
+
+  async function sendDeletionOtp() {
+    setDeleteBusy(true);
+    setDeleteError('');
+    try {
+      const result = await api.post<{ devCode?: string }>('/account-deletion-requests/otp', {});
+      setDeleteOtpSent(true);
+      if (result.devCode) setDeleteOtp(result.devCode);
+      showToast('Verification code sent to your registered mobile number.', 'success');
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not send verification code.');
+    } finally { setDeleteBusy(false); }
   }
 
   return (
@@ -3851,7 +3866,7 @@ export default function ProfileSettings() {
 
       {/* Danger zone — self-service account deletion (hidden for Super Admin,
           which the backend also refuses to delete). */}
-      {user?.role !== 'authority' && (
+      {user?.role === 'client' && (
         <div style={{
           ...card, marginBottom: 20, marginTop: 20,
           border: '1px solid rgba(239,68,68,.35)',
@@ -3863,9 +3878,9 @@ export default function ProfileSettings() {
             </h2>
           </div>
           <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 0, marginBottom: 12 }}>
-            Permanently delete your account. You will be signed out immediately and will no longer
-            be able to log in. Business records (orders, delivery challans, invoices) are retained
-            as required for legal and tax compliance.
+            Deleting your account is permanent. Your profile, saved addresses, authentication
+            information and eligible personal data will be deleted. Orders, invoices, challans or
+            transaction records may be retained where required for legal, tax, security or regulatory purposes.
           </p>
 
           {!showDeleteZone ? (
@@ -3882,6 +3897,15 @@ export default function ProfileSettings() {
             </button>
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
+              <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
+                We will send an OTP to your registered mobile number to verify account ownership.
+                Active sessions and device tokens will be revoked after deletion.
+              </p>
+              {!deleteOtpSent ? <button type="button" disabled={deleteBusy} onClick={sendDeletionOtp} style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid var(--red)', background: 'transparent', color: 'var(--red)', fontWeight: 800, width: 'fit-content' }}>
+                {deleteBusy ? 'Sending…' : 'SEND VERIFICATION OTP'}
+              </button> : <>
+              <label style={{ fontSize: 12, color: 'var(--muted)' }}>Verification OTP</label>
+              <input value={deleteOtp} onChange={e => setDeleteOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit OTP" style={{ padding: '10px 12px', borderRadius: 10, fontSize: 14, background: 'var(--glass-1)', border: '1px solid var(--glass-border)', color: 'var(--text)', maxWidth: 220 }} />
               <label style={{ fontSize: 12, color: 'var(--muted)' }}>
                 Type <strong style={{ color: 'var(--red)' }}>DELETE</strong> to confirm:
               </label>
@@ -3902,30 +3926,31 @@ export default function ProfileSettings() {
               <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   type="button"
-                  disabled={deleteConfirmText !== 'DELETE' || deleteBusy}
+                  disabled={deleteConfirmText !== 'DELETE' || !/^\d{6}$/.test(deleteOtp) || deleteBusy}
                   onClick={handleDeleteAccount}
                   style={{
                     padding: '10px 18px', borderRadius: 10,
-                    background: deleteConfirmText === 'DELETE' && !deleteBusy ? 'var(--red)' : 'rgba(239,68,68,.25)',
+                    background: deleteConfirmText === 'DELETE' && /^\d{6}$/.test(deleteOtp) && !deleteBusy ? 'var(--red)' : 'rgba(239,68,68,.25)',
                     border: 'none', color: '#fff', fontWeight: 800, fontSize: 13,
-                    cursor: deleteConfirmText === 'DELETE' && !deleteBusy ? 'pointer' : 'not-allowed',
+                    cursor: deleteConfirmText === 'DELETE' && /^\d{6}$/.test(deleteOtp) && !deleteBusy ? 'pointer' : 'not-allowed',
                   }}
                 >
-                  {deleteBusy ? 'Deleting…' : 'Permanently delete account'}
+                  {deleteBusy ? 'Deleting…' : 'DELETE MY ACCOUNT'}
                 </button>
                 <button
                   type="button"
                   disabled={deleteBusy}
-                  onClick={() => { setShowDeleteZone(false); setDeleteConfirmText(''); setDeleteError(''); }}
+                  onClick={() => { setShowDeleteZone(false); setDeleteConfirmText(''); setDeleteOtp(''); setDeleteOtpSent(false); setDeleteError(''); }}
                   style={{
                     padding: '10px 18px', borderRadius: 10,
                     background: 'transparent', border: '1px solid var(--glass-border)',
                     color: 'var(--muted)', fontWeight: 700, fontSize: 13, cursor: 'pointer',
                   }}
                 >
-                  Cancel
+                  CANCEL
                 </button>
               </div>
+              </>}
             </div>
           )}
         </div>

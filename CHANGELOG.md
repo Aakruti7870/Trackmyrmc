@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.30 — 2026-08-03
+
+### Added
+- Public Google Play account-and-data-deletion page at `/account-deletion`.
+- Database-backed deletion requests, ownership verification, duplicate prevention, and Super Admin lifecycle management.
+- Customer-only, OTP-verified permanent deletion with session/device-token revocation and statutory-record retention.
+
+### Changed
+- Android `versionCode` bumped **30 → 31** and `versionName` bumped **1.29 → 1.30**.
+- Signed Play release workflow now gates the AAB on frontend and database-backed backend tests.
+
+
 ## v1.19 — 2026-07-28
 
 ### Merged

@@ -47,6 +47,7 @@ const Users = lazy(() => import('@/pages/Users'));
 const UserManagement = lazy(() => import('@/pages/UserManagement'));
 const ActivityLog = lazy(() => import('@/pages/ActivityLog'));
 const ProfileSettings = lazy(() => import('@/pages/ProfileSettings'));
+const AccountDeletionAdmin = lazy(() => import('@/pages/AccountDeletionAdmin'));
 const Kiosk = lazy(() => import('@/pages/Kiosk'));
 const SsoCallback = lazy(() => import('@/pages/SsoCallback'));
 const TrackTrip = lazy(() => import('@/pages/TrackTrip'));
@@ -123,6 +124,7 @@ function ProtectedRoutes(){
     <Route path="/automations" component={()=> <GuardedRoute path="/automations" component={Automations}/>}/>
     <Route path="/whatsapp" component={()=> <GuardedRoute path="/whatsapp" component={WhatsAppChat}/>}/>
     <Route path="/profile" component={()=> <GuardedRoute path="/profile" component={ProfileSettings}/>}/>
+    <Route path="/admin/account-deletion-requests" component={()=> <GuardedRoute path="/admin/account-deletion-requests" component={AccountDeletionAdmin}/>}/>
     <Route path="/widget-settings" component={()=> <GuardedRoute path="/widget-settings" component={WidgetSettings}/>}/>
     <Route path="/challans/:id/print" component={()=> <GuardedRoute path="/challans" component={ChallanPrint}/>}/>
     <Route><Redirect to={defaultPath(user.role)}/></Route>
@@ -131,5 +133,5 @@ function ProtectedRoutes(){
 function LoginRoute(){const {user}=useAuth();return user?<Redirect to={defaultPath(user.role)}/>:<Login/>;}
 function RegisterRoute(){const {user}=useAuth();return user?<Redirect to={defaultPath(user.role)}/>:<Register/>;}
 export default function App(){return <ThemeProvider><AppBackground/><ConfigProvider><AuthProvider><ToastProvider><Switch>
-  <Route path="/login" component={LoginRoute}/><Route path="/register" component={RegisterRoute}/><Route path="/partner" component={PartnerRequest}/><Route path="/privacy" component={Privacy}/><Route path="/terms" component={Terms}/><Route path="/delete-account" component={DeleteAccount}/><Route path="/set-password" component={SetPassword}/><Route path="/forgot-password" component={ForgotPassword}/><Route path="/sso-callback" component={()=> <Suspense fallback={PageSpinner}><SsoCallback/></Suspense>}/><Route path="/track/:token" component={()=> <Suspense fallback={PageSpinner}><TrackTrip/></Suspense>}/><Route component={ProtectedRoutes}/>
+  <Route path="/login" component={LoginRoute}/><Route path="/register" component={RegisterRoute}/><Route path="/partner" component={PartnerRequest}/><Route path="/privacy" component={Privacy}/><Route path="/terms" component={Terms}/><Route path="/account-deletion" component={DeleteAccount}/><Route path="/delete-account" component={DeleteAccount}/><Route path="/set-password" component={SetPassword}/><Route path="/forgot-password" component={ForgotPassword}/><Route path="/sso-callback" component={()=> <Suspense fallback={PageSpinner}><SsoCallback/></Suspense>}/><Route path="/track/:token" component={()=> <Suspense fallback={PageSpinner}><TrackTrip/></Suspense>}/><Route component={ProtectedRoutes}/>
 </Switch></ToastProvider></AuthProvider></ConfigProvider></ThemeProvider>;}
