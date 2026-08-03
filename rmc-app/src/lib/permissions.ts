@@ -1,10 +1,10 @@
 export type Role = 'authority' | 'plant_owner' | 'admin' | 'supervisor' | 'dispatcher' | 'plant_operator' | 'accountant' | 'quality_engineer' | 'fleet_manager' | 'store_manager' | 'client' | 'driver';
 
 const ADMIN_PATHS = ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/plants', '/plant/profile-management', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/kyc', '/kyc-admin', '/profile', '/widget-settings'];
-const AUTHORITY_REQUIRED_PATHS = ['/profile', '/command', '/rmc-plant-network', '/admin/plant-profiles', '/admin/plant-promotions'];
+const AUTHORITY_REQUIRED_PATHS = ['/profile', '/command', '/rmc-plant-network', '/admin/plant-profiles', '/admin/plant-promotions', '/admin/account-deletion-requests'];
 
 export const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
-  authority:      ['/command', '/whatsapp', '/kiosk', '/rmc-plant-network', '/admin/plant-profiles', '/admin/plant-promotions', ...ADMIN_PATHS],
+  authority:      ['/command', '/whatsapp', '/kiosk', '/rmc-plant-network', '/admin/plant-profiles', '/admin/plant-promotions', '/admin/account-deletion-requests', ...ADMIN_PATHS],
   plant_owner:    ADMIN_PATHS,
   admin:          ['/whatsapp', ...ADMIN_PATHS],
   supervisor:     ['/', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/attendance', '/live-drivers', '/mix-design', '/reports', '/forecast', '/freshness', '/challans', '/shift-report', '/recurring', '/fuel-log', '/expense-review', '/emergencies', '/kyc', '/profile', '/widget-settings'],

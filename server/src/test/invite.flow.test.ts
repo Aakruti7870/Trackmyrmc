@@ -134,6 +134,24 @@ test('an invite token is single-use', async () => {
   assert.equal(second.body.reason, 'used');
 });
 
+test('an invite cannot reactivate a permanently deleted account', async () => {
+  const user = await db.insert(users).values({
+    name: 'Deleted owner', email: 'deleted@test.com', role: 'admin', isActive: false, deletedAt: new Date(),
+  }).returning().then(r => r[0]);
+  const { token } = await createInviteToken(user.id);
+
+  const peek = await request(app).get(`/api/auth/invite/${token}`);
+  assert.equal(peek.status, 400);
+  assert.equal(peek.body.reason, 'disabled');
+
+  const set = await request(app).post('/api/auth/set-password').send({ token, password: 'cannotrestore1' });
+  assert.equal(set.status, 400);
+  assert.equal(set.body.reason, 'disabled');
+  const [stillDeleted] = await db.select().from(users).where(eq(users.id, user.id));
+  assert.equal(stillDeleted.isActive, false);
+  assert.ok(stillDeleted.deletedAt);
+});
+
 test('an invalid token is rejected by peek and redeem', async () => {
   const peek = await request(app).get('/api/auth/invite/not-a-real-token');
   assert.equal(peek.status, 400);

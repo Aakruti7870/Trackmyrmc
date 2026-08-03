@@ -4,8 +4,9 @@ import request from 'supertest';
 import { sql } from 'drizzle-orm';
 import { buildTestApp } from './app.js';
 import { db, pool } from '../db/index.js';
-import { accountDeletionRequests, clients, orders, users } from '../db/schema.js';
+import { accountDeletionRequests, clients, orders, passwordSetupTokens, sites, users } from '../db/schema.js';
 import { signToken } from '../middleware/auth.js';
+import { createInviteToken } from '../lib/inviteToken.js';
 
 const app = buildTestApp();
 before(() => { process.env.NODE_ENV = 'test'; });
@@ -56,6 +57,8 @@ test('in-app deletion is customer-only, requires OTP, revokes sessions and retai
   assert.equal(otp.status, 200);
   assert.match(otp.body.devCode, /^\d{6}$/);
   const [order] = await db.insert(orders).values({ orderNo:'DEL-KEEP-1', clientId:client.id, grade:'M25', quantity:'5' }).returning();
+  const [site] = await db.insert(sites).values({ clientId:client.id, name:'Home build', address:'12 Private Road', city:'Mumbai', latitude:'19.0760000', longitude:'72.8777000' }).returning();
+  const { token: invite } = await createInviteToken(user.id);
   const complete = await request(app).post('/api/account-deletion-requests/complete').set('Authorization',`Bearer ${token}`).send({ confirmed:true, otp:otp.body.devCode });
   assert.equal(complete.status, 200);
   assert.equal((await request(app).get('/api/me/profile').set('Authorization',`Bearer ${token}`)).status, 401);
@@ -65,6 +68,12 @@ test('in-app deletion is customer-only, requires OTP, revokes sessions and retai
   assert.equal(deleted.isActive, false);
   assert.ok(deleted.deletedAt);
   assert.equal(deleted.phone, null);
+  const [anonymizedSite] = await db.select().from(sites).where(sql`${sites.id}=${site.id}`);
+  assert.deepEqual({ name:anonymizedSite.name, address:anonymizedSite.address, city:anonymizedSite.city, latitude:anonymizedSite.latitude, longitude:anonymizedSite.longitude }, { name:'Deleted site', address:null, city:null, latitude:null, longitude:null });
+  const [burnedInvite] = await db.select().from(passwordSetupTokens).where(sql`${passwordSetupTokens.userId}=${user.id}`);
+  assert.ok(burnedInvite.usedAt);
+  const redeem = await request(app).post('/api/auth/set-password').send({ token:invite, password:'cannotrestore1' });
+  assert.equal(redeem.status, 400);
   const [record] = await db.select().from(accountDeletionRequests).where(sql`${accountDeletionRequests.userId}=${user.id}`);
   assert.equal(record.status, 'completed');
 });

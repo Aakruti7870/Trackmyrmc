@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { and, desc, eq, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { accountDeletionRequests, auditLogs, clients, pushSubscriptions, users } from '../db/schema.js';
+import { accountDeletionRequests, auditLogs, clients, passwordSetupTokens, pushSubscriptions, sites, users } from '../db/schema.js';
 import { requireAuth, bumpSessionVersion } from '../middleware/auth.js';
 import { normalizePhone, sendOtp, verifyOtp } from '../lib/otp.js';
 import { rateLimit } from '../lib/rateLimit.js';
@@ -85,6 +85,8 @@ router.post('/complete', otpLimiter, requireAuth, async (req, res) => {
     if (existing) await tx.update(accountDeletionRequests).set({ status: 'completed', verifiedAt: now, completedAt: now, updatedAt: now }).where(eq(accountDeletionRequests.id, existing.id));
     else await tx.insert(accountDeletionRequests).values({ userId: actor.id, fullName: user.name, mobile: user.phone, email: user.email, status: 'completed', verifiedAt: now, completedAt: now });
     if (user.linkedClientId) await tx.update(clients).set({ name: 'Deleted customer', contactPerson: 'Deleted customer', phone: `deleted-${actor.id}`, email: null, address: null, city: null }).where(eq(clients.id, user.linkedClientId));
+    if (user.linkedClientId) await tx.update(sites).set({ name: 'Deleted site', address: null, city: null, latitude: null, longitude: null }).where(eq(sites.clientId, user.linkedClientId));
+    await tx.update(passwordSetupTokens).set({ usedAt: now }).where(and(eq(passwordSetupTokens.userId, actor.id), isNull(passwordSetupTokens.usedAt)));
     await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, actor.id));
     await tx.insert(auditLogs).values({ actorId: actor.id, actorName: 'Deleted customer', action: 'account_deletion.completed', targetUserId: actor.id, detail: 'Customer completed OTP-verified permanent account deletion; statutory transaction records retained.' });
     await tx.update(users).set({ name: 'Deleted customer', email: `deleted+${actor.id}@trackmyrmc.invalid`, phone: null, passwordHash: null, permissions: null, linkedClientId: null, preferredPlantId: null, isActive: false, deletedAt: now }).where(eq(users.id, actor.id));
@@ -114,6 +116,8 @@ router.patch('/admin/:id', requireAuth, async (req, res) => {
     if (target.isActive) {
       await db.transaction(async tx => {
         if (target.linkedClientId) await tx.update(clients).set({ name: 'Deleted customer', contactPerson: 'Deleted customer', phone: `deleted-${target.id}`, email: null, address: null, city: null }).where(eq(clients.id, target.linkedClientId));
+        if (target.linkedClientId) await tx.update(sites).set({ name: 'Deleted site', address: null, city: null, latitude: null, longitude: null }).where(eq(sites.clientId, target.linkedClientId));
+        await tx.update(passwordSetupTokens).set({ usedAt: now }).where(and(eq(passwordSetupTokens.userId, target.id), isNull(passwordSetupTokens.usedAt)));
         await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, target.id));
         await tx.update(users).set({ name: 'Deleted customer', email: `deleted+${target.id}@trackmyrmc.invalid`, phone: null, passwordHash: null, permissions: null, linkedClientId: null, preferredPlantId: null, isActive: false, deletedAt: now }).where(eq(users.id, target.id));
         await tx.insert(auditLogs).values({ actorId: req.user!.id, actorName: req.user!.name, action: 'account_deletion.completed_by_admin', targetUserId: target.id, detail: 'Verified customer deletion completed; statutory transaction records retained.' });

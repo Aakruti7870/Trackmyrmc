@@ -52,7 +52,7 @@ export async function createInviteToken(
 
 type PeekResult =
   | { ok: true; user: InviteUser }
-  | { ok: false; reason: 'invalid' | 'used' | 'expired' };
+  | { ok: false; reason: 'invalid' | 'used' | 'expired' | 'disabled' };
 
 // Read-only validity check used by the "set password" page before showing the
 // form. Never mutates the token (that happens on redeem).
@@ -68,10 +68,11 @@ export async function peekInviteToken(token: string): Promise<PeekResult> {
   if (row.expiresAt.getTime() < Date.now()) return { ok: false, reason: 'expired' };
 
   const [user] = await db
-    .select({ id: users.id, name: users.name, email: users.email, role: users.role })
+    .select({ id: users.id, name: users.name, email: users.email, role: users.role, deletedAt: users.deletedAt })
     .from(users)
     .where(eq(users.id, row.userId));
   if (!user) return { ok: false, reason: 'invalid' };
+  if (user.deletedAt) return { ok: false, reason: 'disabled' };
   return { ok: true, user };
 }
 
@@ -117,8 +118,10 @@ export async function redeemInviteToken(
       .for('update');
     if (!existing) return { ok: false, reason: 'invalid' };
 
-    // A reset must not be a backdoor into a suspended or deleted account.
-    if (kind === 'reset' && (!existing.isActive || existing.deletedAt)) {
+    // Permanent deletion cannot be reversed by any token issued before the
+    // deletion. An administrator must explicitly restore the account (which
+    // clears deletedAt) before a newly issued invite can activate it again.
+    if (existing.deletedAt || (kind === 'reset' && !existing.isActive)) {
       return { ok: false, reason: 'disabled' };
     }
 

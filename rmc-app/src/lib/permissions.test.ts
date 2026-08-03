@@ -20,6 +20,7 @@ describe('permissions — AUTHORITY super-role', () => {
       '/rmc-plant-network',
       '/admin/plant-profiles',
       '/admin/plant-promotions',
+      '/admin/account-deletion-requests',
       ...ROLE_ALLOWED_PATHS.admin.filter((p) => p !== '/whatsapp'),
     ]);
     expect(canAccess('authority', '/command')).toBe(true);
@@ -32,6 +33,8 @@ describe('permissions — AUTHORITY super-role', () => {
     expect(canAccess('admin', '/admin/plant-profiles')).toBe(false);
     expect(canAccess('authority', '/admin/plant-promotions')).toBe(true);
     expect(canAccess('admin', '/admin/plant-promotions')).toBe(false);
+    expect(canAccess('authority', '/admin/account-deletion-requests')).toBe(true);
+    expect(canAccess('admin', '/admin/account-deletion-requests')).toBe(false);
   });
 
   it('authority lands on the Command Center by default', () => {
@@ -85,6 +88,7 @@ describe('permissions — DB-backed overrides', () => {
     expect(canAccess('authority', '/rmc-plant-network')).toBe(true);
     expect(canAccess('authority', '/admin/plant-profiles')).toBe(true);
     expect(canAccess('authority', '/admin/plant-promotions')).toBe(true);
+    expect(canAccess('authority', '/admin/account-deletion-requests')).toBe(true);
     expect(canAccess('authority', '/orders')).toBe(true);
     expect(canAccess('authority', '/users')).toBe(false);
   });
@@ -92,6 +96,7 @@ describe('permissions — DB-backed overrides', () => {
   it('an override removing a normal module keeps only mandatory authority controls plus selected paths', () => {
     setPermissionOverrides({ authority: ['/command', '/profile', '/orders'] });
     expect(allowedPaths('authority')).toEqual([
+      '/admin/account-deletion-requests',
       '/admin/plant-promotions',
       '/admin/plant-profiles',
       '/rmc-plant-network',
