@@ -1,0 +1,55 @@
+# Deploy to Google Cloud Run on every push to main.
+#
+# Prerequisites (one-time setup in your GitHub repo Settings → Secrets):
+#
+#   GCP_SA_KEY   — Service account JSON key with these roles on the project:
+#                  roles/run.admin, roles/cloudbuild.builds.editor,
+#                  roles/artifactregistry.writer, roles/iam.serviceAccountUser
+#   GCP_PROJECT  — Your GCP project ID  (e.g. trackmyrmc-production)
+#
+# The rest of the config (region, service name, Cloud SQL instance) is set
+# in the env block below — update them if you ever rename the service.
+#
+# Secrets in the deployed container come from Secret Manager (wired in
+# cloudbuild.yaml) — never hardcode them here.
+
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  GCP_REGION: asia-south1
+  CLOUD_RUN_SERVICE: trackmyrmc
+  ARTIFACT_REPO: cloud-run-source-deploy
+  IMAGE_NAME: trackmyrmc/trackmyrmc
+  CLOUDSQL_INSTANCE: trackmyrmc-production:asia-south1:trackmyrmc-prod-db
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - name: Build & deploy via Cloud Build
+        run: |
+          gcloud builds submit \
+            --config cloudbuild.yaml \
+            --project "${{ secrets.GCP_PROJECT }}" \
+            --substitutions "_REGION=${{ env.GCP_REGION }},_REPO=${{ env.ARTIFACT_REPO }},_IMAGE=${{ env.IMAGE_NAME }},_SERVICE=${{ env.CLOUD_RUN_SERVICE }},_CLOUDSQL_INSTANCE=${{ env.CLOUDSQL_INSTANCE }},COMMIT_SHA=${{ github.sha }}"
