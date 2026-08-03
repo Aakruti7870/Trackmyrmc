@@ -2,6 +2,11 @@ name: Android Signed Play Release
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/release-v1.29.trigger
 
 permissions:
   contents: read
@@ -9,7 +14,7 @@ permissions:
 jobs:
   build-signed-aab:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -47,17 +52,30 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      - name: Install Android API 36
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
       - name: Install Android app dependencies
         working-directory: rmc-app
         run: pnpm install --frozen-lockfile
 
-      - name: Validate release metadata and source
+      - name: Validate release metadata and policy source
         working-directory: rmc-app
         run: |
           set -euo pipefail
-          node -e "const p=require('./package.json'); if(p.version!=='1.26.0') throw new Error('Expected package version 1.26.0')"
-          grep -Eq 'versionCode[[:space:]]+27\b' android/app/build.gradle
-          grep -Eq 'versionName[[:space:]]+\"1\.26\"' android/app/build.gradle
+          node -e "const p=require('./package.json'); if(p.version!=='1.29.0') throw new Error('Expected package version 1.29.0')"
+          grep -Eq 'versionCode[[:space:]]+30\b' android/app/build.gradle
+          grep -Eq 'versionName[[:space:]]+\"1\.29\"' android/app/build.gradle
+          grep -Eq 'compileSdkVersion[[:space:]]*=[[:space:]]*36\b' android/variables.gradle
+          grep -Eq 'targetSdkVersion[[:space:]]*=[[:space:]]*36\b' android/variables.gradle
+          grep -Eq "com.android.tools.build:gradle:8\.10\.1" android/build.gradle
+          grep -Fq "CONCRETE KING" src/pages/DeleteAccount.tsx
+          grep -Fq "com.trackmyrmc.concreteking" src/pages/DeleteAccount.tsx
+          grep -Fq "CONCRETE KING" src/pages/Privacy.tsx
+          grep -Fq "com.trackmyrmc.concreteking" src/pages/Privacy.tsx
           grep -Eq '\"@capacitor/android\":[[:space:]]*\"\^7\.6\.7\"' package.json
           grep -Eq '\"@capacitor/core\":[[:space:]]*\"\^7\.6\.7\"' package.json
           grep -Eq '\"@capacitor/cli\":[[:space:]]*\"\^7\.6\.7\"' package.json
@@ -77,7 +95,7 @@ jobs:
         working-directory: rmc-app/android
         run: |
           chmod +x gradlew
-          ./gradlew bundleRelease --stacktrace
+          ./gradlew clean bundleRelease --stacktrace
 
       - name: Decode upload keystore
         env:
@@ -100,15 +118,17 @@ jobs:
             -storepass "$ANDROID_KEYSTORE_PASSWORD" \
             -alias "$ANDROID_KEY_ALIAS" >/dev/null
 
-      - name: Sign release AAB
+      - name: Sign and verify release AAB
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          AAB="rmc-app/android/app/build/outputs/bundle/release/app-release.aab"
-          test -s "$AAB"
+          SOURCE_AAB="rmc-app/android/app/build/outputs/bundle/release/app-release.aab"
+          RELEASE_DIR="releases"
+          RELEASE_AAB="$RELEASE_DIR/app-release-v1.29-vc30-signed.aab"
+          test -s "$SOURCE_AAB"
           jarsigner \
             -keystore "$RUNNER_TEMP/trackmyrmc-upload.p12" \
             -storetype PKCS12 \
@@ -116,21 +136,22 @@ jobs:
             -keypass "$ANDROID_KEY_PASSWORD" \
             -sigalg SHA256withRSA \
             -digestalg SHA-256 \
-            "$AAB" "$ANDROID_KEY_ALIAS"
-
-      - name: Verify signed AAB
-        run: |
-          set -euo pipefail
-          AAB="rmc-app/android/app/build/outputs/bundle/release/app-release.aab"
-          jarsigner -verify -verbose -certs "$AAB"
-          sha256sum "$AAB" | tee rmc-app/android/app/build/outputs/bundle/release/app-release.aab.sha256
+            "$SOURCE_AAB" "$ANDROID_KEY_ALIAS"
+          jarsigner -verify -verbose -certs "$SOURCE_AAB"
+          mkdir -p "$RELEASE_DIR"
+          cp "$SOURCE_AAB" "$RELEASE_AAB"
+          sha256sum "$RELEASE_AAB" | tee "$RELEASE_AAB.sha256"
 
       - name: Upload Play Console artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TrackMyRMC-v1.26-vc27-signed-play-console
+          name: TrackMyRMC-v1.29-vc30-signed-play-console
           path: |
-            rmc-app/android/app/build/outputs/bundle/release/app-release.aab
-            rmc-app/android/app/build/outputs/bundle/release/app-release.aab.sha256
+            releases/app-release-v1.29-vc30-signed.aab
+            releases/app-release-v1.29-vc30-signed.aab.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Remove signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/trackmyrmc-upload.p12"
