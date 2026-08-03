@@ -9,7 +9,7 @@ on:
       - .github/release-v1.29.trigger
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-signed-aab:
@@ -151,6 +151,15 @@ jobs:
             releases/app-release-v1.29-vc30-signed.aab.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Commit verified signed AAB to repository
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/app-release-v1.29-vc30-signed.aab releases/app-release-v1.29-vc30-signed.aab.sha256
+          git commit -m "release(android): add signed v1.29 vc30 AAB"
+          git push
 
       - name: Remove signing material
         if: always()
