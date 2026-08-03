@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 import { ArrowLeft, CheckCircle2, Mail, ShieldCheck, UserX, AlertTriangle } from 'lucide-react';
-import { useAuth } from '@/lib/auth-provider';
+import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 
 const APP_NAME = 'CONCRETE KING';
