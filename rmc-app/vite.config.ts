@@ -137,6 +137,9 @@ export default defineConfig(({ mode }) => {
   ssr: {
     noExternal: ['react-leaflet', 'leaflet'],
   },
+  define: {
+    'process.env': {},
+  },
   build: {
     rollupOptions: {
       input: {
