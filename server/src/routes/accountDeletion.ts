@@ -59,56 +59,6 @@ router.post('/', publicLimiter, async (req, res) => {
   res.status(201).json({ ok: true, requestId: created.id, requestedAt: created.requestedAt });
 });
 
-// ── Public phone-based deletion (no prior login needed) ──────────────────────
-// Step 1: caller supplies phone → we send OTP. Always returns ok=true so
-// we don't reveal whether a phone is registered (enumeration guard).
-router.post('/phone-otp', otpLimiter, async (req, res) => {
-  const parsed = z.object({ phone: z.string().trim().min(1).max(30) }).safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: 'Enter your registered mobile number.' }); return; }
-  const phone = normalizePhone(parsed.data.phone);
-  if (!phone) { res.status(400).json({ error: 'Enter a valid mobile number including country code (e.g. +91 98765 43210).' }); return; }
-  const [user] = await db.select({ id: users.id, phone: users.phone })
-    .from(users).where(and(eq(users.phone, phone), eq(users.role, 'client'), eq(users.isActive, true), isNull(users.deletedAt)));
-  if (!user) { res.json({ ok: true }); return; } // silent — don't expose whether phone is registered
-  const sent = await sendOtp(phone);
-  if (!sent.ok) { res.status(503).json({ error: sent.error ?? 'Could not send verification code.' }); return; }
-  res.json({ ok: true, channel: sent.channel, ...(sent.devCode ? { devCode: sent.devCode } : {}) });
-});
-
-// Step 2: caller supplies phone + OTP + confirmed → verify OTP then soft-delete.
-router.post('/phone-complete', otpLimiter, async (req, res) => {
-  const parsed = z.object({
-    phone: z.string().trim().min(1).max(30),
-    otp: z.string().regex(/^\d{6}$/, 'OTP must be 6 digits'),
-    confirmed: z.literal(true),
-  }).safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'A valid mobile number, 6-digit OTP, and confirmation are required.' }); return; }
-  const phone = normalizePhone(parsed.data.phone);
-  if (!phone) { res.status(400).json({ error: 'Enter a valid mobile number.' }); return; }
-  const verified = await verifyOtp(phone, parsed.data.otp);
-  if (!verified.ok) { res.status(401).json({ error: verified.error }); return; }
-  const [user] = await db.select().from(users).where(and(
-    eq(users.phone, phone), eq(users.role, 'client'), eq(users.isActive, true), isNull(users.deletedAt),
-  ));
-  if (!user) { res.status(404).json({ error: 'No active customer account was found for this mobile number.' }); return; }
-  const now = new Date();
-  await db.transaction(async tx => {
-    const [existing] = await tx.select({ id: accountDeletionRequests.id }).from(accountDeletionRequests)
-      .where(and(eq(accountDeletionRequests.userId, user.id), or(...ACTIVE.map(s => eq(accountDeletionRequests.status, s)))));
-    if (existing) {
-      await tx.update(accountDeletionRequests).set({ status: 'completed', verifiedAt: now, completedAt: now, updatedAt: now }).where(eq(accountDeletionRequests.id, existing.id));
-    } else {
-      await tx.insert(accountDeletionRequests).values({ userId: user.id, fullName: user.name, mobile: user.phone, email: user.email, status: 'completed', verifiedAt: now, completedAt: now });
-    }
-    if (user.linkedClientId) await tx.update(clients).set({ name: 'Deleted customer', contactPerson: 'Deleted customer', phone: `deleted-${user.id}`, email: null, address: null, city: null }).where(eq(clients.id, user.linkedClientId));
-    await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, user.id));
-    await tx.insert(auditLogs).values({ actorId: user.id, actorName: 'Deleted customer', action: 'account_deletion.completed', targetUserId: user.id, detail: 'Customer completed phone-OTP-verified permanent account deletion via public page; statutory records retained.' });
-    await tx.update(users).set({ name: 'Deleted customer', email: `deleted+${user.id}@trackmyrmc.invalid`, phone: null, passwordHash: null, permissions: null, linkedClientId: null, preferredPlantId: null, isActive: false, deletedAt: now }).where(eq(users.id, user.id));
-  });
-  await bumpSessionVersion(user.id);
-  res.json({ ok: true, message: 'Your Concrete King account and eligible personal data have been permanently deleted.' });
-});
-
 router.post('/otp', otpLimiter, requireAuth, async (req, res) => {
   const actor = req.user!;
   if (actor.role !== 'client') { res.status(403).json({ error: 'Staff, driver, plant owner and administrator accounts must use the applicable offboarding process.' }); return; }

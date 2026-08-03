@@ -95,10 +95,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     id: users.id, email: users.email, role: users.role, name: users.name,
     isActive: users.isActive, plantId: users.plantId,
     linkedClientId: users.linkedClientId, linkedDriverId: users.linkedDriverId,
-    sessionVersion: users.sessionVersion,
+    sessionVersion: users.sessionVersion, deletedAt: users.deletedAt,
   }).from(users).where(eq(users.id, payload.id));
 
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || user.deletedAt) {
     res.status(401).json({ error: 'Account deactivated or not found' });
     return;
   }

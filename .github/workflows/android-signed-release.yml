@@ -22,6 +22,20 @@ jobs:
   build-signed-aab:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trackmyrmc
+          POSTGRES_PASSWORD: trackmyrmc_test
+          POSTGRES_DB: trackmyrmc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trackmyrmc -d trackmyrmc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     services:
       postgres:
@@ -46,7 +60,69 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_ALIAS: ${{ secretname: Android Signed Play Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/release-v1.32.trigger
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_VERSION: "1.32"
+  RELEASE_CODE: "33"
+  PACKAGE_VERSION: "1.32.0"
+  RELEASE_AAB: "releases/app-release-v1.32-vc33-signed.aab"
+  ARTIFACT_NAME: "TrackMyRMC-v1.32-vc33-signed-play-console"
+
+jobs:
+  build-signed-aab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trackmyrmc
+          POSTGRES_PASSWORD: trackmyrmc_test
+          POSTGRES_DB: trackmyrmc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trackmyrmc -d trackmyrmc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trackmyrmc
+          POSTGRES_PASSWORD: trackmyrmc_test
+          POSTGRES_DB: trackmyrmc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trackmyrmc -d trackmyrmc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout current production code
+        uses: actions/checkout@v4
+
+      - name: Validate signing secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secretss.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
@@ -85,12 +161,11 @@ jobs:
 
       - name: Install application dependencies
         run: |
-          set -euo pipefail
           pnpm install --frozen-lockfile
           pnpm --dir server install --frozen-lockfile
           pnpm --dir rmc-app install --frozen-lockfile
 
-      - name: Validate backend
+      - name: Validate account deletion backend
         working-directory: server
         env:
           DATABASE_URL: postgresql://trackmyrmc:trackmyrmc_test@localhost:5432/trackmyrmc
@@ -104,14 +179,21 @@ jobs:
         working-directory: rmc-app
         run: |
           set -euo pipefail
-          node -e "const p=require('./package.json'); if(p.version!==process.env.PACKAGE_VERSION) throw new Error('Expected package version '+process.env.PACKAGE_VERSION+', found '+p.version)"
-          grep -Eq "versionCode[[:space:]]+${RELEASE_CODE}\\b" android/app/build.gradle
-          grep -Eq "versionName[[:space:]]+\"${RELEASE_VERSION//./\\.}\"" android/app/build.gradle
+          node -e "const p=require('./package.json'); if(p.version!=='1.32.0') throw new Error('Expected package version 1.32.0')"
+          grep -Eq 'versionCode[[:space:]]+33\b' android/app/build.gradle
+          grep -Eq 'versionName[[:space:]]+\"1\.32\"' android/app/build.gradle
           grep -Eq 'compileSdkVersion[[:space:]]*=[[:space:]]*36\b' android/variables.gradle
           grep -Eq 'targetSdkVersion[[:space:]]*=[[:space:]]*36\b' android/variables.gradle
-          grep -Eq '"@capacitor/android":[[:space:]]*"\^7\.6\.7"' package.json
-          grep -Eq '"@capacitor/core":[[:space:]]*"\^7\.6\.7"' package.json
-          grep -Eq '"@capacitor/cli":[[:space:]]*"\^7\.6\.7"' package.json
+          grep -Eq "com.android.tools.build:gradle:8\.10\.1" android/build.gradle
+          grep -Fq "Concrete King – Account and Data Deletion" ../server/src/lib/accountDeletionPage.ts
+          grep -Fq "Concrete King | Ready-Mix Concrete Tracking &amp; RMC Plant Discovery" ../server/src/lib/accountDeletionPage.ts
+          grep -Fq "com.trackmyrmc.concreteking" ../server/src/lib/accountDeletionPage.ts
+          grep -Fq "REQUEST ACCOUNT DELETION" ../server/src/lib/accountDeletionPage.ts
+          grep -Fq "CONCRETE KING" src/pages/Privacy.tsx
+          grep -Fq "com.trackmyrmc.concreteking" src/pages/Privacy.tsx
+          grep -Eq '\"@capacitor/android\":[[:space:]]*\"\^7\.6\.7\"' package.json
+          grep -Eq '\"@capacitor/core\":[[:space:]]*\"\^7\.6\.7\"' package.json
+          grep -Eq '\"@capacitor/cli\":[[:space:]]*\"\^7\.6\.7\"' package.json
           pnpm lint
           pnpm test
 
@@ -161,6 +243,8 @@ jobs:
         run: |
           set -euo pipefail
           SOURCE_AAB="rmc-app/android/app/build/outputs/bundle/release/app-release.aab"
+          RELEASE_DIR="releases"
+          RELEASE_AAB="$RELEASE_DIR/app-release-v1.32-vc33-signed.aab"
           test -s "$SOURCE_AAB"
           jarsigner \
             -keystore "$RUNNER_TEMP/trackmyrmc-upload.p12" \
@@ -178,10 +262,10 @@ jobs:
       - name: Upload Play Console artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
+          name: TrackMyRMC-v1.32-vc33-signed-play-console
           path: |
-            ${{ env.RELEASE_AAB }}
-            ${{ env.RELEASE_AAB }}.sha256
+            releases/app-release-v1.32-vc33-signed.aab
+            releases/app-release-v1.32-vc33-signed.aab.sha256
           if-no-files-found: error
           retention-days: 14
 
@@ -190,13 +274,9 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$RELEASE_AAB" "$RELEASE_AAB.sha256"
-          if git diff --cached --quiet; then
-            echo "Signed AAB already matches the repository copy."
-          else
-            git commit -m "release(android): add signed v${RELEASE_VERSION} vc${RELEASE_CODE} AAB"
-            git push
-          fi
+          git add releases/app-release-v1.32-vc33-signed.aab releases/app-release-v1.32-vc33-signed.aab.sha256
+          git commit -m "release(android): add signed v1.32 vc33 AAB"
+          git push
 
       - name: Remove signing material
         if: always()
