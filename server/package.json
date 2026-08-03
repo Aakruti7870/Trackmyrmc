@@ -15,6 +15,7 @@
     "db:migrate-rmc-discovery": "tsx src/db/migrate-rmc-discovery.ts",
     "db:migrate-kyc-lifecycle": "tsx src/db/migrate-kyc-lifecycle.ts",
     "db:migrate-sponsored-plants": "tsx src/db/migrate-sponsored-plants.ts",
+    "db:migrate-account-deletion": "tsx src/db/migrate-account-deletion.ts",
     "test": "node scripts/test.mjs"
   },
   "dependencies": {
