@@ -1,175 +1,166 @@
 export function privacyPage(): string {
   const year = new Date().getFullYear();
   return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Privacy Policy – TrackMyRMC</title>
-<meta name="description" content="Privacy Policy for TrackMyRMC and the Concrete King Android app, operated by GOLD-e Tech.">
-<style>
-:root{color-scheme:light}
-*{box-sizing:border-box}
-body{margin:0;background:#f4f8f7;color:#172033;font:16px/1.65 system-ui,-apple-system,'Segoe UI',sans-serif}
-.wrap{width:min(860px,calc(100% - 32px));margin:0 auto;padding:28px 0 72px}
-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding-bottom:22px;border-bottom:1px solid #dce4e8;margin-bottom:28px}
-.brand{font-weight:900;letter-spacing:.04em;font-size:18px}.brand span{color:#08785f}
-.back{display:inline-flex;align-items:center;gap:7px;background:#e8f2f0;border:1px solid #dce4e8;color:#526078;padding:9px 16px;border-radius:10px;font-size:14px;text-decoration:none;font-weight:600}
-.back:hover{background:#d6ece7}
-.hero{background:#fff;border:1px solid #dce4e8;border-radius:18px;padding:clamp(22px,5vw,40px);box-shadow:0 20px 50px rgba(23,32,51,.07);margin-bottom:24px}
-.hero h1{font-size:clamp(26px,5vw,36px);margin:8px 0 10px;line-height:1.15}
-.hero .meta{color:#526078;font-size:14px}
-.identity{background:#eef8f5;border:1px solid #c0e4d8;border-radius:12px;padding:16px 20px;margin-bottom:28px}
-.identity table{border-collapse:collapse;width:100%}
-.identity td{padding:8px 4px;font-size:13px;vertical-align:top}
-.identity td:first-child{color:#526078;white-space:nowrap;padding-right:20px;width:160px}
-.identity td:last-child{color:#172033;font-weight:600;word-break:break-all}
-section{margin-top:32px}
-h2{font-size:19px;font-weight:700;color:#172033;margin:0 0 12px;letter-spacing:.1px}
-p{color:#526078;line-height:1.7;margin:0 0 12px}
-ul{color:#526078;line-height:1.7;margin:0 0 12px;padding-left:22px}
-li{margin-bottom:8px}
-strong{color:#172033}
-a{color:#08785f;text-decoration:none}
-a:hover{text-decoration:underline}
-.contact-box{background:#eef8f5;border:1px solid #c0e4d8;border-radius:12px;padding:18px 20px;margin-top:14px;font-size:14px}
-.contact-box div{margin-bottom:7px}
-footer{margin-top:48px;padding-top:20px;border-top:1px solid #dce4e8;color:#526078;font-size:13px;text-align:center}
-@media(max-width:520px){.wrap{padding-top:16px}.hero{border-radius:12px;padding:20px}.identity td:first-child{width:120px}}
-</style></head>
-<body><div class="wrap">
-<header>
-  <div class="brand"><span>TrackMyRMC</span><div style="font-size:10px;letter-spacing:1.5px;margin-top:4px;font-weight:400;color:#526078;text-transform:uppercase">Powered by GOLD-e Tech</div></div>
-  <a class="back" href="/">&#8592; Back to home</a>
-</header>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Privacy Policy – TrackMyRMC</title>
+  <meta name="description" content="Official Privacy Policy for the TrackMyRMC website and Android application operated by GOLD-e Tech.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://trackmyrmc.com/privacy_policy">
+  <link rel="icon" type="image/svg+xml" href="/trackmyrmc-policy-icon.svg">
+  <link rel="apple-touch-icon" href="/trackmyrmc-policy-icon.svg">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TrackMyRMC">
+  <meta property="og:title" content="Privacy Policy – TrackMyRMC">
+  <meta property="og:description" content="Official Privacy Policy for TrackMyRMC.">
+  <meta property="og:url" content="https://trackmyrmc.com/privacy_policy">
+  <meta property="og:image" content="https://trackmyrmc.com/trackmyrmc-policy-icon.svg">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Privacy Policy – TrackMyRMC">
+  <meta name="twitter:description" content="Official Privacy Policy for TrackMyRMC.">
+  <meta name="twitter:image" content="https://trackmyrmc.com/trackmyrmc-policy-icon.svg">
+  <style>
+    :root{color-scheme:light;--green:#08785f;--green-dark:#075f4d;--gold:#eab34d;--ink:#172033;--muted:#526078;--line:#dce4e8;--soft:#eef8f5;--bg:#f4f8f7}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.68 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    .wrap{width:min(900px,calc(100% - 32px));margin:auto;padding:24px 0 72px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:10px 0 22px;border-bottom:1px solid var(--line)}
+    .brand{display:flex;align-items:center;gap:12px}.brand img{width:46px;height:46px;border-radius:12px}.brand strong{display:block;font-size:20px;color:var(--green)}.brand small{display:block;color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+    .back{display:inline-flex;align-items:center;min-height:42px;padding:9px 15px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--green-dark);font-weight:700;text-decoration:none}.back:hover{background:var(--soft)}
+    .hero{margin-top:28px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:clamp(24px,5vw,42px);box-shadow:0 22px 60px rgba(23,32,51,.08)}
+    .eyebrow{color:var(--green);font-size:12px;letter-spacing:1.6px;text-transform:uppercase;font-weight:800}.hero h1{font-size:clamp(30px,6vw,44px);line-height:1.12;margin:8px 0 12px}.hero p{margin:0;color:var(--muted)}
+    .identity{margin-top:22px;background:var(--soft);border:1px solid #c0e4d8;border-radius:14px;padding:16px 20px}.row{display:grid;grid-template-columns:minmax(135px,.7fr) minmax(0,1.4fr);gap:14px;padding:9px 0;border-bottom:1px solid rgba(8,120,95,.14)}.row:last-child{border-bottom:0}.row span{color:var(--muted);font-size:13px}.row strong{font-size:13px;overflow-wrap:anywhere}
+    main{background:#fff;border:1px solid var(--line);border-radius:20px;padding:clamp(22px,5vw,42px);margin-top:22px}section{margin-top:34px}section:first-child{margin-top:0}h2{font-size:20px;margin:0 0 12px}p,li{color:var(--muted)}ul{padding-left:22px;margin:10px 0}li{margin-bottom:8px}a{color:var(--green);font-weight:650}.contact{background:var(--soft);border:1px solid #c0e4d8;border-radius:14px;padding:18px 20px}.notice{border-left:4px solid var(--gold);background:#fffaf0;padding:14px 16px;border-radius:8px;color:var(--muted)}footer{text-align:center;color:var(--muted);font-size:13px;padding-top:28px}
+    @media(max-width:560px){.wrap{width:min(100% - 22px,900px);padding-top:12px}.row{grid-template-columns:1fr;gap:2px}.hero,main{border-radius:14px}.top{align-items:flex-start}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">
+        <img src="/trackmyrmc-policy-icon.svg" alt="TrackMyRMC logo">
+        <div><strong>TrackMyRMC</strong><small>Powered by GOLD-e Tech</small></div>
+      </div>
+      <a class="back" href="https://trackmyrmc.com/">&#8592; Back to TrackMyRMC</a>
+    </header>
 
-<div class="hero">
-  <div style="display:flex;align-items:center;gap:10px">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#08785f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
-    <h1 style="margin:0">Privacy Policy – TrackMyRMC</h1>
+    <section class="hero">
+      <div class="eyebrow">Official TrackMyRMC document</div>
+      <h1>Privacy Policy</h1>
+      <p>Effective and last updated: August 4, 2026</p>
+    </section>
+
+    <div class="identity" aria-label="Application identity">
+      <div class="row"><span>Application</span><strong>TrackMyRMC</strong></div>
+      <div class="row"><span>Android package</span><strong>com.trackmyrmc.concreteking</strong></div>
+      <div class="row"><span>Website</span><strong>https://trackmyrmc.com</strong></div>
+      <div class="row"><span>Operator</span><strong>GOLD-e Tech</strong></div>
+      <div class="row"><span>Policy URL</span><strong>https://trackmyrmc.com/privacy_policy</strong></div>
+    </div>
+
+    <main>
+      <section>
+        <p>This Privacy Policy explains how TrackMyRMC and GOLD-e Tech collect, use, share, retain, and protect information when customers, drivers, plant owners, administrators, staff, and other authorised users access the TrackMyRMC website or Android application.</p>
+        <p class="notice">This page applies only to TrackMyRMC services hosted at <strong>trackmyrmc.com</strong> and the associated TrackMyRMC Android application.</p>
+      </section>
+
+      <section>
+        <h2>1. Information We Collect</h2>
+        <ul>
+          <li><strong>Account and contact data:</strong> name, mobile number, email address, account role, company or RMC plant details, address, city, GST information, and authentication records.</li>
+          <li><strong>Order and operational data:</strong> concrete grade, quantity, delivery address, delivery pin, customer and site contacts, order status, dispatch details, vehicle and driver assignment, challans, invoices, payment status, reports, and audit records.</li>
+          <li><strong>Location data:</strong> approximate or precise location used for delivery pins, nearby-plant functions, navigation, and authorised live-trip tracking.</li>
+          <li><strong>Photos and files selected by the user:</strong> delivery proof, site photographs, profile or verification documents, challans, and other files deliberately uploaded for a TrackMyRMC feature.</li>
+          <li><strong>KYC information:</strong> verification status and permitted identity details supplied through an authorised DigiLocker or KYC workflow. TrackMyRMC does not intentionally store a complete Aadhaar number in its application database.</li>
+          <li><strong>Technical and security data:</strong> IP address, browser or device type, operating system, app version, timestamps, diagnostic logs, authentication events, security events, and feature usage.</li>
+          <li><strong>Communications:</strong> support enquiries, account-deletion requests, and transactional messages delivered by email, SMS, WhatsApp, push notification, or similar channels.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>2. Android Permissions and Device Access</h2>
+        <ul>
+          <li><strong>Precise and approximate location</strong> may be used for delivery-site selection, navigation, nearby-plant discovery, and live trip visibility.</li>
+          <li><strong>Background location</strong> may be used only for an authorised driver or role-based tracking session while an active trip is in progress. Tracking is intended to stop when the trip or tracking workflow ends.</li>
+          <li><strong>Notifications</strong> may be used for OTP, account, order, dispatch, delivery, operational, and security updates.</li>
+          <li><strong>User-selected photos and files</strong> are accessed only when the user chooses to capture or upload content for an available feature.</li>
+        </ul>
+        <p>Permissions can be managed in Android settings. Disabling a required permission may prevent the related TrackMyRMC feature from operating.</p>
+      </section>
+
+      <section>
+        <h2>3. How We Use Information</h2>
+        <ul>
+          <li>Create, authenticate, secure, and administer accounts.</li>
+          <li>Verify eligible customers and display verification status where applicable.</li>
+          <li>Place, approve, schedule, dispatch, track, deliver, and document RMC orders.</li>
+          <li>Generate challans, invoices, ledgers, reports, payroll or attendance records where enabled, and operational audit trails.</li>
+          <li>Provide map, routing, delivery coordination, and live-trip functions.</li>
+          <li>Send transactional and security communications.</li>
+          <li>Respond to support, correction, privacy, and account-deletion requests.</li>
+          <li>Detect abuse, prevent fraud, investigate incidents, and enforce role-based access.</li>
+          <li>Meet legal, tax, accounting, safety, employment, contractual, or regulatory obligations.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>4. How Information Is Shared</h2>
+        <p>Information may be shared only as reasonably necessary with authorised users involved in an order or operational workflow, and with service providers supporting cloud hosting, databases, storage, authentication, email, SMS, WhatsApp, push notifications, maps, navigation, KYC, monitoring, and security.</p>
+        <p>Information may also be disclosed where required by law, a court, a regulator, or a lawful authority, or where necessary to protect users, prevent harm, or establish or defend legal rights.</p>
+        <p><strong>TrackMyRMC does not sell personal information.</strong></p>
+      </section>
+
+      <section>
+        <h2>5. Data Retention</h2>
+        <p>Information is retained only for as long as reasonably necessary for the purposes described in this policy. Retention depends on account status, active orders, employment or business relationships, security needs, dispute resolution, and applicable legal, tax, accounting, and audit requirements.</p>
+        <p>After a verified deletion request, account access is disabled and personal account data is deleted or de-identified, except for information that must be retained for legitimate legal, accounting, fraud-prevention, safety, dispute, or audit purposes.</p>
+      </section>
+
+      <section>
+        <h2>6. Account and Data Deletion</h2>
+        <p>Users may request deletion from the account settings available inside the TrackMyRMC application. Users who cannot sign in may use the public <a href="https://trackmyrmc.com/account-deletion">TrackMyRMC Account Deletion Request page</a>.</p>
+        <p>Removing the application from a device does not itself delete the account. Identity verification may be required before an account or associated personal data is deleted.</p>
+      </section>
+
+      <section>
+        <h2>7. Privacy Choices and Rights</h2>
+        <p>Subject to applicable law and identity verification, users may request access, correction, deletion, or restriction of personal information associated with their TrackMyRMC account. Android permissions can be managed through device settings.</p>
+      </section>
+
+      <section>
+        <h2>8. Security</h2>
+        <p>TrackMyRMC uses safeguards designed to protect information, including encrypted network connections, authentication controls, role-based access, restricted administrative access, secure credential handling, logging, and monitoring. No electronic system can guarantee absolute security.</p>
+      </section>
+
+      <section>
+        <h2>9. Children's Privacy</h2>
+        <p>TrackMyRMC is intended for businesses, authorised workers, and adults. It is not directed to children under 18, and children are not knowingly permitted to create accounts.</p>
+      </section>
+
+      <section>
+        <h2>10. Third-Party Services and International Processing</h2>
+        <p>Service providers may process information on infrastructure located outside the user's city, state, or country. Third-party integrations are also governed by their own privacy notices and terms.</p>
+      </section>
+
+      <section>
+        <h2>11. Changes to This Privacy Policy</h2>
+        <p>This policy may be updated when TrackMyRMC features, permissions, service providers, data practices, or legal requirements change. The effective date at the top of this page will be updated when revisions are published.</p>
+      </section>
+
+      <section>
+        <h2>12. Contact</h2>
+        <div class="contact">
+          <div><strong>Operator:</strong> GOLD-e Tech</div>
+          <div><strong>Application:</strong> TrackMyRMC</div>
+          <div><strong>Email:</strong> <a href="mailto:support@goldetech.com">support@goldetech.com</a></div>
+          <div><strong>Phone:</strong> <a href="tel:+917498286760">+91 74982 86760</a></div>
+          <div><strong>Website:</strong> <a href="https://trackmyrmc.com/">https://trackmyrmc.com</a></div>
+        </div>
+      </section>
+    </main>
+
+    <footer>&copy; ${year} TrackMyRMC &middot; Powered by GOLD-e Tech</footer>
   </div>
-  <p class="meta" style="margin-top:10px">Effective and last updated: August 3, 2026</p>
-</div>
-
-<div class="identity">
-  <table><tbody>
-    <tr><td>Google Play app</td><td>CONCRETE KING</td></tr>
-    <tr><td>Platform</td><td>TrackMyRMC</td></tr>
-    <tr><td>Android package</td><td>com.trackmyrmc.concreteking</td></tr>
-    <tr><td>Operated by</td><td>GOLD-e Tech</td></tr>
-    <tr><td>Website</td><td><a href="https://trackmyrmc.com">https://trackmyrmc.com</a></td></tr>
-  </tbody></table>
-</div>
-
-<p>This Privacy Policy applies to the <strong>CONCRETE KING</strong> Android application, package <strong>com.trackmyrmc.concreteking</strong>, and the <strong>TrackMyRMC</strong> website and services operated by <strong>GOLD-e Tech</strong>. It explains how we access, collect, use, disclose, retain, and protect information when customers, drivers, plant owners, and staff use the service.</p>
-
-<section>
-<h2>1. Information We Collect</h2>
-<ul>
-  <li><strong>Account and contact information</strong> — name, mobile number, email address, account role, company or plant details, customer details, GST information, address, city, and authentication or OTP-related records.</li>
-  <li><strong>Order, delivery, and business records</strong> — concrete grade, quantity, delivery site, contact person, order status, challans, dispatch and delivery timestamps, invoices, ledger or payment-status records, vehicle and driver assignment, and related operational notes.</li>
-  <li><strong>Location information</strong> — delivery-site map pins and precise device location when needed for navigation or live-trip tracking. For authorised drivers, location may be collected in the background while an assigned trip is actively being tracked, including when the app is not visible. Background tracking is used for delivery operations and stops when the trip or tracking session ends.</li>
-  <li><strong>Photos and files you choose to provide</strong> — for example site photos, delivery proof images, challan-related files, profile or verification material, and other documents deliberately selected or captured for an app feature.</li>
-  <li><strong>Identity and KYC information</strong> — when a customer chooses or is required to complete DigiLocker-based KYC, the service may process verification status, consent-session identifiers, full name, date of birth, gender, and a masked Aadhaar value. We do not intentionally store the full Aadhaar number in the TrackMyRMC application database.</li>
-  <li><strong>Technical, security, and usage information</strong> — IP address, browser or device type, operating system, app version, timestamps, authentication events, error and diagnostic logs, security events, and feature usage needed to operate and protect the service.</li>
-  <li><strong>Communications</strong> — support enquiries, account-deletion requests, transactional messages, and records of service notifications sent through email, SMS, WhatsApp, push notification, or similar channels.</li>
-</ul>
-</section>
-
-<section>
-<h2>2. Android Permissions and Device Access</h2>
-<ul>
-  <li><strong>Precise and approximate location:</strong> used for delivery pins, navigation, nearby-plant features, and live trip tracking.</li>
-  <li><strong>Background location:</strong> used only for role-based live tracking during an active driver trip or another clearly initiated tracking workflow.</li>
-  <li><strong>Notifications:</strong> used for account, order, dispatch, delivery, operational, and security updates.</li>
-  <li><strong>User-selected photos and files:</strong> accessed only when you choose an image or document for an available feature. The app does not claim ownership of files unrelated to the selected workflow.</li>
-</ul>
-<p>Permission availability depends on your device, Android version, account role, and the feature you use. You may manage permissions in Android settings, although disabling a required permission can prevent the related feature from working.</p>
-</section>
-
-<section>
-<h2>3. How We Use Information</h2>
-<ul>
-  <li>Create, authenticate, secure, and administer user accounts.</li>
-  <li>Verify eligible customers and display KYC status where applicable.</li>
-  <li>Place, approve, schedule, dispatch, track, deliver, and document RMC orders.</li>
-  <li>Generate operational records such as challans, invoices, ledgers, reports, and audit trails.</li>
-  <li>Provide maps, delivery coordination, driver navigation, and live-trip visibility.</li>
-  <li>Send transactional account and order notifications.</li>
-  <li>Respond to support, privacy, correction, and deletion requests.</li>
-  <li>Detect abuse, investigate incidents, prevent fraud, and enforce access controls.</li>
-  <li>Comply with tax, accounting, employment, safety, contractual, and legal obligations.</li>
-</ul>
-</section>
-
-<section>
-<h2>4. How We Share Information</h2>
-<p>We share information only where reasonably necessary for a disclosed business purpose, including with:</p>
-<ul>
-  <li>authorised RMC plants, plant owners, dispatchers, drivers, staff, and customers involved in an order or permitted operational workflow;</li>
-  <li>cloud hosting, database, object-storage, security, email, SMS, and notification providers;</li>
-  <li>authentication providers such as Google Cloud Identity Platform or Firebase when configured;</li>
-  <li>mapping, geocoding, navigation, and location-service providers used by map and tracking features;</li>
-  <li>Meta or WhatsApp Business service providers for transactional WhatsApp communications;</li>
-  <li>DigiLocker or an authorised KYC service provider when a user initiates identity verification; and</li>
-  <li>regulators, courts, law-enforcement authorities, professional advisers, or another party when disclosure is required by law, necessary to protect users, or needed to establish or defend rights.</li>
-</ul>
-<p>We do not sell personal information. We do not permit service providers to use information received from us for unrelated independent advertising purposes.</p>
-</section>
-
-<section>
-<h2>5. WhatsApp, SMS, Email, and Notifications</h2>
-<p>We may send transactional communications concerning OTPs, account security, KYC status, orders, approval, dispatch, tracking, delivery, billing, or support. WhatsApp communications may be processed through the WhatsApp Business Platform and are also subject to Meta and WhatsApp terms. Where an opt-out is legally available, you may use the instructions in the message or contact us. Essential authentication, security, and active-order notices may still be required to provide the requested service.</p>
-</section>
-
-<section>
-<h2>6. Data Retention</h2>
-<p>We retain account and service information only for as long as reasonably necessary for the purposes described in this policy. Retention periods vary according to the type of record, account status, active order or employment relationship, security requirements, dispute resolution, and applicable legal, tax, accounting, or audit obligations.</p>
-<p>After an account-deletion request is verified, account access is disabled and personal account information is deleted or de-identified, except information that must be retained for legitimate legal, tax, accounting, fraud-prevention, safety, dispute, or audit purposes. Retained records are restricted to those purposes and are deleted or anonymised when the applicable retention need ends.</p>
-</section>
-
-<section>
-<h2>7. Account and Data Deletion</h2>
-<p>Users can initiate deletion from <strong>Account Settings → Danger Zone</strong> inside the app. Users who cannot access the app can use the public <a href="/delete-account">CONCRETE KING Account Deletion Request page</a>.</p>
-<p>The deletion page identifies the Google Play app, package ID, available request methods, information needed to verify the requester, and the categories of data that may be retained. Deleting the app from a device does not itself delete the user's account.</p>
-</section>
-
-<section>
-<h2>8. Your Privacy Choices and Rights</h2>
-<p>Subject to applicable law and necessary identity verification, you may request access, correction, deletion, or restriction of personal information associated with your account. You may also manage Android permissions through your device settings and communication preferences through the available channel or by contacting us.</p>
-<p>To submit a privacy request, email <a href="mailto:support@goldetech.com">support@goldetech.com</a> or use our <a href="/delete-account">account-deletion page</a>.</p>
-</section>
-
-<section>
-<h2>9. Security</h2>
-<p>We use technical and organisational safeguards designed to protect information, including encrypted network connections, authentication controls, role-based access, restricted administrative access, secure credential handling, logging, and monitoring. No transmission or storage system is completely secure, so we cannot guarantee absolute security.</p>
-</section>
-
-<section>
-<h2>10. Children's Privacy</h2>
-<p>The service is intended for businesses, authorised workers, and adults. It is not directed to children under 18, and we do not knowingly permit children to create accounts or knowingly collect their personal information. Contact us if you believe a child has provided information.</p>
-</section>
-
-<section>
-<h2>11. International and Third-Party Processing</h2>
-<p>Service providers may process information on infrastructure located outside your city, state, or country. Where applicable, we use contractual, access-control, and security measures intended to protect information during such processing. Links or integrations operated by third parties are governed by their own privacy notices in addition to this policy.</p>
-</section>
-
-<section>
-<h2>12. Changes to This Policy</h2>
-<p>We may update this policy when the app, data practices, service providers, or legal requirements change. We will update the effective date and provide additional notice where appropriate. Material app changes must also be reflected accurately in the Google Play Data safety form.</p>
-</section>
-
-<section>
-<h2>13. Contact Us</h2>
-<p>For privacy questions, account deletion, data requests, or complaints, contact the operator:</p>
-<div class="contact-box">
-  <div><strong>GOLD-e Tech</strong></div>
-  <div><strong>App:</strong> CONCRETE KING (TrackMyRMC)</div>
-  <div><strong>Package ID:</strong> com.trackmyrmc.concreteking</div>
-  <div><strong>Email:</strong> <a href="mailto:support@goldetech.com">support@goldetech.com</a></div>
-  <div><strong>Phone:</strong> <a href="tel:+917498286760">+91 74982 86760</a></div>
-  <div><strong>Website:</strong> <a href="https://trackmyrmc.com">trackmyrmc.com</a></div>
-</div>
-</section>
-
-<footer>© ${year} CONCRETE KING · TrackMyRMC · Powered by GOLD-e Tech</footer>
-</div></body></html>`;
+</body>
+</html>`;
 }
