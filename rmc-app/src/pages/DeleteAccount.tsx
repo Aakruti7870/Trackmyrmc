@@ -9,12 +9,25 @@ const PLATFORM_NAME = 'TrackMyRMC';
 const PACKAGE_ID = 'com.trackmyrmc.concreteking';
 const OPERATOR = 'GOLD-e Tech';
 
+// ── Fixed light-mode palette (public page — must render correctly regardless of
+// the app's day/night auto-theme so users can always reach the deletion flow) ──
+const C = {
+  bg:     '#f4f8f7',
+  panel:  '#ffffff',
+  text:   '#172033',
+  muted:  '#526078',
+  line:   '#dce4e8',
+  teal:   '#08785f',
+  red:    '#ef4444',
+  chip:   '#e8f2f0',
+} as const;
+
 // ── Shared step indicator ────────────────────────────────────────────────────
 function StepNum({ n }: { n: number }) {
   return (
     <div style={{
       width: 30, height: 30, borderRadius: '50%',
-      background: 'var(--red, #ef4444)', color: '#fff',
+      background: C.red, color: '#fff',
       fontWeight: 900, fontSize: 13,
       display: 'grid', placeItems: 'center', flexShrink: 0, marginTop: 2,
     }}>{n}</div>
@@ -69,8 +82,8 @@ function PhoneDeleteFlow() {
     return (
       <div style={{ textAlign: 'center', padding: '32px 20px', background: 'rgba(34,197,94,.07)', borderRadius: 16 }}>
         <div style={{ fontSize: 44, marginBottom: 12 }}>✓</div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Account deleted</div>
-        <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 10 }}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>Account deleted</div>
+        <p style={{ color: C.muted, fontSize: 14, marginTop: 10 }}>
           Your Concrete King account and eligible personal data have been permanently removed.
         </p>
       </div>
@@ -92,13 +105,13 @@ function PhoneDeleteFlow() {
             disabled={step === 'otp' && !busy}
             style={{
               width: '100%', padding: '13px 15px', borderRadius: 10,
-              border: `1.5px solid ${phoneError ? 'var(--red,#ef4444)' : 'var(--line)'}`,
-              background: 'var(--panel)', color: 'var(--text)', fontSize: 16,
+              border: `1.5px solid ${phoneError ? C.red : C.line}`,
+              background: C.panel, color: C.text, fontSize: 16,
               opacity: step === 'otp' ? 0.7 : 1,
             }}
           />
           {phoneError && (
-            <p style={{ color: 'var(--red,#ef4444)', fontSize: 13, marginTop: 6 }}>{phoneError}</p>
+            <p style={{ color: C.red, fontSize: 13, marginTop: 6 }}>{phoneError}</p>
           )}
           <button
             type="button"
@@ -106,8 +119,8 @@ function PhoneDeleteFlow() {
             disabled={busy}
             style={{
               marginTop: 10, padding: '12px 20px', borderRadius: 10,
-              border: '1.5px solid var(--line)', background: 'var(--panel)',
-              color: 'var(--text)', fontWeight: 700, fontSize: 14,
+              border: `1.5px solid ${C.line}`, background: C.panel,
+              color: C.text, fontWeight: 700, fontSize: 14,
               cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1,
             }}
           >
@@ -127,7 +140,7 @@ function PhoneDeleteFlow() {
           <StepNum n={2} />
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>6-digit verification code</div>
-            <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 10 }}>Sent to your registered number via WhatsApp or SMS.</p>
+            <p style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>Sent to your registered number via WhatsApp or SMS.</p>
             <input
               type="text"
               inputMode="numeric"
@@ -137,8 +150,8 @@ function PhoneDeleteFlow() {
               placeholder="——————"
               style={{
                 padding: '13px 16px', borderRadius: 10,
-                border: '1.5px solid var(--line)', background: 'var(--panel)',
-                color: 'var(--text)', fontSize: 26, fontWeight: 800, letterSpacing: 8,
+                border: `1.5px solid ${C.line}`, background: C.panel,
+                color: C.text, fontSize: 26, fontWeight: 800, letterSpacing: 8,
                 width: '100%', maxWidth: 200, display: 'block', textAlign: 'center',
               }}
             />
@@ -152,9 +165,9 @@ function PhoneDeleteFlow() {
           <StepNum n={3} />
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>
-              Type <strong style={{ color: 'var(--red,#ef4444)' }}>DELETE</strong> to confirm
+              Type <strong style={{ color: C.red }}>DELETE</strong> to confirm
             </div>
-            <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 10 }}>This cannot be undone.</p>
+            <p style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>This cannot be undone.</p>
             <input
               type="text"
               value={confirm}
@@ -162,8 +175,8 @@ function PhoneDeleteFlow() {
               placeholder="DELETE"
               style={{
                 padding: '13px 16px', borderRadius: 10,
-                border: `1.5px solid ${confirm === 'DELETE' ? 'rgba(239,68,68,.5)' : 'var(--line)'}`,
-                background: 'var(--panel)', color: 'var(--text)',
+                border: `1.5px solid ${confirm === 'DELETE' ? 'rgba(239,68,68,.5)' : C.line}`,
+                background: C.panel, color: C.text,
                 fontSize: 16, fontWeight: 800, letterSpacing: 3,
                 width: '100%', maxWidth: 200, display: 'block',
               }}
@@ -181,7 +194,7 @@ function PhoneDeleteFlow() {
             disabled={!canDelete || busy}
             style={{
               width: '100%', minHeight: 52, border: 0, borderRadius: 12,
-              background: canDelete && !busy ? 'var(--red,#ef4444)' : 'rgba(239,68,68,.25)',
+              background: canDelete && !busy ? C.red : 'rgba(239,68,68,.25)',
               color: '#fff', fontWeight: 900, fontSize: 15,
               cursor: canDelete && !busy ? 'pointer' : 'not-allowed',
               transition: 'background .2s',
@@ -190,7 +203,7 @@ function PhoneDeleteFlow() {
             {busy ? 'Deleting…' : 'DELETE MY ACCOUNT PERMANENTLY'}
           </button>
           {deleteError && (
-            <p style={{ fontSize: 13, color: 'var(--red,#ef4444)', background: 'rgba(239,68,68,.06)', padding: '10px 14px', borderRadius: 8, marginTop: -10 }}>
+            <p style={{ fontSize: 13, color: C.red, background: 'rgba(239,68,68,.06)', padding: '10px 14px', borderRadius: 8, marginTop: -10 }}>
               {deleteError}
             </p>
           )}
@@ -246,14 +259,14 @@ function AuthDeleteFlow() {
   return (
     <div style={{ border: '1.5px solid rgba(239,68,68,.2)', borderRadius: 14, padding: '20px 22px', background: 'rgba(239,68,68,.02)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <AlertTriangle size={18} color="var(--red,#ef4444)" />
-        <span style={{ fontWeight: 800, color: 'var(--red,#ef4444)' }}>Delete My Account</span>
+        <AlertTriangle size={18} color={C.red} />
+        <span style={{ fontWeight: 800, color: C.red }}>Delete My Account</span>
       </div>
-      <div style={{ fontSize: 13, background: 'rgba(8,120,95,.08)', border: '1px solid rgba(8,120,95,.2)', borderRadius: 8, padding: '7px 12px', color: 'var(--teal,#08785f)', fontWeight: 700, marginBottom: 14, display: 'inline-block' }}>
+      <div style={{ fontSize: 13, background: 'rgba(8,120,95,.08)', border: '1px solid rgba(8,120,95,.2)', borderRadius: 8, padding: '7px 12px', color: C.teal, fontWeight: 700, marginBottom: 14, display: 'inline-block' }}>
         ✓ Signed in as {user?.name}
       </div>
-      <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 18 }}>
-        Permanently deletes your account and personal data. <strong style={{ color: 'var(--red,#ef4444)' }}>Cannot be undone.</strong>
+      <p style={{ color: C.muted, fontSize: 14, marginBottom: 18 }}>
+        Permanently deletes your account and personal data. <strong style={{ color: C.red }}>Cannot be undone.</strong>
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -262,7 +275,7 @@ function AuthDeleteFlow() {
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>Verify your identity</div>
             <button type="button" onClick={() => void sendOtp()} disabled={busy}
-              style={{ padding: '10px 16px', borderRadius: 10, border: '1.5px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', fontWeight: 700, fontSize: 13, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1 }}>
+              style={{ padding: '10px 16px', borderRadius: 10, border: `1.5px solid ${C.line}`, background: C.panel, color: C.text, fontWeight: 700, fontSize: 13, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1 }}>
               {step === 'otp' ? 'Resend code' : busy ? 'Sending…' : 'Send verification code'}
             </button>
             {info && <p style={{ fontSize: 13, color: '#176b36', marginTop: 8 }}>{info}</p>}
@@ -276,7 +289,7 @@ function AuthDeleteFlow() {
               <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>6-digit code</div>
               <input type="text" inputMode="numeric" maxLength={6} value={otp}
                 onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                style={{ padding: '11px 14px', borderRadius: 10, border: '1.5px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', fontSize: 22, fontWeight: 800, letterSpacing: 6, width: 160, display: 'block', textAlign: 'center' }} />
+                style={{ padding: '11px 14px', borderRadius: 10, border: `1.5px solid ${C.line}`, background: C.panel, color: C.text, fontSize: 22, fontWeight: 800, letterSpacing: 6, width: 160, display: 'block', textAlign: 'center' }} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
@@ -284,16 +297,16 @@ function AuthDeleteFlow() {
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>Type DELETE to confirm</div>
               <input type="text" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="DELETE"
-                style={{ padding: '11px 14px', borderRadius: 10, border: `1.5px solid ${confirm === 'DELETE' ? 'rgba(239,68,68,.5)' : 'var(--line)'}`, background: 'var(--panel)', color: 'var(--text)', fontSize: 15, fontWeight: 800, letterSpacing: 3, width: 180, display: 'block' }} />
+                style={{ padding: '11px 14px', borderRadius: 10, border: `1.5px solid ${confirm === 'DELETE' ? 'rgba(239,68,68,.5)' : C.line}`, background: C.panel, color: C.text, fontSize: 15, fontWeight: 800, letterSpacing: 3, width: 180, display: 'block' }} />
             </div>
           </div>
           <button type="button" onClick={() => void deleteAccount()} disabled={!canDelete || busy}
-            style={{ width: '100%', minHeight: 48, border: 0, borderRadius: 12, background: canDelete && !busy ? 'var(--red,#ef4444)' : 'rgba(239,68,68,.25)', color: '#fff', fontWeight: 900, fontSize: 14, cursor: canDelete && !busy ? 'pointer' : 'not-allowed' }}>
+            style={{ width: '100%', minHeight: 48, border: 0, borderRadius: 12, background: canDelete && !busy ? C.red : 'rgba(239,68,68,.25)', color: '#fff', fontWeight: 900, fontSize: 14, cursor: canDelete && !busy ? 'pointer' : 'not-allowed' }}>
             {busy ? 'Deleting…' : 'DELETE MY ACCOUNT PERMANENTLY'}
           </button>
         </>}
 
-        {error && <p style={{ fontSize: 13, color: 'var(--red,#ef4444)', background: 'rgba(239,68,68,.06)', padding: '10px 14px', borderRadius: 8 }}>{error}</p>}
+        {error && <p style={{ fontSize: 13, color: C.red, background: 'rgba(239,68,68,.06)', padding: '10px 14px', borderRadius: 8 }}>{error}</p>}
       </div>
     </div>
   );
@@ -312,34 +325,34 @@ export default function DeleteAccount() {
   }, []);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)', padding: '0 20px 80px' }}>
+    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, padding: '0 20px 80px' }}>
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
 
         {/* Header */}
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '26px 0', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ lineHeight: 1.15 }}>
             <div style={{ fontWeight: 900, letterSpacing: 0.6, fontSize: 20 }}>
-              <span style={{ color: 'var(--text)' }}>CONCRETE </span>
-              <span style={{ color: 'var(--gold,#178a6e)' }}>KING</span>
+              <span style={{ color: C.text }}>CONCRETE </span>
+              <span style={{ color: C.teal }}>KING</span>
             </div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: 1.5, marginTop: 5, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1.5, marginTop: 5, textTransform: 'uppercase' }}>
               TrackMyRMC · Powered by GOLD-e Tech
             </div>
           </div>
           <button type="button" onClick={() => setLoc('/')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--chip-bg)', border: '1px solid var(--line)', color: 'var(--muted)', padding: '9px 16px', borderRadius: 10, fontSize: 14, cursor: 'pointer' }}>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.chip, border: `1px solid ${C.line}`, color: C.muted, padding: '9px 16px', borderRadius: 10, fontSize: 14, cursor: 'pointer' }}>
             <ArrowLeft size={16} /> Back to home
           </button>
         </header>
 
         <main>
           {/* Title card */}
-          <div style={{ padding: '28px 30px', borderRadius: 20, background: 'var(--panel)', border: '1px solid var(--line)', boxShadow: '0 24px 60px -30px rgba(0,0,0,.5)' }}>
+          <div style={{ padding: '28px 30px', borderRadius: 20, background: C.panel, border: `1px solid ${C.line}`, boxShadow: '0 24px 60px -30px rgba(0,0,0,.5)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <UserX size={26} color="var(--gold,#178a6e)" />
+              <UserX size={26} color={C.teal} />
               <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0 }}>Account Deletion</h1>
             </div>
-            <p style={{ color: 'var(--muted)', fontSize: 15, lineHeight: 1.7, margin: 0 }}>
+            <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, margin: 0 }}>
               {isLoggedInClient
                 ? 'You are signed in. Delete your account and personal data directly — no staff review needed.'
                 : 'Enter your registered mobile number below. We\'ll send a one-time code to verify your identity before permanently deleting your account.'}
@@ -347,15 +360,15 @@ export default function DeleteAccount() {
           </div>
 
           {/* App identity strip */}
-          <div style={{ marginTop: 16, padding: '14px 20px', borderRadius: 14, background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ShieldCheck size={16} color="var(--gold,#178a6e)" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-              <strong style={{ color: 'var(--text)' }}>{APP_NAME}</strong> · {PLATFORM_NAME} · {PACKAGE_ID} · {OPERATOR}
+          <div style={{ marginTop: 16, padding: '14px 20px', borderRadius: 14, background: C.panel, border: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <ShieldCheck size={16} color={C.teal} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 13, color: C.muted }}>
+              <strong style={{ color: C.text }}>{APP_NAME}</strong> · {PLATFORM_NAME} · {PACKAGE_ID} · {OPERATOR}
             </span>
           </div>
 
           {/* Deletion flow */}
-          <div style={{ marginTop: 24, padding: '28px', borderRadius: 18, background: 'var(--panel)', border: '1px solid var(--line)' }}>
+          <div style={{ marginTop: 24, padding: '28px', borderRadius: 18, background: C.panel, border: `1px solid ${C.line}` }}>
             {isLoggedInClient ? <AuthDeleteFlow /> : <PhoneDeleteFlow />}
           </div>
 
@@ -367,14 +380,14 @@ export default function DeleteAccount() {
           ].map(([title, text]) => (
             <section key={title} style={{ marginTop: 28 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{title}</h2>
-              <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.7 }}>{text}</p>
+              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>{text}</p>
             </section>
           ))}
 
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 28, padding: '14px 16px', borderRadius: 12, background: 'var(--panel)', border: '1px solid var(--line)' }}>
-            <CheckCircle2 size={17} color="var(--gold,#178a6e)" style={{ flexShrink: 0, marginTop: 2 }} />
-            <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13, lineHeight: 1.6 }}>
-              This page is publicly accessible without signing in and is intended for the Google Play Data safety account-deletion URL field. See the <a href="/privacy" style={{ color: 'var(--gold,#178a6e)' }}>Privacy Policy</a>.
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 28, padding: '14px 16px', borderRadius: 12, background: C.panel, border: `1px solid ${C.line}` }}>
+            <CheckCircle2 size={17} color={C.teal} style={{ flexShrink: 0, marginTop: 2 }} />
+            <p style={{ margin: 0, color: C.muted, fontSize: 13, lineHeight: 1.6 }}>
+              This page is publicly accessible without signing in and is intended for the Google Play Data safety account-deletion URL field. See the <a href="/privacy" style={{ color: C.teal }}>Privacy Policy</a>.
             </p>
           </div>
         </main>
