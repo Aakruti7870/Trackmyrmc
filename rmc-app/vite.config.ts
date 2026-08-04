@@ -117,7 +117,7 @@ export default defineConfig(({ mode }) => {
         // cached HTML for API calls or intercept/cache the SSE stream.
         // Auth routes have their own HTML entry points (MPA); exclude them so
         // the SW does not override them with the homepage index.html.
-        navigateFallbackDenylist: [/^\/api/, /^\/(login|register|set-password)(\/|$)/],
+        navigateFallbackDenylist: [/^\/api/, /^\/(login|register|set-password)(\/|$)/, /^\/(privacy|privacy_policy)(\/|$|\?)/],
         // Workbox matches RegExp urlPatterns against the full href, so an
         // ^-anchored pathname regex never fires. Use a callback that tests the
         // pathname to actually force NetworkOnly for every API call.
