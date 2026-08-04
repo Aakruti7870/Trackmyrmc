@@ -609,11 +609,23 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
   const [user] = await db.select().from(users).where(eq(users.email, email));
   if (user && user.isActive && !user.deletedAt && !user.email.endsWith('@otp.local')) {
     try {
+      // Token is always minted for a valid active user so an operator can
+      // manually deliver the link if email is unavailable. The reset URL is
+      // only constructed and emailed when a trusted base URL is configured.
+      const { token, expiresAt } = await createInviteToken(user.id, undefined, 'reset');
       const base = trustedResetBaseUrl();
       if (!base) {
-        console.error('[auth] forgot-password: no trusted base URL (set APP_URL); skipping reset email.');
+        console.error('[auth] forgot-password: no trusted base URL (set APP_URL); token created but email skipped.');
+        await db.insert(auditLogs).values({
+          actorId: user.id,
+          actorName: user.name,
+          action: 'password_reset_requested',
+          targetUserId: user.id,
+          targetUserEmail: user.email,
+          status: 'failure',
+          detail: 'Password reset token created but email skipped — APP_URL not configured',
+        });
       } else {
-        const { token, expiresAt } = await createInviteToken(user.id, undefined, 'reset');
         const resetUrl = `${base}/set-password?token=${token}`;
         const sent = await sendPasswordResetEmail(user.email, user.name, resetUrl, expiresAt);
         await db.insert(auditLogs).values({
