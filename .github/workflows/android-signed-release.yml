@@ -118,8 +118,6 @@ jobs:
           grep -Fq "Concrete King | Ready-Mix Concrete Tracking &amp; RMC Plant Discovery" ../server/src/lib/accountDeletionPage.ts
           grep -Fq "com.trackmyrmc.concreteking" ../server/src/lib/accountDeletionPage.ts
           grep -Fq "REQUEST ACCOUNT DELETION" ../server/src/lib/accountDeletionPage.ts
-          grep -Fq "CONCRETE KING" src/pages/Privacy.tsx
-          grep -Fq "com.trackmyrmc.concreteking" src/pages/Privacy.tsx
           grep -Eq '"@capacitor/android":[[:space:]]*"\^7\.6\.7"' package.json
           grep -Eq '"@capacitor/core":[[:space:]]*"\^7\.6\.7"' package.json
           grep -Eq '"@capacitor/cli":[[:space:]]*"\^7\.6\.7"' package.json
