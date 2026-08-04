@@ -704,3 +704,10 @@ uri = "file://releases/app-release-v1.33-vc34-signed.aab"
 type = "unspecified"
 title = "TrackMyRMC v1.33 (vc34) — Signed AAB"
 description = "Signed Android App Bundle ready for Google Play Console upload."
+
+[[outputs]]
+id = "Ff_E-oy_aNKV7Z870DuRI"
+uri = "file://releases/app-release-v1.34-vc35-signed.aab"
+type = "unspecified"
+title = "TrackMyRMC v1.34 (vc35) — Signed AAB"
+description = "Signed Android App Bundle ready for Google Play Console upload."
