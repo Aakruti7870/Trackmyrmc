@@ -8,9 +8,33 @@ import { accountDeletionRequests, clients, orders, users } from '../db/schema.js
 import { signToken } from '../middleware/auth.js';
 
 const app = buildTestApp();
-before(() => { process.env.NODE_ENV = 'test'; });
+
+// Snapshot and clear any configured OTP-delivery provider env vars so that
+// sendOtp() falls through to the dev path and returns devCode.  Without this,
+// a workspace with Meta WhatsApp or Twilio Verify configured would try to send
+// a real message and never echo the code back, breaking the assertions below.
+const OTP_PROVIDER_KEYS = [
+  'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_VERIFY_SERVICE_SID',
+  'WHATSAPP_META_PHONE_ID', 'WHATSAPP_META_TOKEN',
+] as const;
+type EnvKey = (typeof OTP_PROVIDER_KEYS)[number];
+let savedEnv: Partial<Record<EnvKey, string | undefined>> = {};
+
+before(() => {
+  process.env.NODE_ENV = 'test';
+  for (const k of OTP_PROVIDER_KEYS) {
+    savedEnv[k] = process.env[k];
+    delete process.env[k];
+  }
+});
 beforeEach(async () => { await db.execute(sql`TRUNCATE TABLE account_deletion_requests, users, clients, orders, audit_logs, otp_codes, rate_limit_hits RESTART IDENTITY CASCADE`); });
-after(async () => { await pool.end(); });
+after(async () => {
+  for (const k of OTP_PROVIDER_KEYS) {
+    if (savedEnv[k] !== undefined) process.env[k] = savedEnv[k];
+    else delete process.env[k];
+  }
+  await pool.end();
+});
 
 async function customer(phone = '+919876543210') {
   const [client] = await db.insert(clients).values({ name:'Test Customer', contactPerson:'Test Customer', phone, email:'customer@example.com' }).returning();
