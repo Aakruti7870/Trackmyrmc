@@ -6,22 +6,22 @@ on:
     branches:
       - main
     paths:
-      - .github/release-v1.32.trigger
+      - .github/release-v1.33.trigger
   pull_request:
     branches:
       - main
     paths:
-      - .github/release-v1.32-pr.trigger
+      - .github/release-v1.33-pr.trigger
 
 permissions:
   contents: write
 
 env:
-  RELEASE_VERSION: "1.32"
-  RELEASE_CODE: "33"
-  PACKAGE_VERSION: "1.32.0"
-  RELEASE_AAB: "releases/app-release-v1.32-vc33-signed.aab"
-  ARTIFACT_NAME: "TrackMyRMC-v1.32-vc33-signed-play-console"
+  RELEASE_VERSION: "1.33"
+  RELEASE_CODE: "34"
+  PACKAGE_VERSION: "1.33.0"
+  RELEASE_AAB: "releases/app-release-v1.33-vc34-signed.aab"
+  ARTIFACT_NAME: "TrackMyRMC-v1.33-vc34-signed-play-console"
 
 jobs:
   build-signed-aab:
@@ -50,13 +50,13 @@ jobs:
         if: github.event_name != 'pull_request'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secretss.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           test -n "$ANDROID_KEYSTORE_BASE64" || { echo "Missing ANDROID_KEYSTORE_BASE64"; exit 1; }
-          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "Missing ANDROID_KEYSTORE_PASSWORD"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "Missing ANDROID_STORE_PASSWORD"; exit 1; }
           test -n "$ANDROID_KEY_ALIAS" || { echo "Missing ANDROID_KEY_ALIAS"; exit 1; }
           test -n "$ANDROID_KEY_PASSWORD" || { echo "Missing ANDROID_KEY_PASSWORD"; exit 1; }
 
@@ -104,23 +104,13 @@ jobs:
           pnpm build
           pnpm test
 
-      - name: Validate account deletion backend
-        working-directory: server
-        env:
-          DATABASE_URL: postgresql://trackmyrmc:trackmyrmc_test@localhost:5432/trackmyrmc
-          NODE_ENV: test
-        run: |
-          set -euo pipefail
-          pnpm build
-          pnpm test
-
-      - name: Validate v1.32 release metadata and app source
+      - name: Validate v1.33 release metadata and app source
         working-directory: rmc-app
         run: |
           set -euo pipefail
-          node -e "const p=require('./package.json'); if(p.version!=='1.32.0') throw new Error('Expected package version 1.32.0')"
-          grep -Eq 'versionCode[[:space:]]+33\b' android/app/build.gradle
-          grep -Eq 'versionName[[:space:]]+\"1\.32\"' android/app/build.gradle
+          node -e "const p=require('./package.json'); if(p.version!=='1.33.0') throw new Error('Expected package version 1.33.0, got ' + p.version)"
+          grep -Eq 'versionCode[[:space:]]+34\b' android/app/build.gradle
+          grep -Eq 'versionName[[:space:]]+"1\.33"' android/app/build.gradle
           grep -Eq 'compileSdkVersion[[:space:]]*=[[:space:]]*36\b' android/variables.gradle
           grep -Eq 'targetSdkVersion[[:space:]]*=[[:space:]]*36\b' android/variables.gradle
           grep -Eq "com.android.tools.build:gradle:8\.10\.1" android/build.gradle
@@ -130,9 +120,9 @@ jobs:
           grep -Fq "REQUEST ACCOUNT DELETION" ../server/src/lib/accountDeletionPage.ts
           grep -Fq "CONCRETE KING" src/pages/Privacy.tsx
           grep -Fq "com.trackmyrmc.concreteking" src/pages/Privacy.tsx
-          grep -Eq '\"@capacitor/android\":[[:space:]]*\"\^7\.6\.7\"' package.json
-          grep -Eq '\"@capacitor/core\":[[:space:]]*\"\^7\.6\.7\"' package.json
-          grep -Eq '\"@capacitor/cli\":[[:space:]]*\"\^7\.6\.7\"' package.json
+          grep -Eq '"@capacitor/android":[[:space:]]*"\^7\.6\.7"' package.json
+          grep -Eq '"@capacitor/core":[[:space:]]*"\^7\.6\.7"' package.json
+          grep -Eq '"@capacitor/cli":[[:space:]]*"\^7\.6\.7"' package.json
           pnpm lint
           pnpm test
 
@@ -166,7 +156,7 @@ jobs:
       - name: Verify keystore and alias
         if: github.event_name != 'pull_request'
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
@@ -179,14 +169,14 @@ jobs:
       - name: Sign and verify release AAB
         if: github.event_name != 'pull_request'
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           SOURCE_AAB="rmc-app/android/app/build/outputs/bundle/release/app-release.aab"
           RELEASE_DIR="releases"
-          RELEASE_AAB="$RELEASE_DIR/app-release-v1.32-vc33-signed.aab"
+          RELEASE_AAB="$RELEASE_DIR/app-release-v1.33-vc34-signed.aab"
           test -s "$SOURCE_AAB"
           jarsigner \
             -keystore "$RUNNER_TEMP/trackmyrmc-upload.p12" \
@@ -205,10 +195,10 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: TrackMyRMC-v1.32-vc33-signed-play-console
+          name: TrackMyRMC-v1.33-vc34-signed-play-console
           path: |
-            releases/app-release-v1.32-vc33-signed.aab
-            releases/app-release-v1.32-vc33-signed.aab.sha256
+            releases/app-release-v1.33-vc34-signed.aab
+            releases/app-release-v1.33-vc34-signed.aab.sha256
           if-no-files-found: error
           retention-days: 14
 
@@ -216,18 +206,19 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: TrackMyRMC-v1.32-vc33-unsigned-pr-validation
+          name: TrackMyRMC-v1.33-vc34-unsigned-pr-validation
           path: rmc-app/android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 3
 
       - name: Commit verified signed AAB to repository
+        if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add releases/app-release-v1.32-vc33-signed.aab releases/app-release-v1.32-vc33-signed.aab.sha256
-          git commit -m "release(android): add signed v1.32 vc33 AAB"
+          git add releases/app-release-v1.33-vc34-signed.aab releases/app-release-v1.33-vc34-signed.aab.sha256
+          git commit -m "release(android): add signed v1.33 vc34 AAB"
           git push
 
       - name: Remove signing material
