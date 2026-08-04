@@ -84,18 +84,25 @@ router.post('/phone-complete', otpLimiter, async (req, res) => {
   );
   if (!user) { res.status(400).json({ error: 'No active customer account found for this number.' }); return; }
   const verified = await verifyOtp(normalized, parsed.data.otp);
-  if (!verified.ok) { res.status(401).json({ error: verified.error }); return; }
+  // 422 (not 401) so the frontend's global 401-redirect handler doesn't fire and
+  // silently log the user out instead of showing the "code incorrect" message.
+  if (!verified.ok) { res.status(422).json({ error: verified.error }); return; }
   const now = new Date();
-  await db.transaction(async tx => {
-    const [existing] = await tx.select({ id: accountDeletionRequests.id }).from(accountDeletionRequests)
-      .where(and(eq(accountDeletionRequests.userId, user.id), or(...ACTIVE.map(s => eq(accountDeletionRequests.status, s)))));
-    if (existing) await tx.update(accountDeletionRequests).set({ status: 'completed', verifiedAt: now, completedAt: now, updatedAt: now }).where(eq(accountDeletionRequests.id, existing.id));
-    else await tx.insert(accountDeletionRequests).values({ userId: user.id, fullName: user.name, mobile: normalized, email: user.email ?? null, status: 'completed', verifiedAt: now, completedAt: now });
-    if (user.linkedClientId) await tx.update(clients).set({ name: 'Deleted customer', contactPerson: 'Deleted customer', phone: `deleted-${user.id}`, email: null, address: null, city: null }).where(eq(clients.id, user.linkedClientId));
-    await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, user.id));
-    await tx.insert(auditLogs).values({ actorId: user.id, actorName: 'Deleted customer', action: 'account_deletion.completed', targetUserId: user.id, detail: 'Customer completed phone-OTP-verified permanent account deletion via public page; statutory records retained.' });
-    await tx.update(users).set({ name: 'Deleted customer', email: `deleted+${user.id}@trackmyrmc.invalid`, phone: null, passwordHash: null, permissions: null, linkedClientId: null, preferredPlantId: null, isActive: false, deletedAt: now }).where(eq(users.id, user.id));
-  });
+  try {
+    await db.transaction(async tx => {
+      const [existing] = await tx.select({ id: accountDeletionRequests.id }).from(accountDeletionRequests)
+        .where(and(eq(accountDeletionRequests.userId, user.id), or(...ACTIVE.map(s => eq(accountDeletionRequests.status, s)))));
+      if (existing) await tx.update(accountDeletionRequests).set({ status: 'completed', verifiedAt: now, completedAt: now, updatedAt: now }).where(eq(accountDeletionRequests.id, existing.id));
+      else await tx.insert(accountDeletionRequests).values({ userId: user.id, fullName: user.name, mobile: normalized, email: user.email ?? null, status: 'completed', verifiedAt: now, completedAt: now });
+      if (user.linkedClientId) await tx.update(clients).set({ name: 'Deleted customer', contactPerson: 'Deleted customer', phone: `deleted-${user.id}`, email: null, address: null, city: null }).where(eq(clients.id, user.linkedClientId));
+      await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, user.id));
+      await tx.insert(auditLogs).values({ actorId: user.id, actorName: 'Deleted customer', action: 'account_deletion.completed', targetUserId: user.id, detail: 'Customer completed phone-OTP-verified permanent account deletion via public page; statutory records retained.' });
+      await tx.update(users).set({ name: 'Deleted customer', email: `deleted+${user.id}@trackmyrmc.invalid`, phone: null, passwordHash: null, permissions: null, linkedClientId: null, preferredPlantId: null, isActive: false, deletedAt: now }).where(eq(users.id, user.id));
+    });
+  } catch {
+    res.status(500).json({ error: 'Account deletion failed due to a server error. Please try again or contact support.' });
+    return;
+  }
   await bumpSessionVersion(user.id);
   res.json({ ok: true, message: 'Your Concrete King account and eligible personal data have been permanently deleted.' });
 });
@@ -118,18 +125,25 @@ router.post('/complete', otpLimiter, requireAuth, async (req, res) => {
   const [user] = await db.select().from(users).where(eq(users.id, actor.id));
   if (!user?.phone) { res.status(400).json({ error: 'Registered mobile number not found.' }); return; }
   const verified = await verifyOtp(user.phone, body.data.otp);
-  if (!verified.ok) { res.status(401).json({ error: verified.error }); return; }
+  // 422 (not 401) so the frontend's global 401-redirect handler doesn't fire and
+  // silently log the user out instead of showing the "code incorrect" message.
+  if (!verified.ok) { res.status(422).json({ error: verified.error }); return; }
   const now = new Date();
-  await db.transaction(async tx => {
-    const [existing] = await tx.select({ id: accountDeletionRequests.id }).from(accountDeletionRequests)
-      .where(and(eq(accountDeletionRequests.userId, actor.id), or(...ACTIVE.map(s => eq(accountDeletionRequests.status, s)))));
-    if (existing) await tx.update(accountDeletionRequests).set({ status: 'completed', verifiedAt: now, completedAt: now, updatedAt: now }).where(eq(accountDeletionRequests.id, existing.id));
-    else await tx.insert(accountDeletionRequests).values({ userId: actor.id, fullName: user.name, mobile: user.phone, email: user.email, status: 'completed', verifiedAt: now, completedAt: now });
-    if (user.linkedClientId) await tx.update(clients).set({ name: 'Deleted customer', contactPerson: 'Deleted customer', phone: `deleted-${actor.id}`, email: null, address: null, city: null }).where(eq(clients.id, user.linkedClientId));
-    await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, actor.id));
-    await tx.insert(auditLogs).values({ actorId: actor.id, actorName: 'Deleted customer', action: 'account_deletion.completed', targetUserId: actor.id, detail: 'Customer completed OTP-verified permanent account deletion; statutory transaction records retained.' });
-    await tx.update(users).set({ name: 'Deleted customer', email: `deleted+${actor.id}@trackmyrmc.invalid`, phone: null, passwordHash: null, permissions: null, linkedClientId: null, preferredPlantId: null, isActive: false, deletedAt: now }).where(eq(users.id, actor.id));
-  });
+  try {
+    await db.transaction(async tx => {
+      const [existing] = await tx.select({ id: accountDeletionRequests.id }).from(accountDeletionRequests)
+        .where(and(eq(accountDeletionRequests.userId, actor.id), or(...ACTIVE.map(s => eq(accountDeletionRequests.status, s)))));
+      if (existing) await tx.update(accountDeletionRequests).set({ status: 'completed', verifiedAt: now, completedAt: now, updatedAt: now }).where(eq(accountDeletionRequests.id, existing.id));
+      else await tx.insert(accountDeletionRequests).values({ userId: actor.id, fullName: user.name, mobile: user.phone, email: user.email, status: 'completed', verifiedAt: now, completedAt: now });
+      if (user.linkedClientId) await tx.update(clients).set({ name: 'Deleted customer', contactPerson: 'Deleted customer', phone: `deleted-${actor.id}`, email: null, address: null, city: null }).where(eq(clients.id, user.linkedClientId));
+      await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, actor.id));
+      await tx.insert(auditLogs).values({ actorId: actor.id, actorName: 'Deleted customer', action: 'account_deletion.completed', targetUserId: actor.id, detail: 'Customer completed OTP-verified permanent account deletion; statutory transaction records retained.' });
+      await tx.update(users).set({ name: 'Deleted customer', email: `deleted+${actor.id}@trackmyrmc.invalid`, phone: null, passwordHash: null, permissions: null, linkedClientId: null, preferredPlantId: null, isActive: false, deletedAt: now }).where(eq(users.id, actor.id));
+    });
+  } catch {
+    res.status(500).json({ error: 'Account deletion failed due to a server error. Please try again or contact support.' });
+    return;
+  }
   await bumpSessionVersion(actor.id);
   res.json({ ok: true, message: 'Your Concrete King account and eligible personal data have been deleted.' });
 });

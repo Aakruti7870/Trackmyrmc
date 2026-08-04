@@ -51,7 +51,9 @@ test('in-app deletion is customer-only, requires OTP, revokes sessions and retai
   const [staff] = await db.insert(users).values({ name:'Staff', email:'staff@example.com', role:'dispatcher' }).returning();
   const staffToken = signToken({ id:staff.id, email:staff.email, name:staff.name, role:staff.role });
   assert.equal((await request(app).post('/api/account-deletion-requests/otp').set('Authorization',`Bearer ${staffToken}`).send({})).status, 403);
-  assert.equal((await request(app).post('/api/account-deletion-requests/complete').set('Authorization',`Bearer ${token}`).send({ confirmed:true, otp:'000000' })).status, 401);
+  // Wrong OTP now returns 422 (not 401) so the frontend 401-redirect handler
+  // doesn't fire and silently log the user out instead of showing the error.
+  assert.equal((await request(app).post('/api/account-deletion-requests/complete').set('Authorization',`Bearer ${token}`).send({ confirmed:true, otp:'000000' })).status, 422);
   const otp = await request(app).post('/api/account-deletion-requests/otp').set('Authorization',`Bearer ${token}`).send({});
   assert.equal(otp.status, 200);
   assert.match(otp.body.devCode, /^\d{6}$/);
