@@ -1,12 +1,12 @@
-import { useLocation } from 'wouter';
 import { MessageCircle } from 'lucide-react';
 import { SUPPORT_WHATSAPP_URL } from '@/lib/brand';
 import SocialLinksBar from '@/components/SocialLinksBar';
 
-// Shared footer for the auth screens (Login / Register): Privacy + Terms links,
+const PRIVACY_POLICY_URL = 'https://trackmyrmc.com/privacy_policy';
+
+// Shared footer for the auth screens (Login / Register): Privacy Policy + Terms links,
 // a consent acknowledgment line, and a direct Support-on-WhatsApp link.
 export default function AuthLegalFooter({ consentPrefix }: { consentPrefix?: string }) {
-  const [, setLoc] = useLocation();
   const link: React.CSSProperties = {
     background: 'none', border: 'none', padding: 0, cursor: 'pointer',
     color: 'var(--gold)', fontWeight: 700, textDecoration: 'underline', fontSize: 12,
@@ -18,9 +18,9 @@ export default function AuthLegalFooter({ consentPrefix }: { consentPrefix?: str
     }}>
       {consentPrefix && <p style={{ margin: '0 0 10px' }}>{consentPrefix}</p>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" onClick={() => setLoc('/privacy')} style={link}>Privacy Policy</button>
+        <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" style={link}>Privacy Policy</a>
         <span aria-hidden>·</span>
-        <button type="button" onClick={() => setLoc('/terms')} style={link}>Terms of Service</button>
+        <a href="/terms" style={link}>Terms of Service</a>
         <span aria-hidden>·</span>
         <a
           href={SUPPORT_WHATSAPP_URL} target="_blank" rel="noopener noreferrer"
