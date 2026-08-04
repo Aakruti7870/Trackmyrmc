@@ -1,0 +1,78 @@
+name: Diagnose TrackMyRMC Domain Routing
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/diagnose-trackmyrmc-domain.yml'
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - name: Install beta commands
+        run: gcloud components install beta --quiet
+
+      - name: Inspect services and domain routing
+        run: |
+          set +e
+          echo '===== CLOUD RUN SERVICES ====='
+          gcloud run services list \
+            --region asia-south1 \
+            --project "${{ secrets.GCP_PROJECT }}" \
+            --format='table(metadata.name,status.url,status.latestReadyRevisionName)'
+
+          echo '===== TRACKMYRMC DIRECT SERVICE ====='
+          TRACK_URL="$(gcloud run services describe trackmyrmc --region asia-south1 --project "${{ secrets.GCP_PROJECT }}" --format='value(status.url)')"
+          echo "TRACK_URL=${TRACK_URL}"
+          curl --location --silent --show-error --dump-header - "${TRACK_URL}/privacy_policy" --output /tmp/track-policy.html
+          echo '--- TrackMyRMC body markers ---'
+          grep -Eo 'TrackMyRMC|Privacy Policy|CONCRETE KING' /tmp/track-policy.html | sort -u || true
+
+          echo '===== CONCRETEKING DIRECT SERVICE (IF PRESENT) ====='
+          LEGACY_URL="$(gcloud run services describe concreteking --region asia-south1 --project "${{ secrets.GCP_PROJECT }}" --format='value(status.url)' 2>/dev/null)"
+          echo "LEGACY_URL=${LEGACY_URL}"
+          if [ -n "${LEGACY_URL}" ]; then
+            curl --location --silent --show-error --dump-header - "${LEGACY_URL}/privacy_policy" --output /tmp/legacy-policy.html
+            echo '--- Legacy body markers ---'
+            grep -Eo 'TrackMyRMC|Privacy Policy|CONCRETE KING' /tmp/legacy-policy.html | sort -u || true
+          fi
+
+          echo '===== CLOUD RUN DOMAIN MAPPINGS ====='
+          gcloud beta run domain-mappings list \
+            --region asia-south1 \
+            --project "${{ secrets.GCP_PROJECT }}" \
+            --format='table(metadata.name,spec.routeName,status.conditions[0].status,status.resourceRecords)' || true
+
+          echo '===== DOMAIN MAPPING DETAILS ====='
+          gcloud beta run domain-mappings describe \
+            --domain trackmyrmc.com \
+            --region asia-south1 \
+            --project "${{ secrets.GCP_PROJECT }}" \
+            --format=yaml || true
+          gcloud beta run domain-mappings describe \
+            --domain www.trackmyrmc.com \
+            --region asia-south1 \
+            --project "${{ secrets.GCP_PROJECT }}" \
+            --format=yaml || true
+
+          echo '===== DNS FROM GITHUB RUNNER ====='
+          getent ahosts trackmyrmc.com || true
+          getent ahosts www.trackmyrmc.com || true
+          curl --location --silent --show-error --dump-header - https://trackmyrmc.com/privacy_policy --output /tmp/domain-policy.html
+          echo '--- Domain body markers ---'
+          grep -Eo 'TrackMyRMC|Privacy Policy|CONCRETE KING' /tmp/domain-policy.html | sort -u || true
+
+          # Fail intentionally so GitHub sends the diagnostic run link and logs.
+          exit 1
