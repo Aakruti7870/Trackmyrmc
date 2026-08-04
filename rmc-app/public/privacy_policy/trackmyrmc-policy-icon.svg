@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TrackMyRMC">
-  <rect width="512" height="512" rx="112" fill="#08785f"/>
-  <path d="M104 132h304v72H292v188h-72V204H104z" fill="#fff"/>
-  <circle cx="374" cy="356" r="48" fill="#eab34d"/>
-  <path d="M351 356l15 15 31-34" fill="none" stroke="#17312b" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
