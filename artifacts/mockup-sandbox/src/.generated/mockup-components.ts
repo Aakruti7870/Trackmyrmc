@@ -2,10 +2,10 @@
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/account-home/DeliveryStyle.tsx": () => import("../components/mockups/account-home/DeliveryStyle.tsx"),
-  "./components/mockups/admin-home/DeliveryStyle.tsx": () => import("../components/mockups/admin-home/DeliveryStyle.tsx"),
   "./components/mockups/app-directions/AuroraGlass.tsx": () => import("../components/mockups/app-directions/AuroraGlass.tsx"),
   "./components/mockups/app-directions/Blueprint.tsx": () => import("../components/mockups/app-directions/Blueprint.tsx"),
   "./components/mockups/app-directions/Daylight.tsx": () => import("../components/mockups/app-directions/Daylight.tsx"),
+  "./components/mockups/admin-home/DeliveryStyle.tsx": () => import("../components/mockups/admin-home/DeliveryStyle.tsx"),
   "./components/mockups/applied-theme/Day.tsx": () => import("../components/mockups/applied-theme/Day.tsx"),
   "./components/mockups/applied-theme/Night.tsx": () => import("../components/mockups/applied-theme/Night.tsx"),
   "./components/mockups/ck-landing/Landing.tsx": () => import("../components/mockups/ck-landing/Landing.tsx"),
