@@ -702,5 +702,5 @@ description = "Signed release AAB — v1.28, versionCode 29. Click to download, 
 id = "lnlOpOcK-CoI__W0Tnhma"
 uri = "file://releases/app-release-v1.33-vc34-signed.aab"
 type = "unspecified"
-title = "Concrete King v1.33 (versionCode 34) — Signed AAB"
-description = "Ready for Google Play Console upload. Includes: public account-deletion phone-OTP routes, delete-account page fixed for night mode/incognito, signed with release keystore."
+title = "TrackMyRMC v1.33 (vc34) — Signed AAB"
+description = "Signed Android App Bundle ready for Google Play Console upload."
