@@ -25,7 +25,7 @@ export default function Privacy() {
         border: '1px solid var(--line)',
       }}>
         <img
-          src="/privacy_policy/trackmyrmc-policy-icon.svg"
+          src="/trackmyrmc-policy-icon.svg"
           alt="TrackMyRMC"
           width={64}
           height={64}
