@@ -2,8 +2,8 @@ export function privacyPage(): string {
   const year = new Date().getFullYear();
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Privacy Policy – Concrete King (TrackMyRMC)</title>
-<meta name="description" content="Privacy Policy for the Concrete King Android app and TrackMyRMC platform, operated by GOLD-e Tech.">
+<title>Privacy Policy – TrackMyRMC</title>
+<meta name="description" content="Privacy Policy for TrackMyRMC and the Concrete King Android app, operated by GOLD-e Tech.">
 <style>
 :root{color-scheme:light}
 *{box-sizing:border-box}
@@ -36,14 +36,14 @@ footer{margin-top:48px;padding-top:20px;border-top:1px solid #dce4e8;color:#5260
 </style></head>
 <body><div class="wrap">
 <header>
-  <div class="brand">CONCRETE <span>KING</span><div style="font-size:10px;letter-spacing:1.5px;margin-top:4px;font-weight:400;color:#526078;text-transform:uppercase">TrackMyRMC · Powered by GOLD-e Tech</div></div>
+  <div class="brand"><span>TrackMyRMC</span><div style="font-size:10px;letter-spacing:1.5px;margin-top:4px;font-weight:400;color:#526078;text-transform:uppercase">Powered by GOLD-e Tech</div></div>
   <a class="back" href="/">&#8592; Back to home</a>
 </header>
 
 <div class="hero">
   <div style="display:flex;align-items:center;gap:10px">
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#08785f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
-    <h1 style="margin:0">Privacy Policy</h1>
+    <h1 style="margin:0">Privacy Policy – TrackMyRMC</h1>
   </div>
   <p class="meta" style="margin-top:10px">Effective and last updated: August 3, 2026</p>
 </div>
