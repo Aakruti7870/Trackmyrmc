@@ -5,6 +5,7 @@ node_modules/
 # JavaScript / TypeScript build and test output
 dist/
 **/dist/
+server/dist/
 coverage/
 **/coverage/
 *.tsbuildinfo
