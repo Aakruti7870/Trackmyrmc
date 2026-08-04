@@ -86,10 +86,10 @@ app.get(['/account-deletion', '/delete-account'], (_req, res) => {
   res.status(200).type('html').send(accountDeletionPage());
 });
 
-// Privacy policy served as static HTML so crawlers (e.g. Google Play's bot)
-// can read it without executing JavaScript.
-app.get('/privacy', (_req, res) => {
-  res.set('Cache-Control', 'public, max-age=3600');
+// Serve both the canonical Play Console URL and the legacy URL as backend-rendered
+// HTML. Google Play's crawler receives HTTP 200 without needing JavaScript.
+app.get(['/privacy_policy', '/privacy'], (_req, res) => {
+  res.set('Cache-Control', 'no-store, max-age=0');
   res.status(200).type('html').send(privacyPage());
 });
 app.use('/api/account-deletion-requests', accountDeletionRoutes);
@@ -158,7 +158,7 @@ app.use('/api', (req, res) => {
 if (isProd) {
   const staticDir = path.resolve(__dirname, '../../rmc-app/dist');
   app.use(express.static(staticDir));
-  const SPA_ROUTES = new Set(['/', '/command', '/login', '/register', '/partner', '/privacy', '/terms', '/delete-account', '/set-password', '/forgot-password', '/sso-callback', '/kiosk', '/my-orders', '/nearby-plants', '/plants', '/plant/profile-management', '/admin/plant-profiles', '/admin/plant-promotions', '/admin/account-deletion-requests', '/rmc-plant-network', '/my-trips', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/mix-design', '/reports', '/freshness', '/forecast', '/shift-report', '/recurring', '/fuel-log', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/whatsapp', '/profile', '/live-drivers', '/home', '/expenses', '/expense-review', '/kyc', '/kyc-admin', '/sos', '/emergencies', '/widget-settings']);
+  const SPA_ROUTES = new Set(['/', '/command', '/login', '/register', '/partner', '/privacy', '/privacy_policy', '/terms', '/delete-account', '/set-password', '/forgot-password', '/sso-callback', '/kiosk', '/my-orders', '/nearby-plants', '/plants', '/plant/profile-management', '/admin/plant-profiles', '/admin/plant-promotions', '/admin/account-deletion-requests', '/rmc-plant-network', '/my-trips', '/orders', '/dispatch', '/clients', '/vehicles', '/drivers', '/batch-report', '/batch-sheets', '/mix-design', '/reports', '/freshness', '/forecast', '/shift-report', '/recurring', '/fuel-log', '/users', '/user-management', '/activity-log', '/audit-log', '/automations', '/whatsapp', '/profile', '/live-drivers', '/home', '/expenses', '/expense-review', '/kyc', '/kyc-admin', '/sos', '/emergencies', '/widget-settings']);
   const SPA_PATTERNS = [/^\/challans\/[^/]+\/print$/, /^\/track\/[^/]+$/, /^\/batch-sheets\/[^/]+\/print$/, /^\/plants\/[^/]+\/about$/];
   app.get('*', (req, res) => { const isSpaRoute = SPA_ROUTES.has(req.path) || SPA_PATTERNS.some(pattern => pattern.test(req.path)); res.status(isSpaRoute ? 200 : 404).sendFile(path.join(staticDir, 'index.html')); });
 }
@@ -186,7 +186,7 @@ app.listen(PORT, '0.0.0.0', () => {
   setInterval(() => void tickFreshness(), 60 * 1000);
   void tickWhatsAppRetries(); setInterval(() => void tickWhatsAppRetries(), 60 * 1000);
   void tickDiscoveryCleanup(); setInterval(() => void tickDiscoveryCleanup(), 60 * 60 * 1000);
-  tickKycExpiryAlerts().catch(error => console.error('KYC expiry tick failed', error)); setInterval(() => tickKycExpiryAlerts().catch(error => console.error('KYC expiry tick failed', error)), 6 * 60 * 60 * 1000);
+  tickKycExpiryAlerts().catch(error => console.error('KYC expiry alert tick failed', error)); setInterval(() => tickKycExpiryAlerts().catch(error => console.error('KYC expiry alert tick failed', error)), 6 * 60 * 60 * 1000);
   tickAutomations().catch(error => console.error('Automation tick failed', error)); setInterval(() => tickAutomations().catch(error => console.error('Automation tick failed', error)), 5 * 60 * 1000);
   checkExpiredPromotions().catch(error => console.error('Expired promotions check failed', error)); setInterval(() => checkExpiredPromotions().catch(error => console.error('Expired promotions check failed', error)), 6 * 60 * 60 * 1000);
 });
