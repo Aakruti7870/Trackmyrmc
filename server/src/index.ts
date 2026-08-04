@@ -63,6 +63,7 @@ import { tickAutomations, checkExpiredPromotions } from './lib/automationJobs.js
 import { resumeQueuedRmcImportRuns } from './lib/rmcDiscoveryRunner.js';
 import accountDeletionRoutes from './routes/accountDeletion.js';
 import { accountDeletionPage } from './lib/accountDeletionPage.js';
+import { privacyPage } from './lib/privacyPage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
@@ -83,6 +84,13 @@ app.use(express.json({ limit: '12mb', verify: (req, _res, buffer) => { (req as e
 app.get(['/account-deletion', '/delete-account'], (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.status(200).type('html').send(accountDeletionPage());
+});
+
+// Privacy policy served as static HTML so crawlers (e.g. Google Play's bot)
+// can read it without executing JavaScript.
+app.get('/privacy', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.status(200).type('html').send(privacyPage());
 });
 app.use('/api/account-deletion-requests', accountDeletionRoutes);
 
