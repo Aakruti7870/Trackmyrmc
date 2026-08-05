@@ -23,6 +23,7 @@
  */
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { requestLocationDisclosure } from './locationDisclosure';
 
 // ── Plugin interface ─────────────────────────────────────────────────────────
 
@@ -307,9 +308,17 @@ export async function plantSummaryWidget(summary: {
 
 // ── GPS tracking ─────────────────────────────────────────────────────────────
 
-/** Call immediately after a successful driver check-in. Starts background GPS. */
+/** Call immediately after a successful driver check-in. Starts background GPS.
+ *
+ * Shows the mandatory prominent disclosure dialog (Google Play policy) before
+ * the Android system permission popup appears. If the user taps "Not Now" the
+ * tracking start is silently skipped — they can check in again to retry.
+ */
 export async function startCheckedInTracking(options: TrackingOptions) {
   if (!liveWidgetAvailable()) return;
+  // Google Play Prominent Disclosure: must appear before any location prompt.
+  const accepted = await requestLocationDisclosure();
+  if (!accepted) return;
   await NativeLiveWidget.requestPermissions({
     permissions: ['location', 'backgroundLocation', 'notifications'],
   });

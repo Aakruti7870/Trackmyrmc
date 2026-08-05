@@ -8,6 +8,7 @@ import {
   ShieldAlert, ShieldCheck, SlidersHorizontal, Truck, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { requestLocationDisclosure } from '@/lib/locationDisclosure';
 import { useAuth } from '@/lib/auth';
 import LocationPicker, { type LatLng } from '@/components/LocationPicker';
 import { GstPanBadge } from '@/components/EkycBadge';
@@ -171,16 +172,20 @@ export default function NearbyPlants() {
   }, [loadDiscovered]);
 
   const requestLocation = useCallback((radius = radiusKm) => {
-    return new Promise<LatLng>((resolve, reject) => {
-      if (!navigator.geolocation) return reject(new Error('no-geolocation'));
-      navigator.geolocation.getCurrentPosition(
-        position => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
-        reject,
-        { enableHighAccuracy: true, timeout: 12000 },
-      );
-    }).then(location => {
-      setCoords(location);
-      return loadPlants(location, radius);
+    // Google Play Prominent Disclosure: show before any location prompt.
+    return requestLocationDisclosure().then(accepted => {
+      if (!accepted) { setPhase('geoerror'); return; }
+      return new Promise<LatLng>((resolve, reject) => {
+        if (!navigator.geolocation) return reject(new Error('no-geolocation'));
+        navigator.geolocation.getCurrentPosition(
+          position => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+          reject,
+          { enableHighAccuracy: true, timeout: 12000 },
+        );
+      }).then(location => {
+        setCoords(location);
+        return loadPlants(location, radius);
+      });
     }).catch(() => setPhase('geoerror'));
   }, [loadPlants, radiusKm]);
 

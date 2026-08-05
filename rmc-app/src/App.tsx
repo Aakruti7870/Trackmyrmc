@@ -18,6 +18,7 @@ import Privacy from '@/pages/Privacy';
 import Terms from '@/pages/Terms';
 import DeleteAccount from '@/pages/DeleteAccount';
 import { canAccess, defaultPath } from '@/lib/permissions';
+import LocationDisclosureModal from '@/components/LocationDisclosureModal';
 
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const Orders = lazy(() => import('@/pages/Orders'));
@@ -132,6 +133,6 @@ function ProtectedRoutes(){
 }
 function LoginRoute(){const {user}=useAuth();return user?<Redirect to={defaultPath(user.role)}/>:<Login/>;}
 function RegisterRoute(){const {user}=useAuth();return user?<Redirect to={defaultPath(user.role)}/>:<Register/>;}
-export default function App(){return <ThemeProvider><AppBackground/><ConfigProvider><AuthProvider><ToastProvider><Switch>
+export default function App(){return <ThemeProvider><AppBackground/><ConfigProvider><AuthProvider><ToastProvider><LocationDisclosureModal/><Switch>
   <Route path="/login" component={LoginRoute}/><Route path="/register" component={RegisterRoute}/><Route path="/partner" component={PartnerRequest}/><Route path="/privacy" component={Privacy}/><Route path="/privacy_policy" component={Privacy}/><Route path="/terms" component={Terms}/><Route path="/account-deletion" component={DeleteAccount}/><Route path="/delete-account" component={DeleteAccount}/><Route path="/set-password" component={SetPassword}/><Route path="/forgot-password" component={ForgotPassword}/><Route path="/sso-callback" component={()=> <Suspense fallback={PageSpinner}><SsoCallback/></Suspense>}/><Route path="/track/:token" component={()=> <Suspense fallback={PageSpinner}><TrackTrip/></Suspense>}/><Route component={ProtectedRoutes}/>
 </Switch></ToastProvider></AuthProvider></ConfigProvider></ThemeProvider>;}
