@@ -2,10 +2,10 @@
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/admin-home/DeliveryStyle.tsx": () => import("../components/mockups/admin-home/DeliveryStyle.tsx"),
-  "./components/mockups/account-home/DeliveryStyle.tsx": () => import("../components/mockups/account-home/DeliveryStyle.tsx"),
   "./components/mockups/app-directions/AuroraGlass.tsx": () => import("../components/mockups/app-directions/AuroraGlass.tsx"),
   "./components/mockups/app-directions/Blueprint.tsx": () => import("../components/mockups/app-directions/Blueprint.tsx"),
   "./components/mockups/app-directions/Daylight.tsx": () => import("../components/mockups/app-directions/Daylight.tsx"),
+  "./components/mockups/account-home/DeliveryStyle.tsx": () => import("../components/mockups/account-home/DeliveryStyle.tsx"),
   "./components/mockups/applied-theme/Day.tsx": () => import("../components/mockups/applied-theme/Day.tsx"),
   "./components/mockups/applied-theme/Night.tsx": () => import("../components/mockups/applied-theme/Night.tsx"),
   "./components/mockups/ck-landing/Landing.tsx": () => import("../components/mockups/ck-landing/Landing.tsx"),
@@ -41,8 +41,8 @@ export const modules: ModuleMap = {
   "./components/mockups/nearby-redesign/CompactSmartList.tsx": () => import("../components/mockups/nearby-redesign/CompactSmartList.tsx"),
   "./components/mockups/nearby-redesign/FeedFilter.tsx": () => import("../components/mockups/nearby-redesign/FeedFilter.tsx"),
   "./components/mockups/nearby-redesign/MapFirstDiscovery.tsx": () => import("../components/mockups/nearby-redesign/MapFirstDiscovery.tsx"),
-  "./components/mockups/operator-home/DeliveryStyle.tsx": () => import("../components/mockups/operator-home/DeliveryStyle.tsx"),
   "./components/mockups/owner-home/DeliveryStyle.tsx": () => import("../components/mockups/owner-home/DeliveryStyle.tsx"),
+  "./components/mockups/operator-home/DeliveryStyle.tsx": () => import("../components/mockups/operator-home/DeliveryStyle.tsx"),
   "./components/mockups/redesign/AuroraGlass.tsx": () => import("../components/mockups/redesign/AuroraGlass.tsx"),
   "./components/mockups/redesign/DaylightGlass.tsx": () => import("../components/mockups/redesign/DaylightGlass.tsx"),
   "./components/mockups/redesign/DaylightOps.tsx": () => import("../components/mockups/redesign/DaylightOps.tsx"),
@@ -50,8 +50,8 @@ export const modules: ModuleMap = {
   "./components/mockups/rmc-dashboard/CommandCenter.tsx": () => import("../components/mockups/rmc-dashboard/CommandCenter.tsx"),
   "./components/mockups/rmc-dashboard/ExceptionFirst.tsx": () => import("../components/mockups/rmc-dashboard/ExceptionFirst.tsx"),
   "./components/mockups/rmc-dashboard/ShiftHandover.tsx": () => import("../components/mockups/rmc-dashboard/ShiftHandover.tsx"),
-  "./components/mockups/superadmin/PlatformControlCenter.tsx": () => import("../components/mockups/superadmin/PlatformControlCenter.tsx"),
   "./components/mockups/supervisor-home/DeliveryStyle.tsx": () => import("../components/mockups/supervisor-home/DeliveryStyle.tsx"),
+  "./components/mockups/superadmin/PlatformControlCenter.tsx": () => import("../components/mockups/superadmin/PlatformControlCenter.tsx"),
   "./components/mockups/templates/AssetImpactWeatherDashboard-N0yXVP/App.tsx": () => import("../components/mockups/templates/AssetImpactWeatherDashboard-N0yXVP/App.tsx"),
   "./components/mockups/templates/AssetImpactWeatherDashboard-Xkca_n/App.tsx": () => import("../components/mockups/templates/AssetImpactWeatherDashboard-Xkca_n/App.tsx")
 };
