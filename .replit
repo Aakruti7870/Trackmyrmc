@@ -136,7 +136,7 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["bash", "-c", "NODE_ENV=production PORT=5000 node server/dist/index.js"]
+run = ["bash", "-c", "NODE_ENV=production PORT=23636 node server/dist/index.js"]
 build = ["bash", "-c", "cd rmc-app && pnpm build && cd ../server && pnpm build"]
 
 [postMerge]
