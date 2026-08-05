@@ -325,8 +325,12 @@ export default function DeleteAccount() {
   }, []);
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, padding: '0 20px 80px' }}>
-      <div style={{ maxWidth: 680, margin: '0 auto' }}>
+    /* Public page — rendered outside Layout, so #app-main never exists here.
+       layout-fixes.css locks html/body/#root to height:100%+overflow:hidden so the
+       authenticated shell can own the scroll container.  We must create our own
+       scroll container so the page is actually scrollable on mobile. */
+    <div style={{ height: '100dvh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' as never, background: C.bg, color: C.text }}>
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' }}>
 
         {/* Header */}
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '26px 0', gap: 16, flexWrap: 'wrap' }}>

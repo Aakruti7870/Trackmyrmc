@@ -20,11 +20,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function Terms() {
   const [, setLoc] = useLocation();
   return (
-    <div style={{
-      minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)',
-      padding: '0 20px 80px',
-    }}>
-      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+    /* Public page — outside Layout, so no #app-main scroll container.
+       layout-fixes.css locks html/body/#root to height:100%+overflow:hidden.
+       Create our own scroll container so the page scrolls on mobile. */
+    <div style={{ height: '100dvh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' as never, background: 'var(--bg)', color: 'var(--text)' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: '0 20px 80px' }}>
         {/* header */}
         <header style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',

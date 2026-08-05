@@ -1,5 +1,9 @@
 export default function Privacy() {
   return (
+    /* Public page — outside Layout, so no #app-main scroll container.
+       layout-fixes.css locks html/body/#root to height:100%+overflow:hidden.
+       Create a full-viewport scroll container so the page scrolls on mobile. */
+    <div style={{ height: '100dvh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' as never, background: '#f4f8f7' }}>
     <div style={{
       width: 'min(900px, calc(100% - 32px))',
       margin: '0 auto',
@@ -60,7 +64,7 @@ export default function Privacy() {
               gap: 14, padding: '9px 0', borderBottom: '1px solid rgba(8,120,95,.14)',
             }}>
               <span style={{ color: '#526078', fontSize: 13 }}>{label}</span>
-              <strong style={{ fontSize: 13 }}>{value}</strong>
+              <strong style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{value}</strong>
             </div>
           ))}
         </div>
@@ -163,6 +167,7 @@ export default function Privacy() {
       <footer style={{ textAlign: 'center', color: '#526078', fontSize: 13, paddingTop: 28 }}>
         © {new Date().getFullYear()} TrackMyRMC · Powered by GOLD-e Tech
       </footer>
+    </div>
     </div>
   );
 }

@@ -57,7 +57,7 @@ test('legacy deletion URL serves the canonical server-rendered form', async () =
   assert.equal(response.status, 200);
   assert.match(response.headers['content-type'], /html/);
   assert.equal(response.headers['cache-control'], 'no-store');
-  assert.match(response.text, /Concrete King – Account and Data Deletion/);
+  assert.match(response.text, /Delete Account.*TrackMyRMC.*Concrete King/);
   assert.match(response.text, /REQUEST ACCOUNT DELETION/);
 });
 
