@@ -7,6 +7,7 @@ import {
 } from './otp.js';
 import { sendLoginCodeEmail } from './email.js';
 import { isAuthorityEmail } from './authority.js';
+import { hashPassword } from './password.js';
 
 // Staff/owner passwordless login codes live for 10 minutes (a little longer than
 // the customer phone-OTP because email can take a moment to arrive). One live
@@ -140,11 +141,11 @@ export function isReviewDemoLogin(email: string, code: string): boolean {
 }
 
 // Idempotently guarantee the app-store reviewer demo account exists as an
-// ACTIVE, non-deleted PLATFORM admin (plantId null → never billing-gated), so
-// the fixed demo code can log in in every environment. Run once at boot. Fails
+// ACTIVE, non-deleted PLATFORM authority (Super Admin, plantId null) so the
+// fixed demo code can log in in every environment. Run once at boot. Fails
 // closed: does nothing unless the demo feature is fully configured (both
-// REVIEW_DEMO_EMAIL and a valid REVIEW_DEMO_OTP). The account is passwordless —
-// it authenticates only via the fixed demo code — so no password is ever set.
+// REVIEW_DEMO_EMAIL and a valid REVIEW_DEMO_OTP). The password is set from
+// REVIEW_DEMO_PASSWORD (required for the authority /login first factor).
 // The prod DB is read-only to tooling, so this boot self-seed is the only way
 // the reviewer row lands in production (mirrors ensurePlantDirectory / master
 // accounts). If a prior row drifted (soft-deleted, suspended, wrong role, or
@@ -153,6 +154,9 @@ export async function ensureReviewDemoAccount(): Promise<void> {
   const cfg = reviewDemoConfig();
   if (!cfg) return;
   const email = cfg.email; // already trimmed + lowercased
+  const rawPassword = process.env.REVIEW_DEMO_PASSWORD?.trim() ?? '';
+  const passwordHash = rawPassword ? await hashPassword(rawPassword) : null;
+
   const [existing] = await db
     .select({
       id: users.id,
@@ -160,21 +164,24 @@ export async function ensureReviewDemoAccount(): Promise<void> {
       isActive: users.isActive,
       deletedAt: users.deletedAt,
       plantId: users.plantId,
+      passwordHash: users.passwordHash,
     })
     .from(users)
     .where(eq(users.email, email));
 
   if (existing) {
     const needsFix =
-      existing.role !== 'admin' ||
+      existing.role !== 'authority' ||
       !existing.isActive ||
       existing.deletedAt !== null ||
-      existing.plantId !== null;
+      existing.plantId !== null ||
+      (!existing.passwordHash && passwordHash !== null);
     if (needsFix) {
       await db.update(users)
         .set({
-          role: 'admin', isActive: true, deletedAt: null, plantId: null,
-          suspendedBy: null, suspensionReason: null, passwordHash: null,
+          role: 'authority', isActive: true, deletedAt: null, plantId: null,
+          suspendedBy: null, suspensionReason: null,
+          ...(passwordHash ? { passwordHash } : {}),
         })
         .where(eq(users.id, existing.id));
     }
@@ -184,7 +191,8 @@ export async function ensureReviewDemoAccount(): Promise<void> {
   await db.insert(users).values({
     name: 'App Reviewer',
     email,
-    role: 'admin',
+    role: 'authority',
+    ...(passwordHash ? { passwordHash } : {}),
   });
 }
 

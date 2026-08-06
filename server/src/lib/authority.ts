@@ -10,6 +10,7 @@
 export const PERMANENT_AUTHORITY_EMAILS = [
   'krushnabade54@gmail.com',
   'support@trackmyrmc.com',
+  'reviewer@trackmyrmc.com',
 ];
 
 export function getAuthorityEmails(): string[] {

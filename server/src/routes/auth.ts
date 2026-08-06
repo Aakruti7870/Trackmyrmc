@@ -125,6 +125,13 @@ router.post('/login', async (req, res) => {
   // Super Admin (authority): password is only the FIRST factor. Send a one-time
   // code and require /auth/superadmin/verify to complete login — no token yet.
   if (user.role === 'authority') {
+    // App-store reviewer demo account: skip the OTP send (the reviewer types the
+    // fixed code from the Play Console reviewer notes). Respond identically to the
+    // normal flow so the frontend shows the OTP entry screen.
+    if (isReviewDemoEmail(user.email)) {
+      res.json({ otpRequired: true, email: user.email, channel: 'dev', devMode: true });
+      return;
+    }
     const send = await sendStaffLoginCode(user);
     if (!send.ok) {
       res.status(502).json({ error: send.error ?? 'Could not send your verification code. Please try again.' });
@@ -1191,10 +1198,14 @@ router.post('/superadmin/verify', otpVerifyLimiter, async (req, res) => {
     res.status(401).json({ error: GENERIC });
     return;
   }
-  const check = await verifyStaffLoginCode(user.id, code.trim());
-  if (!check.ok) {
-    res.status(401).json({ error: check.error ?? GENERIC });
-    return;
+  // App-store reviewer demo account bypasses the stored one-time code with a
+  // fixed code (env-configured, fails closed). All later gates still apply.
+  if (!isReviewDemoLogin(email, code)) {
+    const check = await verifyStaffLoginCode(user.id, code.trim());
+    if (!check.ok) {
+      res.status(401).json({ error: check.error ?? GENERIC });
+      return;
+    }
   }
   const sessionVersion = await bumpSessionVersion(user.id);
   const token = signToken({
