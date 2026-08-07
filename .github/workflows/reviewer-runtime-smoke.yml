@@ -1,0 +1,87 @@
+name: Reviewer Runtime Smoke Test
+
+on:
+  push:
+    branches:
+      - ops/reviewer-runtime-setup-20260807
+    paths:
+      - .github/workflows/reviewer-runtime-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      REVIEW_OWNER_EMAIL_CT: DN9ViWBM8pqf7jjU0VzGYhl++lUcyOlElkDFGRi70/FpyW9ai/gZiPYAn7z6C6FubiHVkvONuhZpdvBys7ZdDM70/Hz9/u0l9NpuIX4OAR2n5bFec05RCCw4v2mIzqLvpNCD1fK8ArzgZU8kw/0L+rjjxxuti/euyIdZvrPHQ/cqr++ruoLEY8SfHZk/4fRw1IloMYdEfbS6W70Tc0TWCCQf2cqjOqeJhZUMKnxXD2i1BfxOOmdAmtiy/kBhLNlSXK4KWgYZQa3JgmQECT/GHNqPPcBpJhjTgoZ05Nc76cAWEjXCI/drqoCFa0r6WDYSfJ9uPFbvnWwqtXfCGlgaVg==
+      REVIEW_OWNER_PASSWORD_CT: XPCwrRt0qRBr7e12Jr0MIy0FYqnrvQVwGYO9l5l5bwA2fko9WrlpKdacvCndrtWFISg5Esh0fhA8aqYcxwtjLx2Lx1k9y2gqgwyLD/HCJgxyBpJV+ecPyd1NI2Dhq5gB135Gdo2B+bBIAE+h9YSuDKunCI5myARoaV9X33+YL61JQRdrHWoObovJGSS7jm4zjXb/cQczXnnOhj5DHLoOpw0TdjfLjYgqSOwyWSyVK7fJiJPQnGwT/Zpd+qa6Ogs9n2TVcYJg6AS1SlUgR7K4lJckYgREDsJEo8Gl/TptwfnHk1gA10bupW1ybIOBZsJvA5nYL62T7cYlTzlxuclB9g==
+      REVIEW_DRIVER_PHONE_CT: HDQudFf8uGaV5vbNOdDnBCM9LCIaAwfvq944Zt6O0cWaFMiSvw4GZtZMbCEyT56MrFCVNEEzpvMFNaSAx5vcWguAlZZg0fLrshTzXo50fqTQOXtPSzLCi6BB7EbQC74G4Cd0Y/WqFKIR067kc4y89RxtaTV21zT6CJqmaQbr4oFeMb2YleWbyXEESQev+T8cMKTAsT6D4Co0KqHjDJGvqV3ERu568WqxEIUbWe51Ace/vbniu8x20qCQOqKnW3bDluY91NQeop/XE2wZyHx6g7rWIzjaKIoo35U4YSE+HF8OmgNIYQ2l0oI02AxRxFTeilyOtAJ7ydsqZZzxcPJJ1w==
+      REVIEW_DRIVER_OTP_CT: fmK/kXaXx0Hup9QoEWUl3VV0Dd4302VCsmK9emE+49D6DGop5A1rU3xyJ24lG65IiWb29e6EtVBQIXyJSHJFOFAaGTD4bBr/pahEtw47N/3KAqnHhvrExYwq5dvtsMCvbD0IP1bGEOq1XIKdpRcn6v6NWScpdY/GP1Dht1b+NnnnzezSjNqwyJZ18zBmKrmMhPBtFPvXfejHwxFfJ/hL3nyWhOI2TdRM7PYYNGOf53WEOVJ6tQGQSGyGA/Tm8DXfHNBsGS1ebi8nCenCNnW7bsh72YlQ5obapYiBjGrteB2vjDDEgrfJ5qyHLVr48hKIamejcWws3HcWJWryQ5PCOw==
+
+    steps:
+      - name: Test live reviewer Owner and Driver login
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          const sa = JSON.parse(process.env.GCP_SA_KEY);
+          if (!sa.private_key) throw new Error('Invalid GCP_SA_KEY');
+          fs.writeFileSync('/tmp/reviewer-private.pem', sa.private_key, { mode: 0o600 });
+          function decrypt(name) {
+            return execFileSync('openssl', [
+              'pkeyutl', '-decrypt', '-inkey', '/tmp/reviewer-private.pem',
+              '-pkeyopt', 'rsa_padding_mode:oaep', '-pkeyopt', 'rsa_oaep_md:sha256',
+            ], { input: Buffer.from(process.env[name], 'base64') }).toString('utf8');
+          }
+          const ownerEmail = decrypt('REVIEW_OWNER_EMAIL_CT');
+          const ownerPassword = decrypt('REVIEW_OWNER_PASSWORD_CT');
+          const driverPhone = decrypt('REVIEW_DRIVER_PHONE_CT');
+          const driverOtp = decrypt('REVIEW_DRIVER_OTP_CT');
+          const service = 'https://trackmyrmc-354617160430.asia-south1.run.app';
+          const base = service + '/api/auth';
+
+          async function post(path, body) {
+            const res = await fetch(base + path, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            const text = await res.text();
+            let json = {};
+            try { json = JSON.parse(text); } catch {}
+            if (!res.ok) throw new Error(`${path} returned HTTP ${res.status}: ${json.error || 'non-JSON error'}`);
+            return json;
+          }
+
+          (async () => {
+            const health = await fetch(service + '/api/health', { cache: 'no-store' });
+            if (!health.ok) throw new Error(`Cloud Run health returned HTTP ${health.status}`);
+
+            const method = await post('/staff/login-method', { email: ownerEmail });
+            if (method.method !== 'password') throw new Error(`Owner login-method was ${method.method}`);
+
+            const owner = await post('/login', { email: ownerEmail, password: ownerPassword });
+            if (!owner.token || owner.user?.role !== 'plant_owner' || !owner.user?.plantId) {
+              throw new Error('Owner reviewer login did not return a plant-scoped plant_owner session');
+            }
+            console.log('Owner reviewer login: PASS (plant_owner, plant-scoped).');
+
+            const sent = await post('/otp/send', { phone: driverPhone });
+            if (!sent.ok || sent.channel !== 'review') throw new Error('Driver reviewer OTP send did not use review channel');
+
+            const driver = await post('/otp/verify', { phone: driverPhone, code: driverOtp });
+            if (!driver.token || driver.user?.role !== 'driver' || !driver.user?.plantId || !driver.user?.linkedDriverId) {
+              throw new Error('Driver reviewer login did not return a plant-scoped driver session');
+            }
+            console.log('Driver reviewer login: PASS (driver, plant-scoped).');
+            fs.rmSync('/tmp/reviewer-private.pem', { force: true });
+          })().catch((err) => {
+            fs.rmSync('/tmp/reviewer-private.pem', { force: true });
+            console.error(err.message);
+            process.exit(1);
+          });
+          NODE
