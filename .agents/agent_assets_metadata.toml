@@ -725,3 +725,10 @@ uri = "file://releases/app-release-v1.36-vc37-signed.aab"
 type = "unspecified"
 title = "TrackMyRMC v1.36 (versionCode 37) — Signed AAB"
 description = "Signed release bundle for Google Play Console upload. Includes: prominent disclosure dialog for background location, updated /account-deletion page with all required Google Play sections."
+
+[[outputs]]
+id = "_2pVe1tomOIetbh6otS-U"
+uri = "file://releases/app-release-v1.37-vc38-signed.aab"
+type = "unspecified"
+title = "TrackMyRMC v1.37 (vc38) — Signed AAB"
+description = "Built Aug 7 2026 · Includes VR INFRA removal + all three reviewer login accounts"
