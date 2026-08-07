@@ -11,24 +11,144 @@ permissions:
   contents: read
 
 jobs:
-  derive-public-key:
+  configure-and-smoke-test:
     runs-on: ubuntu-latest
+    env:
+      GCP_REGION: asia-south1
+      CLOUD_RUN_SERVICE: trackmyrmc
+      REVIEW_OWNER_EMAIL_CT: DN9ViWBM8pqf7jjU0VzGYhl++lUcyOlElkDFGRi70/FpyW9ai/gZiPYAn7z6C6FubiHVkvONuhZpdvBys7ZdDM70/Hz9/u0l9NpuIX4OAR2n5bFec05RCCw4v2mIzqLvpNCD1fK8ArzgZU8kw/0L+rjjxxuti/euyIdZvrPHQ/cqr++ruoLEY8SfHZk/4fRw1IloMYdEfbS6W70Tc0TWCCQf2cqjOqeJhZUMKnxXD2i1BfxOOmdAmtiy/kBhLNlSXK4KWgYZQa3JgmQECT/GHNqPPcBpJhjTgoZ05Nc76cAWEjXCI/drqoCFa0r6WDYSfJ9uPFbvnWwqtXfCGlgaVg==
+      REVIEW_OWNER_PASSWORD_CT: XPCwrRt0qRBr7e12Jr0MIy0FYqnrvQVwGYO9l5l5bwA2fko9WrlpKdacvCndrtWFISg5Esh0fhA8aqYcxwtjLx2Lx1k9y2gqgwyLD/HCJgxyBpJV+ecPyd1NI2Dhq5gB135Gdo2B+bBIAE+h9YSuDKunCI5myARoaV9X33+YL61JQRdrHWoObovJGSS7jm4zjXb/cQczXnnOhj5DHLoOpw0TdjfLjYgqSOwyWSyVK7fJiJPQnGwT/Zpd+qa6Ogs9n2TVcYJg6AS1SlUgR7K4lJckYgREDsJEo8Gl/TptwfnHk1gA10bupW1ybIOBZsJvA5nYL62T7cYlTzlxuclB9g==
+      REVIEW_OWNER_PLANT_NAME_CT: ct/w5oyIGIl+fvVBWBa0VXqHjzK/oG0bx/yymUI/xNuboUHizAZ4eJJszTgrwZGC+at4cegqX99uzk4hsfJuG9zTtapiwJ4zm+o5HrUx9KaBlq6jizdBg6Rctf03USEUsNQgSCPX9efJD/I6Wm2LY3q2e/81MDOK2xbsuOZAlTkJNDKPfkHeHiXMOzayER3trZOi3TKzwaKqw2NqYd/5YmfWaarPMBZfvT9t3fVSR7CvGn6czvysyQAWb1+Rvh43QmaQ3f+61j4p/cwKqi8fbC01XUntvXiAgr0DVYB2YwS1V98r2550tT7KNPpzrfZ0Wh31QTE9Cd97Kc5OLfWGHw==
+      REVIEW_DRIVER_PHONE_CT: HDQudFf8uGaV5vbNOdDnBCM9LCIaAwfvq944Zt6O0cWaFMiSvw4GZtZMbCEyT56MrFCVNEEzpvMFNaSAx5vcWguAlZZg0fLrshTzXo50fqTQOXtPSzLCi6BB7EbQC74G4Cd0Y/WqFKIR067kc4y89RxtaTV21zT6CJqmaQbr4oFeMb2YleWbyXEESQev+T8cMKTAsT6D4Co0KqHjDJGvqV3ERu568WqxEIUbWe51Ace/vbniu8x20qCQOqKnW3bDluY91NQeop/XE2wZyHx6g7rWIzjaKIoo35U4YSE+HF8OmgNIYQ2l0oI02AxRxFTeilyOtAJ7ydsqZZzxcPJJ1w==
+      REVIEW_DRIVER_OTP_CT: fmK/kXaXx0Hup9QoEWUl3VV0Dd4302VCsmK9emE+49D6DGop5A1rU3xyJ24lG65IiWb29e6EtVBQIXyJSHJFOFAaGTD4bBr/pahEtw47N/3KAqnHhvrExYwq5dvtsMCvbD0IP1bGEOq1XIKdpRcn6v6NWScpdY/GP1Dht1b+NnnnzezSjNqwyJZ18zBmKrmMhPBtFPvXfejHwxFfJ/hL3nyWhOI2TdRM7PYYNGOf53WEOVJ6tQGQSGyGA/Tm8DXfHNBsGS1ebi8nCenCNnW7bsh72YlQ5obapYiBjGrteB2vjDDEgrfJ5qyHLVr48hKIamejcWws3HcWJWryQ5PCOw==
+      REVIEW_DRIVER_PLANT_NAME_CT: CYnCTDP8cWYSw2FolcovfbQZWHFOdy5g8c9lNDrezntQqyoV+qarrDtj8llSk/rRvvqo397xkeW7j42RyeGf9mmGWC6BesGt4JIC6ZUxu83BlrX8OzCoP6zMu549XCXRvmxZSajkiEvZkp3ds5SYoG663vElhmwafkeiVBY6Ip8h/2byJJ7aRyhAK3kipHwC6Pd4Gf23u4V6cEm+BihzJu2QHxq/+DKXXUvtbYZzw7HRy3fMI5nlobb5XaVr+3qjSDbNdKltN3xuR326iNkej0r7hfg47RpM5o1gQ2TiqJHmBytCXCUV6Y+pXy1zqTqrPPy3CoJTGBUTW3bFO4ixLg==
+
     steps:
-      - name: Derive public key from deployment service account
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - name: Decrypt reviewer configuration and update Cloud Run
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
         run: |
           set -euo pipefail
-          test -n "${GCP_SA_KEY:-}" || { echo "GCP_SA_KEY is unavailable"; exit 1; }
           node <<'NODE'
           const fs = require('fs');
           const sa = JSON.parse(process.env.GCP_SA_KEY);
-          if (!sa.private_key || !sa.client_email) throw new Error('Invalid GCP_SA_KEY');
-          fs.writeFileSync('/tmp/reviewer-setup-private.pem', sa.private_key, { mode: 0o600 });
-          console.log(`GCP_SA_EMAIL=${sa.client_email}`);
+          if (!sa.private_key) throw new Error('Invalid GCP_SA_KEY');
+          fs.writeFileSync('/tmp/reviewer-private.pem', sa.private_key, { mode: 0o600 });
           NODE
-          openssl pkey -in /tmp/reviewer-setup-private.pem -pubout -out /tmp/reviewer-setup-public.pem
-          printf 'GCP_SA_PUBLIC_KEY_B64='
-          base64 -w0 /tmp/reviewer-setup-public.pem
-          printf '\n'
-          rm -f /tmp/reviewer-setup-private.pem /tmp/reviewer-setup-public.pem
+
+          decrypt() {
+            printf '%s' "$1" | base64 -d | openssl pkeyutl -decrypt \
+              -inkey /tmp/reviewer-private.pem \
+              -pkeyopt rsa_padding_mode:oaep \
+              -pkeyopt rsa_oaep_md:sha256
+          }
+
+          OWNER_EMAIL="$(decrypt "$REVIEW_OWNER_EMAIL_CT")"
+          OWNER_PASSWORD="$(decrypt "$REVIEW_OWNER_PASSWORD_CT")"
+          OWNER_PLANT="$(decrypt "$REVIEW_OWNER_PLANT_NAME_CT")"
+          DRIVER_PHONE="$(decrypt "$REVIEW_DRIVER_PHONE_CT")"
+          DRIVER_OTP="$(decrypt "$REVIEW_DRIVER_OTP_CT")"
+          DRIVER_PLANT="$(decrypt "$REVIEW_DRIVER_PLANT_NAME_CT")"
+
+          gcloud run services update "$CLOUD_RUN_SERVICE" \
+            --project "${{ secrets.GCP_PROJECT }}" \
+            --region "$GCP_REGION" \
+            --quiet \
+            --update-env-vars "REVIEW_OWNER_EMAIL=$OWNER_EMAIL,REVIEW_OWNER_PASSWORD=$OWNER_PASSWORD,REVIEW_OWNER_PLANT_NAME=$OWNER_PLANT,REVIEW_DRIVER_PHONE=$DRIVER_PHONE,REVIEW_DRIVER_OTP=$DRIVER_OTP,REVIEW_DRIVER_PLANT_NAME=$DRIVER_PLANT" >/tmp/reviewer-run-update.log
+
+          # Confirm only the variable NAMES are present. Never print the values.
+          ENV_NAMES="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "${{ secrets.GCP_PROJECT }}" \
+            --region "$GCP_REGION" \
+            --format='value(spec.template.spec.containers[0].env[].name)')"
+          for key in REVIEW_OWNER_EMAIL REVIEW_OWNER_PASSWORD REVIEW_OWNER_PLANT_NAME REVIEW_DRIVER_PHONE REVIEW_DRIVER_OTP REVIEW_DRIVER_PLANT_NAME; do
+            printf '%s\n' "$ENV_NAMES" | grep -q "$key" || { echo "Missing runtime variable: $key"; exit 1; }
+          done
+          echo "Reviewer runtime variables are configured on Cloud Run."
+
+          export OWNER_EMAIL OWNER_PASSWORD OWNER_PLANT DRIVER_PHONE DRIVER_OTP DRIVER_PLANT
+          rm -f /tmp/reviewer-private.pem
+
+      - name: Smoke-test live reviewer Owner and Driver login
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          const sa = JSON.parse(process.env.GCP_SA_KEY);
+          if (!sa.private_key) throw new Error('Invalid GCP_SA_KEY');
+          fs.writeFileSync('/tmp/reviewer-private.pem', sa.private_key, { mode: 0o600 });
+          function decrypt(name) {
+            const ciphertext = Buffer.from(process.env[name], 'base64');
+            const out = execFileSync('openssl', [
+              'pkeyutl', '-decrypt', '-inkey', '/tmp/reviewer-private.pem',
+              '-pkeyopt', 'rsa_padding_mode:oaep', '-pkeyopt', 'rsa_oaep_md:sha256',
+            ], { input: ciphertext });
+            return out.toString('utf8');
+          }
+          const ownerEmail = decrypt('REVIEW_OWNER_EMAIL_CT');
+          const ownerPassword = decrypt('REVIEW_OWNER_PASSWORD_CT');
+          const driverPhone = decrypt('REVIEW_DRIVER_PHONE_CT');
+          const driverOtp = decrypt('REVIEW_DRIVER_OTP_CT');
+          const base = 'https://trackmyrmc.com/api/auth';
+
+          async function post(path, body) {
+            const res = await fetch(base + path, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            const text = await res.text();
+            let json = {};
+            try { json = JSON.parse(text); } catch {}
+            if (!res.ok) throw new Error(`${path} returned HTTP ${res.status}: ${json.error || 'non-JSON error'}`);
+            return json;
+          }
+
+          (async () => {
+            let healthy = false;
+            for (let i = 0; i < 18; i++) {
+              try {
+                const r = await fetch('https://trackmyrmc.com/api/health', { cache: 'no-store' });
+                if (r.ok) { healthy = true; break; }
+              } catch {}
+              await new Promise(r => setTimeout(r, 5000));
+            }
+            if (!healthy) throw new Error('Production health endpoint did not become ready');
+
+            const method = await post('/staff/login-method', { email: ownerEmail });
+            if (method.method !== 'password') throw new Error(`Owner login-method was ${method.method}`);
+
+            const owner = await post('/login', { email: ownerEmail, password: ownerPassword });
+            if (!owner.token || owner.user?.role !== 'plant_owner' || !owner.user?.plantId) {
+              throw new Error('Owner reviewer login did not return a plant-scoped plant_owner session');
+            }
+            console.log('Owner reviewer login: PASS (plant_owner, plant-scoped).');
+
+            const sent = await post('/otp/send', { phone: driverPhone });
+            if (!sent.ok || sent.channel !== 'review') throw new Error('Driver reviewer OTP send did not use review channel');
+
+            const driver = await post('/otp/verify', { phone: driverPhone, code: driverOtp });
+            if (!driver.token || driver.user?.role !== 'driver' || !driver.user?.plantId || !driver.user?.linkedDriverId) {
+              throw new Error('Driver reviewer login did not return a plant-scoped driver session');
+            }
+            console.log('Driver reviewer login: PASS (driver, plant-scoped).');
+            fs.rmSync('/tmp/reviewer-private.pem', { force: true });
+          })().catch((err) => {
+            fs.rmSync('/tmp/reviewer-private.pem', { force: true });
+            console.error(err.message);
+            process.exit(1);
+          });
+          NODE
