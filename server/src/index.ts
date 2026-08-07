@@ -4,6 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
+import reviewerAuthRoutes from './routes/reviewerAuth.js';
 import clientRoutes from './routes/clients.js';
 import orderRoutes from './routes/orders.js';
 import challanRoutes from './routes/challans.js';
@@ -94,6 +95,7 @@ app.get(['/privacy_policy', '/privacy'], (_req, res) => {
 });
 app.use('/api/account-deletion-requests', accountDeletionRoutes);
 
+app.use('/api/auth', reviewerAuthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/orders', orderRoutes);
