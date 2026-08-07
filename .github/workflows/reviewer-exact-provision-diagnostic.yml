@@ -1,0 +1,157 @@
+name: Reviewer Exact Provision Diagnostic
+
+on:
+  push:
+    branches:
+      - ops/reviewer-runtime-setup-20260807
+    paths:
+      - .github/workflows/reviewer-exact-provision-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      REGION: asia-south1
+      PROD_SERVICE: trackmyrmc
+      DIAG_SERVICE: trackmyrmc-review-provision-diag
+      CLOUDSQL_INSTANCE: trackmyrmc-production:asia-south1:trackmyrmc-prod-db
+      REVIEW_OWNER_EMAIL_CT: DN9ViWBM8pqf7jjU0VzGYhl++lUcyOlElkDFGRi70/FpyW9ai/gZiPYAn7z6C6FubiHVkvONuhZpdvBys7ZdDM70/Hz9/u0l9NpuIX4OAR2n5bFec05RCCw4v2mIzqLvpNCD1fK8ArzgZU8kw/0L+rjjxxuti/euyIdZvrPHQ/cqr++ruoLEY8SfHZk/4fRw1IloMYdEfbS6W70Tc0TWCCQf2cqjOqeJhZUMKnxXD2i1BfxOOmdAmtiy/kBhLNlSXK4KWgYZQa3JgmQECT/GHNqPPcBpJhjTgoZ05Nc76cAWEjXCI/drqoCFa0r6WDYSfJ9uPFbvnWwqtXfCGlgaVg==
+      REVIEW_OWNER_PASSWORD_CT: XPCwrRt0qRBr7e12Jr0MIy0FYqnrvQVwGYO9l5l5bwA2fko9WrlpKdacvCndrtWFISg5Esh0fhA8aqYcxwtjLx2Lx1k9y2gqgwyLD/HCJgxyBpJV+ecPyd1NI2Dhq5gB135Gdo2B+bBIAE+h9YSuDKunCI5myARoaV9X33+YL61JQRdrHWoObovJGSS7jm4zjXb/cQczXnnOhj5DHLoOpw0TdjfLjYgqSOwyWSyVK7fJiJPQnGwT/Zpd+qa6Ogs9n2TVcYJg6AS1SlUgR7K4lJckYgREDsJEo8Gl/TptwfnHk1gA10bupW1ybIOBZsJvA5nYL62T7cYlTzlxuclB9g==
+      REVIEW_OWNER_PLANT_NAME_CT: ct/w5oyIGIl+fvVBWBa0VXqHjzK/oG0bx/yymUI/xNuboUHizAZ4eJJszTgrwZGC+at4cegqX99uzk4hsfJuG9zTtapiwJ4zm+o5HrUx9KaBlq6jizdBg6Rctf03USEUsNQgSCPX9efJD/I6Wm2LY3q2e/81MDOK2xbsuOZAlTkJNDKPfkHeHiXMOzayER3trZOi3TKzwaKqw2NqYd/5YmfWaarPMBZfvT9t3fVSR7CvGn6czvysyQAWb1+Rvh43QmaQ3f+61j4p/cwKqi8fbC01XUntvXiAgr0DVYB2YwS1V98r2550tT7KNPpzrfZ0Wh31QTE9Cd97Kc5OLfWGHw==
+      REVIEW_DRIVER_PHONE_CT: HDQudFf8uGaV5vbNOdDnBCM9LCIaAwfvq944Zt6O0cWaFMiSvw4GZtZMbCEyT56MrFCVNEEzpvMFNaSAx5vcWguAlZZg0fLrshTzXo50fqTQOXtPSzLCi6BB7EbQC74G4Cd0Y/WqFKIR067kc4y89RxtaTV21zT6CJqmaQbr4oFeMb2YleWbyXEESQev+T8cMKTAsT6D4Co0KqHjDJGvqV3ERu568WqxEIUbWe51Ace/vbniu8x20qCQOqKnW3bDluY91NQeop/XE2wZyHx6g7rWIzjaKIoo35U4YSE+HF8OmgNIYQ2l0oI02AxRxFTeilyOtAJ7ydsqZZzxcPJJ1w==
+      REVIEW_DRIVER_OTP_CT: fmK/kXaXx0Hup9QoEWUl3VV0Dd4302VCsmK9emE+49D6DGop5A1rU3xyJ24lG65IiWb29e6EtVBQIXyJSHJFOFAaGTD4bBr/pahEtw47N/3KAqnHhvrExYwq5dvtsMCvbD0IP1bGEOq1XIKdpRcn6v6NWScpdY/GP1Dht1b+NnnnzezSjNqwyJZ18zBmKrmMhPBtFPvXfejHwxFfJ/hL3nyWhOI2TdRM7PYYNGOf53WEOVJ6tQGQSGyGA/Tm8DXfHNBsGS1ebi8nCenCNnW7bsh72YlQ5obapYiBjGrteB2vjDDEgrfJ5qyHLVr48hKIamejcWws3HcWJWryQ5PCOw==
+      REVIEW_DRIVER_PLANT_NAME_CT: CYnCTDP8cWYSw2FolcovfbQZWHFOdy5g8c9lNDrezntQqyoV+qarrDtj8llSk/rRvvqo397xkeW7j42RyeGf9mmGWC6BesGt4JIC6ZUxu83BlrX8OzCoP6zMu549XCXRvmxZSajkiEvZkp3ds5SYoG663vElhmwafkeiVBY6Ip8h/2byJJ7aRyhAK3kipHwC6Pd4Gf23u4V6cEm+BihzJu2QHxq/+DKXXUvtbYZzw7HRy3fMI5nlobb5XaVr+3qjSDbNdKltN3xuR326iNkej0r7hfg47RpM5o1gQ2TiqJHmBytCXCUV6Y+pXy1zqTqrPPy3CoJTGBUTW3bFO4ixLg==
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - name: Decrypt and mask reviewer configuration
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          const sa = JSON.parse(process.env.GCP_SA_KEY);
+          if (!sa.private_key) throw new Error('Invalid GCP_SA_KEY');
+          fs.writeFileSync('/tmp/reviewer-key.pem', sa.private_key, { mode: 0o600 });
+          function decrypt(name) {
+            return execFileSync('openssl', [
+              'pkeyutl','-decrypt','-inkey','/tmp/reviewer-key.pem',
+              '-pkeyopt','rsa_padding_mode:oaep','-pkeyopt','rsa_oaep_md:sha256',
+            ], { input: Buffer.from(process.env[name], 'base64') }).toString('utf8');
+          }
+          const values = {
+            REVIEW_OWNER_EMAIL: decrypt('REVIEW_OWNER_EMAIL_CT'),
+            REVIEW_OWNER_PASSWORD: decrypt('REVIEW_OWNER_PASSWORD_CT'),
+            REVIEW_OWNER_PLANT_NAME: decrypt('REVIEW_OWNER_PLANT_NAME_CT'),
+            REVIEW_DRIVER_PHONE: decrypt('REVIEW_DRIVER_PHONE_CT'),
+            REVIEW_DRIVER_OTP: decrypt('REVIEW_DRIVER_OTP_CT'),
+            REVIEW_DRIVER_PLANT_NAME: decrypt('REVIEW_DRIVER_PLANT_NAME_CT'),
+          };
+          for (const [k,v] of Object.entries(values)) {
+            console.log(`::add-mask::${v}`);
+            fs.appendFileSync(process.env.GITHUB_ENV, `${k}<<EOF\n${v}\nEOF\n`);
+          }
+          fs.rmSync('/tmp/reviewer-key.pem', { force:true });
+          NODE
+
+      - name: Run exact production provisioning function
+        run: |
+          set -euo pipefail
+          cleanup() {
+            gcloud run services delete "$DIAG_SERVICE" --project='${{ secrets.GCP_PROJECT }}' --region="$REGION" --quiet >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          IMAGE="$(gcloud run services describe "$PROD_SERVICE" --project='${{ secrets.GCP_PROJECT }}' --region="$REGION" --format='value(spec.template.spec.containers[0].image)')"
+          test -n "$IMAGE"
+
+          SCRIPT=$(cat <<'NODE'
+          import http from 'http';
+          import { ensureReviewerOwnerAccount, ensureReviewerDriverAccount } from './dist/routes/reviewerAuth.js';
+          import { pool } from './dist/db/index.js';
+
+          function scrub(v) {
+            let s = String(v ?? '');
+            for (const key of ['REVIEW_OWNER_EMAIL','REVIEW_OWNER_PASSWORD','REVIEW_OWNER_PLANT_NAME','REVIEW_DRIVER_PHONE','REVIEW_DRIVER_OTP','REVIEW_DRIVER_PLANT_NAME']) {
+              const secret = process.env[key];
+              if (secret) s = s.replaceAll(secret, `[${key}]`);
+            }
+            return s.slice(0, 1000);
+          }
+          function safeError(e) {
+            const cause = e?.cause;
+            return {
+              name: e?.name ?? null,
+              code: e?.code ?? cause?.code ?? null,
+              constraint: e?.constraint ?? cause?.constraint ?? null,
+              column: e?.column ?? cause?.column ?? null,
+              detail: scrub(e?.detail ?? cause?.detail ?? ''),
+              message: scrub(e?.message ?? e),
+              causeMessage: scrub(cause?.message ?? ''),
+            };
+          }
+
+          let alreadyRun = false;
+          http.createServer(async (_req,res) => {
+            res.setHeader('content-type','application/json');
+            if (alreadyRun) { res.end(JSON.stringify({ok:false,error:'diagnostic already executed'})); return; }
+            alreadyRun = true;
+            const out = {};
+            try {
+              const owner = await ensureReviewerOwnerAccount();
+              out.owner = owner ? { ok:true, plantId:owner.plantId, userId:owner.owner.id, role:owner.owner.role, active:owner.owner.isActive } : { ok:false, nullConfig:true };
+            } catch (e) { out.owner = { ok:false, error:safeError(e) }; }
+            try {
+              const driver = await ensureReviewerDriverAccount();
+              out.driver = driver ? { ok:true, plantId:driver.plantId, userId:driver.driverUser.id, driverId:driver.driverId, role:driver.driverUser.role, active:driver.driverUser.isActive } : { ok:false, nullConfig:true };
+            } catch (e) { out.driver = { ok:false, error:safeError(e) }; }
+            res.end(JSON.stringify(out));
+            setTimeout(() => pool.end().catch(()=>{}), 100);
+          }).listen(Number(process.env.PORT || 8080), '0.0.0.0');
+          NODE
+          )
+          SCRIPT_B64="$(printf '%s' "$SCRIPT" | base64 -w0)"
+
+          gcloud run deploy "$DIAG_SERVICE" \
+            --project='${{ secrets.GCP_PROJECT }}' \
+            --region="$REGION" \
+            --image="$IMAGE" \
+            --allow-unauthenticated \
+            --min-instances=0 \
+            --max-instances=1 \
+            --memory=512Mi \
+            --cpu=1 \
+            --timeout=60 \
+            --add-cloudsql-instances="$CLOUDSQL_INSTANCE" \
+            --set-secrets=DATABASE_URL=DATABASE_URL:latest \
+            --update-env-vars="^|^SCRIPT_B64=$SCRIPT_B64|NODE_ENV=production|REVIEW_OWNER_EMAIL=$REVIEW_OWNER_EMAIL|REVIEW_OWNER_PASSWORD=$REVIEW_OWNER_PASSWORD|REVIEW_OWNER_PLANT_NAME=$REVIEW_OWNER_PLANT_NAME|REVIEW_DRIVER_PHONE=$REVIEW_DRIVER_PHONE|REVIEW_DRIVER_OTP=$REVIEW_DRIVER_OTP|REVIEW_DRIVER_PLANT_NAME=$REVIEW_DRIVER_PLANT_NAME" \
+            --command=/bin/sh \
+            '--args=-c,echo "$SCRIPT_B64" | base64 -d | node --input-type=module' \
+            --quiet >/dev/null
+
+          URL="$(gcloud run services describe "$DIAG_SERVICE" --project='${{ secrets.GCP_PROJECT }}' --region="$REGION" --format='value(status.url)')"
+          test -n "$URL"
+          for i in {1..25}; do
+            if RESULT="$(curl -fsS --max-time 30 "$URL")"; then
+              echo '--- EXACT REVIEWER PROVISION RESULT ---'
+              printf '%s\n' "$RESULT" | python3 -m json.tool
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'Exact provisioning diagnostic service did not become reachable' >&2
+          exit 1
