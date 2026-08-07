@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { eq, sql } from 'drizzle-orm';
-import { db } from '../db/index.js';
+import { db, pool } from '../db/index.js';
 import { drivers, plants, users } from '../db/schema.js';
 import { bumpSessionVersion, signToken, STAFF_TOKEN_TTL } from '../middleware/auth.js';
 import { resolveDriverByPhone } from '../lib/driverAccount.js';
@@ -119,25 +119,22 @@ async function findReviewerPlant(
     if (alternatePlant) return alternatePlant;
   }
 
-  // Create the smallest compatible review-only plant when neither alias exists.
-  // locationVerified defaults false and verified defaults false, so it cannot
-  // enter customer discovery even on schemas where showOnNetwork defaults true.
-  const [plant] = await db
-    .insert(plants)
-    .values({
-      name: preferredName,
-      city: 'Panvel',
-      latitude: '18.9894000',
-      longitude: '73.1175000',
-      plantStatus: 'approved',
-      subscriptionStatus: 'active',
-      subscriptionPlan: 'free',
-      isActive: true,
-      locationVerified: false,
-    })
-    .returning({ id: plants.id, name: plants.name });
+  // Use explicit SQL for this compatibility-only fallback. Drizzle serializes
+  // every schema column during INSERT, including newer promotion_* columns that
+  // may not yet exist in an older production Cloud SQL revision. The reviewer
+  // plant only needs this stable subset, which exists in both old and new schemas.
+  const result = await pool.query(
+    `INSERT INTO plants
+      (name, city, latitude, longitude, plant_status, subscription_status,
+       subscription_plan, is_active, location_verified)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING id, name`,
+    [preferredName, 'Panvel', '18.9894000', '73.1175000', 'approved', 'active', 'free', true, false],
+  );
 
-  return plant;
+  const row = result.rows[0] as ReviewerPlant | undefined;
+  if (!row) throw new Error('Reviewer plant provisioning returned no row');
+  return { id: Number(row.id), name: String(row.name) };
 }
 
 async function ensureOwner(cfg: ReviewerConfig, plantId: number) {
