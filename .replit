@@ -159,5 +159,8 @@ SMTP_SYNC_FROM_ENV = "1"
 REVIEW_DEMO_EMAIL = "reviewer@trackmyrmc.com"
 REVIEW_DEMO_OTP = "123456"
 REVIEW_DEMO_PASSWORD = "Reviewer@123"
+REVIEW_DEMO_OWNER_EMAIL = "owner@concreteking.com"
+REVIEW_DEMO_OWNER_PASSWORD = "Reviewer@123"
+REVIEW_DEMO_PHONE = "7498286000"
 
 [userenv.development]

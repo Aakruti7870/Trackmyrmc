@@ -258,7 +258,9 @@ test('superadmin/verify refuses a non-superadmin even with a valid code', async 
 // App-store reviewer demo login (REVIEW_DEMO_EMAIL + REVIEW_DEMO_OTP)
 // ---------------------------------------------------------------------------
 
-const DEMO_ENV_KEYS = ['REVIEW_DEMO_EMAIL', 'REVIEW_DEMO_OTP'] as const;
+// Also snapshot REVIEW_DEMO_PASSWORD so test-env value doesn't bleed into
+// ensureReviewDemoAccount() and cause an unexpected passwordHash.
+const DEMO_ENV_KEYS = ['REVIEW_DEMO_EMAIL', 'REVIEW_DEMO_OTP', 'REVIEW_DEMO_PASSWORD'] as const;
 
 function withDemoEnv(email: string | undefined, code: string | undefined) {
   const saved: Record<string, string | undefined> = {};
@@ -267,6 +269,9 @@ function withDemoEnv(email: string | undefined, code: string | undefined) {
   else process.env.REVIEW_DEMO_EMAIL = email;
   if (code === undefined) delete process.env.REVIEW_DEMO_OTP;
   else process.env.REVIEW_DEMO_OTP = code;
+  // Always clear the password for these tests — demo-account tests don't need it
+  // and its presence would set a passwordHash, breaking the null assertion.
+  delete process.env.REVIEW_DEMO_PASSWORD;
   return () => {
     for (const k of DEMO_ENV_KEYS) {
       if (saved[k] === undefined) delete process.env[k];
@@ -347,17 +352,18 @@ test('ensureReviewDemoAccount seeds an active platform admin the demo code can l
 
     const [row] = await db.select().from(users).where(eq(users.email, 'reviewer@demo.test'));
     assert.ok(row, 'account was created');
-    assert.equal(row.role, 'admin');
-    assert.equal(row.plantId, null, 'platform admin (never billing-gated)');
+    assert.equal(row.role, 'authority');
+    assert.equal(row.plantId, null, 'platform authority (never billing-gated)');
     assert.equal(row.isActive, true);
     assert.equal(row.deletedAt, null);
-    assert.equal(row.passwordHash, null, 'passwordless — demo code only');
+    assert.equal(row.passwordHash, null, 'passwordless — demo code only (no REVIEW_DEMO_PASSWORD set in test)');
 
-    const ok = await request(app).post('/api/auth/staff/otp/verify')
+    // authority accounts use the superadmin door, not the staff OTP door.
+    const ok = await request(app).post('/api/auth/superadmin/verify')
       .send({ email: 'reviewer@demo.test', code: 'REVIEW-123456' });
     assert.equal(ok.status, 200);
-    assert.equal(ok.body.user.role, 'admin');
-    assert.equal(ok.body.user.plantId, null);
+    assert.equal(ok.body.user.role, 'authority');
+    assert.equal(ok.body.user.plantId, undefined); // superadmin/verify omits plantId
 
     // Idempotent: a second run neither duplicates nor errors.
     await ensureReviewDemoAccount();
@@ -381,7 +387,7 @@ test('ensureReviewDemoAccount restores a drifted reviewer row (soft-deleted, wro
     await ensureReviewDemoAccount();
 
     const [row] = await db.select().from(users).where(eq(users.id, drifted.id));
-    assert.equal(row.role, 'admin');
+    assert.equal(row.role, 'authority');
     assert.equal(row.isActive, true);
     assert.equal(row.deletedAt, null);
     assert.equal(row.plantId, null);

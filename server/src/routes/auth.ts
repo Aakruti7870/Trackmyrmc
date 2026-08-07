@@ -11,6 +11,8 @@ import { isAuthorityEmail } from '../lib/authority.js';
 import {
   resolveStaffForOtp, sendStaffLoginCode, verifyStaffLoginCode, isSuperAdminUser,
   isReviewDemoEmail, isReviewDemoLogin,
+  isReviewDemoOwnerEmail, isReviewDemoOwnerPassword,
+  isReviewDemoPhone, isReviewDemoPhoneLogin,
 } from '../lib/staffAuth.js';
 import { resolveStaffSsoUser } from '../lib/staffSso.js';
 import { resolveCustomerByPhone, resolveCustomerByEmail } from '../lib/customerAccount.js';
@@ -152,6 +154,29 @@ router.post('/login', async (req, res) => {
   // their role, in which case a correct password signs them straight in. All the
   // gates above (lockout, suspension, billing, plant code) have already run.
   if (user.role !== 'client') {
+    // App-store reviewer plant_owner demo: bypass the passwordless gate so the
+    // reviewer can sign in with the fixed email+password.
+    if (isReviewDemoOwnerEmail(user.email) && isReviewDemoOwnerPassword(user.email, password)) {
+      const sessionVersion = await bumpSessionVersion(user.id);
+      const token = signToken({
+        id: user.id, email: user.email, role: user.role, name: user.name,
+        linkedClientId: user.linkedClientId,
+        linkedDriverId: user.linkedDriverId,
+        plantId: user.plantId,
+        sessionVersion,
+      }, { expiresIn: STAFF_TOKEN_TTL });
+      await resetAttempts(lockoutKey);
+      res.json({
+        token,
+        user: {
+          id: user.id, name: user.name, email: user.email, role: user.role,
+          linkedClientId: user.linkedClientId,
+          linkedDriverId: user.linkedDriverId,
+          plantId: user.plantId,
+        },
+      });
+      return;
+    }
     if (!(await isPasswordLoginEnabledForRole(user.role))) {
       res.status(403).json({
         error: 'This account now signs in with a one-time code. Please go back and use the code option.',
@@ -880,6 +905,12 @@ router.post('/otp/send', otpSendLimiter, async (req, res) => {
     return;
   }
 
+  // App-store reviewer demo phone: skip the real OTP send.
+  if (isReviewDemoPhone(phone)) {
+    res.json({ ok: true, sent: true, channel: 'dev', devMode: true });
+    return;
+  }
+
   const result = await sendOtp(phone);
   if (!result.ok) {
     res.status(502).json({ error: result.error ?? 'Could not send the verification code. Please try again.' });
@@ -907,10 +938,13 @@ router.post('/otp/verify', otpVerifyLimiter, async (req, res) => {
     return;
   }
 
-  const check = await verifyOtp(phone, parse.data.code);
-  if (!check.ok) {
-    res.status(400).json({ error: check.error ?? 'That code is incorrect or has expired.' });
-    return;
+  // App-store reviewer demo phone: accept the fixed code without the OTP store.
+  if (!isReviewDemoPhoneLogin(phone, parse.data.code)) {
+    const check = await verifyOtp(phone, parse.data.code);
+    if (!check.ok) {
+      res.status(400).json({ error: check.error ?? 'That code is incorrect or has expired.' });
+      return;
+    }
   }
 
   // Driver-first: a phone that belongs to a provisioned, active driver signs in
@@ -1194,13 +1228,24 @@ router.post('/superadmin/verify', otpVerifyLimiter, async (req, res) => {
     return;
   }
   const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
-  if (!user || user.deletedAt || !user.isActive || !isSuperAdminUser(user)) {
+  if (!user || user.deletedAt || !user.isActive) {
     res.status(401).json({ error: GENERIC });
     return;
   }
-  // App-store reviewer demo account bypasses the stored one-time code with a
-  // fixed code (env-configured, fails closed). All later gates still apply.
-  if (!isReviewDemoLogin(email, code)) {
+  // App-store reviewer demo account: fixed code bypasses BOTH the stored OTP and
+  // the authority allowlist check. The account must still exist, be active, and
+  // have role 'authority' — fails closed on anything else.
+  if (isReviewDemoLogin(email, code)) {
+    if (user.role !== 'authority') {
+      res.status(401).json({ error: GENERIC });
+      return;
+    }
+  } else {
+    // Normal Super Admin path: verify allowlist then check the one-time code.
+    if (!isSuperAdminUser(user)) {
+      res.status(401).json({ error: GENERIC });
+      return;
+    }
     const check = await verifyStaffLoginCode(user.id, code.trim());
     if (!check.ok) {
       res.status(401).json({ error: check.error ?? GENERIC });

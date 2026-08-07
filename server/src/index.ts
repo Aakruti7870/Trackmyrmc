@@ -55,7 +55,7 @@ import { tickFreshnessAlerts } from './lib/freshnessAlerts.js';
 import { cleanupExpiredRateLimits } from './lib/rateLimit.js';
 import { cleanupExpiredCache } from './lib/places.js';
 import { ensureMasterAccounts } from './lib/masterAccounts.js';
-import { ensureReviewDemoAccount } from './lib/staffAuth.js';
+import { ensureReviewDemoAccount, ensureReviewDemoOwnerAccount } from './lib/staffAuth.js';
 import { syncSmtpFromEnv } from './lib/smtpRecovery.js';
 import { syncKycFromEnv } from './lib/kycEnvSync.js';
 import { ensurePlantDirectory, backfillNetworkStatus } from './lib/plantDirectory.js';
@@ -178,6 +178,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`TrackMyRMC API running on port ${PORT}`);
   ensureMasterAccounts().catch(error => console.error('ensureMasterAccounts failed', error));
   ensureReviewDemoAccount().catch(error => console.error('ensureReviewDemoAccount failed', error));
+  ensureReviewDemoOwnerAccount().catch(error => console.error('ensureReviewDemoOwnerAccount failed', error));
   ensurePlantDirectory().then(() => backfillNetworkStatus()).catch(error => console.error('ensurePlantDirectory failed', error));
   ensureWhatsAppTemplateDefaults().catch(error => console.error('ensureWhatsAppTemplateDefaults failed', error));
   resumeQueuedRmcImportRuns().catch(error => console.error('resumeQueuedRmcImportRuns failed', error));

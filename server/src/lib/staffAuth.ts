@@ -196,6 +196,101 @@ export async function ensureReviewDemoAccount(): Promise<void> {
   });
 }
 
+// --- App-store reviewer OWNER demo login ------------------------------------
+// A second reviewer account (role plant_owner) lets the reviewer see the owner
+// dashboard. Driven by REVIEW_DEMO_OWNER_EMAIL + REVIEW_DEMO_OWNER_PASSWORD.
+function reviewDemoOwnerConfig(): { email: string; password: string } | null {
+  const email = process.env.REVIEW_DEMO_OWNER_EMAIL?.trim().toLowerCase();
+  const password = process.env.REVIEW_DEMO_OWNER_PASSWORD?.trim();
+  if (!email || !password) return null;
+  return { email, password };
+}
+
+export function isReviewDemoOwnerEmail(email: string): boolean {
+  const cfg = reviewDemoOwnerConfig();
+  return Boolean(cfg) && email.trim().toLowerCase() === cfg!.email;
+}
+
+export function isReviewDemoOwnerPassword(email: string, password: string): boolean {
+  const cfg = reviewDemoOwnerConfig();
+  if (!cfg || email.trim().toLowerCase() !== cfg.email) return false;
+  return password.trim() === cfg.password;
+}
+
+// Idempotently seed the reviewer plant_owner account at boot. If the row
+// already exists but drifted (wrong role, inactive, no password) it is repaired.
+export async function ensureReviewDemoOwnerAccount(): Promise<void> {
+  const cfg = reviewDemoOwnerConfig();
+  if (!cfg) return;
+  const email = cfg.email;
+  const passwordHash = await hashPassword(cfg.password);
+
+  const [existing] = await db
+    .select({
+      id: users.id,
+      role: users.role,
+      isActive: users.isActive,
+      deletedAt: users.deletedAt,
+      passwordHash: users.passwordHash,
+    })
+    .from(users)
+    .where(eq(users.email, email));
+
+  if (existing) {
+    const needsFix =
+      existing.role !== 'plant_owner' ||
+      !existing.isActive ||
+      existing.deletedAt !== null ||
+      !existing.passwordHash;
+    if (needsFix) {
+      await db.update(users)
+        .set({
+          role: 'plant_owner', isActive: true, deletedAt: null,
+          suspendedBy: null, suspensionReason: null, passwordHash,
+        })
+        .where(eq(users.id, existing.id));
+    }
+    return;
+  }
+
+  await db.insert(users).values({
+    name: 'Plant Owner Reviewer',
+    email,
+    role: 'plant_owner',
+    passwordHash,
+  });
+}
+
+// --- App-store reviewer phone (customer) demo login -------------------------
+// REVIEW_DEMO_PHONE + REVIEW_DEMO_OTP: a fixed phone/code pair the reviewer
+// uses at the customer door. The phone is normalised once to the same
+// +91XXXXXXXXXX form that normalizePhone() produces for 10-digit Indian numbers.
+function reviewDemoPhoneConfig(): { phone: string; code: string } | null {
+  const raw = process.env.REVIEW_DEMO_PHONE?.trim();
+  const code = process.env.REVIEW_DEMO_OTP?.trim();
+  if (!raw || !code || code.length < 6) return null;
+  const digits = raw.replace(/\D/g, '');
+  const phone =
+    digits.length === 10 ? `+91${digits}` :
+    digits.length === 12 && digits.startsWith('91') ? `+${digits}` :
+    null;
+  if (!phone) return null;
+  return { phone, code };
+}
+
+export function isReviewDemoPhone(phone: string): boolean {
+  const cfg = reviewDemoPhoneConfig();
+  return Boolean(cfg) && phone === cfg!.phone;
+}
+
+export function isReviewDemoPhoneLogin(phone: string, code: string): boolean {
+  const cfg = reviewDemoPhoneConfig();
+  if (!cfg || phone !== cfg.phone) return false;
+  const a = Buffer.from(hashOtpCode(code.trim()));
+  const b = Buffer.from(hashOtpCode(cfg.code));
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 // Verify a submitted code against the stored hash. Single generic failure
 // message (never distinguishes wrong/expired/too-many) to avoid leaking state.
 // On success the code is consumed (deleted) so it can't be replayed.
