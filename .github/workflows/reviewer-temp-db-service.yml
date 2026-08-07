@@ -1,0 +1,168 @@
+name: Reviewer Ephemeral DB Service
+
+on:
+  push:
+    branches:
+      - ops/reviewer-runtime-setup-20260807
+    paths:
+      - .github/workflows/reviewer-temp-db-service.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      REGION: asia-south1
+      PROD_SERVICE: trackmyrmc
+      DIAG_SERVICE: trackmyrmc-review-diag
+      CLOUDSQL_INSTANCE: trackmyrmc-production:asia-south1:trackmyrmc-prod-db
+      REVIEW_OWNER_EMAIL_CT: DN9ViWBM8pqf7jjU0VzGYhl++lUcyOlElkDFGRi70/FpyW9ai/gZiPYAn7z6C6FubiHVkvONuhZpdvBys7ZdDM70/Hz9/u0l9NpuIX4OAR2n5bFec05RCCw4v2mIzqLvpNCD1fK8ArzgZU8kw/0L+rjjxxuti/euyIdZvrPHQ/cqr++ruoLEY8SfHZk/4fRw1IloMYdEfbS6W70Tc0TWCCQf2cqjOqeJhZUMKnxXD2i1BfxOOmdAmtiy/kBhLNlSXK4KWgYZQa3JgmQECT/GHNqPPcBpJhjTgoZ05Nc76cAWEjXCI/drqoCFa0r6WDYSfJ9uPFbvnWwqtXfCGlgaVg==
+      REVIEW_OWNER_PLANT_NAME_CT: ct/w5oyIGIl+fvVBWBa0VXqHjzK/oG0bx/yymUI/xNuboUHizAZ4eJJszTgrwZGC+at4cegqX99uzk4hsfJuG9zTtapiwJ4zm+o5HrUx9KaBlq6jizdBg6Rctf03USEUsNQgSCPX9efJD/I6Wm2LY3q2e/81MDOK2xbsuOZAlTkJNDKPfkHeHiXMOzayER3trZOi3TKzwaKqw2NqYd/5YmfWaarPMBZfvT9t3fVSR7CvGn6czvysyQAWb1+Rvh43QmaQ3f+61j4p/cwKqi8fbC01XUntvXiAgr0DVYB2YwS1V98r2550tT7KNPpzrfZ0Wh31QTE9Cd97Kc5OLfWGHw==
+      REVIEW_DRIVER_PLANT_NAME_CT: CYnCTDP8cWYSw2FolcovfbQZWHFOdy5g8c9lNDrezntQqyoV+qarrDtj8llSk/rRvvqo397xkeW7j42RyeGf9mmGWC6BesGt4JIC6ZUxu83BlrX8OzCoP6zMu549XCXRvmxZSajkiEvZkp3ds5SYoG663vElhmwafkeiVBY6Ip8h/2byJJ7aRyhAK3kipHwC6Pd4Gf23u4V6cEm+BihzJu2QHxq/+DKXXUvtbYZzw7HRy3fMI5nlobb5XaVr+3qjSDbNdKltN3xuR326iNkej0r7hfg47RpM5o1gQ2TiqJHmBytCXCUV6Y+pXy1zqTqrPPy3CoJTGBUTW3bFO4ixLg==
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - name: Deploy ephemeral diagnostic service and inspect database
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          set -euo pipefail
+          cleanup() {
+            gcloud run services delete "$DIAG_SERVICE" --project='${{ secrets.GCP_PROJECT }}' --region="$REGION" --quiet >/dev/null 2>&1 || true
+            rm -f /tmp/reviewer-key.pem
+          }
+          trap cleanup EXIT
+
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          const sa = JSON.parse(process.env.GCP_SA_KEY);
+          fs.writeFileSync('/tmp/reviewer-key.pem', sa.private_key, { mode: 0o600 });
+          function decrypt(name) {
+            return execFileSync('openssl', [
+              'pkeyutl','-decrypt','-inkey','/tmp/reviewer-key.pem',
+              '-pkeyopt','rsa_padding_mode:oaep','-pkeyopt','rsa_oaep_md:sha256',
+            ], { input: Buffer.from(process.env[name], 'base64') }).toString('utf8');
+          }
+          const values = {
+            OWNER_EMAIL: decrypt('REVIEW_OWNER_EMAIL_CT'),
+            OWNER_PLANT: decrypt('REVIEW_OWNER_PLANT_NAME_CT'),
+            DRIVER_PLANT: decrypt('REVIEW_DRIVER_PLANT_NAME_CT'),
+          };
+          for (const [k,v] of Object.entries(values)) {
+            console.log(`::add-mask::${v}`);
+            fs.appendFileSync(process.env.GITHUB_ENV, `${k}=${v}\n`);
+          }
+          NODE
+
+          IMAGE="$(gcloud run services describe "$PROD_SERVICE" --project='${{ secrets.GCP_PROJECT }}' --region="$REGION" --format='value(spec.template.spec.containers[0].image)')"
+          test -n "$IMAGE"
+
+          DIAG_SCRIPT=$(cat <<'NODE'
+          import http from 'http';
+          import pg from 'pg';
+          const { Pool } = pg;
+          const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: false });
+
+          const safeError = (e) => ({
+            code: e?.code ?? null,
+            constraint: e?.constraint ?? null,
+            column: e?.column ?? null,
+            dataType: e?.dataType ?? null,
+            message: String(e?.message ?? e).replace(process.env.OWNER_EMAIL ?? '', '[owner-email]').replace(process.env.OWNER_PLANT ?? '', '[owner-plant]').replace(process.env.DRIVER_PLANT ?? '', '[driver-plant]').slice(0, 500),
+          });
+
+          async function inspect() {
+            const c = await pool.connect();
+            const out = {};
+            try {
+              const cols = await c.query(`
+                select table_name, array_agg(column_name order by ordinal_position) columns
+                from information_schema.columns
+                where table_schema='public' and table_name in ('plants','users','drivers')
+                group by table_name order by table_name`);
+              out.columns = Object.fromEntries(cols.rows.map(r => [r.table_name, r.columns]));
+
+              try {
+                const roles = await c.query(`select enumlabel from pg_enum e join pg_type t on t.oid=e.enumtypid where t.typname='user_role' order by e.enumsortorder`);
+                out.userRoles = roles.rows.map(r => r.enumlabel);
+              } catch (e) { out.userRolesError = safeError(e); }
+
+              try {
+                const plants = await c.query(`select id, name, plant_status, subscription_status, subscription_plan, is_active, location_verified from plants where lower(name) in (lower($1), lower($2)) order by id`, [process.env.OWNER_PLANT, process.env.DRIVER_PLANT]);
+                out.matchingPlants = plants.rows.map(r => ({ id:r.id, ownerAlias: r.name.toLowerCase() === process.env.OWNER_PLANT.toLowerCase(), driverAlias: r.name.toLowerCase() === process.env.DRIVER_PLANT.toLowerCase(), plantStatus:r.plant_status, subscriptionStatus:r.subscription_status, subscriptionPlan:r.subscription_plan, isActive:r.is_active, locationVerified:r.location_verified }));
+              } catch (e) { out.matchingPlantsError = safeError(e); }
+
+              try {
+                const u = await c.query(`select id, role, is_active, plant_id, deleted_at, password_hash is not null as has_password from users where lower(email)=lower($1)`, [process.env.OWNER_EMAIL]);
+                out.ownerUsers = u.rows;
+              } catch (e) { out.ownerUsersError = safeError(e); }
+
+              try {
+                await c.query('begin');
+                const p = await c.query(`insert into plants (name, city, latitude, longitude, plant_status, subscription_status, subscription_plan, is_active, location_verified) values ($1,'Panvel','18.9894000','73.1175000','approved','active','free',true,false) returning id`, ['__review_diag_rollback__']);
+                out.fallbackPlantInsert = { ok:true, idType: typeof p.rows[0]?.id };
+                await c.query('rollback');
+              } catch (e) {
+                try { await c.query('rollback'); } catch {}
+                out.fallbackPlantInsert = { ok:false, error:safeError(e) };
+              }
+
+              try {
+                const q = await c.query(`select id,name,email,phone,password_hash,role,is_active,session_version,plant_id,linked_client_id,linked_driver_id,preferred_plant_id,created_by,suspended_by,suspension_reason,permissions,kyc_status,kyc_verified_at,deleted_at,created_at from users where lower(email)=lower($1) limit 1`, [process.env.OWNER_EMAIL]);
+                out.ownerDrizzleShapeSelect = { ok:true, count:q.rowCount };
+              } catch (e) { out.ownerDrizzleShapeSelect = { ok:false, error:safeError(e) }; }
+
+              return out;
+            } finally { c.release(); }
+          }
+
+          http.createServer(async (_req,res) => {
+            res.setHeader('content-type','application/json');
+            try { res.end(JSON.stringify(await inspect())); }
+            catch (e) { res.statusCode=500; res.end(JSON.stringify({fatal:safeError(e)})); }
+          }).listen(Number(process.env.PORT || 8080), '0.0.0.0');
+          NODE
+          )
+          DIAG_SCRIPT_B64="$(printf '%s' "$DIAG_SCRIPT" | base64 -w0)"
+
+          gcloud run deploy "$DIAG_SERVICE" \
+            --project='${{ secrets.GCP_PROJECT }}' \
+            --region="$REGION" \
+            --image="$IMAGE" \
+            --allow-unauthenticated \
+            --min-instances=0 \
+            --max-instances=1 \
+            --memory=512Mi \
+            --cpu=1 \
+            --timeout=60 \
+            --add-cloudsql-instances="$CLOUDSQL_INSTANCE" \
+            --set-secrets=DATABASE_URL=DATABASE_URL:latest \
+            --update-env-vars="^|^DIAG_SCRIPT_B64=$DIAG_SCRIPT_B64|OWNER_EMAIL=$OWNER_EMAIL|OWNER_PLANT=$OWNER_PLANT|DRIVER_PLANT=$DRIVER_PLANT" \
+            --command=/bin/sh \
+            '--args=-c,echo "$DIAG_SCRIPT_B64" | base64 -d | node --input-type=module' \
+            --quiet >/dev/null
+
+          URL="$(gcloud run services describe "$DIAG_SERVICE" --project='${{ secrets.GCP_PROJECT }}' --region="$REGION" --format='value(status.url)')"
+          test -n "$URL"
+          for i in {1..20}; do
+            if RESULT="$(curl -fsS --max-time 15 "$URL")"; then
+              echo '--- SAFE REVIEWER DB DIAGNOSTIC ---'
+              printf '%s\n' "$RESULT" | python3 -m json.tool
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'Diagnostic service did not become reachable' >&2
+          exit 1
