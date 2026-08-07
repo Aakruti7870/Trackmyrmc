@@ -67,7 +67,10 @@ test('reviewer owner login-method seeds a hidden plant-scoped owner and requests
   const [plant] = await db.select().from(plants).where(eq(plants.id, owner.plantId!));
   assert.ok(plant);
   assert.equal(plant.name, OWNER_PLANT);
-  assert.equal(plant.showOnNetwork, false);
+  // The compatibility-safe fallback is kept out of customer discovery by the
+  // durable visibility gates shared across current production schemas: it is
+  // pending on the network and is neither platform-verified nor location-verified.
+  assert.equal(plant.networkStatus, 'pending');
   assert.equal(plant.verified, false);
   assert.equal(plant.locationVerified, false);
 });
