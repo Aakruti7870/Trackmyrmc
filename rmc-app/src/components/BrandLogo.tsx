@@ -51,9 +51,8 @@ export function ConcreteKingLogo({ size = 44 }: { size?: number }) {
 }
 
 /**
- * Sponsor / partner credits — "Powered by GOLD e Tech" and "Sponsored by
- * VR INFRA". Rendered wherever the brand needs to breathe (sidebar footer,
- * login panel). `align` controls text alignment for the different placements.
+ * Brand credits — "Powered by GOLD e Tech". Rendered wherever the brand needs
+ * to breathe (sidebar footer, login panel). `align` controls text alignment.
  */
 export function BrandCredits({ align = 'left', oneRow = false }: { align?: 'left' | 'center'; oneRow?: boolean }) {
   const rowStyle: React.CSSProperties = {
@@ -78,7 +77,7 @@ export function BrandCredits({ align = 'left', oneRow = false }: { align?: 'left
     color: 'transparent',
   };
 
-  // Compact single-row variant: "Powered by GOLD e Tech · Sponsored by VR INFRA"
+  // Compact single-row variant: "Powered by GOLD e Tech"
   // on one line — used below the social icons in the auth footer.
   if (oneRow) {
     return (
@@ -88,9 +87,6 @@ export function BrandCredits({ align = 'left', oneRow = false }: { align?: 'left
       }}>
         <span style={label}>Powered by</span>
         <span style={name}>GOLD e Tech</span>
-        <span style={{ color: 'var(--muted)', opacity: 0.6 }} aria-hidden>·</span>
-        <span style={label}>Sponsored by</span>
-        <span style={name}>VR INFRA</span>
       </div>
     );
   }
@@ -110,10 +106,6 @@ export function BrandCredits({ align = 'left', oneRow = false }: { align?: 'left
       <div style={rowStyle}>
         <span style={label}>Powered by</span>
         <span style={name}>GOLD e Tech</span>
-      </div>
-      <div style={rowStyle}>
-        <span style={label}>Sponsored by</span>
-        <span style={name}>VR INFRA</span>
       </div>
     </div>
   );
