@@ -1,0 +1,34 @@
+name: Reviewer Runtime Secure Setup
+
+on:
+  push:
+    branches:
+      - ops/reviewer-runtime-setup-20260807
+    paths:
+      - .github/workflows/reviewer-runtime-setup.yml
+
+permissions:
+  contents: read
+
+jobs:
+  derive-public-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Derive public key from deployment service account
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${GCP_SA_KEY:-}" || { echo "GCP_SA_KEY is unavailable"; exit 1; }
+          node <<'NODE'
+          const fs = require('fs');
+          const sa = JSON.parse(process.env.GCP_SA_KEY);
+          if (!sa.private_key || !sa.client_email) throw new Error('Invalid GCP_SA_KEY');
+          fs.writeFileSync('/tmp/reviewer-setup-private.pem', sa.private_key, { mode: 0o600 });
+          console.log(`GCP_SA_EMAIL=${sa.client_email}`);
+          NODE
+          openssl pkey -in /tmp/reviewer-setup-private.pem -pubout -out /tmp/reviewer-setup-public.pem
+          printf 'GCP_SA_PUBLIC_KEY_B64='
+          base64 -w0 /tmp/reviewer-setup-public.pem
+          printf '\n'
+          rm -f /tmp/reviewer-setup-private.pem /tmp/reviewer-setup-public.pem
