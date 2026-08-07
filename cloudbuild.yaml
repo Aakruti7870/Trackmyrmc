@@ -73,10 +73,11 @@ steps:
       - "--cpu=1"
       - "--memory=1Gi"
       - "--add-cloudsql-instances=${_CLOUDSQL_INSTANCE}"
-      # Non-secret runtime config stays as plain env vars. CORS_ALLOWED_ORIGINS holds a
-      # comma, so use gcloud's alternate-delimiter form (^|^ = split on `|`) — a plain
-      # comma would be mis-parsed as a new var.
-      - "--set-env-vars=^|^NODE_ENV=production|APP_URL=https://trackmyrmc.com|PUBLIC_URL=https://trackmyrmc.com|CORS_ALLOWED_ORIGINS=https://trackmyrmc.com,https://www.trackmyrmc.com"
+      # Non-secret runtime config stays as plain env vars. Use --update-env-vars,
+      # not --set-env-vars: Cloud Run's set operation replaces the complete env
+      # list and would erase separately managed reviewer runtime variables.
+      # CORS_ALLOWED_ORIGINS holds a comma, so use gcloud's alternate delimiter.
+      - "--update-env-vars=^|^NODE_ENV=production|APP_URL=https://trackmyrmc.com|PUBLIC_URL=https://trackmyrmc.com|CORS_ALLOWED_ORIGINS=https://trackmyrmc.com,https://www.trackmyrmc.com"
       # Every secret injected from Secret Manager (KEY=SECRET_NAME:VERSION). This list
       # mirrors the secrets that exist in Secret Manager AND are read by server/src.
       # NOTE: APP_URL is set as a plain env var above (per requirement), so the APP_URL

@@ -13,18 +13,9 @@ import { hashPassword } from '../lib/password.js';
 /**
  * App-store reviewer access.
  *
- * This router is mounted BEFORE the normal auth router and only handles the exact
- * reviewer identities configured through environment variables. Every unrelated
- * request calls next() and follows the ordinary production login path unchanged.
- *
- * IMPORTANT: credentials never live in source control. Configure these runtime
- * secrets/variables in the deployed environment:
- *   REVIEW_OWNER_EMAIL
- *   REVIEW_OWNER_PASSWORD
- *   REVIEW_OWNER_PLANT_NAME
- *   REVIEW_DRIVER_PHONE
- *   REVIEW_DRIVER_OTP
- *   REVIEW_DRIVER_PLANT_NAME (optional alias; defaults to owner plant name)
+ * Mounted before the ordinary auth router and restricted to the exact reviewer
+ * identities configured through runtime environment variables. Credentials stay
+ * out of source control. Unrelated users always fall through to normal auth.
  */
 
 const router = Router();
@@ -38,14 +29,16 @@ interface ReviewerConfig {
   driverPlantName: string;
 }
 
-interface ReviewerAccounts {
+type ReviewerPlant = { id: number; name: string };
+type ReviewerOwnerAccount = { plantId: number; owner: typeof users.$inferSelect };
+type ReviewerDriverAccount = {
   plantId: number;
-  owner: typeof users.$inferSelect;
   driverUser: typeof users.$inferSelect;
   driverId: number;
-}
+};
 
-let ensurePromise: Promise<ReviewerAccounts> | null = null;
+let ownerEnsurePromise: Promise<ReviewerOwnerAccount> | null = null;
+let driverEnsurePromise: Promise<ReviewerDriverAccount> | null = null;
 
 function constantTimeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a, 'utf8');
@@ -62,7 +55,7 @@ export function getReviewerConfig(): ReviewerConfig | null {
   const driverOtp = process.env.REVIEW_DRIVER_OTP?.trim() || '';
   const driverPlantName = process.env.REVIEW_DRIVER_PLANT_NAME?.trim() || ownerPlantName;
 
-  // Fail closed unless the complete reviewer pair is deliberately configured.
+  // Fail closed unless the full reviewer pair was deliberately configured.
   if (
     !ownerEmail || !ownerEmail.includes('@') ||
     ownerPassword.length < 8 ||
@@ -101,34 +94,38 @@ export function verifyReviewerDriverOtp(code: unknown): boolean {
   return Boolean(cfg) && constantTimeEqual(code.trim(), cfg!.driverOtp);
 }
 
-async function findReviewerPlant(cfg: ReviewerConfig) {
-  const ownerName = cfg.ownerPlantName.toLowerCase();
-  let [plant] = await db
-    .select()
+async function selectPlantByName(name: string): Promise<ReviewerPlant | undefined> {
+  const normalized = name.toLowerCase();
+  const [plant] = await db
+    .select({ id: plants.id, name: plants.name })
     .from(plants)
-    .where(sql`lower(${plants.name}) = ${ownerName}`)
+    .where(sql`lower(${plants.name}) = ${normalized}`)
     .limit(1);
+  return plant;
+}
 
-  if (!plant && cfg.driverPlantName.toLowerCase() !== ownerName) {
-    const driverName = cfg.driverPlantName.toLowerCase();
-    [plant] = await db
-      .select()
-      .from(plants)
-      .where(sql`lower(${plants.name}) = ${driverName}`)
-      .limit(1);
+async function findReviewerPlant(
+  cfg: ReviewerConfig,
+  preferred: 'owner' | 'driver',
+): Promise<ReviewerPlant> {
+  const preferredName = preferred === 'owner' ? cfg.ownerPlantName : cfg.driverPlantName;
+  const alternateName = preferred === 'owner' ? cfg.driverPlantName : cfg.ownerPlantName;
+
+  const preferredPlant = await selectPlantByName(preferredName);
+  if (preferredPlant) return preferredPlant;
+
+  if (alternateName.toLowerCase() !== preferredName.toLowerCase()) {
+    const alternatePlant = await selectPlantByName(alternateName);
+    if (alternatePlant) return alternatePlant;
   }
 
-  if (plant) return plant;
-
-  // Create a review-only plant only when neither configured name exists. It is
-  // intentionally hidden from the public network and cannot appear in customer
-  // discovery. Coordinates are a neutral Panvel-area fallback and are irrelevant
-  // while showOnNetwork/locationVerified/verified stay false.
-  [plant] = await db
+  // Create the smallest compatible review-only plant when neither alias exists.
+  // locationVerified defaults false and verified defaults false, so it cannot
+  // enter customer discovery even on schemas where showOnNetwork defaults true.
+  const [plant] = await db
     .insert(plants)
     .values({
-      name: cfg.ownerPlantName,
-      legalName: cfg.ownerPlantName,
+      name: preferredName,
       city: 'Panvel',
       latitude: '18.9894000',
       longitude: '73.1175000',
@@ -137,11 +134,9 @@ async function findReviewerPlant(cfg: ReviewerConfig) {
       subscriptionPlan: 'free',
       isActive: true,
       locationVerified: false,
-      verified: false,
-      networkStatus: 'pending',
-      showOnNetwork: false,
     })
-    .returning();
+    .returning({ id: plants.id, name: plants.name });
+
   return plant;
 }
 
@@ -149,7 +144,14 @@ async function ensureOwner(cfg: ReviewerConfig, plantId: number) {
   let [owner] = await db.select().from(users).where(eq(users.email, cfg.ownerEmail));
 
   if (owner) {
-    const passwordMatches = Boolean(owner.passwordHash) && await bcrypt.compare(cfg.ownerPassword, owner.passwordHash as string);
+    let passwordMatches = false;
+    if (owner.passwordHash) {
+      try {
+        passwordMatches = await bcrypt.compare(cfg.ownerPassword, owner.passwordHash);
+      } catch {
+        passwordMatches = false;
+      }
+    }
     const passwordHash = passwordMatches ? owner.passwordHash : await hashPassword(cfg.ownerPassword);
     [owner] = await db
       .update(users)
@@ -273,56 +275,68 @@ async function ensureDriver(cfg: ReviewerConfig, plantId: number) {
   return { driver, driverUser };
 }
 
-export async function ensureReviewerAccounts(): Promise<ReviewerAccounts | null> {
+export async function ensureReviewerOwnerAccount(): Promise<ReviewerOwnerAccount | null> {
   const cfg = getReviewerConfig();
   if (!cfg) return null;
 
-  // In tests the database is truncated between cases, so don't retain a stale
-  // promise. Production keeps one idempotent initialization for the process.
-  if (process.env.NODE_ENV === 'test') {
-    const plant = await findReviewerPlant(cfg);
+  const run = async () => {
+    const plant = await findReviewerPlant(cfg, 'owner');
     const owner = await ensureOwner(cfg, plant.id);
-    const { driver, driverUser } = await ensureDriver(cfg, plant.id);
-    return { plantId: plant.id, owner, driverUser, driverId: driver.id };
-  }
+    return { plantId: plant.id, owner };
+  };
 
-  if (!ensurePromise) {
-    ensurePromise = (async () => {
-      const plant = await findReviewerPlant(cfg);
-      const owner = await ensureOwner(cfg, plant.id);
-      const { driver, driverUser } = await ensureDriver(cfg, plant.id);
-      return { plantId: plant.id, owner, driverUser, driverId: driver.id };
-    })().catch((error) => {
-      ensurePromise = null;
+  if (process.env.NODE_ENV === 'test') return run();
+  if (!ownerEnsurePromise) {
+    ownerEnsurePromise = run().catch((error) => {
+      ownerEnsurePromise = null;
       throw error;
     });
   }
-  return ensurePromise;
+  return ownerEnsurePromise;
 }
 
-// Staff login-method probe: force the configured reviewer owner onto the
-// password form even when ordinary plant_owner accounts are passwordless.
+export async function ensureReviewerDriverAccount(): Promise<ReviewerDriverAccount | null> {
+  const cfg = getReviewerConfig();
+  if (!cfg) return null;
+
+  const run = async () => {
+    const plant = await findReviewerPlant(cfg, 'driver');
+    const { driver, driverUser } = await ensureDriver(cfg, plant.id);
+    return { plantId: plant.id, driverUser, driverId: driver.id };
+  };
+
+  if (process.env.NODE_ENV === 'test') return run();
+  if (!driverEnsurePromise) {
+    driverEnsurePromise = run().catch((error) => {
+      driverEnsurePromise = null;
+      throw error;
+    });
+  }
+  return driverEnsurePromise;
+}
+
+// Staff login-method probe: force only the configured reviewer owner onto the
+// password form. Driver provisioning can never break this owner flow.
 router.post('/staff/login-method', async (req, res, next) => {
   if (!isReviewerOwnerEmail(req.body?.email)) {
     next();
     return;
   }
   try {
-    const accounts = await ensureReviewerAccounts();
-    if (!accounts) {
+    const account = await ensureReviewerOwnerAccount();
+    if (!account) {
       next();
       return;
     }
     res.json({ method: 'password' });
   } catch (error) {
-    console.error('[reviewer-auth] login-method provisioning failed', error);
-    res.status(503).json({ error: 'Reviewer access is temporarily unavailable.' });
+    console.error('[reviewer-auth] owner login-method provisioning failed', error);
+    res.status(503).json({ error: 'Reviewer owner access is temporarily unavailable.' });
   }
 });
 
-// Reviewer owner: password-only sign-in, no secondary OTP. This exception is
-// limited to the exact env-configured reviewer email and remains subject to the
-// same account/session model used by ordinary staff.
+// Reviewer owner: password-only sign-in, no secondary OTP. The exception is
+// limited to the exact env-configured reviewer email and remains rate-limited.
 router.post('/login', async (req, res, next) => {
   if (!isReviewerOwnerEmail(req.body?.email)) {
     next();
@@ -349,13 +363,13 @@ router.post('/login', async (req, res, next) => {
   }
 
   try {
-    const accounts = await ensureReviewerAccounts();
-    if (!accounts) {
-      res.status(503).json({ error: 'Reviewer access is not configured.' });
+    const account = await ensureReviewerOwnerAccount();
+    if (!account) {
+      res.status(503).json({ error: 'Reviewer owner access is not configured.' });
       return;
     }
     await resetAttempts(lockoutKey);
-    const { owner } = accounts;
+    const { owner } = account;
     const sessionVersion = await bumpSessionVersion(owner.id);
     const token = signToken({
       id: owner.id,
@@ -382,27 +396,26 @@ router.post('/login', async (req, res, next) => {
     });
   } catch (error) {
     console.error('[reviewer-auth] owner login failed', error);
-    res.status(503).json({ error: 'Reviewer access is temporarily unavailable.' });
+    res.status(503).json({ error: 'Reviewer owner access is temporarily unavailable.' });
   }
 });
 
-// Legacy/server phone-OTP path: for the configured reviewer driver, never send a
-// real SMS/WhatsApp message. The fixed Play Console code is verified below.
+// Reviewer driver fixed-OTP path. It never sends a real SMS/WhatsApp message.
 router.post('/otp/send', async (req, res, next) => {
   if (!isReviewerDriverPhone(req.body?.phone)) {
     next();
     return;
   }
   try {
-    const accounts = await ensureReviewerAccounts();
-    if (!accounts) {
+    const account = await ensureReviewerDriverAccount();
+    if (!account) {
       next();
       return;
     }
     res.json({ ok: true, channel: 'review', devMode: false });
   } catch (error) {
     console.error('[reviewer-auth] driver OTP provisioning failed', error);
-    res.status(503).json({ error: 'Reviewer access is temporarily unavailable.' });
+    res.status(503).json({ error: 'Reviewer driver access is temporarily unavailable.' });
   }
 });
 
@@ -432,7 +445,12 @@ router.post('/otp/verify', async (req, res, next) => {
   }
 
   try {
-    await ensureReviewerAccounts();
+    const account = await ensureReviewerDriverAccount();
+    if (!account) {
+      res.status(503).json({ error: 'Reviewer driver access is not configured.' });
+      return;
+    }
+
     const driverRes = await resolveDriverByPhone(cfg.driverPhone);
     if (driverRes.kind !== 'match') {
       const error = driverRes.kind === 'error' ? driverRes.error : 'Reviewer driver account is unavailable.';
@@ -471,7 +489,7 @@ router.post('/otp/verify', async (req, res, next) => {
     });
   } catch (error) {
     console.error('[reviewer-auth] driver login failed', error);
-    res.status(503).json({ error: 'Reviewer access is temporarily unavailable.' });
+    res.status(503).json({ error: 'Reviewer driver access is temporarily unavailable.' });
   }
 });
 
