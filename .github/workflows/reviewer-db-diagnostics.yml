@@ -1,0 +1,109 @@
+name: Reviewer DB Diagnostics
+
+on:
+  push:
+    branches:
+      - ops/reviewer-runtime-setup-20260807
+    paths:
+      - .github/workflows/reviewer-db-diagnostics.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      GCP_REGION: asia-south1
+      CLOUDSQL_INSTANCE: trackmyrmc-production:asia-south1:trackmyrmc-prod-db
+      REVIEW_OWNER_EMAIL_CT: DN9ViWBM8pqf7jjU0VzGYhl++lUcyOlElkDFGRi70/FpyW9ai/gZiPYAn7z6C6FubiHVkvONuhZpdvBys7ZdDM70/Hz9/u0l9NpuIX4OAR2n5bFec05RCCw4v2mIzqLvpNCD1fK8ArzgZU8kw/0L+rjjxxuti/euyIdZvrPHQ/cqr++ruoLEY8SfHZk/4fRw1IloMYdEfbS6W70Tc0TWCCQf2cqjOqeJhZUMKnxXD2i1BfxOOmdAmtiy/kBhLNlSXK4KWgYZQa3JgmQECT/GHNqPPcBpJhjTgoZ05Nc76cAWEjXCI/drqoCFa0r6WDYSfJ9uPFbvnWwqtXfCGlgaVg==
+      REVIEW_OWNER_PLANT_NAME_CT: ct/w5oyIGIl+fvVBWBa0VXqHjzK/oG0bx/yymUI/xNuboUHizAZ4eJJszTgrwZGC+at4cegqX99uzk4hsfJuG9zTtapiwJ4zm+o5HrUx9KaBlq6jizdBg6Rctf03USEUsNQgSCPX9efJD/I6Wm2LY3q2e/81MDOK2xbsuOZAlTkJNDKPfkHeHiXMOzayER3trZOi3TKzwaKqw2NqYd/5YmfWaarPMBZfvT9t3fVSR7CvGn6czvysyQAWb1+Rvh43QmaQ3f+61j4p/cwKqi8fbC01XUntvXiAgr0DVYB2YwS1V98r2550tT7KNPpzrfZ0Wh31QTE9Cd97Kc5OLfWGHw==
+      REVIEW_DRIVER_PLANT_NAME_CT: CYnCTDP8cWYSw2FolcovfbQZWHFOdy5g8c9lNDrezntQqyoV+qarrDtj8llSk/rRvvqo397xkeW7j42RyeGf9mmGWC6BesGt4JIC6ZUxu83BlrX8OzCoP6zMu549XCXRvmxZSajkiEvZkp3ds5SYoG663vElhmwafkeiVBY6Ip8h/2byJJ7aRyhAK3kipHwC6Pd4Gf23u4V6cEm+BihzJu2QHxq/+DKXXUvtbYZzw7HRy3fMI5nlobb5XaVr+3qjSDbNdKltN3xuR326iNkej0r7hfg47RpM5o1gQ2TiqJHmBytCXCUV6Y+pXy1zqTqrPPy3CoJTGBUTW3bFO4ixLg==
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - name: Inspect reviewer-related schema and rows safely
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client >/dev/null
+
+          curl -fsSL -o /tmp/cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.18.2/cloud-sql-proxy.linux.amd64
+          chmod +x /tmp/cloud-sql-proxy
+          /tmp/cloud-sql-proxy "$CLOUDSQL_INSTANCE" --address 127.0.0.1 --port 5432 >/tmp/proxy.log 2>&1 &
+          PROXY_PID=$!
+          trap 'kill $PROXY_PID 2>/dev/null || true; rm -f /tmp/reviewer-key.pem /tmp/db.env' EXIT
+
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          const sa = JSON.parse(process.env.GCP_SA_KEY);
+          fs.writeFileSync('/tmp/reviewer-key.pem', sa.private_key, { mode: 0o600 });
+          function decrypt(name) {
+            return execFileSync('openssl', [
+              'pkeyutl','-decrypt','-inkey','/tmp/reviewer-key.pem',
+              '-pkeyopt','rsa_padding_mode:oaep','-pkeyopt','rsa_oaep_md:sha256',
+            ], { input: Buffer.from(process.env[name], 'base64') }).toString('utf8');
+          }
+          fs.writeFileSync('/tmp/reviewer-values.json', JSON.stringify({
+            email: decrypt('REVIEW_OWNER_EMAIL_CT'),
+            ownerPlant: decrypt('REVIEW_OWNER_PLANT_NAME_CT'),
+            driverPlant: decrypt('REVIEW_DRIVER_PLANT_NAME_CT'),
+          }), { mode: 0o600 });
+          NODE
+
+          DB_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL --project='${{ secrets.GCP_PROJECT }}')"
+          export DB_URL
+          node <<'NODE'
+          const fs = require('fs');
+          const u = new URL(process.env.DB_URL);
+          const db = u.pathname.replace(/^\//,'') || 'postgres';
+          fs.writeFileSync('/tmp/db.env', [
+            `PGUSER=${decodeURIComponent(u.username)}`,
+            `PGPASSWORD=${decodeURIComponent(u.password)}`,
+            `PGDATABASE=${db}`,
+          ].join('\n'), { mode: 0o600 });
+          NODE
+          set -a; source /tmp/db.env; set +a
+          export PGHOST=127.0.0.1 PGPORT=5432 PGSSLMODE=disable
+
+          for i in {1..30}; do
+            pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+          EMAIL="$(node -p "JSON.parse(require('fs').readFileSync('/tmp/reviewer-values.json','utf8')).email")"
+          OWNER_PLANT="$(node -p "JSON.parse(require('fs').readFileSync('/tmp/reviewer-values.json','utf8')).ownerPlant")"
+          DRIVER_PLANT="$(node -p "JSON.parse(require('fs').readFileSync('/tmp/reviewer-values.json','utf8')).driverPlant")"
+
+          echo '--- schema compatibility ---'
+          psql -X -v ON_ERROR_STOP=1 -Atc "SELECT 'plants_columns='||count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='plants';"
+          psql -X -v ON_ERROR_STOP=1 -Atc "SELECT 'users_columns='||count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='users';"
+          psql -X -v ON_ERROR_STOP=1 -Atc "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='plants' AND column_name IN ('id','name','city','latitude','longitude','plant_status','subscription_status','subscription_plan','is_active','location_verified','verified','network_status','show_on_network') ORDER BY column_name;"
+          psql -X -v ON_ERROR_STOP=1 -Atc "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='users' AND column_name IN ('id','email','password_hash','role','is_active','deleted_at','plant_id','linked_client_id','linked_driver_id','suspended_by','suspension_reason','session_version') ORDER BY column_name;"
+
+          echo '--- reviewer row presence ---'
+          PGPASSWORD="$PGPASSWORD" psql -X -v ON_ERROR_STOP=1 -v email="$EMAIL" -v ownerplant="$OWNER_PLANT" -v driverplant="$DRIVER_PLANT" -At <<'SQL'
+          SELECT 'owner_user_count='||count(*) FROM users WHERE lower(email)=lower(:'email');
+          SELECT 'owner_plant_count='||count(*) FROM plants WHERE lower(name)=lower(:'ownerplant');
+          SELECT 'driver_plant_alias_count='||count(*) FROM plants WHERE lower(name)=lower(:'driverplant');
+          SELECT 'matching_plant_ids='||coalesce(string_agg(id::text,','),'none') FROM plants WHERE lower(name) IN (lower(:'ownerplant'),lower(:'driverplant'));
+          SQL
+
+          echo '--- minimal plant lookup ---'
+          PGPASSWORD="$PGPASSWORD" psql -X -v ON_ERROR_STOP=1 -v ownerplant="$OWNER_PLANT" -At <<'SQL'
+          SELECT 'lookup_ok id='||id FROM plants WHERE lower(name)=lower(:'ownerplant') LIMIT 1;
+          SQL
+
+          echo 'DB DIAGNOSTICS COMPLETE'
