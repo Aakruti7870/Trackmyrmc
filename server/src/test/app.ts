@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 import authRoutes from '../routes/auth.js';
+import reviewerAuthRoutes from '../routes/reviewerAuth.js';
 import batchRoutes from '../routes/batches.js';
 import mixDesignRoutes from '../routes/mixDesigns.js';
 import batchReportRoutes from '../routes/batchReports.js';
@@ -60,6 +61,7 @@ export function buildTestApp(): Express {
     res.status(200).type('html').send(accountDeletionPage());
   });
   app.use('/api/account-deletion-requests', accountDeletionRoutes);
+  app.use('/api/auth', reviewerAuthRoutes);
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/user-management', userManagementRoutes);
