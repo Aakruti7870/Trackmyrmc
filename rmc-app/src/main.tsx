@@ -4,11 +4,14 @@ import { ClerkProvider } from '@clerk/clerk-react'
 import './index.css'
 import './automatic-theme.css'
 import './layout-fixes.css'
+import './v138/theme/trackmyrmc-v138.css'
+import { installThemeV138 } from './v138'
 import App from './App.tsx'
 import { CLERK_PUBLISHABLE_KEY, clerkEnabled } from './lib/clerk'
 import { startAutomaticTheme } from './lib/autoTheme'
 
 startAutomaticTheme()
+installThemeV138()
 
 const computed = getComputedStyle(document.documentElement)
 const clerkPrimary = computed.getPropertyValue('--gold').trim() || '#d6a52a'

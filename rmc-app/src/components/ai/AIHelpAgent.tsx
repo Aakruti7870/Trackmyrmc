@@ -23,41 +23,20 @@ function getSessionId(): string {
 
 // Role-aware quick-prompt chips so the user can explore capabilities with one tap.
 const ROLE_CHIPS: Record<string, string[]> = {
-  client: [
-    'My active orders',
-    'Latest delivery status',
-    'My outstanding balance',
-    'How to place an order',
-    'M25 cement per m³',
-  ],
-  driver: [
-    'My trips today',
-    'My assigned vehicle',
-    'How to mark a delivery done',
-    'Slump test for M30',
-    'Transit mixer capacity',
-  ],
-  dispatcher: [
-    'Active orders today',
-    'Available vehicles',
-    'How to generate a challan',
-    'Cement bags for M20 slab',
-    'IS 4926 acceptance criteria',
-  ],
-  admin: [
-    'Today\'s dispatch summary',
-    'Pending orders',
-    'Plant monthly volume',
-    'M25 vs M30 – when to use',
-    'IS 456 exposure classes',
-  ],
-  default: [
-    'Cement bags for M20 per m³',
-    'What is IS 456?',
-    'Design mix vs nominal mix',
-    'Slump test procedure',
-    'How to place an order',
-  ],
+  client: ['My active orders', 'Latest delivery status', 'My outstanding balance', 'Explain my challan', 'How much concrete do I need?'],
+  customer: ['My active orders', 'Latest delivery status', 'My outstanding balance', 'Explain my challan', 'How much concrete do I need?'],
+  driver: ['My trips today', 'My assigned vehicle', 'Open my next destination', 'How to mark a delivery done', 'Show pending expense claims'],
+  dispatcher: ['Active orders today', 'Available transit mixers', 'Which dispatch is late?', 'Show route deviations', 'How to generate a challan'],
+  operator: ['Production queue today', 'Which batch needs attention?', 'Show material variance', 'M30 mix-design summary', 'Missing batch entries'],
+  supervisor: ['Site arrivals today', 'Delayed deliveries', 'Missing QC entries', 'Driver exceptions', 'Today production vs dispatch'],
+  staff: ['My assigned work today', 'Pending orders', 'Open alerts', 'Find a challan', 'Create support ticket'],
+  admin: ["Today's dispatch summary", 'Pending orders', 'Plant monthly volume', 'Stock alerts', 'Diesel anomalies'],
+  plant_owner: ['Executive summary today', 'Revenue and dispatch today', 'Stock runway', 'Fleet anomalies', 'Pending payments'],
+  owner: ['Executive summary today', 'Revenue and dispatch today', 'Stock runway', 'Fleet anomalies', 'Pending payments'],
+  authority: ['Platform summary today', 'Which plants are underperforming?', 'Top customers by volume', 'Fleet or fuel anomalies?', 'Forecast tomorrow demand'],
+  super_admin: ['Platform summary today', 'Which plants are underperforming?', 'Top customers by volume', 'Fleet or fuel anomalies?', 'Forecast tomorrow demand'],
+  partner: ['My plant profile status', 'Orders routed to my plant', 'Promotion performance', 'Verification issues', 'Contact support'],
+  default: ['Cement bags for M20 per m³', 'What is IS 456?', 'Design mix vs nominal mix', 'Slump test procedure', 'How to place an order'],
 };
 
 function chipsForRole(role: string): string[] {

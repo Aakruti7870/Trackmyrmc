@@ -20,8 +20,8 @@ env:
   RELEASE_VERSION: "1.37"
   RELEASE_CODE: "38"
   PACKAGE_VERSION: "1.37.0"
-  RELEASE_AAB: "releases/app-release-v1.37-vc38-signed.aab"
-  ARTIFACT_NAME: "TrackMyRMC-v1.37-vc38-signed-play-console"
+  RELEASE_AAB: "releases/app-release-v1.38-vc39-signed.aab"
+  ARTIFACT_NAME: "TrackMyRMC-v1.38-vc39-signed-play-console"
 
 jobs:
   build-signed-aab:
@@ -174,7 +174,7 @@ jobs:
           set -euo pipefail
           SOURCE_AAB="rmc-app/android/app/build/outputs/bundle/release/app-release.aab"
           RELEASE_DIR="releases"
-          RELEASE_AAB="$RELEASE_DIR/app-release-v1.37-vc38-signed.aab"
+          RELEASE_AAB="$RELEASE_DIR/app-release-v1.38-vc39-signed.aab"
           test -s "$SOURCE_AAB"
           jarsigner \
             -keystore "$RUNNER_TEMP/trackmyrmc-upload.p12" \
@@ -193,10 +193,10 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: TrackMyRMC-v1.37-vc38-signed-play-console
+          name: TrackMyRMC-v1.38-vc39-signed-play-console
           path: |
-            releases/app-release-v1.37-vc38-signed.aab
-            releases/app-release-v1.37-vc38-signed.aab.sha256
+            releases/app-release-v1.38-vc39-signed.aab
+            releases/app-release-v1.38-vc39-signed.aab.sha256
           if-no-files-found: error
           retention-days: 14
 
@@ -204,7 +204,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: TrackMyRMC-v1.37-vc38-unsigned-pr-validation
+          name: TrackMyRMC-v1.38-vc39-unsigned-pr-validation
           path: rmc-app/android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 3
@@ -215,7 +215,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add releases/app-release-v1.37-vc38-signed.aab releases/app-release-v1.37-vc38-signed.aab.sha256
+          git add releases/app-release-v1.38-vc39-signed.aab releases/app-release-v1.38-vc39-signed.aab.sha256
           git commit -m "release(android): add signed v1.37 vc38 AAB"
           git push
 

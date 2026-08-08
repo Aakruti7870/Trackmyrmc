@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { api, type DashboardKPIs, type AdminPlant } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
+import { RoleHomeBooster, type OrderLike } from '@/v138';
 import {
   TrendingUp, Clock, Users, IndianRupee, Building2, UserCog, Zap, ScrollText,
   Activity, TriangleAlert, ClipboardList, Truck, Radio, Wallet, Timer, Layers,
@@ -20,20 +21,24 @@ export default function AdminHome() {
   const [, navigate] = useLocation();
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [plants, setPlants] = useState<AdminPlant[]>([]);
+  const [recentOrders, setRecentOrders] = useState<OrderLike[]>([]);
 
   useEffect(() => {
     Promise.allSettled([
       api.get<DashboardKPIs>('/dashboard/kpis'),
       api.get<AdminPlant[]>('/plants'),
-    ]).then(([k, p]) => {
+      api.get<OrderLike[]>('/orders?limit=20'),
+    ]).then(([k, p, o]) => {
       if (k.status === 'fulfilled') setKpis(k.value);
       if (p.status === 'fulfilled') setPlants(p.value);
+      if (o.status === 'fulfilled') setRecentOrders(Array.isArray(o.value) ? o.value : []);
     });
   }, []);
 
   const can = (p: string) => (user ? canAccess(user.role, p) : false);
   const go = (p: string) => navigate(p);
   const recentPlants = plants.slice(0, 3);
+  const boosterOrders = useMemo(() => recentOrders, [recentOrders]);
 
   return (
     <Screen>
@@ -52,6 +57,8 @@ export default function AdminHome() {
           <StatCard value={fmtRs(Number(kpis.outstandingAmount))} label="Outstanding" color="#ef4444" icon={<IndianRupee className="h-4 w-4" />} />
         </div>
       )}
+
+      <RoleHomeBooster role={user?.role} orders={boosterOrders} onNavigate={go} maxAlerts={4} />
 
       {can('/expense-review') && <PendingExpensesCard onViewAll={() => go('/expense-review')} />}
 

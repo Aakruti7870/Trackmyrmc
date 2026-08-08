@@ -1,0 +1,128 @@
+/* TrackMyRMC v1.38 brand/system token overlay.
+   Keeps current theme IDs so existing routes/components keep working. */
+:root,
+:root[data-theme="concrete-gold"] {
+  --bg-top: #F7F8FA;
+  --bg: #F3F5F7;
+  --bg-deep: #E7EBF0;
+  --panel: #FFFFFF;
+  --panel2: #F8FAFC;
+  --surface: #FFFFFF;
+  --line: rgba(13, 20, 33, 0.10);
+  --text: #0D1421;
+  --muted: #5C667A;
+
+  --gold-hi: #FBBF24;
+  --gold-mid: #F59E0B;
+  --gold: #F59E0B;
+  --gold-dark: #C87805;
+  --gold-soft: #FEF3C7;
+  --gold-tint: #FFFBEB;
+
+  --green: #16A34A;
+  --green-dark: #15803D;
+  --blue: #2563EB;
+  --red: #DC2626;
+  --orange: #F59E0B;
+
+  --header-bg: #0D1421;
+  --header-text: #FFFFFF;
+  --header-muted: rgba(255,255,255,.66);
+  --header-accent: #FBBF24;
+  --header-surface: rgba(255,255,255,.08);
+  --header-border: rgba(255,255,255,.12);
+
+  --glass-1: #FFFFFF;
+  --glass-2: #F8FAFC;
+  --glass-border: rgba(13,20,33,.09);
+  --menu-bg: #FFFFFF;
+  --menu-hover: rgba(13,20,33,.05);
+  --chip-bg: #E9EEF5;
+  --prompt-bg: #FFFBEB;
+  --prompt-border: rgba(245,158,11,.24);
+  --prompt-icon-bg: #FDE68A;
+  --shadow-rgb: 13,20,33;
+  --font-app: "Inter", "Roboto", system-ui, -apple-system, sans-serif;
+
+  /* Legacy semantic aliases remain brand-gold to avoid changing old primary buttons. */
+  --tm-green: var(--gold-mid);
+  --tm-green-dark: var(--gold-dark);
+  --tm-green-soft: var(--gold-soft);
+  --tm-gold: #D97706;
+  --tm-success: #059669;
+  --tm-error: #DC2626;
+
+  /* New explicit status tokens for v1.38 components. */
+  --status-success: #16A34A;
+  --status-info: #2563EB;
+  --status-warning: #F59E0B;
+  --status-danger: #DC2626;
+  --status-success-soft: #ECFDF3;
+  --status-info-soft: #EFF6FF;
+  --status-warning-soft: #FFFBEB;
+  --status-danger-soft: #FEF2F2;
+}
+
+:root[data-theme="infra-green"] {
+  --bg-top: #0D1421;
+  --bg: #0A0F1C;
+  --bg-deep: #060A12;
+  --panel: #111827;
+  --panel2: #0F1620;
+  --surface: #141D2E;
+  --line: rgba(232,238,247,.10);
+  --text: #E8EEF7;
+  --muted: #93A0B5;
+  --gold-hi: #FCD34D;
+  --gold-mid: #FBBF24;
+  --gold: #FBBF24;
+  --gold-dark: #F59E0B;
+  --gold-soft: rgba(251,191,36,.12);
+  --gold-tint: rgba(251,191,36,.06);
+  --green: #22C55E;
+  --green-dark: #16A34A;
+  --blue: #38BDF8;
+  --red: #F87171;
+  --orange: #FBBF24;
+  --header-bg: #070B13;
+  --header-text: #FFFFFF;
+  --header-muted: rgba(255,255,255,.62);
+  --header-accent: #FCD34D;
+  --header-surface: rgba(255,255,255,.08);
+  --header-border: rgba(255,255,255,.11);
+  --glass-1: #111827;
+  --glass-2: #0F1620;
+  --glass-border: rgba(232,238,247,.10);
+  --menu-bg: #111827;
+  --menu-hover: rgba(232,238,247,.07);
+  --chip-bg: #1E2B3F;
+  --prompt-bg: rgba(251,191,36,.08);
+  --prompt-border: rgba(251,191,36,.22);
+  --prompt-icon-bg: rgba(251,191,36,.18);
+  --shadow-rgb: 5,10,20;
+  --font-app: "Inter", "Roboto", system-ui, -apple-system, sans-serif;
+  --tm-green: var(--gold-mid);
+  --tm-green-dark: var(--gold-dark);
+  --tm-green-soft: var(--gold-soft);
+  --tm-gold: #F59E0B;
+  --tm-success: #22C55E;
+  --tm-error: #F87171;
+  --status-success: #22C55E;
+  --status-info: #38BDF8;
+  --status-warning: #FBBF24;
+  --status-danger: #F87171;
+  --status-success-soft: rgba(34,197,94,.12);
+  --status-info-soft: rgba(56,189,248,.12);
+  --status-warning-soft: rgba(251,191,36,.12);
+  --status-danger-soft: rgba(248,113,113,.12);
+}
+
+/* Compact, production-oriented v1.38 components */
+.tmr-v138-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 8px 24px rgba(var(--shadow-rgb), .08); }
+.tmr-v138-chip { display:inline-flex; align-items:center; gap:6px; min-height:28px; padding:5px 10px; border-radius:999px; border:1px solid var(--line); font-size:12px; font-weight:700; }
+.tmr-v138-tap { min-height:44px; min-width:44px; touch-action:manipulation; }
+.tmr-v138-status-success { color:var(--status-success); }
+.tmr-v138-status-info { color:var(--status-info); }
+.tmr-v138-status-warning { color:var(--status-warning); }
+.tmr-v138-status-danger { color:var(--status-danger); }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.001ms !important; animation-duration:.001ms !important; animation-iteration-count:1 !important; } }

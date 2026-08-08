@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">CONCRETE KING</string>
-    <string name="title_activity_main">CONCRETE KING</string>
+    <string name="app_name">TrackMyRMC</string>
+    <string name="title_activity_main">TrackMyRMC</string>
     <string name="package_name">com.trackmyrmc.concreteking</string>
     <string name="custom_url_scheme">com.trackmyrmc.concreteking</string>
 

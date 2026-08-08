@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+  <cloud-backup>
+    <!-- Do not cloud-backup WebView/session/auth caches or local databases. -->
+    <exclude domain="sharedpref" path="."/>
+    <exclude domain="database" path="."/>
+    <exclude domain="file" path="."/>
+  </cloud-backup>
+  <device-transfer>
+    <!-- Keep user-created exported documents transferable, but not auth/session caches. -->
+    <exclude domain="sharedpref" path="."/>
+    <exclude domain="database" path="."/>
+  </device-transfer>
+</data-extraction-rules>

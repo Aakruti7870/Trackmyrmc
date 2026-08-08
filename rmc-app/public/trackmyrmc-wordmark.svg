@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 300" role="img" aria-label="TrackMyRMC wordmark">
+  <rect width="1240" height="300" fill="none"/>
+  <g transform="translate(20 18) scale(.52)">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FBBF24"/><stop offset="1" stop-color="#D97706"/></linearGradient></defs>
+  <path fill="#F7F8FA" d="M118 94h276v70H292v235h-72V164H118z"/>
+  <path fill="url(#g)" fill-rule="evenodd" d="M292 143c78 0 141 63 141 141 0 92-100 170-141 199-41-29-141-107-141-199 0-78 63-141 141-141zm0 55a86 86 0 1 0 0 172 86 86 0 0 0 0-172z"/>
+  <circle cx="292" cy="284" r="59" fill="#0D1421"/>
+  <circle cx="292" cy="284" r="15" fill="#F7F8FA"/>
+  <path d="M292 225v44M343 314l-38-22M241 314l38-22" stroke="#F7F8FA" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="292" cy="424" r="13" fill="#F7F8FA"/>
+</g>
+  <text x="320" y="184" font-family="Inter,Roboto,Arial,sans-serif" font-size="118" font-weight="800" fill="#0D1421">TrackMy</text>
+  <text x="836" y="184" font-family="Inter,Roboto,Arial,sans-serif" font-size="118" font-weight="800" fill="#D97706">RMC</text>
+  <text x="323" y="235" font-family="Inter,Roboto,Arial,sans-serif" font-size="31" font-weight="500" fill="#5C667A" letter-spacing="2">MOVING CONCRETE. BUILDING TRUST.</text>
+</svg>

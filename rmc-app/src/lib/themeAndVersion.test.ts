@@ -16,18 +16,18 @@ describe('automatic theme — no Trust Blue', () => {
   });
 });
 
-describe('Android release metadata — v1.37 / versionCode 38', () => {
-  it('build.gradle declares versionCode 38 and versionName "1.37"', () => {
+describe('Android release metadata — v1.38 / versionCode 39', () => {
+  it('build.gradle declares versionCode 39 and versionName "1.38"', () => {
     const gradle = readFileSync(resolve(rmcAppRoot, 'android/app/build.gradle'), 'utf8');
-    expect(gradle).toMatch(/versionCode\s+38\b/);
-    expect(gradle).toMatch(/versionName\s+"1\.37"/);
+    expect(gradle).toMatch(/versionCode\s+39\b/);
+    expect(gradle).toMatch(/versionName\s+"1\.38"/);
     expect(gradle).not.toMatch(/versionCode\s+30\b/);
     expect(gradle).not.toMatch(/versionName\s+"1\.29"/);
   });
 
   it('rmc-app/package.json version matches the Android release', () => {
     const pkg = JSON.parse(readFileSync(resolve(rmcAppRoot, 'package.json'), 'utf8'));
-    expect(pkg.version).toBe('1.37.0');
+    expect(pkg.version).toBe('1.38.0');
   });
 
   it('one-off per-version build workflows are retired in favor of the general signed-release workflow', () => {
@@ -37,8 +37,8 @@ describe('Android release metadata — v1.37 / versionCode 38', () => {
     }
   });
 
-  it('the signed release workflow uploads a v1.37 / vc38-named artifact', () => {
+  it('the signed release workflow uploads a v1.38 / vc39-named artifact', () => {
     const signed = readFileSync(resolve(repoRoot, '.github/workflows/android-signed-release.yml'), 'utf8');
-    expect(signed).toContain('TrackMyRMC-v1.37-vc38-signed-play-console');
+    expect(signed).toContain('TrackMyRMC-v1.38-vc39-signed-play-console');
   });
 });

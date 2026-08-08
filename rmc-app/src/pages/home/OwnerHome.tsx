@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { api, type DashboardKPIs, type Client } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { canAccess } from '@/lib/permissions';
+import { RoleHomeBooster, type OrderLike } from '@/v138';
 import {
   IndianRupee, TrendingUp, Clock, Users, Building2, ClipboardList, Truck,
   Wallet, BarChart3, FileText, Layers, CalendarCheck, User, Radio, Sparkles,
@@ -95,19 +96,23 @@ export default function OwnerHome() {
   const [, navigate] = useLocation();
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
+  const [recentOrders, setRecentOrders] = useState<OrderLike[]>([]);
 
   useEffect(() => {
     Promise.allSettled([
       api.get<DashboardKPIs>('/dashboard/kpis'),
       api.get<Client[]>('/clients'),
-    ]).then(([k, c]) => {
+      api.get<OrderLike[]>('/orders?limit=20'),
+    ]).then(([k, c, o]) => {
       if (k.status === 'fulfilled') setKpis(k.value);
       if (c.status === 'fulfilled') setClients(c.value);
+      if (o.status === 'fulfilled') setRecentOrders(Array.isArray(o.value) ? o.value : []);
     });
   }, []);
 
   const can = (p: string) => (user ? canAccess(user.role, p) : false);
   const go = (p: string) => navigate(p);
+  const boosterOrders = useMemo(() => recentOrders, [recentOrders]);
   const receivables = [...clients]
     .filter(c => Number(c.outstandingAmount) > 0)
     .sort((a, b) => Number(b.outstandingAmount) - Number(a.outstandingAmount))
@@ -130,6 +135,8 @@ export default function OwnerHome() {
           <StatCard value={kpis.totalClients} label="Clients" color="#0284c7" icon={<Users className="h-4 w-4" />} />
         </div>
       )}
+
+      <RoleHomeBooster role={user?.role} orders={boosterOrders} onNavigate={go} maxAlerts={4} />
 
       {can('/expense-review') && <PendingExpensesCard onViewAll={() => go('/expense-review')} />}
 

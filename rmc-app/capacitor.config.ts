@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.trackmyrmc.concreteking',
-  appName: 'CONCRETE KING',
+  appName: 'TrackMyRMC',
   // The production web build is emitted here and bundled into the native app.
   // Build it with `pnpm build:native` (disables the PWA SW + points the API at
   // the deployed backend) before running `cap sync android`.
