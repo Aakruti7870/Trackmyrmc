@@ -61,14 +61,19 @@ export default function DriverSOS() {
     try {
       let lat: number | undefined;
       let lng: number | undefined;
-      await new Promise<void>((resolve) => {
-        if (!navigator.geolocation) { resolve(); return; }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => { lat = pos.coords.latitude; lng = pos.coords.longitude; resolve(); },
-          () => resolve(),
-          { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 },
-        );
-      });
+      if (navigator.geolocation) {
+        const { requestLocationDisclosure } = await import('@/lib/locationDisclosure');
+        const ok = await requestLocationDisclosure();
+        if (ok) {
+          await new Promise<void>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => { lat = pos.coords.latitude; lng = pos.coords.longitude; resolve(); },
+              () => resolve(),
+              { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 },
+            );
+          });
+        }
+      }
       await api.post('/emergencies', { type, message: message.trim() || undefined, lat, lng });
       showToast('Emergency alert sent to your supervisors', 'success');
       setMessage('');

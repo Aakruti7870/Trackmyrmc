@@ -108,9 +108,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       armPreciseFlip(stored.lat, stored.lng);
     }
 
-    // Request fresh geolocation (updates stale cache, first-time grant).
+    // Refresh coords only when the app already holds location permission.
+    // The auto-theme must NEVER trigger the system permission dialog itself
+    // (Google Play Prominent Disclosure requirement: the permission prompt must
+    // be immediately preceded by an explicit in-app disclosure that the user
+    // has accepted). Use the Permissions API to probe first; fall back to the
+    // cached coords + clock-based default when the API is unavailable.
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
+      const doRefresh = () => navigator.geolocation.getCurrentPosition(
         pos => {
           const { latitude: lat, longitude: lng } = pos.coords;
           storeThemeGeo(lat, lng);
@@ -120,6 +125,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         () => { /* denied — clock fallback handles it via the 60-s poll */ },
         { timeout: 10_000, maximumAge: 3_600_000 /* 1 hour */ },
       );
+      if ('permissions' in navigator && navigator.permissions?.query) {
+        navigator.permissions.query({ name: 'geolocation' as PermissionName })
+          .then(status => { if (status.state === 'granted') doRefresh(); })
+          .catch(() => undefined);
+      }
+      // If the Permissions API is absent (old WebView), skip — cached coords
+      // and the 60-s clock poll already keep the theme correct.
     }
 
     return () => {

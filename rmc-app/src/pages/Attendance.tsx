@@ -39,10 +39,13 @@ function fmt(iso: string | null): string {
   return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-// One-shot geolocation as a promise; resolves null if unavailable or denied so
-// the caller can still record attendance and warn the user separately.
-function getCurrentCoords(): Promise<{ lat: number; lng: number } | null> {
-  if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return Promise.resolve(null);
+// One-shot geolocation as a promise; resolves null if unavailable, denied, or
+// the user declines the in-app disclosure (Google Play policy compliance).
+async function getCurrentCoords(): Promise<{ lat: number; lng: number } | null> {
+  if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
+  const { requestLocationDisclosure } = await import('@/lib/locationDisclosure');
+  const ok = await requestLocationDisclosure();
+  if (!ok) return null;
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),

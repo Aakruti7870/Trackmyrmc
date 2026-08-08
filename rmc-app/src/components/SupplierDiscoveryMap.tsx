@@ -196,22 +196,28 @@ export default function SupplierDiscoveryMap() {
 
   // Promise-chain so the mount effect never sets state synchronously.
   const locateMe = useCallback(() => {
-    return new Promise<LatLng>((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error("no-geolocation"));
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        reject,
-        { enableHighAccuracy: true, timeout: 12000 },
-      );
-    })
-      .then((c) => {
-        setCoords(c);
-        saveLocation(c, radiusRef.current);
-        return load(c, radiusRef.current);
+    return import('@/lib/locationDisclosure')
+      .then(({ requestLocationDisclosure }) => requestLocationDisclosure())
+      .then((ok) => {
+        if (!ok) return;
+        return new Promise<LatLng>((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error("no-geolocation"));
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            (pos) =>
+              resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            reject,
+            { enableHighAccuracy: true, timeout: 12000 },
+          );
+        })
+          .then((c) => {
+            if (!c) return;
+            setCoords(c);
+            saveLocation(c, radiusRef.current);
+            return load(c, radiusRef.current);
+          });
       })
       .catch(() => {
         /* user can pick a location manually */

@@ -212,8 +212,11 @@ export default function MappingPlant({ accent }: { accent: string }) {
     }
   }
 
-  function useMyLocation() {
+  async function useMyLocation() {
     if (!navigator.geolocation) { setMsg({ kind: 'err', text: 'Location is not available on this device.' }); return; }
+    const { requestLocationDisclosure } = await import('@/lib/locationDisclosure');
+    const ok = await requestLocationDisclosure();
+    if (!ok) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       pos => { setPin({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false); },

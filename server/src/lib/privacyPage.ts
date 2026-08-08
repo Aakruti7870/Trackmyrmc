@@ -47,12 +47,13 @@ export function privacyPage(): string {
     <section class="hero">
       <div class="eyebrow">Official TrackMyRMC document</div>
       <h1>Privacy Policy</h1>
-      <p>Effective and last updated: August 4, 2026</p>
+      <p>Effective and last updated: August 8, 2026</p>
     </section>
 
     <div class="identity" aria-label="Application identity">
       <div class="row"><span>Application</span><strong>TrackMyRMC</strong></div>
       <div class="row"><span>Android package</span><strong>com.trackmyrmc.concreteking</strong></div>
+      <div class="row"><span>Google Play Developer</span><strong>KBADE</strong></div>
       <div class="row"><span>Website</span><strong>https://trackmyrmc.com</strong></div>
       <div class="row"><span>Operator</span><strong>GOLD-e Tech</strong></div>
       <div class="row"><span>Policy URL</span><strong>https://trackmyrmc.com/privacy_policy</strong></div>
@@ -60,7 +61,7 @@ export function privacyPage(): string {
 
     <main>
       <section>
-        <p>This Privacy Policy explains how TrackMyRMC and GOLD-e Tech collect, use, share, retain, and protect information when customers, drivers, plant owners, administrators, staff, and other authorised users access the TrackMyRMC website or Android application.</p>
+        <p>This Privacy Policy explains how TrackMyRMC, published on Google Play by <strong>KBADE</strong> and operated by <strong>GOLD-e Tech</strong>, collects, uses, shares, retains, and protects information when customers, drivers, plant owners, administrators, staff, and other authorised users access the TrackMyRMC website or Android application.</p>
         <p class="notice">This page applies only to TrackMyRMC services hosted at <strong>trackmyrmc.com</strong> and the associated TrackMyRMC Android application.</p>
       </section>
 

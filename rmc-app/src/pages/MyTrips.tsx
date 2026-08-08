@@ -824,12 +824,15 @@ export default function MyTrips() {
 
   // Request GPS permission and begin live tracking. Shared by the GPS panel
   // toggle and each trip card's "Start Trip" button.
-  const startTracking = useCallback(() => {
+  const startTracking = useCallback(async () => {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
       setGeoState('unsupported');
       setGeoMsg('This device or browser does not support GPS location.');
       return;
     }
+    const { requestLocationDisclosure } = await import('@/lib/locationDisclosure');
+    const ok = await requestLocationDisclosure();
+    if (!ok) return;
     setGeoState('active'); setGeoMsg(''); setTracking(true);
   }, []);
 

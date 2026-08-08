@@ -166,8 +166,11 @@ export default function LocationPicker({
     }
   }
 
-  function useMyLocation() {
+  async function useMyLocation() {
     if (!navigator.geolocation) { setNote('Location is not available on this device.'); return; }
+    const { requestLocationDisclosure } = await import('@/lib/locationDisclosure');
+    const ok = await requestLocationDisclosure();
+    if (!ok) return;
     setLocating(true);
     setNote('');
     navigator.geolocation.getCurrentPosition(

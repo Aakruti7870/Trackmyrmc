@@ -192,8 +192,11 @@ export default function DeliveryLocationPicker({
     }
   }
 
-  function useCurrentLocation() {
+  async function useCurrentLocation() {
     if (!navigator.geolocation) { setNote('Location is not available on this device.'); return; }
+    const { requestLocationDisclosure } = await import('@/lib/locationDisclosure');
+    const ok = await requestLocationDisclosure();
+    if (!ok) return;
     setLocating(true);
     setNote('');
     navigator.geolocation.getCurrentPosition(

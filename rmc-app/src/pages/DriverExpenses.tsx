@@ -85,14 +85,19 @@ export default function DriverExpenses() {
 
       let gpsLat: number | undefined;
       let gpsLng: number | undefined;
-      await new Promise<void>((resolve) => {
-        if (!navigator.geolocation) { resolve(); return; }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => { gpsLat = pos.coords.latitude; gpsLng = pos.coords.longitude; resolve(); },
-          () => resolve(),
-          { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 },
-        );
-      });
+      if (navigator.geolocation) {
+        const { requestLocationDisclosure } = await import('@/lib/locationDisclosure');
+        const ok = await requestLocationDisclosure();
+        if (ok) {
+          await new Promise<void>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => { gpsLat = pos.coords.latitude; gpsLng = pos.coords.longitude; resolve(); },
+              () => resolve(),
+              { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 },
+            );
+          });
+        }
+      }
 
       await api.post('/expenses', {
         category, amount: amt, description: description.trim() || undefined,

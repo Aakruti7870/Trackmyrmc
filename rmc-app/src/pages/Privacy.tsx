@@ -46,7 +46,7 @@ export default function Privacy() {
         <h1 style={{ fontSize: 'clamp(30px,6vw,44px)', lineHeight: 1.12, margin: '8px 0 12px' }}>
           Privacy Policy
         </h1>
-        <p style={{ margin: 0, color: '#526078' }}>Effective and last updated: August 4, 2026</p>
+        <p style={{ margin: 0, color: '#526078' }}>Effective and last updated: August 8, 2026</p>
 
         <div style={{
           marginTop: 22, background: '#eef8f5', border: '1px solid #c0e4d8',
@@ -55,6 +55,7 @@ export default function Privacy() {
           {[
             ['Application', 'TrackMyRMC'],
             ['Android package', 'com.trackmyrmc.concreteking'],
+            ['Google Play Developer', 'KBADE'],
             ['Website', 'https://trackmyrmc.com'],
             ['Operator', 'GOLD-e Tech'],
             ['Policy URL', 'https://trackmyrmc.com/privacy_policy'],
@@ -74,7 +75,7 @@ export default function Privacy() {
         background: '#fff', border: '1px solid #dce4e8',
         borderRadius: 20, padding: 'clamp(22px,5vw,42px)', marginTop: 22,
       }}>
-        <p>This Privacy Policy explains how TrackMyRMC and GOLD-e Tech collect, use, share, retain, and protect
+        <p>This Privacy Policy explains how TrackMyRMC, published on Google Play by <strong>KBADE</strong> and operated by <strong>GOLD-e Tech</strong>, collects, uses, shares, retains, and protects
         information when customers, drivers, plant owners, administrators, staff, and other authorised users access
         the TrackMyRMC website or Android application.</p>
 
